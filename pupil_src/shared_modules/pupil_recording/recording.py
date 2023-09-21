@@ -92,6 +92,8 @@ class PupilRecording:
             ("pi", "world"): r"^PI world v(\d+) ps(\d+)",
             ("pi", "eye0"): r"^PI left v(\d+) ps(\d+)",
             ("pi", "eye1"): r"^PI right v(\d+) ps(\d+)",
+            ("neon", "world"): r"^Neon Scene Camera v(\d+) ps(\d+)",
+            ("neon", "eye0"): r"^Neon Sensor Module v(\d+) ps(\d+)",
             ("videos",): [rf"\.{ext}$" for ext in VALID_VIDEO_EXTENSIONS],
             ("mp4",): r"\.mp4$",
             ("rawtimes",): r"\.time$",
@@ -142,6 +144,9 @@ class PupilRecording:
 
         def pi(self) -> FilterType:
             return self.filter("pi")
+
+        def neon(self) -> FilterType:
+            return self.filter("neon")
 
         def filter(self, key: str) -> FilterType:
             """Filters files by key from the PATTERNS dict.

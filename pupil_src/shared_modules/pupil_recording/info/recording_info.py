@@ -63,6 +63,7 @@ class RecordingInfo(collections.abc.MutableMapping):
     RECORDING_SOFTWARE_NAME_PUPIL_CAPTURE = "Pupil Capture"
     RECORDING_SOFTWARE_NAME_PUPIL_MOBILE = "Pupil Mobile"
     RECORDING_SOFTWARE_NAME_PUPIL_INVISIBLE = "Pupil Invisible"
+    RECORDING_SOFTWARE_NAME_NEON = "Neon"
 
     @property
     @abc.abstractmethod

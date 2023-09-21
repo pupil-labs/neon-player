@@ -20,6 +20,7 @@ from ..recording_utils import (
     get_recording_type,
 )
 from .invisible import transform_invisible_to_corresponding_new_style
+from .neon import transform_neon_to_corresponding_new_style
 from .mobile import transform_mobile_to_corresponding_new_style
 from .new_style import (
     check_for_worldless_recording_new_style,
@@ -31,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 _transformations_to_new_style = {
     RecordingType.INVISIBLE: transform_invisible_to_corresponding_new_style,
+    RecordingType.NEON: transform_neon_to_corresponding_new_style,
     RecordingType.MOBILE: transform_mobile_to_corresponding_new_style,
     RecordingType.OLD_STYLE: transform_old_style_to_pprf_2_0,
 }
@@ -44,13 +46,8 @@ def update_recording(rec_dir: str):
             "Pupil Cloud CSV exports\nare not supported in Pupil Player",
             recovery="Open the CSV files in the\nanalysis tool of your choice instead",
         )
-    if recording_type == RecordingType.NEON:
-        raise InvalidRecordingException(
-            "Neon Companion app recordings\nare not supported in Pupil Player",
-            recovery="You can view them in Pupil Cloud instead",
-        )
 
-    if recording_type == RecordingType.INVISIBLE:
+    if recording_type in [RecordingType.INVISIBLE, RecordingType.NEON]:
         # NOTE: there is an issue with PI recordings, where sometimes multiple parts of
         # the recording are stored as an .mjpeg and .mp4, but for the same part number.
         # The recording is un-usable in this case, since the time information is lost.
