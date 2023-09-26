@@ -20,9 +20,7 @@ Thumbs.db
 # user generated settings files will also be ignored #
 recordings/
 recordings
-capture_settings/
-service_settings/
-player_settings/
+neon_player_settings/
 settings/
 *.db
 *.npy

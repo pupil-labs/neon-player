@@ -39,7 +39,7 @@ app_version = get_version()
 if parsed_args.version:
     running_from = "bundle" if running_from_bundle else "source"
     version_message = (
-        f"Pupil {parsed_args.app.capitalize()} version {app_version} ({running_from})"
+        f"Neon Player version {app_version} ({running_from})"
     )
 
     print(version_message)
@@ -62,14 +62,14 @@ def set_bundled_glfw_environ_var():
 
 if running_from_bundle:
     # Specifiy user dir.
-    folder_name = f"pupil_{parsed_args.app}_settings"
+    folder_name = f"neon_player_settings"
     user_dir = os.path.expanduser(os.path.join("~", folder_name))
 
     # set libglfw env variable to prevent endless version check loop within pyglfw
     set_bundled_glfw_environ_var()
 else:
     # Specifiy user dir.
-    user_dir = os.path.join(pupil_base_dir, f"{parsed_args.app}_settings")
+    user_dir = os.path.join(pupil_base_dir, f"neon_player_settings")
 
     # Add pupil_external binaries to PATH
     if platform.system() == "Windows":
@@ -115,14 +115,8 @@ from os_utils import Prevent_Idle_Sleep
 
 # functions to run in seperate processes
 if parsed_args.profile:
-    from launchables.eye import eye_profiled as eye
     from launchables.player import player_profiled as player
-    from launchables.service import service_profiled as service
-    from launchables.world import world_profiled as world
 else:
-    from launchables.world import world
-    from launchables.service import service
-    from launchables.eye import eye
     from launchables.player import player
 
 from launchables.marker_detectors import circle_detector
@@ -197,7 +191,7 @@ def launcher():
         logger.setLevel(logging.NOTSET)
         # Stream to file
         fh = logging.FileHandler(
-            os.path.join(user_dir, f"{parsed_args.app}.log"),
+            os.path.join(user_dir, f"neon_player.log"),
             mode="w",
             encoding="utf-8",
         )
@@ -306,15 +300,10 @@ def launcher():
     if unknown_args:
         logging.warning(f"Unknown command-line arguments: {unknown_args}")
 
-    if parsed_args.app == "service":
-        cmd_push.notify({"subject": "service_process.should_start"})
-    elif parsed_args.app == "capture":
-        cmd_push.notify({"subject": "world_process.should_start"})
-    elif parsed_args.app == "player":
-        rec_dir = os.path.expanduser(parsed_args.recording)
-        cmd_push.notify(
-            {"subject": "player_drop_process.should_start", "rec_dir": rec_dir}
-        )
+    rec_dir = os.path.expanduser(parsed_args.recording)
+    cmd_push.notify(
+        {"subject": "player_drop_process.should_start", "rec_dir": rec_dir}
+    )
 
     with Prevent_Idle_Sleep():
         try:
@@ -361,29 +350,7 @@ def process_notification(
     app_version,
     parsed_args,
 ):
-    if "notify.eye_process.should_start" in topic:
-        eye_id = notification["eye_id"]
-        Process(
-            target=eye,
-            name=f"eye{eye_id}",
-            args=(
-                timebase,
-                eye_procs_alive[eye_id],
-                ipc_pub_url,
-                ipc_sub_url,
-                ipc_push_url,
-                user_dir,
-                app_version,
-                eye_id,
-                notification.get("overwrite_cap_settings"),
-                parsed_args.hide_ui,
-                parsed_args.debug,
-                notification.get("pub_socket_hwm"),
-                parsed_args.app,  # parent_application
-                parsed_args.skip_driver_installation,
-            ),
-        ).start()
-    elif "notify.player_process.should_start" in topic:
+    if "notify.player_process.should_start" in topic:
         Process(
             target=player,
             name="player",
@@ -397,43 +364,8 @@ def process_notification(
                 parsed_args.debug,
             ),
         ).start()
-    elif "notify.world_process.should_start" in topic:
-        Process(
-            target=world,
-            name="world",
-            args=(
-                timebase,
-                eye_procs_alive,
-                ipc_pub_url,
-                ipc_sub_url,
-                ipc_push_url,
-                user_dir,
-                app_version,
-                parsed_args.port,
-                parsed_args.hide_ui,
-                parsed_args.debug,
-                parsed_args.skip_driver_installation,
-            ),
-        ).start()
     elif "notify.clear_settings_process.should_start" in topic:
         Process(target=clear_settings, name="clear_settings", args=(user_dir,)).start()
-    elif "notify.service_process.should_start" in topic:
-        Process(
-            target=service,
-            name="service",
-            args=(
-                timebase,
-                eye_procs_alive,
-                ipc_pub_url,
-                ipc_sub_url,
-                ipc_push_url,
-                user_dir,
-                app_version,
-                parsed_args.port,
-                parsed_args.hide_ui,
-                parsed_args.debug,
-            ),
-        ).start()
     elif "notify.player_drop_process.should_start" in topic:
         Process(
             target=player_drop,
@@ -463,12 +395,7 @@ def process_notification(
             }
         )
     elif "notify.launcher_process.should_stop" in topic:
-        if parsed_args.app == "capture":
-            cmd_push.notify({"subject": "world_process.should_stop"})
-        elif parsed_args.app == "service":
-            cmd_push.notify({"subject": "service_process.should_stop"})
-        elif parsed_args.app == "player":
-            cmd_push.notify({"subject": "player_process.should_stop"})
+        cmd_push.notify({"subject": "player_process.should_stop"})
 
 
 if __name__ == "__main__":
