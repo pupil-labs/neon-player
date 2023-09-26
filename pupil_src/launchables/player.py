@@ -1001,9 +1001,11 @@ def player_drop(
 
                         loop = asyncio.get_running_loop()
                         update_this_recording = partial(update_recording, rec_dir)
-                        await loop.run_in_executor(None, update_this_recording)
+                        return await loop.run_in_executor(None, update_this_recording)
 
-                    asyncio.run(update_recording_without_blocking_ui())
+                    new_rec_dir = asyncio.run(update_recording_without_blocking_ui())
+                    if new_rec_dir is not None:
+                        rec_dir = new_rec_dir
 
                 except AssertionError as err:
                     logger.exception(str(err))
