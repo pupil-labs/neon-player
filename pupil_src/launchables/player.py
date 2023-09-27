@@ -385,7 +385,7 @@ def player(
         width += icon_bar_width
         width, height = session_settings.get("window_size", (width, height))
 
-        window_name = f"Pupil Player: {meta_info.recording_name} - {rec_dir}"
+        window_name = f"Neon Player: {meta_info.recording_name} - {rec_dir}"
 
         glfw.init()
         glfw.window_hint(glfw.SCALE_TO_MONITOR, glfw.TRUE)
@@ -899,7 +899,7 @@ def player_drop(
         glfw.init()
         glfw.window_hint(glfw.SCALE_TO_MONITOR, glfw.TRUE)
         glfw.window_hint(glfw.RESIZABLE, 0)
-        window = glfw.create_window(w, h, "Pupil Player", None, None)
+        window = glfw.create_window(w, h, "Neon Player", None, None)
         glfw.window_hint(glfw.RESIZABLE, 1)
 
         glfw.make_context_current(window)
@@ -922,7 +922,6 @@ def player_drop(
         glClearColor(0.5, 0.5, 0.5, 0.0)
         text = "Drop a recording directory onto this window."
         tip = "(Tip: You can drop a recording directory onto the app icon.)"
-        # text = "Please supply a Pupil recording directory as first arg when calling Pupil Player."
 
         def display_string(string, font_size, center_y):
             x = w / 2 * content_scale

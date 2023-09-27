@@ -240,7 +240,7 @@ class Annotation_Capture(AnnotationPlugin):
 
 class Annotation_Player(AnnotationPlugin, Plugin):
     """
-    Pupil Player plugin to view, edit, and add annotations.
+    Neon Player plugin to view, edit, and add annotations.
     """
 
     _FILE_DEFINITIONS_VERSION = 1

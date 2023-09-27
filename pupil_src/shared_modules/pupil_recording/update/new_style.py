@@ -19,7 +19,6 @@ from version_utils import get_version, parse_version
 from ..info import RecordingInfoFile
 from ..recording import PupilRecording
 from ..recording_utils import InvalidRecordingException
-from . import invisible
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +28,6 @@ def recording_update_to_latest_new_style(rec_dir: str):
     check_min_player_version(info_file)
 
     # incremental upgrade ...
-    if info_file.meta_version < parse_version("2.1"):
-        info_file = update_newstyle_20_21(rec_dir)
     if info_file.meta_version < parse_version("2.2"):
         info_file = update_newstyle_21_22(rec_dir)
     if info_file.meta_version < parse_version("2.3"):
@@ -58,37 +55,6 @@ def check_for_worldless_recording_new_style(rec_dir):
         fake_world_object = {"version": fake_world_version}
         fake_world_path = rec_dir / "world.fake"
         fm.save_object(fake_world_object, fake_world_path)
-
-
-def update_newstyle_20_21(rec_dir: str):
-    # There was a bug in v1.16 and v1.17 that caused corrupted gaze data when
-    # transforming a PI recording to new_style. Need to delete and re-transform.
-    info_file = RecordingInfoFile.read_file_from_recording(rec_dir)
-
-    if (
-        info_file.recording_software_name
-        == RecordingInfoFile.RECORDING_SOFTWARE_NAME_PUPIL_INVISIBLE
-    ):
-        logger.debug("Upgrading PI recording opened with pre v.1.18")
-        for path in Path(rec_dir).iterdir():
-            if not path.is_file:
-                continue
-            if path.name in ["gaze.pldata", "gaze_timestamps.npy"]:
-                logger.debug(
-                    f"Deleting potentially corrupted file '{path.name}'"
-                    f" from pre v1.18."
-                )
-                path.unlink()
-        invisible._convert_gaze(PupilRecording(rec_dir))
-        # Bump info file version to 2.1
-        new_info_file = RecordingInfoFile.create_empty_file(
-            rec_dir, fixed_version=parse_version("2.1")
-        )
-        new_info_file.update_writeable_properties_from(info_file)
-        info_file = new_info_file
-        info_file.save_file()
-
-    return info_file
 
 
 def update_newstyle_21_22(rec_dir: str):

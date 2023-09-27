@@ -332,10 +332,10 @@ def neon_gaze_items(root_dir):
         - `^worn ps[0-9]+.raw$`
 
     The worn data is a stream of values of either 0 or 255, indicating that the glasses
-    were (not) worn. Pupil Player maps these to gaze confidence values of 0.0 and 1.0
+    were (not) worn. Neon Player maps these to gaze confidence values of 0.0 and 1.0
     respectively.
 
-    Since all `*.time` files are converted to Pupil Player before this function is being
+    Since all `*.time` files are converted to Neon Player before this function is being
     called, we match the `^gaze ps[0-9]+_timestamps.npy$` pattern on the recording files
     instead. When looking for the location and worn data, the function just replaces the
     necessary parts of the timestamp file names instead of performing separate regex
@@ -354,7 +354,7 @@ def neon_gaze_items(root_dir):
     is preferred. If 200 Hz gaze data is only available with real-time recorded worn
     data, the latter is interpolated to 200 Hz using a k-nearest-neighbour (k=1)
     approach. If no worn data is available, or the numbers of worn samples and gaze
-    timestamps are not consistent, Pupil Player assumes a confidence value of 1.0 for
+    timestamps are not consistent, Neon Player assumes a confidence value of 1.0 for
     every gaze point.
     """
     root_dir = Path(root_dir)

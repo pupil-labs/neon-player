@@ -415,9 +415,9 @@ class RecordingInfoFile(RecordingInfo):
 
             # At this point we should be safe, but warn the user anyways
             logger.warning(
-                "Opening recording of newer version than this version of Pupil Player."
+                "Opening recording of newer version than this version of Neon Player."
                 " This might lead to problems."
-                " Please consider updating to the latest version of Pupil Player!"
+                " Please consider updating to the latest version of Neon Player!"
             )
             logger.debug(
                 f"Trying to open info file meta version {info_file_version}"

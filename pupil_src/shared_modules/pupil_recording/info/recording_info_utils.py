@@ -12,6 +12,7 @@ import json
 import os
 import typing as T
 import uuid
+from pathlib import Path
 
 import csv_utils
 from methods import get_system_info
@@ -45,7 +46,8 @@ def default_recording_name(info) -> str:
         rec_dir = info.rec_dir
     else:
         rec_dir = str(info)
-    return os.path.basename(rec_dir)
+
+    return Path(rec_dir).parent.name
 
 
 def default_system_info(info) -> str:

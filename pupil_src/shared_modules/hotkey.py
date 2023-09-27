@@ -162,24 +162,16 @@ def generate_markdown_hotkey_docs() -> str:
     # Only show columns that don't start with an underscore
     visible_columns = [c for c in hotkeys_df.columns if not c.startswith("_")]
 
-    capture_df = hotkeys_df[hotkeys_df["_Order_In_Capture"].notnull()]
-    capture_df = capture_df.sort_values(by=["_Order_In_Capture"])
-
     player_df = hotkeys_df[hotkeys_df["_Order_In_Player"].notnull()]
     player_df = player_df.sort_values(by=["_Order_In_Player"])
 
-    capture_title_md = "# Pupil Capture"
-    capture_table_md = capture_df[visible_columns].to_markdown()
-
-    player_title_md = "# Pupil Player"
+    player_title_md = "# Neon Player"
     player_table_md = player_df[visible_columns].to_markdown()
 
     player_footnote = "\\* While paused\n\\* During playback"
 
     return "\n" + "\n\n".join(
         [
-            capture_title_md,
-            capture_table_md,
             player_title_md,
             player_table_md,
             player_footnote,
