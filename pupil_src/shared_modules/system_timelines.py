@@ -8,7 +8,6 @@ Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-import data_changed
 import gl_utils
 import numpy as np
 import OpenGL.GL as gl
@@ -25,17 +24,11 @@ NUMBER_SAMPLES_TIMELINE = 4000
 
 
 class System_Timelines(Observable, System_Plugin_Base):
-    def __init__(self, g_pool, show_world_fps=True, show_eye_fps=True):
+    def __init__(self, g_pool, show_world_fps=True, show_eye_fps=False):
         super().__init__(g_pool)
         self.show_world_fps = show_world_fps
         self.show_eye_fps = show_eye_fps
         self.cache_fps_data()
-        self.pupil_positions_listener = data_changed.Listener(
-            "pupil_positions", g_pool.rec_dir, plugin=self
-        )
-        self.pupil_positions_listener.add_observer(
-            "on_data_changed", self._on_pupil_positions_changed
-        )
 
     def init_ui(self):
         self.glfont = fs.Context()
@@ -54,13 +47,11 @@ class System_Timelines(Observable, System_Plugin_Base):
     def cache_fps_data(self):
         fps_world = self.calculate_fps(self.g_pool.timestamps)
         fps_eye0 = self.calculate_fps(self.g_pool.pupil_positions[0, ...].timestamps)
-        fps_eye1 = self.calculate_fps(self.g_pool.pupil_positions[1, ...].timestamps)
 
         t0, t1 = self.g_pool.timestamps[0], self.g_pool.timestamps[-1]
         self.cache = {
             "world": fps_world,
             "eye0": fps_eye0,
-            "eye1": fps_eye1,
             "xlim": [t0, t1],
             "ylim": [0, 210],
         }
@@ -82,9 +73,7 @@ class System_Timelines(Observable, System_Plugin_Base):
                 cygl_utils.draw_points(
                     self.cache["eye0"], size=2 * scale, color=COLOR_LEGEND_EYE_RIGHT
                 )
-                cygl_utils.draw_points(
-                    self.cache["eye1"], size=2 * scale, color=COLOR_LEGEND_EYE_LEFT
-                )
+
 
     def draw_fps_legend(self, width, height, scale):
         self.glfont.push_state()
@@ -109,19 +98,7 @@ class System_Timelines(Observable, System_Plugin_Base):
             legend_height += 1.5 * pad
 
         if self.show_eye_fps:
-            self.glfont.draw_text(width, legend_height, "eye1 FPS")
-            cygl_utils.draw_polyline(
-                [
-                    (pad, legend_height + pad * 2 / 3),
-                    (width / 2, legend_height + pad * 2 / 3),
-                ],
-                color=COLOR_LEGEND_EYE_LEFT,
-                line_type=gl.GL_LINES,
-                thickness=4.0 * scale,
-            )
-            legend_height += 1.5 * pad
-
-            self.glfont.draw_text(width, legend_height, "eye0 FPS")
+            self.glfont.draw_text(width, legend_height, "eye FPS")
             cygl_utils.draw_polyline(
                 [
                     (pad, legend_height + pad * 2 / 3),
@@ -133,7 +110,3 @@ class System_Timelines(Observable, System_Plugin_Base):
             )
 
         self.glfont.pop_state()
-
-    def _on_pupil_positions_changed(self):
-        self.cache_fps_data()
-        self.fps_timeline.refresh()

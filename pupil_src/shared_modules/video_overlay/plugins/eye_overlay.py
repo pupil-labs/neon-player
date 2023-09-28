@@ -11,9 +11,7 @@ See COPYING and COPYING.LESSER for license details.
 import player_methods as pm
 from observable import Observable
 from plugin import Plugin
-from pupil_detector_plugins import color_scheme
 from pupil_recording import PupilRecording
-from pyglui import ui
 from video_overlay.models.config import Configuration
 from video_overlay.ui.management import UIManagementEyes
 from video_overlay.utils.constraints import BooleanConstraint, ConstraintedValue
@@ -81,9 +79,7 @@ class Eye_Overlay(Observable, Plugin):
         prefilled_config["scale"] = self.scale
         prefilled_config["alpha"] = self.alpha
         config = Configuration(**prefilled_config)
-        overlay = EyeOverlayRenderer(
-            config, self.show_ellipses, self.make_current_pupil_datum_getter(eye_id)
-        )
+        overlay = EyeOverlayRenderer(config)
         return overlay
 
     def _video_path_for_eye(self, eye_id: int) -> str:
