@@ -512,23 +512,6 @@ def player(
         )
 
         general_settings.append(
-            ui.Info_Text(
-                "High level data, e.g. fixations, or visualizations only consider gaze data that has an equal or higher confidence than the minimum data confidence."
-            )
-        )
-        general_settings.append(
-            ui.Slider(
-                "min_data_confidence",
-                g_pool,
-                setter=set_data_confidence,
-                step=0.05,
-                min=0.0,
-                max=1.0,
-                label="Minimum data confidence",
-            )
-        )
-
-        general_settings.append(
             ui.Button("Restart with default settings", reset_restart)
         )
 
