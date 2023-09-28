@@ -14,7 +14,6 @@ import data_changed
 import player_methods as pm
 from observable import Observable
 from plugin import System_Plugin_Base
-from pyglui import ui
 
 
 class GazeProducerBase(Observable, System_Plugin_Base):
