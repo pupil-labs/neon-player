@@ -86,9 +86,6 @@ def player(
 
         # from marker_auto_trim_marks import Marker_Auto_Trim_Marks
         from fixation_detector import Offline_Fixation_Detector
-        from gaze_producer.gaze_from_offline_calibration import (
-            GazeFromOfflineCalibration,
-        )
         from gaze_producer.gaze_from_recording import GazeFromRecording
         from head_pose_tracker.offline_head_pose_tracker import (
             Offline_Head_Pose_Tracker,
@@ -571,7 +568,6 @@ def player(
         _gaze_producer_plugins = [
             # In priority order (first is default)
             ("GazeFromRecording", {}),
-            ("GazeFromOfflineCalibration", {}),
         ]
         _gaze_producer_plugins = list(reversed(_gaze_producer_plugins))
         default_plugins = [
