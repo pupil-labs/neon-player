@@ -31,11 +31,9 @@ class Eye_Overlay(Observable, Plugin):
         alpha=0.8,
         show_ellipses=True,
         eye0_config=None,
-        eye1_config=None,
     ):
         super().__init__(g_pool)
-        eye0_config = eye0_config or {"vflip": True, "origin_x": 210, "origin_y": 60}
-        eye1_config = eye1_config or {"hflip": True, "origin_x": 10, "origin_y": 60}
+        eye0_config = eye0_config or {"origin_x": 10, "origin_y": 60}
 
         self.current_frame_ts = None
         self.show_ellipses = ConstraintedValue(show_ellipses, BooleanConstraint())
@@ -43,14 +41,12 @@ class Eye_Overlay(Observable, Plugin):
         self._alpha = alpha
 
         self.eye0 = self._setup_eye(0, eye0_config)
-        self.eye1 = self._setup_eye(1, eye1_config)
 
     def recent_events(self, events):
         if "frame" in events:
             frame = events["frame"]
             self.current_frame_ts = frame.timestamp
-            for overlay in (self.eye0, self.eye1):
-                overlay.draw_on_frame(frame)
+            self.eye0.draw_on_frame(frame)
 
     @property
     def scale(self):
@@ -60,7 +56,6 @@ class Eye_Overlay(Observable, Plugin):
     def scale(self, val):
         self._scale = val
         self.eye0.config.scale.value = val
-        self.eye1.config.scale.value = val
 
     @property
     def alpha(self):
@@ -70,31 +65,11 @@ class Eye_Overlay(Observable, Plugin):
     def alpha(self, val):
         self._alpha = val
         self.eye0.config.alpha.value = val
-        self.eye1.config.alpha.value = val
 
     def init_ui(self):
         self.add_menu()
         self.menu.label = "Eye Video Overlays"
-        self.ui = UIManagementEyes(self, self.menu, (self.eye0, self.eye1))
-        self.menu.append(ui.Info_Text("Color Legend"))
-        self.menu.append(
-            ui.Color_Legend(color_scheme.PUPIL_ELLIPSE_2D.as_float, "2D pupil ellipse")
-        )
-        self.menu.append(
-            ui.Color_Legend(color_scheme.PUPIL_ELLIPSE_3D.as_float, "3D pupil ellipse")
-        )
-        self.menu.append(
-            ui.Color_Legend(
-                color_scheme.EYE_MODEL_OUTLINE_LONG_TERM_BOUNDS_IN.as_float,
-                "Long-term model outline (within bounds)",
-            )
-        )
-        self.menu.append(
-            ui.Color_Legend(
-                color_scheme.EYE_MODEL_OUTLINE_LONG_TERM_BOUNDS_OUT.as_float,
-                "Long-term model outline (out-of-bounds)",
-            )
-        )
+        self.ui = UIManagementEyes(self, self.menu, (self.eye0, ))
 
     def deinit_ui(self):
         self.ui.teardown()
@@ -127,7 +102,6 @@ class Eye_Overlay(Observable, Plugin):
             "alpha": self.alpha,
             "show_ellipses": self.show_ellipses.value,
             "eye0_config": self.eye0.config.as_dict(),
-            "eye1_config": self.eye1.config.as_dict(),
         }
 
     def make_current_pupil_datum_getter(self, eye_id):
