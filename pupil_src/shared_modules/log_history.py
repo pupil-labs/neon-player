@@ -43,7 +43,7 @@ class Log_History(Plugin):
         self.formatter = logging.Formatter(
             "%(processName)s - [%(levelname)s] %(name)s: %(message)s"
         )
-        self.logfile = os.path.join(self.g_pool.user_dir, self.g_pool.app + ".log")
+        self.logfile = os.path.join(self.g_pool.user_dir, "neon_player.log")
 
     def init_ui(self):
         self.add_menu()
