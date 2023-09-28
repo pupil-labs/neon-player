@@ -31,16 +31,11 @@ class System_Graphs(System_Plugin_Base):
         g_pool,
         show_cpu=True,
         show_fps=True,
-        show_conf0=True,
-        show_conf1=True,
         **kwargs,
     ):
         super().__init__(g_pool)
         self.show_cpu = show_cpu
         self.show_fps = show_fps
-        self.show_conf0 = show_conf0
-        self.show_conf1 = show_conf1
-        self.conf_grad_limits = 0.0, 1.0
         self.ts = None
         self.idx = None
 
@@ -60,20 +55,6 @@ class System_Graphs(System_Plugin_Base):
         self.fps_graph.update_rate = 5
         self.fps_graph.label = "%0.0f FPS"
 
-        self.conf0_graph = graph.Bar_Graph(max_val=1.0)
-        self.conf0_graph.pos = (260, 50)
-        self.conf0_graph.update_rate = 5
-        self.conf0_graph.label = "id0 conf: %0.2f"
-        self.conf1_graph = graph.Bar_Graph(max_val=1.0)
-        self.conf1_graph.pos = (380, 50)
-        self.conf1_graph.update_rate = 5
-        self.conf1_graph.label = "id1 conf: %0.2f"
-
-        self.conf_grad = (
-            RGBA(1.0, 0.0, 0.0, self.conf0_graph.color[3]),
-            self.conf0_graph.color,
-        )
-
         self.on_window_resize(self.g_pool.main_window)
 
     def on_window_resize(self, window, *args):
@@ -82,58 +63,19 @@ class System_Graphs(System_Plugin_Base):
 
         self.cpu_graph.scale = content_scale
         self.fps_graph.scale = content_scale
-        self.conf0_graph.scale = content_scale
-        self.conf1_graph.scale = content_scale
 
         self.cpu_graph.adjust_window_size(*fb_size)
         self.fps_graph.adjust_window_size(*fb_size)
-        self.conf0_graph.adjust_window_size(*fb_size)
-        self.conf1_graph.adjust_window_size(*fb_size)
 
     def gl_display(self):
         if self.show_cpu:
             self.cpu_graph.draw()
         if self.show_fps:
             self.fps_graph.draw()
-        if self.show_conf0:
-            self.conf0_graph.color = mix_smooth(
-                self.conf_grad[0],
-                self.conf_grad[1],
-                self.conf0_graph.avg,
-                self.conf_grad_limits[0],
-                self.conf_grad_limits[1],
-            )
-            self.conf0_graph.draw()
-        if self.show_conf1:
-            self.conf1_graph.color = mix_smooth(
-                self.conf_grad[0],
-                self.conf_grad[1],
-                self.conf1_graph.avg,
-                self.conf_grad_limits[0],
-                self.conf_grad_limits[1],
-            )
-            self.conf1_graph.draw()
 
     def recent_events(self, events):
         # update cpu graph
         self.cpu_graph.update()
-
-        # update pupil graphs
-        if "frame" not in events or self.idx != events["frame"].index:
-            for p in events["pupil"]:
-                if p["topic"] == "pupil.0.2d":
-                    assert p["id"] == 0  # sanity check
-                    self.conf0_graph.add(p["confidence"])
-                elif p["topic"] == "pupil.1.2d":
-                    assert p["id"] == 1  # sanity check
-                    self.conf1_graph.add(p["confidence"])
-                # pre-2.0 recordings:
-                elif p["topic"] == "pupil.0":
-                    assert p["id"] == 0  # sanity check
-                    self.conf0_graph.add(p["confidence"])
-                elif p["topic"] == "pupil.1":
-                    assert p["id"] == 1  # sanity check
-                    self.conf1_graph.add(p["confidence"])
 
         # update wprld fps graph
         if "frame" in events:
@@ -151,13 +93,9 @@ class System_Graphs(System_Plugin_Base):
     def deinit_ui(self):
         self.cpu_graph = None
         self.fps_graph = None
-        self.conf0_graph = None
-        self.conf1_graph = None
 
     def get_init_dict(self):
         return {
             "show_cpu": self.show_cpu,
             "show_fps": self.show_fps,
-            "show_conf0": self.show_conf0,
-            "show_conf1": self.show_conf1,
         }
