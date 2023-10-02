@@ -216,6 +216,9 @@ def launcher():
         sub = zmq_tools.Msg_Receiver(zmq.Context(), ipc_sub_url, topics=("logging",))
         while True:
             topic, msg = sub.recv()
+            if isinstance(msg['args'], list):
+                msg['args'] = tuple(msg['args'])
+
             record = logging.makeLogRecord(msg)
             logger.handle(record)
 
