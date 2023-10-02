@@ -10,6 +10,7 @@ See COPYING and COPYING.LESSER for license details.
 """
 import logging
 
+from gaze_mapping.gazer_base import GazerBase
 from plugin import System_Plugin_Base
 from pyglui import ui
 from video_capture import Base_Manager, Base_Source
@@ -27,6 +28,7 @@ class Plugin_Manager(System_Plugin_Base):
             System_Plugin_Base,
             Base_Manager,
             Base_Source,
+            GazerBase,
         )
         all_available_plugins = sorted(
             g_pool.plugin_by_name.values(), key=lambda p: p.__name__.lower()

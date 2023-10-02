@@ -41,6 +41,15 @@ class GazeProducerBase(Observable, System_Plugin_Base):
             "gaze_positions", g_pool.rec_dir, plugin=self
         )
 
+    def init_ui(self):
+        self.add_menu()
+        self.menu.label = self.plugin_menu_label()
+        self.menu_icon.order = 0.3
+        self.menu_icon.tooltip = "Gaze Data"
+
+    def deinit_ui(self):
+        self.remove_menu()
+
     def recent_events(self, events):
         # TODO: comments or method extraction
         if "frame" in events:
