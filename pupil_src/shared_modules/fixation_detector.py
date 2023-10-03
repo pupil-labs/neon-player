@@ -53,10 +53,11 @@ from scipy.spatial.distance import pdist
 
 from pupil_labs.rec_export.explib.fixation_detector.neon import detect_fixations_neon
 from pupil_labs.rec_export.export import *
+from pupil_recording.info import recording_info_utils
 
 logger = logging.getLogger(__name__)
 
-NS_TO_S = 1 / 1_000_000_000
+NS_TO_S = 1e-9
 
 class FixationDetectionMethod(enum.Enum):
     GAZE_2D = "2d gaze"
@@ -116,9 +117,8 @@ def detect_fixations(rec_dir, data_dir, timestamps, frame_size):
         # @TODO: is there a better way to check for completion than polling for the file?
         time.sleep(1.0)
 
-    world_time_path = Path(rec_dir).parent / 'Neon Scene Camera v1 ps1.time'
-    world_times = np.fromfile(str(world_time_path), dtype="<u8")
-    world_start_time = world_times[0]
+    info_json = recording_info_utils.read_neon_info_file(str(Path(rec_dir).parent))
+    start_time_synced_ns = int(info_json["start_time"])
 
     with fixations_csv.open() as csvfile:
         reader = csv.DictReader(csvfile)
@@ -126,7 +126,7 @@ def detect_fixations(rec_dir, data_dir, timestamps, frame_size):
             if '' in row.values():
                 continue
 
-            fixation = fixation_from_data(row, timestamps, world_start_time, frame_size)
+            fixation = fixation_from_data(row, timestamps, start_time_synced_ns, frame_size)
             yield f"Processing fixations... {idx}", fixation
 
     return "Fixation detection complete", ()
