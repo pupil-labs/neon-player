@@ -14,6 +14,7 @@ import os
 from collections import deque
 from pathlib import Path
 
+import background_helper as bh
 import file_methods as fm
 import gl_utils
 import numpy as np
@@ -28,13 +29,25 @@ from pyglui.pyfontstash import fontstash as fs
 from pupil_recording.info import recording_info_utils
 
 from rich.progress import Progress
-from pupil_labs.rec_export.export import _process_blinks
+from pupil_labs.rec_export.export import _process_gaze,_process_blinks
 
 logger = logging.getLogger(__name__)
 
 NS_TO_S = 1e-9
 
 blink_color = cygl_utils.RGBA(0.9961, 0.3789, 0.5313, 0.8)
+
+
+def detect_blinks(neon_rec_path, data_path):
+    # @TODO: report progress back to main thread
+    yield "Pre-processing gaze..."
+    _process_gaze(neon_rec_path, data_path)
+
+    yield "Detecting blinks..."
+    progress = Progress(disable=True)
+    _process_blinks(neon_rec_path, data_path, progress)
+
+    yield "Blink detection complete"
 
 
 class Blink_Detection(Plugin):
@@ -65,19 +78,22 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
 
     def __init__(self, g_pool):
         super().__init__(g_pool)
-        self.filter_response = []
-        self.response_classification = []
-        self.timestamps = []
+
         g_pool.blinks = pm.Affiliator()
+
+        self.status = ""
         self.cache = {"class_points": ()}
 
+        self.bg_task = None
         self.load_blinks()
-
 
     def init_ui(self):
         super().init_ui()
         self.menu.append(ui.Info_Text(
             "This plugin detects blinks using pl-rec-export"
+        ))
+        self.menu.append(ui.Text_Input(
+            "status", self, label="Detection status:", setter=lambda x: None
         ))
 
         self.glfont = fs.Context()
@@ -151,9 +167,11 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
         cache_file = data_path / "blinks.csv"
 
         if not cache_file.exists():
-            # @TODO: move to background task like fixation detector
-            progress = Progress(disable=True)
-            _process_blinks(neon_rec_path, data_path, progress)
+            args = (neon_rec_path, data_path)
+            self.bg_task = bh.IPC_Logging_Task_Proxy(
+                "Blink detection", detect_blinks, args=args
+            )
+            return
 
         blink_data = deque()
         blink_start_ts = deque()
@@ -186,6 +204,18 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
 
         self.g_pool.blinks = pm.Affiliator(blink_data, blink_start_ts, blink_stop_ts)
         self.notify_all({"subject": "blinks_changed", "delay": 0.2})
+        self.status = f"{len(self.g_pool.blinks)} blinks detected"
+
+    def recent_events(self, events):
+        if self.bg_task:
+            for status in self.bg_task.fetch():
+                self.status = status
+
+            if self.bg_task.completed:
+                self.bg_task = None
+                self.menu_icon.indicator_stop = 0.0
+                self.load_blinks()
+
 
     def cache_activation(self):
         t0, t1 = self.g_pool.timestamps[0], self.g_pool.timestamps[-1]
