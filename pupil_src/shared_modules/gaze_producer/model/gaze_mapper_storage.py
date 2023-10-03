@@ -28,6 +28,10 @@ class GazeMapperStorage(SingleFileStorage, Observable):
         self._load_from_disk()
         if not self._gaze_mappers:
             self._add_default_gaze_mapper()
+            self.should_autorun = True
+
+        else:
+            self.should_autorun = False
 
     def _add_default_gaze_mapper(self):
         self.add(self.create_default_gaze_mapper())

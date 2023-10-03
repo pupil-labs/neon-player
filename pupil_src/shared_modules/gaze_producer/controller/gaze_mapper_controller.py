@@ -34,6 +34,11 @@ class GazeMapperController(Observable):
 
         self._gaze_mapper_storage.add_observer("delete", self.on_gaze_mapper_deleted)
 
+        if self._gaze_mapper_storage.should_autorun:
+            self._gaze_mapper_storage.should_autorun = False
+            for mapper in self._gaze_mapper_storage:
+                self.calculate(mapper)
+
         # make mappings loaded from disk known to Player
         self.publish_all_enabled_mappers()
 
