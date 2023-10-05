@@ -148,7 +148,7 @@ def _rewrite_timestamps(recording: PupilRecording):
 
 
 def _convert_gaze(recording: PupilRecording):
-    width, height = 1088, 1080
+    width, height = 1600, 1200
 
     logger.info("Converting gaze data...")
     template_datum = {
