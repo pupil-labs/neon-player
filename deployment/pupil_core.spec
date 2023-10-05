@@ -45,6 +45,9 @@ def main():
     all_binaries = []
     all_hidden_imports = []
     for name in (
+        "cysignals",
+        "pupil_labs.rec_export",
+        "xgboost",
         "zmq",
         "pyre",
         "pyglui",
@@ -80,7 +83,7 @@ def main():
     )
     pyz = PYZ(a.pure)
 
-    for name in ("capture", "player", "service"):
+    for name in ("player", ):
         icon_name = "pupil-" + name + ICON_EXT[current_platform]
         icon_path = (deployment_root / "icons" / icon_name).resolve()
 
@@ -93,7 +96,7 @@ def main():
             pyz,
             a.scripts,
             exclude_binaries=True,
-            name=f"pupil_{name}",
+            name=f"neon_{name}",
             debug=False,
             strip=False,
             upx=True,
@@ -117,11 +120,6 @@ def main():
             for bin_path in apriltags.rglob("*" + LIB_EXT[current_platform])
         )
 
-        if current_platform == SupportedPlatform.windows:
-            extras.append(
-                ("PupilDrvInst.exe", "../pupil_external/PupilDrvInst.exe", "BINARY")
-            )
-
         binaries = a.binaries
         if current_platform == SupportedPlatform.linux:
             # libc is also not meant to travel with the bundle. Otherwise pyre.helpers with segfault.
@@ -133,8 +131,6 @@ def main():
             # required for 17.10 interoperability.
             binaries = (b for b in binaries if not "libdrm.so.2" in b[0])
             binaries = list(binaries)
-        elif current_platform == SupportedPlatform.macos:
-            binaries = [b for b in binaries if ".dylibs" not in b[0]]
 
         whitelist = {"cv2"}
         blacklist_ext = {
@@ -163,7 +159,7 @@ def main():
             )
         ]
 
-        app_name = f"Pupil {name.capitalize()}"
+        app_name = f"Neon {name.capitalize()}"
         collection = COLLECT(
             exe,
             binaries,
@@ -183,6 +179,9 @@ def main():
             bundle_identifier=(
                 f"com.pupil-labs.core.{app_name.lower().replace(' ','_')}"
             ),
+            info_plist={
+                'NSHighResolutionCapable': 'True'
+            },
         )
 
     bundle_postprocessing = {

@@ -48,6 +48,7 @@ mprofile_*.dat
 deployment/pupil_v*
 deployment/build/
 deployment/dist/
+deployment/Neon Player.app/
 *.pyd
 *.dll
 win_drv
