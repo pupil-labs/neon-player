@@ -46,6 +46,7 @@ from methods import denormalize
 from observable import Observable
 from plugin import Plugin
 from pupil_recording import PupilRecording, RecordingInfo
+from gaze_producer.gaze_from_recording import GazeFromRecording
 from pyglui import ui
 from pyglui.cygl.utils import RGBA, draw_circle
 from pyglui.pyfontstash import fontstash
@@ -55,13 +56,10 @@ from pupil_labs.rec_export.explib.fixation_detector.neon import detect_fixations
 from pupil_labs.rec_export.export import *
 from pupil_recording.info import recording_info_utils
 
+
 logger = logging.getLogger(__name__)
 
 NS_TO_S = 1e-9
-
-class FixationDetectionMethod(enum.Enum):
-    GAZE_2D = "2d gaze"
-    GAZE_3D = "3d gaze"
 
 
 class Fixation_Detector_Base(Plugin):
@@ -96,11 +94,6 @@ def fixation_from_data(info, timestamps, world_start_time, frame_size):
         "gaze_point_2d": [info[f'fixation {axis} [px]'] for axis in 'xy'],
     }
 
-    serialization_hook = fm.Serialized_Dict.packing_hook
-    datum = msgpack.packb(
-        datum, use_bin_type=True, default=serialization_hook
-    )
-
     return (datum, start_time, end_time)
 
 
@@ -132,7 +125,6 @@ def detect_fixations(rec_dir, data_dir, timestamps, frame_size):
     return "Fixation detection complete", ()
 
 
-
 class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
     """pl-rec-export
     """
@@ -161,9 +153,11 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
         self.bg_task = None
         self.status = ""
         self.data_dir = os.path.join(g_pool.rec_dir, "offline_data")
-        self._gaze_changed_listener = data_changed.Listener( # only need ths for the token?
+        self._gaze_changed_listener = data_changed.Listener(
             "gaze_positions", g_pool.rec_dir, plugin=self
         )
+        self._gaze_changed_listener.add_observer("on_data_changed", self._classify)
+
         self._fixations_changed_announcer = data_changed.Announcer(
             "fixations", g_pool.rec_dir, plugin=self
         )
@@ -309,10 +303,19 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
             for progress, fixation_result in self.bg_task.fetch():
                 self.status = progress
                 if fixation_result:
-                    serialized, start_ts, stop_ts = fixation_result
-                    self.fixation_data.append(
-                        fm.Serialized_Dict(msgpack_bytes=serialized)
-                    )
+                    datum, start_ts, stop_ts = fixation_result
+                    for plugin in self.g_pool.plugins:
+                        if isinstance(plugin, GazeFromRecording):
+                            manual_correction = plugin.get_manual_correction_for_frame(datum['start_frame_index'])
+                            datum['norm_pos'] = (
+                                datum['norm_pos'][0] + manual_correction[0],
+                                datum['norm_pos'][1] + manual_correction[1]
+                            )
+                            break
+
+                    serialized = msgpack.packb(datum, use_bin_type=True, default=fm.Serialized_Dict.packing_hook)
+    
+                    self.fixation_data.append(fm.Serialized_Dict(msgpack_bytes=serialized))
                     self.fixation_start_ts.append(start_ts)
                     self.fixation_stop_ts.append(stop_ts)
 

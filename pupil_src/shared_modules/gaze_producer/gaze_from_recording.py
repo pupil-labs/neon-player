@@ -114,3 +114,11 @@ class GazeFromRecording(GazeProducerBase):
         minutes = abs(time // 60)  # abs because it's sometimes -0
         seconds = round(time % 60)
         return f"{minutes:02.0f}:{seconds:02.0f}"
+
+    def get_manual_correction_for_frame(self, frame_idx):
+        for mapper in self._gaze_mapper_storage:
+            if frame_idx >= mapper.mapping_index_range[0] and frame_idx < mapper.mapping_index_range[1]:
+                return (mapper.manual_correction_x, mapper.manual_correction_y)
+            
+        return (0, 0)
+    
