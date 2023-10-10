@@ -208,7 +208,7 @@ def _attempt_changing_file_owners_on_macOS(rec_dir: str):
     user = getpass.getuser()
     ask_for_permissions_to_change_ownership = textwrap.dedent(
         f"""
-        set theDialogText to "Pupil Player does not have sufficient file permissions to process this recording. If you proceed Player will change the file ownership to get the neccessary access."
+        set theDialogText to "Neon Player does not have sufficient file permissions to process this recording. If you proceed Player will change the file ownership to get the neccessary access."
         set continueText to "Proceed with administrator privileges"
         set cancelText to "Cancel"
         display dialog theDialogText buttons {{cancelText, continueText}} default button continueText cancel button cancelText

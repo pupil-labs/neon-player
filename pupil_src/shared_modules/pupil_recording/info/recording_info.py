@@ -63,6 +63,7 @@ class RecordingInfo(collections.abc.MutableMapping):
     RECORDING_SOFTWARE_NAME_PUPIL_CAPTURE = "Pupil Capture"
     RECORDING_SOFTWARE_NAME_PUPIL_MOBILE = "Pupil Mobile"
     RECORDING_SOFTWARE_NAME_PUPIL_INVISIBLE = "Pupil Invisible"
+    RECORDING_SOFTWARE_NAME_NEON = "Neon"
 
     @property
     @abc.abstractmethod
@@ -414,9 +415,9 @@ class RecordingInfoFile(RecordingInfo):
 
             # At this point we should be safe, but warn the user anyways
             logger.warning(
-                "Opening recording of newer version than this version of Pupil Player."
+                "Opening recording of newer version than this version of Neon Player."
                 " This might lead to problems."
-                " Please consider updating to the latest version of Pupil Player!"
+                " Please consider updating to the latest version of Neon Player!"
             )
             logger.debug(
                 f"Trying to open info file meta version {info_file_version}"

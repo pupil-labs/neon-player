@@ -109,7 +109,6 @@ class UIManagementEyes(UIManagement):
         self._parent_menu.append(
             ui.Info_Text(
                 "Show the eye video overlaid on top of the world video. "
-                "Eye 0 is usually the right eye."
             )
         )
         self._parent_menu.append(
@@ -120,11 +119,6 @@ class UIManagementEyes(UIManagement):
         self._parent_menu.append(
             ui.Slider(
                 "scale", self.plugin(), min=0.2, step=0.05, max=1.0, label="Video Scale"
-            )
-        )
-        self._parent_menu.append(
-            ui.Switch(
-                "value", self.plugin().show_ellipses, label="Visualize Pupil Detection"
             )
         )
 

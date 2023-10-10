@@ -445,12 +445,12 @@ def main():
             The default visualization will use simple_circle
 
             Usage Example:
-                python batch_exporter.py -d /path/to/folder-with-many-recordings -s ~/Pupil_Player/settings/user_settings -e ~/my_export_dir
+                python batch_exporter.py -d /path/to/folder-with-many-recordings -s ~/Neon_Player/settings/user_settings -e ~/my_export_dir
             Arguments:
                 -d : Specify a recording directory.
                      This could have one or many recordings contained within it.
                      We will recurse into the dir.
-                -s : Specify path to Pupil Player user_settings file to use last used vizualization settings.
+                -s : Specify path to Neon Player user_settings file to use last used vizualization settings.
                 -e : Specify export directory if you dont want the export saved within each recording dir.
                 -p : Export a 120 frame preview only.
             ***************************************************\

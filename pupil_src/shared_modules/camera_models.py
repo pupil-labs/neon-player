@@ -528,7 +528,7 @@ class Camera_Model(abc.ABC):
             logger.debug("Loading default intrinsics!")
             intrinsics = default_intrinsics[cam_name][str(resolution)]
             return Camera_Model._from_raw_intrinsics(cam_name, resolution, intrinsics)
-        else:
+        elif cam_name != "eye0":
             logger.warning(
                 f"No camera intrinsics available for camera {cam_name} at "
                 f"resolution {resolution}! Loading dummy intrinsics, which might "

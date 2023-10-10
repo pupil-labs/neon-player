@@ -84,7 +84,4 @@ class OverlayRenderer:
 
 
 class EyeOverlayRenderer(OverlayRenderer):
-    def __init__(self, config, should_render_pupil_data, pupil_getter):
-        super().__init__(config)
-        pupil_renderer = (should_render_pupil_data, IM.PupilRenderer(pupil_getter))
-        self.pipeline.insert(0, pupil_renderer)
+    pass

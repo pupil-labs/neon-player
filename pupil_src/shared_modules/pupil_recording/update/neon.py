@@ -30,34 +30,29 @@ from . import update_utils
 
 logger = logging.getLogger(__name__)
 
-NEWEST_SUPPORTED_VERSION = parse_version("1.4")
+NEWEST_SUPPORTED_VERSION = parse_version("2.1")
 
 
-def transform_invisible_to_corresponding_new_style(rec_dir: str):
-    logger.info("Transform Pupil Invisible to new style recording...")
+
+def transform_neon_to_corresponding_new_style(rec_dir: str):
+    logger.info("Transform Neon to new style recording...")
     info_json = utils.read_info_json_file(rec_dir)
-    pi_version = parse_version(info_json["data_format_version"])
+    neon_version = parse_version(info_json["data_format_version"])
 
-    if pi_version > NEWEST_SUPPORTED_VERSION:
+    if neon_version > NEWEST_SUPPORTED_VERSION:
         raise InvalidRecordingException(
             f"This version of player is too old! Please upgrade."
         )
 
-    # elif pi_version > 3.0:
-    #     ...
-    # elif pi_version > 2.0:
-    #     ...
-
     else:
-        _transform_invisible_v1_0_to_pprf_2_1(rec_dir)
+        _transform_neon_v2_1_0_to_pprf_2_1(rec_dir)
 
-
-def _transform_invisible_v1_0_to_pprf_2_1(rec_dir: str):
+def _transform_neon_v2_1_0_to_pprf_2_1(rec_dir: str):
     _generate_pprf_2_1_info_file(rec_dir)
 
     # rename info.json file to info.invisible.json
     info_json = Path(rec_dir) / "info.json"
-    new_path = info_json.with_name("info.invisible.json")
+    new_path = info_json.with_name("info.neon.json")
     info_json.replace(new_path)
 
     recording = PupilRecording(rec_dir)
@@ -65,15 +60,16 @@ def _transform_invisible_v1_0_to_pprf_2_1(rec_dir: str):
     # Fix broken first frame issue, if affected.
     # This needs to happend before anything else
     # to make sure the rest of the pipeline is processed correctly.
+    # @TODO: check if this is actually required?
     BrokenFirstFrameRecordingIssue.patch_recording_if_affected(recording)
 
     # patch world.intrinsics
     # NOTE: could still be worldless at this point
     update_utils._try_patch_world_instrinsics_file(
-        rec_dir, recording.files().pi().world().videos()
+        rec_dir, recording.files().neon().world().videos()
     )
 
-    _rename_pi_files(recording)
+    _rename_neon_files(recording)
     _rewrite_timestamps(recording)
     _convert_gaze(recording)
 
@@ -86,7 +82,7 @@ def _generate_pprf_2_1_info_file(rec_dir: str) -> RecordingInfoFile:
     start_time_system_ns = int(info_json["start_time"])
     start_time_synced_ns = int(info_json["start_time"])
     duration_ns = int(info_json["duration"])
-    recording_software_name = RecordingInfoFile.RECORDING_SOFTWARE_NAME_PUPIL_INVISIBLE
+    recording_software_name = RecordingInfoFile.RECORDING_SOFTWARE_NAME_NEON
     recording_software_version = info_json["app_version"]
     recording_name = utils.default_recording_name(rec_dir)
     system_info = android_system_info(info_json)
@@ -106,40 +102,39 @@ def _generate_pprf_2_1_info_file(rec_dir: str) -> RecordingInfoFile:
     new_info_file.save_file()
 
 
-def _rename_pi_files(recording: PupilRecording):
-    for pi_path, core_path in _pi_path_core_path_pairs(recording):
-        pi_path.replace(core_path)  # rename with overwrite
+def _rename_neon_files(recording: PupilRecording):
+    for neon_path, core_path in _neon_path_core_path_pairs(recording):
+        neon_path.replace(core_path)  # rename with overwrite
 
 
-def _pi_path_core_path_pairs(recording: PupilRecording):
-    for pi_path in recording.files():
+def _neon_path_core_path_pairs(recording: PupilRecording):
+    for neon_path in recording.files():
         # replace prefix based on cam_type, need to reformat part number
         match = re.match(
-            r"^(?P<prefix>PI (?P<cam_type>left|right|world) v\d+ ps(?P<part>\d+))",
-            pi_path.name,
+            r"^(?P<prefix>Neon (?P<cam_type>(Scene Camera)|(Sensor Module)) v\d+ ps(?P<part>\d+))",
+            neon_path.name,
         )
         if match:
             replacement_for_cam_type = {
-                "right": "eye0",
-                "left": "eye1",
-                "world": "world",
+                "Sensor Module": "eye0",
+                "Scene Camera": "world",
             }
             replacement = replacement_for_cam_type[match.group("cam_type")]
             part_number = int(match.group("part"))
             if part_number > 1:
                 # add zero-filled part number - 1
-                # NOTE: recordings for PI start at part 1, mobile start at part 0
+                # NOTE: recordings for neon start at part 1, mobile start at part 0
                 replacement += f"_{part_number - 1:03}"
 
-            core_name = pi_path.name.replace(match.group("prefix"), replacement)
-            core_path = pi_path.with_name(core_name)
-            yield pi_path, core_path
+            core_name = neon_path.name.replace(match.group("prefix"), replacement)
+            core_path = neon_path.with_name(core_name)
+            yield neon_path, core_path
 
 
 def _rewrite_timestamps(recording: PupilRecording):
     # Use start time from info file (instead of recording.meta_info.start_time_synced_ns)
     # to have a more precise value and avoid having a negative first timestamp when rewriting
-    info_json = utils.read_pupil_invisible_info_file(recording.rec_dir)
+    info_json = utils.read_neon_info_file(recording.rec_dir)
     start_time_synced_ns = int(info_json["start_time"])
 
     def conversion(timestamps: np.array):
@@ -153,17 +148,17 @@ def _rewrite_timestamps(recording: PupilRecording):
 
 
 def _convert_gaze(recording: PupilRecording):
-    width, height = 1088, 1080
+    width, height = 1600, 1200
 
     logger.info("Converting gaze data...")
     template_datum = {
-        "topic": "gaze.pi",
+        "topic": "gaze.neon",
         "norm_pos": None,
         "timestamp": None,
         "confidence": None,
     }
     with fm.PLData_Writer(recording.rec_dir, "gaze") as writer:
-        for (x, y), ts, conf in pi_gaze_items(root_dir=recording.rec_dir):
+        for (x, y), ts, conf in neon_gaze_items(root_dir=recording.rec_dir):
             template_datum["timestamp"] = ts
             template_datum["norm_pos"] = m.normalize(
                 (x, y), size=(width, height), flip_y=True
@@ -189,7 +184,7 @@ class BrokenFirstFrameRecordingIssue:
     def is_recording_affected(cls, recording: PupilRecording) -> bool:
         # If there are any world video and timestamps pairs affected - return True
         # Otherwise - False
-        for _ in cls._pi_world_video_and_raw_time_affected_paths(recording):
+        for _ in cls._neon_world_video_and_raw_time_affected_paths(recording):
             return True
         return False
 
@@ -199,7 +194,7 @@ class BrokenFirstFrameRecordingIssue:
             return
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            for v_path, t_path in cls._pi_world_video_and_raw_time_affected_paths(
+            for v_path, t_path in cls._neon_world_video_and_raw_time_affected_paths(
                 recording
             ):
                 temp_t_path = Path(temp_dir) / t_path.name
@@ -233,8 +228,8 @@ class BrokenFirstFrameRecordingIssue:
                 out_container.close()
 
                 # Save raw time file, dropping first timestamp, to temp file
-                ts = cls._pi_raw_time_load(t_path)
-                cls._pi_raw_time_save(temp_t_path, ts[1:])
+                ts = cls._neon_raw_time_load(t_path)
+                cls._neon_raw_time_save(temp_t_path, ts[1:])
 
                 # Overwrite old files with new ones
                 v_path = v_path.with_name(v_path.stem).with_suffix(v_path.suffix)
@@ -247,11 +242,11 @@ class BrokenFirstFrameRecordingIssue:
                 shutil.move(str(temp_t_path), str(t_path))
 
     @classmethod
-    def _pi_world_video_and_raw_time_affected_paths(cls, recording: PupilRecording):
+    def _neon_world_video_and_raw_time_affected_paths(cls, recording: PupilRecording):
         # Check if the first timestamp is greater than the second timestamp from world timestamps;
         # this is a symptom of Pupil Invisible recording with broken first frame.
         # If the first timestamp is greater, remove it from the timestamps and overwrite the file.
-        for v_path, ts_path in cls._pi_world_video_and_raw_time_paths(recording):
+        for v_path, ts_path in cls._neon_world_video_and_raw_time_paths(recording):
             try:
                 with av.open(str(v_path), format=v_path.suffix[1:]) as in_container:
                     packets = in_container.demux(video=0)
@@ -281,7 +276,7 @@ class BrokenFirstFrameRecordingIssue:
                         pass  # Expected
 
                     # Check there are 2 or more raw timestamps.
-                    raw_time = cls._pi_raw_time_load(ts_path)
+                    raw_time = cls._neon_raw_time_load(ts_path)
                     if len(raw_time) < 2:
                         continue
 
@@ -293,12 +288,12 @@ class BrokenFirstFrameRecordingIssue:
                 )
 
     @classmethod
-    def _pi_world_video_and_raw_time_paths(cls, recording: PupilRecording):
-        for pi_path, core_path in _pi_path_core_path_pairs(recording):
-            if not cls._is_pi_world_video_path(pi_path):
+    def _neon_world_video_and_raw_time_paths(cls, recording: PupilRecording):
+        for neon_path, core_path in _neon_path_core_path_pairs(recording):
+            if not cls._is_neon_world_video_path(neon_path):
                 continue
 
-            video_path = pi_path
+            video_path = neon_path
             raw_time_path = video_path.with_suffix(".time")
 
             assert raw_time_path.is_file(), f"Expected file at path: {raw_time_path}"
@@ -306,41 +301,41 @@ class BrokenFirstFrameRecordingIssue:
             yield video_path, raw_time_path
 
     @staticmethod
-    def _is_pi_world_video_path(path):
+    def _is_neon_world_video_path(path):
         def match_any(target, *patterns):
             return any([re.search(pattern, str(target)) for pattern in patterns])
 
-        is_pi_world = match_any(path.name, r"^PI world v(\d+) ps(\d+)")
+        is_neon_world = match_any(path.name, r"^Neon Scene Camera v(\d+) ps(\d+)")
 
         is_video = match_any(
             path.name, *[rf"\.{ext}$" for ext in VALID_VIDEO_EXTENSIONS]
         )
 
-        return is_pi_world and is_video
+        return is_neon_world and is_video
 
     @staticmethod
-    def _pi_raw_time_load(path):
+    def _neon_raw_time_load(path):
         return np.fromfile(str(path), dtype="<u8")
 
     @staticmethod
-    def _pi_raw_time_save(path, arr):
+    def _neon_raw_time_save(path, arr):
         arr.tofile(str(path))
 
 
-def pi_gaze_items(root_dir):
+def neon_gaze_items(root_dir):
     """Yields one (location, timestamp, confidence) triplet for each gaze point
 
-    Pupil Invisible Companion records this information into three different sets of
+    Neon Companion records this information into three different sets of
     files. Their names can be matched by the following regex patterns:
         - `^gaze ps[0-9]+.raw$`
         - `^gaze ps[0-9]+.time$`
         - `^worn ps[0-9]+.raw$`
 
     The worn data is a stream of values of either 0 or 255, indicating that the glasses
-    were (not) worn. Pupil Player maps these to gaze confidence values of 0.0 and 1.0
+    were (not) worn. Neon Player maps these to gaze confidence values of 0.0 and 1.0
     respectively.
 
-    Since all `*.time` files are converted to Pupil Player before this function is being
+    Since all `*.time` files are converted to Neon Player before this function is being
     called, we match the `^gaze ps[0-9]+_timestamps.npy$` pattern on the recording files
     instead. When looking for the location and worn data, the function just replaces the
     necessary parts of the timestamp file names instead of performing separate regex
@@ -359,7 +354,7 @@ def pi_gaze_items(root_dir):
     is preferred. If 200 Hz gaze data is only available with real-time recorded worn
     data, the latter is interpolated to 200 Hz using a k-nearest-neighbour (k=1)
     approach. If no worn data is available, or the numbers of worn samples and gaze
-    timestamps are not consistent, Pupil Player assumes a confidence value of 1.0 for
+    timestamps are not consistent, Neon Player assumes a confidence value of 1.0 for
     every gaze point.
     """
     root_dir = Path(root_dir)
@@ -376,17 +371,17 @@ def pi_gaze_items(root_dir):
     timestamps_200hz_path = _find_timestamps_200hz_path(root_dir)
     if raw_200hz_path and timestamps_200hz_path:
         worn_200hz_path = _find_worn_200hz_path(root_dir)
-        yield from _pi_posthoc_200hz_gaze_items(
+        yield from _neon_posthoc_200hz_gaze_items(
             raw_200hz_path,
             timestamps_200hz_path,
             worn_200hz_path,
             timestamps_realtime_paths,
         )
     else:
-        yield from _pi_realtime_recorded_gaze_items(timestamps_realtime_paths)
+        yield from _neon_realtime_recorded_gaze_items(timestamps_realtime_paths)
 
 
-def _pi_posthoc_200hz_gaze_items(
+def _neon_posthoc_200hz_gaze_items(
     raw_200hz_path, timestamps_200hz_path, worn_200hz_path, timestamps_realtime_paths
 ):
     raw_data = _load_raw_data(raw_200hz_path)
@@ -404,7 +399,7 @@ def _pi_posthoc_200hz_gaze_items(
     yield from zip(raw_data, timestamps, conf_data)
 
 
-def _pi_realtime_recorded_gaze_items(timestamps_realtime_paths):
+def _neon_realtime_recorded_gaze_items(timestamps_realtime_paths):
     for timestamps_path in timestamps_realtime_paths:
         raw_data = _load_raw_data(_find_raw_path(timestamps_path))
         timestamps = _load_timestamps_data(timestamps_path)

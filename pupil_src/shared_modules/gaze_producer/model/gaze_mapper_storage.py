@@ -21,31 +21,26 @@ logger = logging.getLogger(__name__)
 
 
 class GazeMapperStorage(SingleFileStorage, Observable):
-    def __init__(self, calibration_storage, rec_dir, get_recording_index_range):
+    def __init__(self, rec_dir, get_recording_index_range):
         super().__init__(rec_dir)
-        self._calibration_storage = calibration_storage
         self._get_recording_index_range = get_recording_index_range
         self._gaze_mappers = []
         self._load_from_disk()
         if not self._gaze_mappers:
             self._add_default_gaze_mapper()
+            self.should_autorun = True
+
+        else:
+            self.should_autorun = False
 
     def _add_default_gaze_mapper(self):
         self.add(self.create_default_gaze_mapper())
 
     def create_default_gaze_mapper(self):
-        default_calibration = self._calibration_storage.get_first_or_none()
-        if default_calibration:
-            calibration_unique_id = default_calibration.unique_id
-        else:
-            calibration_unique_id = ""
         return model.GazeMapper(
             unique_id=model.GazeMapper.create_new_unique_id(),
             name=make_unique.by_number_at_end("Default Gaze Mapper", self.item_names),
-            calibration_unique_id=calibration_unique_id,
             mapping_index_range=self._get_recording_index_range(),
-            validation_index_range=self._get_recording_index_range(),
-            validation_outlier_threshold_deg=5.0,
         )
 
     def duplicate_gaze_mapper(self, gaze_mapper):
@@ -54,10 +49,7 @@ class GazeMapperStorage(SingleFileStorage, Observable):
             name=make_unique.by_number_at_end(
                 gaze_mapper.name + " Copy", self.item_names
             ),
-            calibration_unique_id=gaze_mapper.calibration_unique_id,
             mapping_index_range=gaze_mapper.mapping_index_range,
-            validation_index_range=gaze_mapper.validation_index_range,
-            validation_outlier_threshold_deg=gaze_mapper.validation_outlier_threshold_deg,
             manual_correction_x=gaze_mapper.manual_correction_x,
             manual_correction_y=gaze_mapper.manual_correction_y,
             activate_gaze=gaze_mapper.activate_gaze,

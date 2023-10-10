@@ -12,6 +12,7 @@ import json
 import os
 import typing as T
 import uuid
+from pathlib import Path
 
 import csv_utils
 from methods import get_system_info
@@ -45,7 +46,8 @@ def default_recording_name(info) -> str:
         rec_dir = info.rec_dir
     else:
         rec_dir = str(info)
-    return os.path.basename(rec_dir)
+
+    return Path(rec_dir).parent.name
 
 
 def default_system_info(info) -> str:
@@ -106,6 +108,21 @@ def read_pupil_invisible_info_file(rec_dir: str) -> dict:
         return read_info_json_file(rec_dir)
     except FileNotFoundError:
         return read_info_invisible_json_file(rec_dir)
+
+
+def read_info_neon_json_file(rec_dir: str) -> dict:
+    """Read `info.invisible.json` file from recording."""
+    file_path = os.path.join(rec_dir, "info.neon.json")
+    # guaranteed to be utf-8 encoded
+    with open(file_path, encoding="utf-8") as file:
+        return json.load(file)
+
+def read_neon_info_file(rec_dir: str) -> dict:
+    """Read info file from Neon recording."""
+    try:
+        return read_info_json_file(rec_dir)
+    except FileNotFoundError:
+        return read_info_neon_json_file(rec_dir)
 
 
 def parse_duration_string(duration_string: str) -> int:

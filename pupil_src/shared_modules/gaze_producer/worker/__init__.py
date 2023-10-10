@@ -9,8 +9,5 @@ See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
 from gaze_producer.worker import (
-    create_calibration,
-    detect_circle_markers,
     map_gaze,
-    validate_gaze,
 )

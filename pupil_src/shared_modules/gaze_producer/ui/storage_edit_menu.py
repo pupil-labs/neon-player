@@ -26,7 +26,7 @@ class StorageEditMenu(plugin_ui.SelectAndRefreshMenu, abc.ABC):
 
     new_button_label = "New"
     duplicate_button_label = "Duplicate Current Configuration"
-    delete_button_label = "Delete"
+    delete_button_label = "Delete Current Configuration"
 
     def __init__(self, storage):
         super().__init__()
@@ -62,6 +62,7 @@ class StorageEditMenu(plugin_ui.SelectAndRefreshMenu, abc.ABC):
         menu.append(self._create_new_button())
         if self.items:
             menu.append(self._create_duplicate_button())
+            menu.append(self._create_delete_button())
 
     def _create_new_button(self):
         return ui.Button(
@@ -78,7 +79,6 @@ class StorageEditMenu(plugin_ui.SelectAndRefreshMenu, abc.ABC):
 
     def render_item(self, item, menu):
         self._render_custom_ui(item, menu)
-        menu.append(self._create_delete_button())
 
     def _on_click_new_button(self):
         new_item = self._new_item()

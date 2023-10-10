@@ -86,9 +86,6 @@ def player(
 
         # from marker_auto_trim_marks import Marker_Auto_Trim_Marks
         from fixation_detector import Offline_Fixation_Detector
-        from gaze_producer.gaze_from_offline_calibration import (
-            GazeFromOfflineCalibration,
-        )
         from gaze_producer.gaze_from_recording import GazeFromRecording
         from head_pose_tracker.offline_head_pose_tracker import (
             Offline_Head_Pose_Tracker,
@@ -102,12 +99,6 @@ def player(
         # Plug-ins
         from plugin import Plugin, Plugin_List, import_runtime_plugins
         from plugin_manager import Plugin_Manager
-        from pupil_detector_plugins.detector_base_plugin import PupilDetectorPlugin
-        from pupil_producers import (
-            DisabledPupilProducer,
-            Offline_Pupil_Detection,
-            Pupil_From_Recording,
-        )
         from pupil_recording import (
             InvalidRecordingException,
             PupilRecording,
@@ -155,9 +146,6 @@ def player(
         signal.signal(signal.SIGINT, interrupt_handler)
 
         runtime_plugins = import_runtime_plugins(os.path.join(user_dir, "plugins"))
-        runtime_plugins = [
-            p for p in runtime_plugins if not issubclass(p, PupilDetectorPlugin)
-        ]
         system_plugins = [
             Log_Display,
             Seek_Control,
@@ -181,11 +169,7 @@ def player(
             Raw_Data_Exporter,
             Annotation_Player,
             Log_History,
-            DisabledPupilProducer,
-            Pupil_From_Recording,
-            Offline_Pupil_Detection,
             GazeFromRecording,
-            GazeFromOfflineCalibration,
             World_Video_Exporter,
             iMotions_Exporter,
             Eye_Video_Exporter,
@@ -385,7 +369,7 @@ def player(
         width += icon_bar_width
         width, height = session_settings.get("window_size", (width, height))
 
-        window_name = f"Pupil Player: {meta_info.recording_name} - {rec_dir}"
+        window_name = f"Neon Player: {meta_info.recording_name} - {rec_dir}"
 
         glfw.init()
         glfw.window_hint(glfw.SCALE_TO_MONITOR, glfw.TRUE)
@@ -520,33 +504,10 @@ def player(
 
         general_settings = ui.Growing_Menu("General", header_pos="headline")
         general_settings.append(ui.Button("Reset window size", set_window_size))
-        general_settings.append(
-            ui.Info_Text(f"Minimum Player Version: {meta_info.min_player_version}")
-        )
         general_settings.append(ui.Info_Text(f"Player Version: {g_pool.version}"))
-        general_settings.append(
-            ui.Info_Text(f"Recording Software: {meta_info.recording_software_name}")
-        )
         general_settings.append(
             ui.Info_Text(
                 f"Recording Software Version: {meta_info.recording_software_version}"
-            )
-        )
-
-        general_settings.append(
-            ui.Info_Text(
-                "High level data, e.g. fixations, or visualizations only consider gaze data that has an equal or higher confidence than the minimum data confidence."
-            )
-        )
-        general_settings.append(
-            ui.Slider(
-                "min_data_confidence",
-                g_pool,
-                setter=set_data_confidence,
-                step=0.05,
-                min=0.0,
-                max=1.0,
-                label="Minimum data confidence",
             )
         )
 
@@ -587,17 +548,9 @@ def player(
         g_pool.gui.append(g_pool.quickbar)
 
         # we always load these plugins
-        _pupil_producer_plugins = [
-            # In priority order (first is default)
-            ("Pupil_From_Recording", {}),
-            ("Offline_Pupil_Detection", {}),
-            ("DisabledPupilProducer", {}),
-        ]
-        _pupil_producer_plugins = list(reversed(_pupil_producer_plugins))
         _gaze_producer_plugins = [
             # In priority order (first is default)
             ("GazeFromRecording", {}),
-            ("GazeFromOfflineCalibration", {}),
         ]
         _gaze_producer_plugins = list(reversed(_gaze_producer_plugins))
         default_plugins = [
@@ -610,7 +563,6 @@ def player(
             ("System_Graphs", {}),
             ("System_Timelines", {}),
             ("World_Video_Exporter", {}),
-            *_pupil_producer_plugins,
             *_gaze_producer_plugins,
             ("Audio_Playback", {}),
         ]
@@ -623,7 +575,6 @@ def player(
             # If there are plugins available from a previous session,
             # then prepend plugins that are required, but might have not been available before
             _plugins_to_load = [
-                *_pupil_producer_plugins,
                 *_gaze_producer_plugins,
                 *_plugins_to_load,
             ]
@@ -899,7 +850,7 @@ def player_drop(
         glfw.init()
         glfw.window_hint(glfw.SCALE_TO_MONITOR, glfw.TRUE)
         glfw.window_hint(glfw.RESIZABLE, 0)
-        window = glfw.create_window(w, h, "Pupil Player", None, None)
+        window = glfw.create_window(w, h, "Neon Player", None, None)
         glfw.window_hint(glfw.RESIZABLE, 1)
 
         glfw.make_context_current(window)
@@ -922,7 +873,6 @@ def player_drop(
         glClearColor(0.5, 0.5, 0.5, 0.0)
         text = "Drop a recording directory onto this window."
         tip = "(Tip: You can drop a recording directory onto the app icon.)"
-        # text = "Please supply a Pupil recording directory as first arg when calling Pupil Player."
 
         def display_string(string, font_size, center_y):
             x = w / 2 * content_scale
@@ -1001,9 +951,11 @@ def player_drop(
 
                         loop = asyncio.get_running_loop()
                         update_this_recording = partial(update_recording, rec_dir)
-                        await loop.run_in_executor(None, update_this_recording)
+                        return await loop.run_in_executor(None, update_this_recording)
 
-                    asyncio.run(update_recording_without_blocking_ui())
+                    new_rec_dir = asyncio.run(update_recording_without_blocking_ui())
+                    if new_rec_dir is not None:
+                        rec_dir = new_rec_dir
 
                 except AssertionError as err:
                     logger.exception(str(err))
