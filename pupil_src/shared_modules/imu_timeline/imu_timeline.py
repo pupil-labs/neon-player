@@ -78,8 +78,8 @@ class IMURecording:
             ("accel_x", "<f4"),
             ("accel_y", "<f4"),
             ("accel_z", "<f4"),
-            ("yaw", "<f4"),
             ("pitch", "<f4"),
+            ("yaw", "<f4"),
             ("roll", "<f4"),
         ]
     )
@@ -103,7 +103,7 @@ class IMURecording:
             imu_data = []
             for packet in imu_packets:
                 rotation = Rotation.from_quat([packet.rotVecData.x, packet.rotVecData.y, packet.rotVecData.z, packet.rotVecData.w])
-                euler = rotation.as_euler(seq='XYZ', degrees=True)
+                euler = rotation.as_euler(seq='XZY', degrees=True)
                 imu_data.append((
                     packet.accelData.x, packet.accelData.y, packet.accelData.z,
                     packet.gyroData.x, packet.gyroData.y, packet.gyroData.z,
@@ -132,8 +132,8 @@ class IMUTimeline(Plugin):
         accel_x: linear acceleration along the x axis in G (9.80665 m/s^2)
         accel_y: linear acceleration along the y axis in G (9.80665 m/s^2)
         accel_z: linear acceleration along the z axis in G (9.80665 m/s^2)
-        yaw: orientation expressed as Euler angles
         pitch: orientation expressed as Euler angles
+        yaw: orientation expressed as Euler angles
         roll: orientation expressed as Euler angles
     See Pupil docs for relevant coordinate systems
     """
@@ -147,8 +147,8 @@ class IMUTimeline(Plugin):
         "accel_x": cygl_utils.RGBA(0.83921, 0.15294, 0.15686, 1.0),
         "accel_y": cygl_utils.RGBA(0.58039, 0.40392, 0.74117, 1.0),
         "accel_z": cygl_utils.RGBA(0.54901, 0.33725, 0.29411, 1.0),
-        "yaw": cygl_utils.RGBA(0.49803, 0.70588, 0.05490, 1.0),
         "pitch": cygl_utils.RGBA(0.12156, 0.46666, 0.70588, 1.0),
+        "yaw": cygl_utils.RGBA(0.49803, 0.70588, 0.05490, 1.0),
         "roll": cygl_utils.RGBA(1.0, 0.49803, 0.05490, 1.0),
     }
     NUMBER_SAMPLES_TIMELINE = 4000
@@ -199,7 +199,7 @@ class IMUTimeline(Plugin):
         self.data_len = len(self.data_raw)
         self.gyro_keys = ["gyro_x", "gyro_y", "gyro_z"]
         self.accel_keys = ["accel_x", "accel_y", "accel_z"]
-        self.orient_keys = ["yaw", "pitch", "roll"]
+        self.orient_keys = ["pitch", "yaw", "roll"]
 
     def get_init_dict(self):
         return {
@@ -406,8 +406,8 @@ class Imu_Exporter(_Base_Positions_Exporter):
             "accel_x",
             "accel_y",
             "accel_z",
-            "yaw",
             "pitch",
+            "yaw",
             "roll",
         )
 
@@ -423,8 +423,8 @@ class Imu_Exporter(_Base_Positions_Exporter):
             accel_x = raw_value["accel_x"]
             accel_y = raw_value["accel_y"]
             accel_z = raw_value["accel_z"]
-            yaw = raw_value["yaw"]
             pitch = raw_value["pitch"]
+            yaw = raw_value["yaw"]
             roll = raw_value["roll"]
         except KeyError:
             imu_timestamp = None
@@ -434,8 +434,8 @@ class Imu_Exporter(_Base_Positions_Exporter):
             accel_x = None
             accel_y = None
             accel_z = None
-            yaw = None
             pitch = None
+            yaw = None
             roll = None
 
         return {
@@ -447,8 +447,8 @@ class Imu_Exporter(_Base_Positions_Exporter):
             "accel_x": accel_x,
             "accel_y": accel_y,
             "accel_z": accel_z,
-            "yaw": yaw,
             "pitch": pitch,
+            "yaw": yaw,
             "roll": roll,
         }
 
