@@ -105,8 +105,8 @@ class IMURecording:
                 rotation = Rotation.from_quat([packet.rotVecData.x, packet.rotVecData.y, packet.rotVecData.z, packet.rotVecData.w])
                 euler = rotation.as_euler(seq='XZY', degrees=True)
                 imu_data.append((
-                    packet.accelData.x, packet.accelData.y, packet.accelData.z,
                     packet.gyroData.x, packet.gyroData.y, packet.gyroData.z,
+                    packet.accelData.x, packet.accelData.y, packet.accelData.z,
                     *euler
                 ))
 
