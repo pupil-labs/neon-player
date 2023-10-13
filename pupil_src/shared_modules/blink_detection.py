@@ -28,8 +28,7 @@ from pyglui.pyfontstash import fontstash as fs
 
 from pupil_recording.info import recording_info_utils
 
-from rich.progress import Progress
-from pupil_labs.rec_export.export import _process_gaze,_process_blinks
+from pupil_labs.rec_export.export import _process_blinks
 
 logger = logging.getLogger(__name__)
 
@@ -39,14 +38,8 @@ blink_color = cygl_utils.RGBA(0.9961, 0.3789, 0.5313, 0.8)
 
 
 def detect_blinks(neon_rec_path, data_path):
-    # @TODO: report progress back to main thread
-    yield "Pre-processing gaze..."
-    _process_gaze(neon_rec_path, data_path)
-
     yield "Detecting blinks..."
-    progress = Progress(disable=True)
-    _process_blinks(neon_rec_path, data_path, progress)
-
+    _process_blinks(neon_rec_path, data_path)
     yield "Blink detection complete"
 
 

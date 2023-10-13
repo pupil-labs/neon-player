@@ -52,10 +52,8 @@ from pyglui.cygl.utils import RGBA, draw_circle
 from pyglui.pyfontstash import fontstash
 from scipy.spatial.distance import pdist
 
-from pupil_labs.rec_export.explib.fixation_detector.neon import detect_fixations_neon
-from pupil_labs.rec_export.export import *
+from pupil_labs.rec_export.export import _process_fixations
 from pupil_recording.info import recording_info_utils
-
 
 logger = logging.getLogger(__name__)
 
@@ -100,16 +98,9 @@ def fixation_from_data(info, timestamps, world_start_time, frame_size):
 def detect_fixations(rec_dir, data_dir, timestamps, frame_size):
     yield "Detecting fixations...", ()
 
-    progress = Progress(disable=True)
-    process_recording(Path(rec_dir).parent, data_dir, force=True, blinks=False, fixations=True, progress=progress)
-    while not progress.finished:
-        time.sleep(1.0)
+    _process_fixations(Path(rec_dir).parent, Path(data_dir))
 
     fixations_csv = Path(data_dir) / 'fixations.csv'
-    while not fixations_csv.exists():
-        # @TODO: is there a better way to check for completion than polling for the file?
-        time.sleep(1.0)
-
     info_json = recording_info_utils.read_neon_info_file(str(Path(rec_dir).parent))
     start_time_synced_ns = int(info_json["start_time"])
 
@@ -314,7 +305,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
                             break
 
                     serialized = msgpack.packb(datum, use_bin_type=True, default=fm.Serialized_Dict.packing_hook)
-    
+
                     self.fixation_data.append(fm.Serialized_Dict(msgpack_bytes=serialized))
                     self.fixation_start_ts.append(start_ts)
                     self.fixation_stop_ts.append(stop_ts)

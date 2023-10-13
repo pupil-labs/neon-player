@@ -28,6 +28,8 @@ from ..recording import PupilRecording
 from ..recording_utils import VALID_VIDEO_EXTENSIONS, InvalidRecordingException
 from . import update_utils
 
+from pupil_labs.rec_export.export import _process_gaze
+
 logger = logging.getLogger(__name__)
 
 NEWEST_SUPPORTED_VERSION = parse_version("2.1")
@@ -166,6 +168,12 @@ def _convert_gaze(recording: PupilRecording):
             template_datum["confidence"] = conf
             writer.append(template_datum)
         logger.info(f"Converted {len(writer.ts_queue)} gaze positions.")
+
+    # pre-emptively create gaze file for blink and fixation detectors
+    rec_path = Path(recording.rec_dir)
+    cache_path = rec_path / 'offline_data'
+    cache_path.mkdir(exist_ok=True)
+    _process_gaze(rec_path.parent, cache_path)
 
 
 def android_system_info(info_json: dict) -> str:
