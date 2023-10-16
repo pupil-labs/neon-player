@@ -182,12 +182,16 @@ class IMUTimeline(Plugin):
     def __init__(
         self,
         g_pool,
-        should_draw=True,
+        show_gyro=True,
+        show_accel=True,
+        show_orientation=True,
     ):
         super().__init__(g_pool)
         imu_recs = self._imu_recordings(g_pool)
 
-        self.should_draw = should_draw
+        self.show_gyro = show_gyro
+        self.show_accel = show_accel
+        self.show_orientation = show_orientation
 
         self.gyro_timeline = None
         self.accel_timeline = None
@@ -203,7 +207,9 @@ class IMUTimeline(Plugin):
 
     def get_init_dict(self):
         return {
-            "should_draw": self.should_draw,
+            "show_gyro": self.show_gyro,
+            "show_accel": self.show_accel,
+            "show_orientation": self.show_orientation,
         }
 
     def init_ui(self):
@@ -218,69 +224,88 @@ class IMUTimeline(Plugin):
             )
         )
 
-        self.menu.append(
-            ui.Switch(
-                "should_draw",
-                self,
-                label="View the IMU timeline",
-                setter=self.on_draw_toggled,
-            )
-        )
-        if self.should_draw:
-            self.append_timeline_raw()
+        self.menu.append(ui.Switch(
+            "show_gyro",
+            self,
+            label="Show gyroscope values",
+            setter=self.on_show_gyro_toggled,
+        ))
+        self.menu.append(ui.Switch(
+            "show_accel",
+            self,
+            label="Show accelerometer values",
+            setter=self.on_show_accel_toggled,
+        ))
+        self.menu.append(ui.Switch(
+            "show_orientation",
+            self,
+            label="Show orientation values",
+            setter=self.on_show_orientation_toggled,
+        ))
+
+        self.on_show_gyro_toggled(self.show_gyro)
+        self.on_show_accel_toggled(self.show_accel)
+        self.on_show_orientation_toggled(self.show_orientation)
+
+        self.glfont_raw = glfont_generator()
 
     def deinit_ui(self):
-        if self.should_draw:
+        if self.show_gyro:
             self.g_pool.user_timelines.remove(self.gyro_timeline)
-            self.g_pool.user_timelines.remove(self.accel_timeline)
-            self.g_pool.user_timelines.remove(self.orient_timeline)
             del self.gyro_timeline
+        if self.show_accel:
+            self.g_pool.user_timelines.remove(self.accel_timeline)
             del self.accel_timeline
+        if self.show_orientation:
+            self.g_pool.user_timelines.remove(self.orient_timeline)
             del self.orient_timeline
-            del self.glfont_raw
+
+        del self.glfont_raw
 
         self.cleanup()
         self.remove_menu()
 
-    def on_draw_toggled(self, new_value):
-        self.should_draw = new_value
-        if self.should_draw:
-            self.append_timeline_raw()
-        else:
-            self.remove_timeline_raw()
+    def on_show_gyro_toggled(self, new_value):
+        self.show_gyro = new_value
+        if self.show_gyro:
+            self.gyro_timeline = ui.Timeline(
+                "gyro",
+                self.draw_raw_gyro,
+                self.draw_legend_gyro,
+                self.TIMELINE_LINE_HEIGHT * 3,
+            )
+            self.g_pool.user_timelines.append(self.gyro_timeline)
+        elif self.gyro_timeline is not None:
+            self.g_pool.user_timelines.remove(self.gyro_timeline)
+            del self.gyro_timeline
 
-    def append_timeline_raw(self):
-        self.gyro_timeline = ui.Timeline(
-            "gyro",
-            self.draw_raw_gyro,
-            self.draw_legend_gyro,
-            self.TIMELINE_LINE_HEIGHT * 3,
-        )
-        self.accel_timeline = ui.Timeline(
-            "accel",
-            self.draw_raw_accel,
-            self.draw_legend_accel,
-            self.TIMELINE_LINE_HEIGHT * 3,
-        )
-        self.orient_timeline = ui.Timeline(
-            "orientation",
-            self.draw_orient,
-            self.draw_legend_orient,
-            self.TIMELINE_LINE_HEIGHT * 3,
-        )
-        self.g_pool.user_timelines.append(self.gyro_timeline)
-        self.g_pool.user_timelines.append(self.accel_timeline)
-        self.g_pool.user_timelines.append(self.orient_timeline)
-        self.glfont_raw = glfont_generator()
+    def on_show_accel_toggled(self, new_value):
+        self.show_accel = new_value
+        if self.show_accel:
+            self.accel_timeline = ui.Timeline(
+                "accel",
+                self.draw_raw_accel,
+                self.draw_legend_accel,
+                self.TIMELINE_LINE_HEIGHT * 3,
+            )
+            self.g_pool.user_timelines.append(self.accel_timeline)
+        elif self.accel_timeline is not None:
+            self.g_pool.user_timelines.remove(self.accel_timeline)
+            del self.accel_timeline
 
-    def remove_timeline_raw(self):
-        self.g_pool.user_timelines.remove(self.gyro_timeline)
-        self.g_pool.user_timelines.remove(self.accel_timeline)
-        self.g_pool.user_timelines.remove(self.orient_timeline)
-        del self.gyro_timeline
-        del self.accel_timeline
-        del self.orient_timeline
-        del self.glfont_raw
+    def on_show_orientation_toggled(self, new_value):
+        self.show_orientation = new_value
+        if self.show_orientation:
+            self.orient_timeline = ui.Timeline(
+                "orientation",
+                self.draw_orient,
+                self.draw_legend_orient,
+                self.TIMELINE_LINE_HEIGHT * 3,
+            )
+            self.g_pool.user_timelines.append(self.orient_timeline)
+        elif self.orient_timeline is not None:
+            self.g_pool.user_timelines.remove(self.orient_timeline)
+            del self.orient_timeline
 
     def draw_raw_gyro(self, width, height, scale):
         y_limits = get_limits(self.data_raw, self.gyro_keys)
