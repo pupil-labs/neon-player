@@ -216,13 +216,18 @@ class IMUTimeline(Plugin):
         self.add_menu()
         self.menu.label = "IMU Timeline"
         self.menu.append(ui.Info_Text("Visualize IMU data and export to .csv file"))
-        self.menu.append(
-            ui.Info_Text(
-                "This plugin visualizes accelerometer, gyroscope and "
-                " orientation data from Neon recordings. Results are "
-                " exported in 'imu_timeline.csv' "
-            )
-        )
+        self.menu.append(ui.Info_Text(
+            "This plugin visualizes gyroscope, accelerometer, and"
+            " orientation data from Neon recordings. Results are"
+            " exported in 'imu_timeline.csv'."
+        ))
+        self.menu.append(ui.Info_Text(
+            "Units:\n"
+            "  * Gyroscope: degrees/second\n"
+            "  * Accelerometer: G (9.80665 m/s^2)\n"
+            "  * Orientation: Euler angles (degrees)"
+        ))
+
 
         self.menu.append(ui.Switch(
             "show_gyro",
