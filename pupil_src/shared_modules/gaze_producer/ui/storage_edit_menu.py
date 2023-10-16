@@ -59,10 +59,11 @@ class StorageEditMenu(plugin_ui.SelectAndRefreshMenu, abc.ABC):
         return [self._item_label(item) for item in self._storage]
 
     def render_above_selector_elements(self, menu):
-        menu.append(self._create_new_button())
-        if self.items:
-            menu.append(self._create_duplicate_button())
-            menu.append(self._create_delete_button())
+        if self.allow_multiple:
+            menu.append(self._create_new_button())
+            if self.items:
+                menu.append(self._create_duplicate_button())
+                menu.append(self._create_delete_button())
 
     def _create_new_button(self):
         return ui.Button(

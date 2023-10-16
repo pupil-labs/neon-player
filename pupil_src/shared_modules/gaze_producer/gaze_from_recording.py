@@ -18,7 +18,7 @@ from tasklib.manager import UniqueTaskManager
 class GazeFromRecording(GazeProducerBase):
     @classmethod
     def plugin_menu_label(cls) -> str:
-        return "Gaze Data From Recording"
+        return "Gaze Offset Correction"
 
     def __init__(self, g_pool):
         super().__init__(g_pool)
@@ -29,7 +29,9 @@ class GazeFromRecording(GazeProducerBase):
         self._setup_storages()
         self._setup_controllers()
         self._setup_ui()
-        self._setup_timelines()
+
+        if self._gaze_mapper_menu.allow_multiple:
+            self._setup_timelines()
 
     def _setup_timelines(self):
         self._plugin_timeline = PluginTimeline(
@@ -51,9 +53,10 @@ class GazeFromRecording(GazeProducerBase):
     def init_ui(self):
         super().init_ui()
         self._gaze_mapper_menu.render()
-        self.menu.append(self._gaze_mapper_menu.menu)
+        self.menu.extend(self._gaze_mapper_menu.menu)
 
-        self._refresh_timeline()
+        if self._gaze_mapper_menu.allow_multiple:
+            self._refresh_timeline()
 
     def _refresh_timeline(self):
         self._plugin_timeline.clear_rows()
@@ -119,6 +122,4 @@ class GazeFromRecording(GazeProducerBase):
         for mapper in self._gaze_mapper_storage:
             if frame_idx >= mapper.mapping_index_range[0] and frame_idx < mapper.mapping_index_range[1]:
                 return (mapper.manual_correction_x, mapper.manual_correction_y)
-            
         return (0, 0)
-    

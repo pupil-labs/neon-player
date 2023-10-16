@@ -25,6 +25,8 @@ class SelectAndRefreshMenu(abc.ABC):
     selector_label = "Current:"
 
     def __init__(self):
+        self.allow_multiple = False
+
         self.menu = ui.Growing_Menu(self.menu_label)
         self.current_item = None
         # when the current element changes, a few menu elements remain (=the selector
@@ -60,10 +62,13 @@ class SelectAndRefreshMenu(abc.ABC):
             self.current_item = self.items[0]
         self.menu.elements.clear()
         self.render_above_selector_elements(self.menu)
-        if len(self.items) > 0:
-            self._render_item_selector_and_current_item()
+        if len(self.items) > 0 and self.allow_multiple:
+            self._render_item_selector()
 
-    def _render_item_selector_and_current_item(self):
+        if self.current_item:
+            self._on_change_current_item(self.current_item)
+
+    def _render_item_selector(self):
         self.menu.append(
             ui.Selector(
                 "current_item",
@@ -76,10 +81,6 @@ class SelectAndRefreshMenu(abc.ABC):
         )
         self.menu.append(ui.Separator())
         self._number_of_static_menu_elements = len(self.menu.elements)
-        # apparently, the 'setter' function is only triggered if the selection
-        # changes, but not for the initial selection, so we call it manually
-        if self.current_item:
-            self._on_change_current_item(self.current_item)
 
     # TODO: implement this with an attribute observer when the feature is available
     def _on_change_current_item(self, item):

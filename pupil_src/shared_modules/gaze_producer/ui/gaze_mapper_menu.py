@@ -44,17 +44,16 @@ class GazeMapperMenu(plugin_ui.StorageEditMenu):
         return self._gaze_mapper_storage.duplicate_gaze_mapper(gaze_mapper)
 
     def _render_custom_ui(self, gaze_mapper, menu):
-        menu.extend(
-            [
+        if self.allow_multiple:
+            menu.extend([
                 self._create_name_input(gaze_mapper),
                 self._create_mapping_range_selector(gaze_mapper),
-                self._create_manual_correction_slider("x", gaze_mapper),
-                self._create_manual_correction_slider("y", gaze_mapper),
-                ui.Separator(),
-                self._create_status_text(gaze_mapper),
-                self._create_calculate_button(gaze_mapper),
-            ]
-        )
+            ])
+
+        menu.extend([
+            self._create_manual_correction_slider("x", gaze_mapper),
+            self._create_manual_correction_slider("y", gaze_mapper),
+        ])
 
     def _create_name_input(self, gaze_mapper):
         return ui.Text_Input(
