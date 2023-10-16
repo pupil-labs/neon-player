@@ -53,7 +53,6 @@ class GazeMapperController(Observable):
             self._abort_calculation(gaze_mapper, "There is no pupil data to be mapped!")
             return None
         self._task_manager.add_task(task, identifier=f"{gaze_mapper.unique_id}-mapping")
-        logger.info(f"Start gaze mapping for '{gaze_mapper.name}'")
 
     def _abort_calculation(self, gaze_mapper, error_message):
         logger.error(error_message)
@@ -93,7 +92,6 @@ class GazeMapperController(Observable):
             self.publish_all_enabled_mappers()
             self._gaze_mapper_storage.save_to_disk()
             self.on_gaze_mapping_calculated(gaze_mapper)
-            logger.info(f"Completed gaze mapping for '{gaze_mapper.name}'")
 
         task.add_observer("on_yield", on_yield_gaze)
         task.add_observer("on_completed", on_completed_mapping)

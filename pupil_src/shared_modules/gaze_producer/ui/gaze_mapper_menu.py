@@ -53,6 +53,7 @@ class GazeMapperMenu(plugin_ui.StorageEditMenu):
         menu.extend([
             self._create_manual_correction_slider("x", gaze_mapper),
             self._create_manual_correction_slider("y", gaze_mapper),
+            self._create_reset_button(),
         ])
 
     def _create_name_input(self, gaze_mapper):
@@ -63,10 +64,10 @@ class GazeMapperMenu(plugin_ui.StorageEditMenu):
     def _create_status_text(self, gaze_mapper):
         return ui.Text_Input("status", gaze_mapper, label="Status", setter=lambda _: _)
 
-    def _create_calculate_button(self, gaze_mapper):
+    def _create_reset_button(self):
         return ui.Button(
-            label="Calculate" if gaze_mapper.empty() else "Recalculate",
-            function=self._on_click_calculate,
+            label="Reset",
+            function=self._on_click_reset,
         )
 
     def _create_mapping_range_selector(self, gaze_mapper):
@@ -93,7 +94,7 @@ class GazeMapperMenu(plugin_ui.StorageEditMenu):
     def _create_manual_correction_slider(self, axis, gaze_mapper):
         return ui.Slider(
             "manual_correction_" + axis,
-            gaze_mapper,
+            self,
             min=-0.5,
             step=0.01,
             max=0.5,
@@ -112,10 +113,29 @@ class GazeMapperMenu(plugin_ui.StorageEditMenu):
         )
         self.render()
 
-    def _on_click_calculate(self):
+    def _on_click_reset(self):
+        self.current_item.manual_correction_x = 0.0
+        self.current_item.manual_correction_y = 0.0
         self._gaze_mapper_controller.calculate(self.current_item)
 
     def _on_gaze_mapping_calculated(self, gaze_mapping):
         if gaze_mapping == self.current_item:
-            # mostly to change button "calculate" -> "recalculate"
             self.render()
+
+    @property
+    def manual_correction_x(self):
+        return self.current_item.manual_correction_x
+
+    @manual_correction_x.setter
+    def manual_correction_x(self, value):
+        self.current_item.manual_correction_x = value
+        self._gaze_mapper_controller.calculate(self.current_item)
+
+    @property
+    def manual_correction_y(self):
+        return self.current_item.manual_correction_y
+
+    @manual_correction_y.setter
+    def manual_correction_y(self, value):
+        self.current_item.manual_correction_y = value
+        self._gaze_mapper_controller.calculate(self.current_item)
