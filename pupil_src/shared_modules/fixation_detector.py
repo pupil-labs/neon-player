@@ -55,6 +55,7 @@ from scipy.spatial.distance import pdist
 from progress_reporter import ProgressReporter
 
 from pupil_labs.rec_export.export import _process_fixations
+from pupil_labs.rec_export.explib.fixation_detector.optic_flow_correction import load_optic_flow_vectors
 from pupil_recording.info import recording_info_utils
 
 logger = logging.getLogger(__name__)
@@ -144,6 +145,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
         self.fixation_data = []
         self.prev_index = -1
         self.bg_task = None
+        self.optic_flow_vectors = None
         self.status = ""
         self.data_dir = os.path.join(g_pool.rec_dir, "offline_data")
         self._gaze_changed_listener = data_changed.Listener(
@@ -335,8 +337,25 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
         events["fixations"] = fixations
         if self.show_fixations:
             for f in fixations:
-                x = int(f["norm_pos"][0] * frame.width)
-                y = int((1.0 - f["norm_pos"][1]) * frame.height)
+                if self.optic_flow_vectors is None:
+                    self.optic_flow_vectors = load_optic_flow_vectors(Path(self.g_pool.rec_dir).parent)
+
+                # find optic flow frame that matches this fixation start frame
+                optic_flow_count = len(self.optic_flow_vectors.ts)
+                optic_flow_idx = 0
+                while optic_flow_idx < optic_flow_count and self.optic_flow_vectors.ts[optic_flow_idx] < f['timestamp']:
+                    optic_flow_idx += 1
+
+                # calculate cumulative offset to current timestamp
+                optic_flow_offset = [0, 0]
+                while optic_flow_idx < optic_flow_count and self.optic_flow_vectors.ts[optic_flow_idx] < frame.timestamp:
+                    optic_frame_duration = self.optic_flow_vectors.ts[optic_flow_idx+1] - self.optic_flow_vectors.ts[optic_flow_idx]
+                    optic_flow_offset[0] += self.optic_flow_vectors.x[optic_flow_idx] * optic_frame_duration
+                    optic_flow_offset[1] += self.optic_flow_vectors.y[optic_flow_idx] * optic_frame_duration
+                    optic_flow_idx += 1
+
+                x = int(f["norm_pos"][0] * frame.width + optic_flow_offset[0])
+                y = int((1.0 - f["norm_pos"][1]) * frame.height + optic_flow_offset[1])
                 pm.transparent_circle(
                     frame.img,
                     (x, y),
