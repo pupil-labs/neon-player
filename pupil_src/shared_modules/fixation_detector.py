@@ -33,6 +33,7 @@ import os
 from bisect import bisect_left, bisect_right
 from collections import deque
 from pathlib import Path
+import multiprocessing as mp
 
 import background_helper as bh
 import cv2
@@ -51,6 +52,7 @@ from pyglui import ui
 from pyglui.cygl.utils import RGBA, draw_circle
 from pyglui.pyfontstash import fontstash
 from scipy.spatial.distance import pdist
+from progress_reporter import ProgressReporter
 
 from pupil_labs.rec_export.export import _process_fixations
 from pupil_recording.info import recording_info_utils
@@ -94,11 +96,11 @@ def fixation_from_data(info, timestamps, world_start_time, frame_size):
 
     return (datum, start_time, end_time)
 
-
-def detect_fixations(rec_dir, data_dir, timestamps, frame_size):
+def detect_fixations(rec_dir, data_dir, timestamps, frame_size, queue):
     yield "Detecting fixations...", ()
 
-    _process_fixations(Path(rec_dir).parent, Path(data_dir))
+    with ProgressReporter(queue) as progress:
+        _process_fixations(Path(rec_dir).parent, Path(data_dir), progress)
 
     fixations_csv = Path(data_dir) / 'fixations.csv'
     info_json = recording_info_utils.read_neon_info_file(str(Path(rec_dir).parent))
@@ -278,11 +280,13 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
         self.fixation_data = []
         self.fixation_start_ts = []
         self.fixation_stop_ts = []
+        self.mp_queue = mp.Queue()
         args = (
             self.g_pool.rec_dir,
             self.data_dir,
             self.g_pool.timestamps,
-            self.g_pool.capture.video_stream.frame_size
+            self.g_pool.capture.video_stream.frame_size,
+            self.mp_queue
         )
         self.bg_task = bh.IPC_Logging_Task_Proxy(
             "Fixation detection", detect_fixations, args=args
@@ -291,6 +295,11 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
 
     def recent_events(self, events):
         if self.bg_task:
+            while not self.mp_queue.empty():
+                current_progress = self.mp_queue.get_nowait()
+                self.menu_icon.indicator_stop = current_progress
+                self.status = f'Detecting fixations ({round(100*current_progress)}%)'
+
             for progress, fixation_result in self.bg_task.fetch():
                 self.status = progress
                 if fixation_result:
@@ -310,12 +319,6 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
                     self.fixation_start_ts.append(start_ts)
                     self.fixation_stop_ts.append(stop_ts)
 
-                if self.fixation_data:
-                    current_ts = self.fixation_stop_ts[-1]
-                    progress = (current_ts - self.g_pool.timestamps[0]) / (
-                        self.g_pool.timestamps[-1] - self.g_pool.timestamps[0]
-                    )
-                    self.menu_icon.indicator_stop = progress
             if self.bg_task.completed:
                 self.status = f"{len(self.fixation_data)} fixations detected"
                 self.correlate_and_publish_new()

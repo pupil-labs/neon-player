@@ -13,6 +13,7 @@ import logging
 import os
 from collections import deque
 from pathlib import Path
+import multiprocessing as mp
 
 import background_helper as bh
 import file_methods as fm
@@ -25,6 +26,7 @@ from observable import Observable
 from plugin import Plugin
 from pyglui import ui
 from pyglui.pyfontstash import fontstash as fs
+from progress_reporter import ProgressReporter
 
 from pupil_recording.info import recording_info_utils
 
@@ -37,9 +39,10 @@ NS_TO_S = 1e-9
 blink_color = cygl_utils.RGBA(0.9961, 0.3789, 0.5313, 0.8)
 
 
-def detect_blinks(neon_rec_path, data_path):
+def detect_blinks(neon_rec_path, data_path, queue):
     yield "Detecting blinks..."
-    _process_blinks(neon_rec_path, data_path)
+    with ProgressReporter(queue) as progress:
+        _process_blinks(neon_rec_path, data_path, progress)
     yield "Blink detection complete"
 
 
@@ -160,7 +163,9 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
         cache_file = data_path / "blinks.csv"
 
         if not cache_file.exists():
-            args = (neon_rec_path, data_path)
+            self.mp_queue = mp.Queue()
+
+            args = (neon_rec_path, data_path, self.mp_queue)
             self.bg_task = bh.IPC_Logging_Task_Proxy(
                 "Blink detection", detect_blinks, args=args
             )
@@ -201,6 +206,11 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
 
     def recent_events(self, events):
         if self.bg_task:
+            while not self.mp_queue.empty():
+                current_progress = self.mp_queue.get_nowait()
+                self.menu_icon.indicator_stop = current_progress
+                self.status = f'Detecting blinks ({round(100*current_progress)}%)'
+
             for status in self.bg_task.fetch():
                 self.status = status
 
