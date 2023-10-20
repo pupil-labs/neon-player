@@ -65,15 +65,14 @@ class ScanPathBackgroundTask(Observable, _BaseTask):
                 self._bg_task = None
                 self.on_failed(err)
 
-            for progress, gaze_data in task_data:
-                gaze_data = scan_path_numpy_array_from(gaze_data)
-                self._gaze_data = np.append(self._gaze_data, gaze_data)
+            for progress, all_gaze_data in task_data:
+                if all_gaze_data is not None:
+                    self._gaze_data = scan_path_numpy_array_from(all_gaze_data)
                 self._progress = progress
-                self.on_updated(gaze_data)
+                self.on_updated(all_gaze_data)
 
             if self._bg_task.completed:
                 self._bg_task = None
-                self._gaze_data = scan_path_numpy_array_from(self._gaze_data)
                 self.on_completed(self._gaze_data)
 
     def cancel(self):
@@ -90,7 +89,11 @@ class ScanPathBackgroundTask(Observable, _BaseTask):
 def generate_frames_with_corrected_gaze(g_pool, timeframe, preprocessed_data):
     sp = ScanPathAlgorithm(timeframe)
 
+    all_gaze_data = []
     for progress, frame in generate_frames(g_pool):
         gaze_data = preprocessed_data[preprocessed_data.frame_index == frame.index]
         gaze_data = sp.update_from_frame(frame, gaze_data)
-        yield progress, gaze_data
+        all_gaze_data += gaze_data.tolist()
+        yield progress, None
+
+    yield 1.0, all_gaze_data
