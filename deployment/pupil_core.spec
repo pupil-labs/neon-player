@@ -84,7 +84,7 @@ def main():
     pyz = PYZ(a.pure)
 
     for name in ("player", ):
-        icon_name = "pupil-" + name + ICON_EXT[current_platform]
+        icon_name = "neon-" + name + ICON_EXT[current_platform]
         icon_path = (deployment_root / "icons" / icon_name).resolve()
 
         if current_platform == SupportedPlatform.macos:
