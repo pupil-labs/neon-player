@@ -57,12 +57,5 @@ def _map_gaze(
     fake_gpool.import_runtime_plugins()
 
     for gaze_datum in raw_gaze_data:
-        adjusted_datum = gaze_datum.copy()
-        adjusted_datum["norm_pos"] = [
-            gaze_datum["norm_pos"][0] + manual_correction_x,
-            gaze_datum["norm_pos"][1] + manual_correction_y,
-        ]
-
-        adjusted_datum = fm.Serialized_Dict(adjusted_datum) # for performance
-        result = (gaze_datum["timestamp"], adjusted_datum)
+        result = (gaze_datum["timestamp"], gaze_datum)
         yield [result]

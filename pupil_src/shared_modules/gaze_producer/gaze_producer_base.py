@@ -55,4 +55,16 @@ class GazeProducerBase(Observable, System_Plugin_Base):
         if "frame" in events:
             frame_idx = events["frame"].index
             window = pm.enclosing_window(self.g_pool.timestamps, frame_idx)
-            events["gaze"] = self.g_pool.gaze_positions.by_ts_window(window)
+
+            manual_correction = self.get_manual_correction_for_frame(frame_idx)
+            raw_gazes = self.g_pool.gaze_positions.by_ts_window(window)
+            corrected_gazes = []
+            for idx,gaze in enumerate(raw_gazes):
+                gaze = gaze.copy()
+                gaze["norm_pos"] = (
+                    gaze["norm_pos"][0] + manual_correction[0],
+                    gaze["norm_pos"][1] + manual_correction[1],
+                )
+                corrected_gazes.append(gaze)
+
+            events["gaze"] = corrected_gazes

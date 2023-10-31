@@ -92,7 +92,7 @@ def fixation_from_data(info, timestamps, world_start_time, frame_size):
         "start_frame_index": int(start_frame),
         "end_frame_index": int(end_frame),
         "mid_frame_index": int((start_frame + end_frame) // 2),
-        "gaze_point_2d": [info[f'fixation {axis} [px]'] for axis in 'xy'],
+        "gaze_point_2d": [float(info[f'fixation {axis} [px]']) for axis in 'xy'],
     }
 
     return (datum, start_time, end_time)
@@ -310,15 +310,6 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
                 self.status = progress
                 if fixation_result:
                     datum, start_ts, stop_ts = fixation_result
-                    for plugin in self.g_pool.plugins:
-                        if isinstance(plugin, GazeFromRecording):
-                            manual_correction = plugin.get_manual_correction_for_frame(datum['start_frame_index'])
-                            datum['norm_pos'] = (
-                                datum['norm_pos'][0] + manual_correction[0],
-                                datum['norm_pos'][1] + manual_correction[1]
-                            )
-                            break
-
                     serialized = msgpack.packb(datum, use_bin_type=True, default=fm.Serialized_Dict.packing_hook)
 
                     self.fixation_data.append(fm.Serialized_Dict(msgpack_bytes=serialized))
@@ -340,6 +331,12 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
         fixations = self.g_pool.fixations.by_ts_window(frame_window)
         events["fixations"] = fixations
         if self.show_fixations:
+            manual_correction = [0, 0]
+            for plugin in self.g_pool.plugins:
+                if isinstance(plugin, GazeFromRecording):
+                    manual_correction = plugin.get_manual_correction_for_frame(frame.index)
+                    break
+
             for f in fixations:
                 # calculate cumulative offset to current timestamp
                 optic_flow_offset = [0, 0]
@@ -363,6 +360,10 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
 
                 x = int((f["norm_pos"][0] - start_offset[0]) * frame.width + optic_flow_offset[0])
                 y = int((1.0 - f["norm_pos"][1] + start_offset[1]) * frame.height + optic_flow_offset[1])
+
+                x += int(manual_correction[0] * frame.width)
+                y -= int(manual_correction[1] * frame.height)
+
                 pm.transparent_circle(
                     frame.img,
                     (x, y),
@@ -528,6 +529,12 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
             return
 
         fixations_in_section = self.g_pool.fixations.by_ts_window(export_window)
+        gaze_offset_plugin = None
+        for plugin in self.g_pool.plugins:
+            if isinstance(plugin, GazeFromRecording):
+                gaze_offset_plugin = plugin
+                break
+
 
         with open(
             os.path.join(export_dir, "fixations.csv"), "w", encoding="utf-8", newline=""
@@ -535,5 +542,18 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
             csv_writer = csv.writer(csvfile)
             csv_writer.writerow(self.csv_representation_keys())
             for f in fixations_in_section:
+
+                if gaze_offset_plugin is not None:
+                    f = f.copy()
+                    manual_correction = gaze_offset_plugin.get_manual_correction_for_frame(f["start_frame_index"])
+                    f["norm_pos"] = (
+                        f["norm_pos"][0] + manual_correction[0],
+                        f["norm_pos"][1] + manual_correction[1],
+                    )
+                    f["gaze_point_2d"] = (
+                        f["gaze_point_2d"][0] + manual_correction[0] * self.g_pool.capture.frame_size[0],
+                        f["gaze_point_2d"][1] - manual_correction[1] * self.g_pool.capture.frame_size[1],
+                    )
+
                 csv_writer.writerow(self.csv_representation_for_fixation(f))
             logger.info("Created 'fixations.csv' file.")

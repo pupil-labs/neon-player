@@ -116,7 +116,6 @@ class GazeMapperMenu(plugin_ui.StorageEditMenu):
     def _on_click_reset(self):
         self.current_item.manual_correction_x = 0.0
         self.current_item.manual_correction_y = 0.0
-        self._gaze_mapper_controller.calculate(self.current_item)
 
     def _on_gaze_mapping_calculated(self, gaze_mapping):
         if gaze_mapping == self.current_item:
@@ -129,7 +128,6 @@ class GazeMapperMenu(plugin_ui.StorageEditMenu):
     @manual_correction_x.setter
     def manual_correction_x(self, value):
         self.current_item.manual_correction_x = value
-        self._gaze_mapper_controller.calculate(self.current_item)
 
     @property
     def manual_correction_y(self):
@@ -138,4 +136,3 @@ class GazeMapperMenu(plugin_ui.StorageEditMenu):
     @manual_correction_y.setter
     def manual_correction_y(self, value):
         self.current_item.manual_correction_y = value
-        self._gaze_mapper_controller.calculate(self.current_item)

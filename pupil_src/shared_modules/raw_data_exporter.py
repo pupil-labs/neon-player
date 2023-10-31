@@ -20,6 +20,8 @@ from plugin import Plugin
 from pyglui import ui
 from rich.progress import track
 
+from gaze_producer.gaze_from_recording import GazeFromRecording
+
 # logging
 logger = logging.getLogger(__name__)
 
@@ -90,6 +92,12 @@ class Raw_Data_Exporter(Plugin):
     def export_data(self, export_window, export_dir):
         if self.should_export_gaze_positions:
             gaze_positions_exporter = Gaze_Positions_Exporter()
+
+            for plugin in self.g_pool.plugins:
+                if isinstance(plugin, GazeFromRecording):
+                    Gaze_Positions_Exporter.gaze_offset_plugin = plugin
+                    break
+
             gaze_positions_exporter.csv_export_write(
                 positions_bisector=self.g_pool.gaze_positions,
                 timestamps=self.g_pool.timestamps,
@@ -170,7 +178,12 @@ class Gaze_Positions_Exporter(_Base_Positions_Exporter):
         cls, raw_value: csv_utils.CSV_EXPORT_RAW_TYPE, world_index: int
     ) -> dict:
         gaze_timestamp = str(raw_value["timestamp"])
-        norm_pos = raw_value["norm_pos"]
+
+        manual_correction = Gaze_Positions_Exporter.gaze_offset_plugin.get_manual_correction_for_frame(world_index)
+        norm_pos = (
+            raw_value["norm_pos"][0] + manual_correction[0],
+            raw_value["norm_pos"][1] + manual_correction[1],
+        )
 
         return {
             "gaze_timestamp": gaze_timestamp,
