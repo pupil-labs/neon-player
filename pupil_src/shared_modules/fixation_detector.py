@@ -346,7 +346,11 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
                         self.optic_flow_vectors = load_optic_flow_vectors(Path(self.g_pool.rec_dir).parent)
 
                     gaze_points = self.g_pool.gaze_positions.by_ts_window((f["timestamp"], f["timestamp"]+1/30))
-                    first_gaze_point = gaze_points[-1]
+                    if len(gaze_points) == 0:
+                        first_gaze_point = f
+                    else:
+                        first_gaze_point = gaze_points[0]
+
                     start_offset = (
                         f["norm_pos"][0] - first_gaze_point["norm_pos"][0],
                         f["norm_pos"][1] - first_gaze_point["norm_pos"][1],
