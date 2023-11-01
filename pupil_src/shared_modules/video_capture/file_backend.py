@@ -131,10 +131,16 @@ class Decoder(ABC):
     @property
     def frame_size(self) -> T.Tuple[int, int]:
         """Frame size in (width, height)"""
-        return (
-            int(self.video_stream.format.width),
-            int(self.video_stream.format.height),
-        )
+        if self.video_stream.format is None:
+            return (
+                self.video_stream.width,
+                self.video_stream.height,
+            )
+        else:
+            return (
+                int(self.video_stream.format.width),
+                int(self.video_stream.format.height),
+            )
 
     def cleanup(self):
         """
