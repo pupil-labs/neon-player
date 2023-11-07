@@ -55,7 +55,10 @@ def update_recording(rec_dir: str):
         return str(new_path)
 
     # Copy entire contents to a subfolder and convert that
-    shutil.copytree(rec_dir, str(new_path))
+    rec_dir_tmp = f"{new_path}.tmp"
+    shutil.rmtree(rec_dir_tmp, ignore_errors=True)
+
+    shutil.copytree(rec_dir, rec_dir_tmp)
     rec_dir = str(new_path)
 
     # NOTE: there is an issue with PI recordings, where sometimes multiple parts of
@@ -64,12 +67,12 @@ def update_recording(rec_dir: str):
     # Trying to open the recording will crash in the lookup-table generation. We
     # just gracefully exit here and display an error message.
     mjpeg_world_videos = (
-        PupilRecording.FileFilter(rec_dir).pi().world().filter_patterns(".mjpeg$")
+        PupilRecording.FileFilter(rec_dir_tmp).pi().world().filter_patterns(".mjpeg$")
     )
     if mjpeg_world_videos:
         videos = [
             path.name
-            for path in PupilRecording.FileFilter(rec_dir).pi().world().videos()
+            for path in PupilRecording.FileFilter(rec_dir_tmp).pi().world().videos()
         ]
         logger.error(
             "Found mjpeg world videos for this Pupil Invisible recording! Videos:\n"
@@ -80,18 +83,20 @@ def update_recording(rec_dir: str):
             recovery="Please reach out to info@pupil-labs.com for support!",
         )
 
-    transform_neon_to_corresponding_new_style(rec_dir)
+    transform_neon_to_corresponding_new_style(rec_dir_tmp)
 
-    _assert_compatible_meta_version(rec_dir)
+    _assert_compatible_meta_version(rec_dir_tmp)
 
-    check_for_worldless_recording_new_style(rec_dir)
+    check_for_worldless_recording_new_style(rec_dir_tmp)
 
     # update to latest
-    recording_update_to_latest_new_style(rec_dir)
+    recording_update_to_latest_new_style(rec_dir_tmp)
 
     # generate lookup tables once at the start of player, so we don't pause later for
     # compiling large lookup tables when they are needed
-    _generate_all_lookup_tables(rec_dir)
+    _generate_all_lookup_tables(rec_dir_tmp)
+
+    shutil.move(rec_dir_tmp, rec_dir)
 
     return rec_dir
 
