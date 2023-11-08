@@ -34,10 +34,13 @@ class FrameFetcher:
 
     def frame_for_idx(self, requested_frame_idx):
         if requested_frame_idx != self.current_frame.index:
-            if requested_frame_idx == self.source.get_frame_index() + 2:
-                # if we just need to seek by one frame,
-                # its faster to just read one and and throw it away.
-                self.source.get_frame()
+            seek_distance = requested_frame_idx - self.source.get_frame_index() - 1
+            if seek_distance <= 40:
+                # if we just need to seek 40 or less frames,
+                # its faster to just read and throw it away.
+                for _ in range(seek_distance):
+                    self.source.get_frame()
+
             if requested_frame_idx != self.source.get_frame_index() + 1:
                 self.source.seek_to_frame(int(requested_frame_idx))
 
@@ -45,4 +48,5 @@ class FrameFetcher:
                 self.current_frame = self.source.get_frame()
             except EndofVideoError:
                 logger.info(f"End of video {self.source.source_path}.")
+
         return self.current_frame
