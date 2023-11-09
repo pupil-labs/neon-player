@@ -5,44 +5,22 @@ rel="noopener"
 target="_blank">
 	<p align="center">
 		<img
-		src="https://raw.githubusercontent.com/wiki/pupil-labs/pupil/media/images/pupil_labs_pupil_core_repo_banner.jpg"
-		alt="Pupil Labs - Pupil Core software: open source eye tracking platform."/>
+		src="https://raw.githubusercontent.com/wiki/pupil-labs/neon-player/media/images/pupil_labs_neon_player_banner.jpg"
+		alt="Pupil Labs - Neon Player"/>
 	</p>
 </a>
 
-**Open source eye tracking platform.**
+*Neon Player* is an offline desktop application for [Neon](https://pupil-labs.com/products/neon) users to examine, visualize, and export eyetracking data.
 
-Pupil is a project in active, community driven development. Pupil Core mobile eye tracking hardware is accessible, hackable, and affordable. The software is open source and written in `Python` and `C++` when speed is an issue.
-
-Our vision is to create tools for a diverse group of people interested in learning about eye tracking and conducting their eye tracking projects.
-
-Chat with us on [Discord](https://pupil-labs.com/chat "Pupil Server on Discord").
+To connect with us and our community, chat with us on [Discord](https://pupil-labs.com/chat "Pupil Server on Discord").
 
 ## Users
-<a
-href="https://github.com/pupil-labs/pupil/releases/latest#user-content-downloads"
-rel="noopener"
-target="_blank">
-	<p align="center">
-		<img
-		src="https://raw.githubusercontent.com/wiki/pupil-labs/pupil/media/images/pupil_labs_pupil_core_app_download_banner.png"
-		alt="Download the latest Pupil Core Apps: Pupil Capture, Pupil Player, Pupil Service"/>
-	</p>
-</a>
-
-
-You don't need to know how to write code to _use_ Pupil. [Download the latest apps](https://github.com/pupil-labs/pupil/releases/latest#user-content-downloads "Download Pupil Capture, Pupil Player, and Pupil Service application bundles")!
-
-Read the [Pupil Core user guide](https://docs.pupil-labs.com/core/ "Pupil Core user guide").
+To get started
+* Download the [latest release](https://github.com/pupil-labs/neon-player/releases) and launch the Neon Player application
+* [Transfer your recordings from your Neon Companion Device to your computer](https://docs.pupil-labs.com/neon/how-tos/data-collection/transfer-recordings-via-usb.html)
+* Drag-and-drop a recording folder onto the Neon Player window
 
 ## Developers
-There are a number of ways you can interact with Pupil Core software as a developer:
-
-- [Use the API](https://docs.pupil-labs.com/developer/core/network-api/): Use the network based real-time API to communicate with Pupil over the network and integrate with your application.
-- [Develop a Plugin](https://docs.pupil-labs.com/developer/core/plugin-api/): Plugins are loaded at runtime from the app bundle. Note: if your plugin requires Python libraries that are not included in the application bundle, then you will need to run from source.
-- [Run from Source](#installing-dependencies): Can't do what you need to do with the network based api or plugin? Then get ready to dive into the inner workings of Pupil and run from source!
-
-All setup and dependency installation instructions are contained in this repo. All other developer documentation is [here](https://docs.pupil-labs.com/developer/core/overview/ "Pupil Core developer docs").
 
 ### Installing Dependencies and Code
 
@@ -56,31 +34,14 @@ the virtual environment. We do not yet provide arm64-native wheels for the Pupil
 dependencies.
 
 ```sh
-git clone https://github.com/pupil-labs/pupil.git
-cd pupil
-git checkout develop
+git clone https://github.com/pupil-labs/neon-player.git
+cd neon-player
 python -m pip install -r requirements.txt
 ```
-
 If you have trouble installing any of the dependencies, please see the corresponding
 code repository for manual installation steps and troubleshooting.
 
 #### Linux
-
-##### USB Access
-
-To grant Pupil Core applications access to the cameras, run
-
-```sh
-echo 'SUBSYSTEM=="usb",  ENV{DEVTYPE}=="usb_device", GROUP="plugdev", MODE="0664"' | sudo tee /etc/udev/rules.d/10-libuvc.rules > /dev/null
-sudo udevadm trigger
-```
-
-and ensure that your user is part of the `plugdev` group:
-
-```sh
-sudo usermod -a -G plugdev $USER
-```
 
 ##### Audio Playback
 
@@ -90,17 +51,11 @@ The [`sounddevice`](https://python-sounddevice.readthedocs.io/en/0.4.5/installat
 sudo apt install libportaudio2
 ```
 
-### Run Pupil
+### Run Neon Player
 
 ```sh
 cd pupil_src
-python main.py capture # or player/service
-```
-
-#### macOS 12 Monterey and newer
-Note: Due to [technical limitations](https://github.com/libusb/libusb/issues/1014) on macOS 12 Monterey and newer, Pupil Capture and Pupil Service need to be started with administrator privileges to get access to the video camera feeds. To do that, prepend the python command with `sudo`. E.g.,:
-```sh
-sudo python main.py capture
+python main.py
 ```
 
 #### Command Line Arguments
@@ -113,10 +68,7 @@ The following arguments are supported:
 | `--version`            | Show version and exit.                   |
 | `--debug`              | Display debug log messages.              |
 | `--profile`            | Profile the app's CPU time.              |
-| `-P PORT, --port PORT` | (Capture/Service) Port for Pupil Remote. |
-| `--hide-ui`            | (Capture/Service) Hide UI on startup.    |
 | `<recording>`          | (Player) Path to recording.              |
-
 
 
 ## License
