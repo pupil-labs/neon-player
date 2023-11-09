@@ -33,7 +33,7 @@ def create_compressed_msi(directory: pathlib.Path, parsed_version: ParsedVersion
 
 
 def generate_msi_installer(base_dir: pathlib.Path, parsed_version: ParsedVersion):
-    logging.info(f"Generating msi installer for Pupil Core {parsed_version}")
+    logging.info(f"Generating msi installer for Neon Player {parsed_version}")
     # NOTE: MSI only allows versions in the form of x.x.x.x, where all x are
     # integers, so we need to replace the '-' before patch with a '.'. Also we
     # want to prefix 'v' for display.
@@ -42,7 +42,7 @@ def generate_msi_installer(base_dir: pathlib.Path, parsed_version: ParsedVersion
     )
     version = f"v{raw_version}"
 
-    product_name = f"Pupil Core {version}"
+    product_name = f"Neon Player {version}"
     company_short = "Pupil Labs"
     manufacturer = "Pupil Labs GmbH"
 
@@ -55,9 +55,7 @@ def generate_msi_installer(base_dir: pathlib.Path, parsed_version: ParsedVersion
     product_guid = new_guid()
     product_upgrade_code = new_guid()
 
-    capture_data = SoftwareComponent(base_dir, "capture", version)
     player_data = SoftwareComponent(base_dir, "player", version)
-    service_data = SoftwareComponent(base_dir, "service", version)
 
     wix_file = base_dir / f"{base_dir.name}.wxs"
     logging.debug(f"Generating WiX file at {wix_file}")
@@ -65,9 +63,7 @@ def generate_msi_installer(base_dir: pathlib.Path, parsed_version: ParsedVersion
     with wix_file.open("w") as f:
         f.write(
             fill_template(
-                capture_data=capture_data,
                 player_data=player_data,
-                service_data=service_data,
                 company_short=company_short,
                 manufacturer=manufacturer,
                 package_description=package_description,
@@ -122,9 +118,9 @@ class SoftwareComponent:
 
     def __init__(self, base_dir: pathlib.Path, name: str, version: str):
         self.name = name
-        self.dir = base_dir / f"Pupil {name.capitalize()}"
+        self.dir = base_dir / f"Neon {name.capitalize()}"
 
-        self.display_name = f"Pupil {self.name.capitalize()} {version}"
+        self.display_name = f"Neon {self.name.capitalize()} {version}"
 
         self.counter = 0
         self.component_ids: list[str] = []
@@ -138,7 +134,7 @@ class SoftwareComponent:
             self.counter += 1
 
             if p.is_file():
-                if re.search(r"pupil_\w*\.exe", p.name):
+                if re.search(r"neon_\w*\.exe", p.name):
                     # skip executable
                     continue
                 component: dict[str, str] = {
@@ -184,7 +180,7 @@ class SoftwareComponent:
         return f"""
                         <Directory Id='{cap}Dir' Name='{self.display_name}' FileSource="{self.dir.name}">
                             <Component Id='{cap}Executable' Guid='{new_guid()}'>
-                                <File Id='{cap}EXE' Name='pupil_{self.name}.exe' DiskId='1' KeyPath='yes'>
+                                <File Id='{cap}EXE' Name='neon_{self.name}.exe' DiskId='1' KeyPath='yes'>
                                     <Shortcut Id="startmenu{cap}" Directory="ProgramMenuDir" Name="{self.display_name}" WorkingDirectory='INSTALLDIR' Icon="{cap}Icon.exe" IconIndex="0" Advertise="yes" />
                                     <Shortcut Id="desktop{cap}" Directory="DesktopFolder" Name="{self.display_name}" WorkingDirectory='INSTALLDIR' Icon="{cap}Icon.exe" IconIndex="0" Advertise="yes" />
                                 </File>
@@ -196,7 +192,7 @@ class SoftwareComponent:
     def feature_data(self) -> str:
         cap = self.name.capitalize()
         return f"""
-            <Feature Id='Pupil{cap}Feature' Title='Pupil {cap}' Description='The Pupil {cap} software component.' Level='1'>
+            <Feature Id='Neon{cap}Feature' Title='Neon {cap}' Description='The Neon {cap} software component.' Level='1'>
                 <ComponentRef Id='{cap}Executable' />
         {
             "".join(f'''
@@ -210,13 +206,11 @@ class SoftwareComponent:
     def icon_data(self) -> str:
         cap = self.name.capitalize()
         return rf"""
-        <Icon Id="{cap}Icon.exe" SourceFile="{self.dir.name}\pupil_{self.name}.exe" />"""
+        <Icon Id="{cap}Icon.exe" SourceFile="{self.dir.name}\neon_{self.name}.exe" />"""
 
 
 def fill_template(
-    capture_data: SoftwareComponent,
     player_data: SoftwareComponent,
-    service_data: SoftwareComponent,
     company_short: str,
     manufacturer: str,
     package_description: str,
@@ -245,9 +239,7 @@ def fill_template(
             <Directory Id='ProgramFilesFolder' Name='PFiles'>
                 <Directory Id='PupilLabs' Name='{company_short}'>
                     <Directory Id='INSTALLDIR' Name='{product_name}'>
-                        {capture_data.directory_data()}
                         {player_data.directory_data()}
-                        {service_data.directory_data()}
                     </Directory>
                 </Directory>
             </Directory>
@@ -264,19 +256,15 @@ def fill_template(
             <Directory Id="DesktopFolder" Name="Desktop" />
         </Directory>
 
-        <Feature Id='Complete' Title='{product_name}' Description='The full suite of Pupil Capture, Player and Service.'
+        <Feature Id='Complete' Title='{product_name}' Description='Neon Player'
             Display='collapse' Level='1' ConfigurableDirectory='INSTALLDIR'>
             <ComponentRef Id='ProgramMenuDir' />
 
-            {capture_data.feature_data()}
             {player_data.feature_data()}
-            {service_data.feature_data()}
 
         </Feature>
 
-        {capture_data.icon_data()}
         {player_data.icon_data()}
-        {service_data.icon_data()}
 
         <WixVariable Id="WixUIBannerBmp" Value="..\\msi_graphics\\banner.bmp" />
         <WixVariable Id="WixUIDialogBmp" Value="..\\msi_graphics\\dialog.bmp" />
