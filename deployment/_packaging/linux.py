@@ -8,9 +8,8 @@ from . import ParsedVersion
 def create_zipped_deb_packages(dist_root: pathlib.Path, app_version: ParsedVersion):
     deb_folder = dist_root / "debs"
     deb_folder.mkdir(exist_ok=True)
-    for folder in dist_root.glob("Pupil */"):
-        deb_pkg = create_deb_package(dist_root, folder.name, app_version)
-        deb_pkg.rename(deb_folder / deb_pkg.name)
+    deb_pkg = create_deb_package(dist_root, "Neon Player", app_version)
+    deb_pkg.rename(deb_folder / deb_pkg.name)
 
     shutil.make_archive(str(dist_root), "zip", deb_folder)
 

@@ -177,7 +177,7 @@ def main():
             icon=icon_path,
             version=str(pupil_version()),
             bundle_identifier=(
-                f"com.pupil-labs.core.{app_name.lower().replace(' ','_')}"
+                f"com.pupil-labs.{app_name.lower().replace(' ','_')}"
             ),
             info_plist={
                 'NSHighResolutionCapable': 'True'

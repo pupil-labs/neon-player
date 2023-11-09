@@ -14,7 +14,7 @@ def package_bundles_as_dmg(base: pathlib.Path, version: ParsedVersion):
     if should_sign_and_notarize:
         for app in base.glob("*.app"):
             sign_app(app)
-        logging.info(f"Creating dmg file for Pupil Core {version}")
+        logging.info(f"Creating dmg file for Neon Player {version}")
         dmg_file = create_dmg(create_and_fill_dmg_srcfolder(base), base.name, version)
         sign_object(dmg_file)
         notarize_bundle(dmg_file)
@@ -49,7 +49,7 @@ def create_dmg(
         "hdiutil",
         "create",
         "-volname",
-        f"Install Pupil Core {version}",
+        f"Install Neon Player {version}",
         "-srcfolder",
         bundle_dir,
         "-format",
