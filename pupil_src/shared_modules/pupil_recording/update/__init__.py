@@ -12,6 +12,7 @@ import logging
 from types import SimpleNamespace
 from pathlib import Path
 import shutil
+import platform
 
 from video_capture.file_backend import File_Source
 
@@ -55,8 +56,14 @@ def update_recording(rec_dir: str):
         return str(new_path)
 
     # Copy entire contents to a subfolder and convert that
-    rec_dir_tmp = f"{new_path}.tmp"
-    shutil.rmtree(rec_dir_tmp, ignore_errors=True)
+    if platform.system() == 'Windows':
+        # On Windows, the process hangs on to file handles for mp4s after renaming
+        # this prevents renaming the tmp folder - so instead, just use the final 
+        # folder name instead
+        rec_dir_tmp = new_path
+    else:
+        rec_dir_tmp = f"{new_path}.tmp"
+        shutil.rmtree(rec_dir_tmp, ignore_errors=True)
 
     shutil.copytree(rec_dir, rec_dir_tmp)
     rec_dir = str(new_path)
@@ -96,7 +103,8 @@ def update_recording(rec_dir: str):
     # compiling large lookup tables when they are needed
     _generate_all_lookup_tables(rec_dir_tmp)
 
-    shutil.move(rec_dir_tmp, rec_dir)
+    if str(rec_dir_tmp) != str(rec_dir):
+        shutil.move(rec_dir_tmp, rec_dir)
 
     return rec_dir
 
