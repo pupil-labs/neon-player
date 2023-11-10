@@ -15,14 +15,6 @@ from . import ParsedVersion
 
 def create_compressed_msi(directory: pathlib.Path, parsed_version: ParsedVersion):
     generate_msi_installer(directory, parsed_version)
-    subprocess.call(
-        [
-            r"C:\Program Files\WinRAR\Rar.exe",
-            "a",
-            f"{directory.name}.msi.rar",
-            f"{directory.name}.msi",
-        ]
-    )
 
 
 # NOTE: you will need to have the WiX Toolset installed in order to run this script!

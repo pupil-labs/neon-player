@@ -45,7 +45,7 @@ mprofile_*.dat
 .ipynb_checkpoints/
 *.dmg
 *.zip
-deployment/pupil_v*
+deployment/neon_v*
 deployment/build/
 deployment/dist/
 deployment/Neon Player.app/

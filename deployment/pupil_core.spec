@@ -99,7 +99,7 @@ def main():
             name=f"neon_{name}",
             debug=False,
             strip=False,
-            upx=True,
+            upx=False,
             console=True,
             icon=str(icon_path),
             resources=[f"{icon_path},ICON,icon"],
@@ -167,7 +167,7 @@ def main():
             data,
             extras,
             strip=False,
-            upx=True,
+            upx=False,
             name=app_name,
         )
 
