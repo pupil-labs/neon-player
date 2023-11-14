@@ -37,8 +37,6 @@ def create_deb_package(
     ico_dir.mkdir(mode=0o755, exist_ok=True, parents=True)
 
     startup_WM_class = app_name
-    if startup_WM_class == "Pupil Capture":
-        startup_WM_class += " - World"
 
     # DEB control file
     with control.open("w") as f:
@@ -49,7 +47,7 @@ Version: {app_version}
 Architecture: amd64
 Maintainer: Pupil Labs <info@pupil-labs.com>
 Priority: optional
-Description: {app_name} - Find more information on https://docs.pupil-labs.com/core/
+Description: Neon Player - Find more information on https://docs.pupil-labs.com/neon/
 Installed-Size: {round(dist_size / 1024)}
 """
         # See this link regarding the calculation of the Installed-Size field
@@ -77,7 +75,7 @@ exec /opt/{package_name}/{package_name} "$@"'''
 Version={app_version}
 Type=Application
 Name={app_name}
-Comment=Preview Pupil Invisible data streams
+Comment=Visualize and export data from Neon recordings
 Exec=/opt/{package_name}/{package_name}
 Terminal=false
 Icon={package_name.replace('_', '-')}
