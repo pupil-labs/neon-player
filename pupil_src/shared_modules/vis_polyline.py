@@ -183,12 +183,14 @@ class Vis_Polyline(Plugin, Observable):
 
         pts = np.array([pts], dtype=np.int32)
 
-        for plugin in self.g_pool.plugins:
-            if isinstance(plugin, GazeFromRecording):
-                manual_correction = plugin.get_manual_correction_for_frame(frame.index)
-                pts[0,:,0] += int(manual_correction[0]*frame.img.shape[1])
-                pts[0,:,1] -= int(manual_correction[1]*frame.img.shape[0])
-                break
+        if self.scan_path_controller.timeframe > 0:
+            for plugin in self.g_pool.plugins:
+                if isinstance(plugin, GazeFromRecording):
+                    manual_correction = plugin.get_manual_correction_for_frame(frame.index)
+                    pts[0,:,0] += int(manual_correction[0]*frame.img.shape[1])
+                    pts[0,:,1] -= int(manual_correction[1]*frame.img.shape[0])
+
+                    break
 
         cv2.polylines(
             frame.img,
