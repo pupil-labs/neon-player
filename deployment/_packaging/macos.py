@@ -19,9 +19,8 @@ def package_bundles_as_dmg(base: pathlib.Path, version: ParsedVersion):
         sign_object(dmg_file)
         notarize_bundle(dmg_file)
     else:
-        logging.info("Skipping signing, notarization, and creation of dmg file")
-        for app in base.glob("*.app"):
-            app.rename(app.name)
+        logging.info("Skipping signing and notarization")
+        dmg_file = create_dmg(create_and_fill_dmg_srcfolder(base), base.name, version)
 
 
 def create_and_fill_dmg_srcfolder(
