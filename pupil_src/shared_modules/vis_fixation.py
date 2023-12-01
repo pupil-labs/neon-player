@@ -39,6 +39,8 @@ class Vis_Fixation(Plugin):
         self.thickness = thickness
         self.fill = fill
 
+        self.no_fixation_label = None
+
     def recent_events(self, events):
         frame = events.get("frame")
         if not frame:
@@ -52,10 +54,6 @@ class Vis_Fixation(Plugin):
             denormalize(pt["norm_pos"], frame.img.shape[:-1][::-1], flip_y=True)
             for pt in events.get("fixations", [])
         ]
-        not_fixation_pts = [
-            denormalize(pt["norm_pos"], frame.img.shape[:-1][::-1], flip_y=True)
-            for pt in events.get("gaze", [])
-        ]
 
         if fixation_pts:
             for pt in fixation_pts:
@@ -66,15 +64,10 @@ class Vis_Fixation(Plugin):
                     color=(self.b, self.g, self.r, self.a),
                     thickness=thickness,
                 )
-        else:
-            for pt in not_fixation_pts:
-                transparent_circle(
-                    frame.img,
-                    pt,
-                    radius=7.0,
-                    color=(0.2, 0.0, 0.7, 0.5),
-                    thickness=thickness,
-                )
+
+        if self.no_fixation_label is not None and len(self.g_pool.fixations) > 0:
+            self.menu.remove(self.no_fixation_label)
+            self.no_fixation_label = None
 
     def init_ui(self):
         self.add_menu()
@@ -105,6 +98,10 @@ class Vis_Fixation(Plugin):
             ui.Slider("a", self, min=0.0, step=0.05, max=1.0, label="Alpha")
         )
         self.menu.append(color_menu)
+
+        if len(self.g_pool.fixations) == 0:
+            self.no_fixation_label = ui.Info_Text("No fixations have been calculated. Did you enable the Fixation Detector Plugin?")
+            self.menu.append(self.no_fixation_label)
 
     def deinit_ui(self):
         self.remove_menu()
