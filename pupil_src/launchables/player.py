@@ -773,6 +773,7 @@ def player_drop(
     # general imports
     import logging
     from time import sleep
+    import webbrowser
 
     # networking
     import zmq
@@ -826,9 +827,28 @@ def player_drop(
 
         signal.signal(signal.SIGINT, interrupt_handler)
 
+        def button_hovered(window):
+            x, y = glfw.get_cursor_pos(window)
+            button_corners = ((515, 600), (765, 665))
+            if x > button_corners[0][0] and x < button_corners[1][0]:
+                if y > button_corners[0][1] and y < button_corners[1][1]:
+                    return True
+
+            return False
+
         def on_drop(window, paths):
             nonlocal rec_dir
             rec_dir = paths[0]
+
+        def on_click(window, button, action, mods):
+            if button_hovered(window) and action == 1:
+                webbrowser.open('https://docs.pupil-labs.com/neon/data-collection/transfer-recordings-via-usb/')
+
+        def on_mouse_move(window, x, y):
+            if button_hovered(window):
+                glfw.set_cursor(window, cursors['hand'])
+            else:
+                glfw.set_cursor(window, cursors['standard'])
 
         if rec_dir:
             try:
@@ -855,6 +875,11 @@ def player_drop(
 
         glfw.make_context_current(window)
 
+        cursors = {
+            'standard': glfw.create_standard_cursor(glfw.ARROW_CURSOR),
+            'hand': glfw.create_standard_cursor(glfw.HAND_CURSOR),
+        }
+
         window_position_manager = gl_utils.WindowPositionManager()
         window_pos = window_position_manager.new_window_position(
             window=window,
@@ -864,15 +889,18 @@ def player_drop(
         glfw.set_window_pos(window, window_pos[0], window_pos[1])
 
         glfw.set_drop_callback(window, on_drop)
+        glfw.set_mouse_button_callback(window, on_click)
+        glfw.set_cursor_pos_callback(window, on_mouse_move)
 
         glfont = fontstash.Context()
         glfont.add_font("roboto", get_roboto_font_path())
         glfont.set_align_string(v_align="center", h_align="middle")
         glfont.set_color_float((0.2, 0.2, 0.2, 0.9))
         gl_utils.basic_gl_setup()
-        glClearColor(0.5, 0.5, 0.5, 0.0)
-        text = "Drop a recording directory onto this window."
-        tip = "(Tip: You can drop a recording directory onto the app icon.)"
+        glClearColor(0.4, 0.4, 0.4, 0.0)
+        text = "Drop a Neon recording onto this window."
+        tip = "From Pupil Cloud:\n-Right-click your recording\n-Select \"Download -> Native Recording Data\"\n-Extract the folder from the zip file\n\n"
+        tip += "Directly from device:\n-Export from the recordings list\n-Transfer via USB\n[Online Guide]"
 
         def display_string(string, font_size, center_y):
             x = w / 2 * content_scale
@@ -880,12 +908,20 @@ def player_drop(
 
             glfont.set_size(font_size * content_scale)
 
+            if string.startswith('[') and string.endswith(']'):
+                color = (0.25, 0.5, 1.0, 1.0)
+            elif string.startswith('-'):
+                string = string[1:]
+                color = (0.75, 0.75, .75, 1.0)
+            else:
+                color = (1.0, 1.0, 1.0, 1.0)
+
             glfont.set_blur(10.5)
             glfont.set_color_float((0.0, 0.0, 0.0, 1.0))
             glfont.draw_text(x, y, string)
 
             glfont.set_blur(0.96)
-            glfont.set_color_float((1.0, 1.0, 1.0, 1.0))
+            glfont.set_color_float(color)
             glfont.draw_text(x, y, string)
 
         def display_multiline_string(string, font_size, top_y, split_chr="\n"):
@@ -918,7 +954,7 @@ def player_drop(
 
             gl_utils.clear_gl_screen()
 
-            top_y = display_multiline_string(text, font_size=51, top_y=216)
+            top_y = display_multiline_string(text, font_size=51, top_y=116)
             display_multiline_string(tip, font_size=42, top_y=top_y + 50)
 
             glfw.swap_buffers(window)
