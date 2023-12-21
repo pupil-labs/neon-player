@@ -124,7 +124,6 @@ def player(
         from video_overlay.plugins import Eye_Overlay, Video_Overlay
         from vis_circle import Vis_Circle
         from vis_cross import Vis_Cross
-        from vis_fixation import Vis_Fixation
         from vis_light_points import Vis_Light_Points
         from vis_polyline import Vis_Polyline
         from vis_watermark import Vis_Watermark
@@ -156,7 +155,6 @@ def player(
         ]
         user_plugins = [
             Vis_Circle,
-            Vis_Fixation,
             Vis_Polyline,
             Vis_Light_Points,
             Vis_Cross,
