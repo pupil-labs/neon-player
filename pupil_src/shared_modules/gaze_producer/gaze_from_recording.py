@@ -15,6 +15,9 @@ from gaze_producer.gaze_producer_base import GazeProducerBase
 from plugin_timeline import PluginTimeline
 from tasklib.manager import UniqueTaskManager
 
+import file_methods as fm
+import player_methods as pm
+
 class GazeFromRecording(GazeProducerBase):
     @classmethod
     def plugin_menu_label(cls) -> str:
@@ -123,3 +126,17 @@ class GazeFromRecording(GazeProducerBase):
             if frame_idx >= mapper.mapping_index_range[0] and frame_idx < mapper.mapping_index_range[1]:
                 return (mapper.manual_correction_x, mapper.manual_correction_y)
         return (0, 0)
+
+    def on_notify(self, notification):
+        if notification["subject"] == "blinks_changed":
+            gaze_data = [datum.copy() for datum in self.g_pool.gaze_positions.data]
+            gaze_ts = self.g_pool.gaze_positions.data_ts
+
+            for blink in self.g_pool.blinks:
+                window = (blink["start_timestamp"], blink["end_timestamp"], )
+                gaze_idx_range = self.g_pool.gaze_positions._start_stop_idc_for_window(window)
+                for gaze_idx in range(*gaze_idx_range):
+                    gaze_data[gaze_idx]["confidence"] = 0.0
+
+            gaze_data = [fm.Serialized_Dict(gaze) for gaze in gaze_data]
+            self._publish_gaze(pm.Bisector(gaze_data, gaze_ts))
