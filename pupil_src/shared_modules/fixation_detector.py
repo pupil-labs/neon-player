@@ -138,11 +138,9 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
         self,
         g_pool,
         show_fixations=True,
-        adjust_viz_for_optic_flow=False,
     ):
         super().__init__(g_pool)
         self.show_fixations = show_fixations
-        self.adjust_viz_for_optic_flow = adjust_viz_for_optic_flow
         self.current_fixation_details = None
         self.fixation_data = []
         self.prev_index = -1
@@ -222,7 +220,6 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
             )
         )
         self.menu.append(ui.Switch("show_fixations", self, label="Show fixations"))
-        self.menu.append(ui.Switch("adjust_viz_for_optic_flow", self, label="Adjust visualization for optic flow"))
         self.current_fixation_details = ui.Info_Text("")
         self.menu.append(self.current_fixation_details)
 
@@ -264,7 +261,6 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
     def get_init_dict(self):
         return {
             "show_fixations": self.show_fixations,
-            "adjust_viz_for_optic_flow": self.adjust_viz_for_optic_flow,
         }
 
     def on_notify(self, notification):
@@ -341,26 +337,26 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
                 # calculate cumulative offset to current timestamp
                 optic_flow_offset = [0, 0]
                 start_offset = (0, 0)
-                if self.adjust_viz_for_optic_flow:
-                    if self.optic_flow_vectors is None:
-                        self.optic_flow_vectors = load_optic_flow_vectors(Path(self.g_pool.rec_dir).parent)
 
-                    gaze_points = self.g_pool.gaze_positions.by_ts_window((f["timestamp"], f["timestamp"]+1/30))
-                    if len(gaze_points) == 0:
-                        first_gaze_point = f
-                    else:
-                        first_gaze_point = gaze_points[0]
+                if self.optic_flow_vectors is None:
+                    self.optic_flow_vectors = load_optic_flow_vectors(Path(self.g_pool.rec_dir).parent)
 
-                    start_offset = (
-                        f["norm_pos"][0] - first_gaze_point["norm_pos"][0],
-                        f["norm_pos"][1] - first_gaze_point["norm_pos"][1],
-                    )
+                gaze_points = self.g_pool.gaze_positions.by_ts_window((f["timestamp"], f["timestamp"]+1/30))
+                if len(gaze_points) == 0:
+                    first_gaze_point = f
+                else:
+                    first_gaze_point = gaze_points[0]
 
-                    for frame_idx in range(f["start_frame_index"], frame.index):
-                        optic_flow_idx = frame_idx - 1
-                        optic_frame_duration = self.optic_flow_vectors.ts[optic_flow_idx] - self.optic_flow_vectors.ts[optic_flow_idx-1]
-                        optic_flow_offset[0] += self.optic_flow_vectors.x[optic_flow_idx] * optic_frame_duration
-                        optic_flow_offset[1] += self.optic_flow_vectors.y[optic_flow_idx] * optic_frame_duration
+                start_offset = (
+                    f["norm_pos"][0] - first_gaze_point["norm_pos"][0],
+                    f["norm_pos"][1] - first_gaze_point["norm_pos"][1],
+                )
+
+                for frame_idx in range(f["start_frame_index"], frame.index):
+                    optic_flow_idx = frame_idx - 1
+                    optic_frame_duration = self.optic_flow_vectors.ts[optic_flow_idx] - self.optic_flow_vectors.ts[optic_flow_idx-1]
+                    optic_flow_offset[0] += self.optic_flow_vectors.x[optic_flow_idx] * optic_frame_duration
+                    optic_flow_offset[1] += self.optic_flow_vectors.y[optic_flow_idx] * optic_frame_duration
 
                 x = int((f["norm_pos"][0] - start_offset[0]) * frame.width + optic_flow_offset[0])
                 y = int((1.0 - f["norm_pos"][1] + start_offset[1]) * frame.height + optic_flow_offset[1])
