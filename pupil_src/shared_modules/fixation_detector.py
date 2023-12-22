@@ -138,6 +138,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
         self,
         g_pool,
         show_fixations=True,
+        radius=25.0, color=(1.0, 1.0, 0.0, 1.0), thickness=3, fill=False
     ):
         super().__init__(g_pool)
         self.show_fixations = show_fixations
@@ -168,6 +169,14 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
             self.notify_all(
                 {"subject": "fixation_detector.should_recalculate", "delay": 0.5}
             )
+
+        self.r = color[0]
+        self.g = color[1]
+        self.b = color[2]
+        self.a = color[3]
+        self.radius = radius
+        self.thickness = thickness
+        self.fill = fill
 
     def init_ui(self):
         self.add_menu()
@@ -245,6 +254,32 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
         self.prev_fix_button.status_text = "Previous Fixation"
         self.g_pool.quickbar.append(self.prev_fix_button)
 
+        self.menu.append(
+            ui.Slider("radius", self, min=1, step=1, max=100, label="Radius")
+        )
+        self.menu.append(
+            ui.Slider("thickness", self, min=1, step=1, max=15, label="Stroke width")
+        )
+        self.menu.append(ui.Switch("fill", self, label="Fill"))
+
+        color_menu = ui.Growing_Menu("Color")
+        color_menu.append(
+            ui.Info_Text("Set RGB color components and alpha (opacity) values.")
+        )
+        color_menu.append(
+            ui.Slider("r", self, min=0.0, step=0.05, max=1.0, label="Red")
+        )
+        color_menu.append(
+            ui.Slider("g", self, min=0.0, step=0.05, max=1.0, label="Green")
+        )
+        color_menu.append(
+            ui.Slider("b", self, min=0.0, step=0.05, max=1.0, label="Blue")
+        )
+        color_menu.append(
+            ui.Slider("a", self, min=0.0, step=0.05, max=1.0, label="Alpha")
+        )
+        self.menu.append(color_menu)
+
     def deinit_ui(self):
         self.remove_menu()
         self.current_fixation_details = None
@@ -261,6 +296,10 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
     def get_init_dict(self):
         return {
             "show_fixations": self.show_fixations,
+            "radius": self.radius,
+            "color": (self.r, self.g, self.b, self.a),
+            "thickness": self.thickness,
+            "fill": self.fill,
         }
 
     def on_notify(self, notification):
@@ -364,13 +403,19 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
                 x += int(manual_correction[0] * frame.width)
                 y -= int(manual_correction[1] * frame.height)
 
+                if self.fill:
+                    thickness = -1
+                else:
+                    thickness = self.thickness
+
                 pm.transparent_circle(
                     frame.img,
                     (x, y),
-                    radius=25.0,
-                    color=(0.0, 1.0, 1.0, 1.0),
-                    thickness=3,
+                    radius=self.radius,
+                    color=(self.b, self.g, self.r, self.a),
+                    thickness=thickness,
                 )
+
                 cv2.putText(
                     frame.img,
                     "{}".format(f["id"]),
