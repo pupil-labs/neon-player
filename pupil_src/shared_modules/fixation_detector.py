@@ -541,8 +541,8 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
             "end_frame_index",
             "norm_pos_x",
             "norm_pos_y",
-            "gaze_point_2d_x",
-            "gaze_point_2d_y",
+            "fixation x [px]",
+            "fixation y [px]",
         )
 
     @classmethod
@@ -567,7 +567,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
 
             fixation list:
                 id | start_timestamp | duration | start_frame_index | end_frame_index |
-                norm_pos_x | norm_pos_y | method | gaze_point_2d_x | gaze_point_2d_y
+                norm_pos_x | norm_pos_y | method | fixation x [px] | fixation y [px]
         """
         if not self.fixation_data:
             logger.warning("No fixations in this recording nothing to export")
