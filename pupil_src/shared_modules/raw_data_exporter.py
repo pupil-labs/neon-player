@@ -34,6 +34,8 @@ class Raw_Data_Exporter(Plugin):
         index - associated_frame: closest world video frame
         norm_pos_x - x position in the world image frame in normalized coordinates
         norm_pos_y - y position in the world image frame in normalized coordinates
+        gaze x [px] - x position in the world image frame in pixel coordinates
+        gaze y [px] - y position in the world image frame in pixel coordinates
     """
 
     icon_chr = chr(0xE873)
@@ -103,6 +105,7 @@ class Raw_Data_Exporter(Plugin):
                 timestamps=self.g_pool.timestamps,
                 export_window=export_window,
                 export_dir=export_dir,
+                frame_size=self.g_pool.capture.frame_size,
             )
 
         if self.should_export_field_info:
@@ -136,6 +139,7 @@ class _Base_Positions_Exporter(abc.ABC):
         timestamps,
         export_window,
         export_dir,
+        frame_size,
     ):
         export_file = type(self).csv_export_filename()
         export_path = os.path.join(export_dir, export_file)
@@ -153,7 +157,7 @@ class _Base_Positions_Exporter(abc.ABC):
                 description=f"Exporting {export_file}",
                 total=len(export_world_idc),
             ):
-                dict_row = type(self).dict_export(raw_value=g, world_index=idx)
+                dict_row = type(self).dict_export(raw_value=g, world_index=idx, frame_size=frame_size)
                 dict_writer.writerow(dict_row)
 
         logger.info(f"Created '{export_file}' file.")
@@ -170,12 +174,14 @@ class Gaze_Positions_Exporter(_Base_Positions_Exporter):
             "gaze_timestamp",
             "world_index",
             "norm_pos_x",
-            "norm_pos_y"
+            "norm_pos_y",
+            "gaze x [px]",
+            "gaze y [px]",
         )
 
     @classmethod
     def dict_export(
-        cls, raw_value: csv_utils.CSV_EXPORT_RAW_TYPE, world_index: int
+        cls, raw_value: csv_utils.CSV_EXPORT_RAW_TYPE, world_index: int, frame_size: (int, int)
     ) -> dict:
         gaze_timestamp = str(raw_value["timestamp"])
 
@@ -185,9 +191,16 @@ class Gaze_Positions_Exporter(_Base_Positions_Exporter):
             raw_value["norm_pos"][1] + manual_correction[1],
         )
 
+        pixel_pos = (
+            norm_pos[0] * frame_size[0],
+            frame_size[1] - norm_pos[1] * frame_size[1],
+        )
+
         return {
             "gaze_timestamp": gaze_timestamp,
             "world_index": world_index,
             "norm_pos_x": norm_pos[0],
             "norm_pos_y": norm_pos[1],
+            "gaze x [px]": pixel_pos[0],
+            "gaze y [px]": pixel_pos[1],
         }
