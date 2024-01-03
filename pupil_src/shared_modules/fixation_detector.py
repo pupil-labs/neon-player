@@ -535,12 +535,9 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
     def csv_representation_keys(self):
         return (
             "id",
-            "start_timestamp",
-            "duration",
-            "start_frame_index",
-            "end_frame_index",
-            "norm_pos_x",
-            "norm_pos_y",
+            "start timestamp [s]",
+            "end timestamp [s]",
+            "duration [s]",
             "fixation x [px]",
             "fixation y [px]",
         )
@@ -550,10 +547,8 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
         return (
             fixation["id"],
             fixation["timestamp"],
+            fixation["timestamp"] + fixation["duration"],
             fixation["duration"],
-            fixation["start_frame_index"],
-            fixation["end_frame_index"],
-            *fixation["norm_pos"],
             *fixation["gaze_point_2d"],
         )
 
@@ -566,8 +561,8 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
                 - fixation count
 
             fixation list:
-                id | start_timestamp | duration | start_frame_index | end_frame_index |
-                norm_pos_x | norm_pos_y | method | fixation x [px] | fixation y [px]
+                id | start timestamp [s] | end timestamp [s] | duration [s] | 
+                fixation x [px] | fixation y [px]
         """
         if not self.fixation_data:
             logger.warning("No fixations in this recording nothing to export")

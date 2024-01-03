@@ -595,15 +595,10 @@ class Exporter:
             csv_writer = csv.writer(csv_file, delimiter=",")
             csv_writer.writerow(
                 (
-                    "world_timestamp",
-                    "world_index",
-                    "gaze_timestamp",
-                    "x_norm",
-                    "y_norm",
-                    "x_scaled",
-                    "y_scaled",
-                    "on_surf",
-                    "confidence",
+                    "timestamp [s]",
+                    "gaze detected on surface",
+                    "gaze position on surface x [normalized]",
+                    "gaze position on surface y [normalized]",
                 )
             )
             for idx, gaze_on_surf in enumerate(gazes_on_surface):
@@ -612,15 +607,10 @@ class Exporter:
                     for gp in gaze_on_surf:
                         csv_writer.writerow(
                             (
-                                self.world_timestamps[idx],
-                                idx,
                                 gp["timestamp"],
-                                gp["norm_pos"][0],
-                                gp["norm_pos"][1],
-                                gp["norm_pos"][0] * surface.real_world_size["x"],
-                                gp["norm_pos"][1] * surface.real_world_size["y"],
                                 gp["on_surf"],
-                                gp["confidence"],
+                                gp["norm_pos"][0],
+                                1.0 - gp["norm_pos"][1],
                             )
                         )
 
@@ -639,16 +629,13 @@ class Exporter:
             csv_writer = csv.writer(csv_file, delimiter=",")
             csv_writer.writerow(
                 (
-                    "world_timestamp",
-                    "world_index",
-                    "fixation_id",
-                    "start_timestamp",
-                    "duration",
-                    "norm_pos_x",
-                    "norm_pos_y",
-                    "x_scaled",
-                    "y_scaled",
-                    "on_surf",
+                    "fixation id",
+                    "start timestamp [s]",
+                    "end timestamp [s]",
+                    "duration [s]",
+                    "fixation detected on surface",
+                    "fixation x [normalized]",
+                    "fixation y [normalized]",
                 )
             )
             for world_idx, fixs_for_frame in enumerate(fixations_on_surf):
@@ -657,15 +644,12 @@ class Exporter:
                     for fix in fixs_for_frame:
                         csv_writer.writerow(
                             (
-                                self.world_timestamps[world_idx],
-                                world_idx,
                                 fix["id"],
                                 fix["timestamp"],
+                                fix["timestamp"] + fix["duration"],
                                 fix["duration"],
-                                fix["norm_pos"][0],
-                                fix["norm_pos"][1],
-                                fix["norm_pos"][0] * surface.real_world_size["x"],
-                                fix["norm_pos"][1] * surface.real_world_size["y"],
                                 fix["on_surf"],
+                                fix["norm_pos"][0],
+                                1.0 - fix["norm_pos"][1],
                             )
                         )

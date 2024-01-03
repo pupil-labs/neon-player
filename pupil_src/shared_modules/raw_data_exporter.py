@@ -30,10 +30,7 @@ class Raw_Data_Exporter(Plugin):
     """
     gaze_positions.csv
     keys:
-        timestamp - timestamp of the source image frame
-        index - associated_frame: closest world video frame
-        norm_pos_x - x position in the world image frame in normalized coordinates
-        norm_pos_y - y position in the world image frame in normalized coordinates
+        timestamp [s] - timestamp of the source image frame
         gaze x [px] - x position in the world image frame in pixel coordinates
         gaze y [px] - y position in the world image frame in pixel coordinates
     """
@@ -171,10 +168,7 @@ class Gaze_Positions_Exporter(_Base_Positions_Exporter):
     @classmethod
     def csv_export_labels(cls) -> typing.Tuple[csv_utils.CSV_EXPORT_LABEL_TYPE, ...]:
         return (
-            "gaze_timestamp",
-            "world_index",
-            "norm_pos_x",
-            "norm_pos_y",
+            "timestamp [s]",
             "gaze x [px]",
             "gaze y [px]",
         )
@@ -197,10 +191,7 @@ class Gaze_Positions_Exporter(_Base_Positions_Exporter):
         )
 
         return {
-            "gaze_timestamp": gaze_timestamp,
-            "world_index": world_index,
-            "norm_pos_x": norm_pos[0],
-            "norm_pos_y": norm_pos[1],
+            "timestamp [s]": gaze_timestamp,
             "gaze x [px]": pixel_pos[0],
             "gaze y [px]": pixel_pos[1],
         }
