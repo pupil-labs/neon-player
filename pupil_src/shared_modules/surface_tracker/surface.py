@@ -262,7 +262,6 @@ class Surface(abc.ABC):
             mapped_datum = {
                 "topic": f"{event['topic']}_on_surface",
                 "norm_pos": surf_norm_pos.tolist(),
-                "confidence": event["confidence"],
                 "on_surf": on_srf,
                 "base_data": (event["topic"], event["timestamp"]),
                 "timestamp": event["timestamp"],
@@ -270,7 +269,9 @@ class Surface(abc.ABC):
             if event["topic"] == "fixations":
                 mapped_datum["id"] = event["id"]
                 mapped_datum["duration"] = event["duration"]
-                mapped_datum["dispersion"] = event["dispersion"]
+            else:
+                mapped_datum["confidence"] = event["confidence"]
+
             results.append(mapped_datum)
         return results
 
