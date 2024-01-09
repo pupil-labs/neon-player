@@ -20,6 +20,7 @@ scikit-learn
 scipy
 sounddevice
 zeromq-pyre>=0.3.4  # Gracefully handle https://github.com/pupil-labs/pupil/issues/2174
+msgpack-numpy
 
 cysignals ; platform_system != "Windows"
 win_inet_pton ; platform_system == "Windows"
