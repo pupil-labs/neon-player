@@ -66,6 +66,9 @@ def _rewrite_times(
     """Load raw times (assuming dtype), apply conversion and save as _timestamps.npy."""
     for path in recording.files().raw_time():
         timestamps = np.fromfile(str(path), dtype=dtype)
+        new_name = f"{path.stem}_timestamps_unix.npy"
+        timestamp_loc = path.parent / new_name
+        np.save(str(timestamp_loc), timestamps)
 
         if conversion is not None:
             timestamps = conversion(timestamps)

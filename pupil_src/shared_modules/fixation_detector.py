@@ -61,7 +61,7 @@ from pupil_recording.info import recording_info_utils
 logger = logging.getLogger(__name__)
 
 NS_TO_S = 1e-9
-
+NS_TO_MS = 1e-6
 
 class Fixation_Detector_Base(Plugin):
     icon_chr = chr(0xEC03)
@@ -83,6 +83,9 @@ def fixation_from_data(info, timestamps, world_start_time, frame_size):
     start_frame, end_frame = np.searchsorted(timestamps, [start_time, end_time])
     end_frame = min(end_frame, len(timestamps) - 1)
 
+    start_time_ns = int(info["start timestamp [ns]"])
+    end_time_ns = int(info["end timestamp [ns]"])
+
     datum = {
         "topic": "fixations",
         "norm_pos": norm_pos,
@@ -93,6 +96,9 @@ def fixation_from_data(info, timestamps, world_start_time, frame_size):
         "end_frame_index": int(end_frame),
         "mid_frame_index": int((start_frame + end_frame) // 2),
         "gaze_point_2d": [float(info[f'fixation {axis} [px]']) for axis in 'xy'],
+        "start timestamp [ns]": start_time_ns,
+        "end timestamp [ns]": end_time_ns,
+        "duration [ms]": (end_time_ns - start_time_ns) * NS_TO_MS,
     }
 
     return (datum, start_time, end_time)
@@ -535,9 +541,9 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
     def csv_representation_keys(self):
         return (
             "id",
-            "start timestamp [s]",
-            "end timestamp [s]",
-            "duration [s]",
+            "start timestamp [ns]",
+            "end timestamp [ns]",
+            "duration [ms]",
             "fixation x [px]",
             "fixation y [px]",
         )
@@ -546,9 +552,9 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
     def csv_representation_for_fixation(self, fixation):
         return (
             fixation["id"],
-            fixation["timestamp"],
-            fixation["timestamp"] + fixation["duration"],
-            fixation["duration"],
+            fixation["start timestamp [ns]"],
+            fixation["end timestamp [ns]"],
+            fixation["duration [ms]"],
             *fixation["gaze_point_2d"],
         )
 
@@ -561,7 +567,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
                 - fixation count
 
             fixation list:
-                id | start timestamp [s] | end timestamp [s] | duration [s] | 
+                id | start timestamp [ns] | end timestamp [ns] | duration [ms] | 
                 fixation x [px] | fixation y [px]
         """
         if not self.fixation_data:

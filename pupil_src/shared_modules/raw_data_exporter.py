@@ -168,7 +168,7 @@ class Gaze_Positions_Exporter(_Base_Positions_Exporter):
     @classmethod
     def csv_export_labels(cls) -> typing.Tuple[csv_utils.CSV_EXPORT_LABEL_TYPE, ...]:
         return (
-            "timestamp [s]",
+            "timestamp [ns]",
             "gaze x [px]",
             "gaze y [px]",
         )
@@ -177,7 +177,7 @@ class Gaze_Positions_Exporter(_Base_Positions_Exporter):
     def dict_export(
         cls, raw_value: csv_utils.CSV_EXPORT_RAW_TYPE, world_index: int, frame_size: (int, int)
     ) -> dict:
-        gaze_timestamp = str(raw_value["timestamp"])
+        gaze_timestamp = str(raw_value["timestamp_unix"])
 
         manual_correction = Gaze_Positions_Exporter.gaze_offset_plugin.get_manual_correction_for_frame(world_index)
         norm_pos = (
@@ -191,7 +191,7 @@ class Gaze_Positions_Exporter(_Base_Positions_Exporter):
         )
 
         return {
-            "timestamp [s]": gaze_timestamp,
+            "timestamp [ns]": gaze_timestamp,
             "gaze x [px]": pixel_pos[0],
             "gaze y [px]": pixel_pos[1],
         }

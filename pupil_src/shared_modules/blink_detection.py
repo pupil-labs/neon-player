@@ -35,6 +35,7 @@ from pupil_labs.rec_export.export import _process_blinks
 logger = logging.getLogger(__name__)
 
 NS_TO_S = 1e-9
+NS_TO_MS = 1e-6
 
 blink_color = cygl_utils.RGBA(0.9961, 0.3789, 0.5313, 0.8)
 
@@ -121,13 +122,12 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
         Between in and out mark
 
             blink_detection_report.csv:
-                - history lenght
+                - history length
                 - onset threshold
                 - offset threshold
 
             blinks.csv:
-                id | start_timestamp | duration | end_timestamp |
-                start_frame_index | index | end_frame_index
+                blink id | start timestamp [ns] | end timestamp [ns] | duration [ms]
         """
         if not self.g_pool.blinks:
             logger.warning(
@@ -136,13 +136,10 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
             return
 
         header = (
-            "id",
-            "start_timestamp",
-            "duration",
-            "end_timestamp",
-            "start_frame_index",
-            "index",
-            "end_frame_index",
+            "blink id",
+            "start timestamp [ns]",
+            "end timestamp [ns]",
+            "duration [ms]",
         )
 
         blinks_in_section = self.g_pool.blinks.by_ts_window(export_window)
@@ -153,7 +150,12 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
             csv_writer = csv.DictWriter(csvfile, fieldnames=header)
             csv_writer.writeheader()
             for b in blinks_in_section:
-                csv_writer.writerow(b)
+                csv_writer.writerow({
+                    "blink id": b["id"],
+                    "start timestamp [ns]": b["start timestamp [ns]"],
+                    "end timestamp [ns]": b["end timestamp [ns]"],
+                    "duration [ms]": (b["end timestamp [ns]"] - b["start timestamp [ns]"]) * NS_TO_MS,
+                })
             logger.info("Created 'blinks.csv' file.")
 
     def load_blinks(self):
@@ -185,6 +187,8 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
                     "id": blink_meta["blink id"],
                     "start_timestamp": (float(blink_meta["start timestamp [ns]"]) - start_time_synced_ns) * NS_TO_S,
                     "end_timestamp": (float(blink_meta["end timestamp [ns]"]) - start_time_synced_ns) * NS_TO_S,
+                    "start timestamp [ns]": float(blink_meta["start timestamp [ns]"]),
+                    "end timestamp [ns]": float(blink_meta["end timestamp [ns]"]),
                 }
                 blink["duration"] = blink["end_timestamp"] - blink["start_timestamp"]
 

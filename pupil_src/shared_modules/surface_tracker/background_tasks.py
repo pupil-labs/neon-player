@@ -19,6 +19,8 @@ import cv2
 import file_methods
 import player_methods
 
+import pandas as pd
+
 from .surface_marker import Surface_Marker
 
 logger = logging.getLogger(__name__)
@@ -595,7 +597,7 @@ class Exporter:
             csv_writer = csv.writer(csv_file, delimiter=",")
             csv_writer.writerow(
                 (
-                    "timestamp [s]",
+                    "timestamp [ns]",
                     "gaze detected on surface",
                     "gaze position on surface x [normalized]",
                     "gaze position on surface y [normalized]",
@@ -607,7 +609,7 @@ class Exporter:
                     for gp in gaze_on_surf:
                         csv_writer.writerow(
                             (
-                                gp["timestamp"],
+                                gp["timestamp_unix"],
                                 gp["on_surf"],
                                 gp["norm_pos"][0],
                                 1.0 - gp["norm_pos"][1],
@@ -618,38 +620,25 @@ class Exporter:
         """
         fixations_on_surf structure: fixations_on_surf[world_frame_idx][event_idx]
         """
-        with open(
-            os.path.join(
-                self.metrics_dir, "fixations_on_surface" + surface_name + ".csv"
-            ),
-            "w",
-            encoding="utf-8",
-            newline="",
-        ) as csv_file:
-            csv_writer = csv.writer(csv_file, delimiter=",")
-            csv_writer.writerow(
-                (
-                    "fixation id",
-                    "start timestamp [s]",
-                    "end timestamp [s]",
-                    "duration [s]",
-                    "fixation detected on surface",
-                    "fixation x [normalized]",
-                    "fixation y [normalized]",
-                )
-            )
-            for world_idx, fixs_for_frame in enumerate(fixations_on_surf):
-                world_idx += self.export_range[0]
-                if fixs_for_frame:
-                    for fix in fixs_for_frame:
-                        csv_writer.writerow(
-                            (
-                                fix["id"],
-                                fix["timestamp"],
-                                fix["timestamp"] + fix["duration"],
-                                fix["duration"],
-                                fix["on_surf"],
-                                fix["norm_pos"][0],
-                                1.0 - fix["norm_pos"][1],
-                            )
-                        )
+ 
+        dataset = []
+        for fixs_for_frame in fixations_on_surf:
+            if fixs_for_frame:
+                for fix in fixs_for_frame:
+                    dataset.append({
+                        "fixation id": fix["id"],
+                        "start timestamp [ns]": fix["start timestamp [ns]"],
+                        "end timestamp [ns]": fix["end timestamp [ns]"],
+                        "duration [ms]": fix["duration [ms]"],
+                        "fixation detected on surface": fix["on_surf"],
+                        "fixation x [normalized]": fix["norm_pos"][0],
+                        "fixation y [normalized]": 1.0 - fix["norm_pos"][1],
+                    })
+
+        file_path = os.path.join(
+            self.metrics_dir, "fixations_on_surface" + surface_name + ".csv"
+        )
+
+        fixation_df = pd.DataFrame(dataset)
+        mean_df = fixation_df.groupby(['fixation id']).mean()
+        mean_df.to_csv(file_path)

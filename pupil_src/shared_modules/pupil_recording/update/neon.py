@@ -158,10 +158,12 @@ def _convert_gaze(recording: PupilRecording):
         "norm_pos": None,
         "timestamp": None,
         "confidence": None,
+        "timestamp_unix": None,
     }
     with fm.PLData_Writer(recording.rec_dir, "gaze") as writer:
-        for (x, y), ts, conf in neon_gaze_items(root_dir=recording.rec_dir):
+        for (x, y), ts, conf, ts_unix in neon_gaze_items(root_dir=recording.rec_dir):
             template_datum["timestamp"] = ts
+            template_datum["timestamp_unix"] = ts_unix
             template_datum["norm_pos"] = m.normalize(
                 (x, y), size=(width, height), flip_y=True
             )
@@ -331,7 +333,7 @@ class BrokenFirstFrameRecordingIssue:
 
 
 def neon_gaze_items(root_dir):
-    """Yields one (location, timestamp, confidence) triplet for each gaze point
+    """Yields one (location, timestamp, confidence, timestamp_unix) tuple for each gaze point
 
     Neon Companion records this information into three different sets of
     files. Their names can be matched by the following regex patterns:
@@ -394,6 +396,8 @@ def _neon_posthoc_200hz_gaze_items(
 ):
     raw_data = _load_raw_data(raw_200hz_path)
     timestamps = _load_timestamps_data(timestamps_200hz_path)
+    unix_ts_path = timestamps_200hz_path.parent / f'{timestamps_200hz_path.stem}_unix{timestamps_200hz_path.suffix}'
+    timestamps_unix = _load_timestamps_data(unix_ts_path)
 
     if worn_200hz_path is not None:
         conf_data = _load_worn_data(worn_200hz_path)
@@ -402,9 +406,9 @@ def _neon_posthoc_200hz_gaze_items(
             timestamps, timestamps_realtime_paths
         )
 
-    raw_data, timestamps = _equalize_length_if_necessary(raw_data, timestamps)
+    raw_data, timestamps, timestamps_unix = _equalize_length_if_necessary(raw_data, timestamps, timestamps_unix)
     conf_data = _validated_conf_data(conf_data, timestamps)
-    yield from zip(raw_data, timestamps, conf_data)
+    yield from zip(raw_data, timestamps, conf_data, timestamps_unix)
 
 
 def _neon_realtime_recorded_gaze_items(timestamps_realtime_paths):
@@ -415,7 +419,7 @@ def _neon_realtime_recorded_gaze_items(timestamps_realtime_paths):
 
         raw_data, timestamps = _equalize_length_if_necessary(raw_data, timestamps)
         conf_data = _validated_conf_data(conf_data, timestamps)
-        yield from zip(raw_data, timestamps, conf_data)
+        yield from zip(raw_data, timestamps[0], conf_data, timestamps[1])
 
 
 def _find_timestamps_200hz_path(root_dir: Path):
@@ -513,7 +517,7 @@ def _find_and_load_realtime_recorded_worn_data(timestamps_realtime_paths: T.List
     return conf_all, ts_all
 
 
-def _equalize_length_if_necessary(raw_data, timestamps):
+def _equalize_length_if_necessary(raw_data, timestamps, timestamps_unix):
     if len(raw_data) != len(timestamps):
         logger.warning(
             f"There is a mismatch between the number of raw data ({len(raw_data)}) "
@@ -522,7 +526,8 @@ def _equalize_length_if_necessary(raw_data, timestamps):
         size = min(len(raw_data), len(timestamps))
         raw_data = raw_data[:size]
         timestamps = timestamps[:size]
-    return raw_data, timestamps
+        timestamps_unix = timestamps_unix[:size]
+    return raw_data, timestamps, timestamps_unix
 
 
 def _validated_conf_data(conf_data, timestamps):

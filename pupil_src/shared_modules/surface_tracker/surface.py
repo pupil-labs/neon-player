@@ -267,10 +267,12 @@ class Surface(abc.ABC):
                 "timestamp": event["timestamp"],
             }
             if event["topic"] == "fixations":
-                mapped_datum["id"] = event["id"]
-                mapped_datum["duration"] = event["duration"]
+                copy_keys = ["id", "duration", "start timestamp [ns]", "end timestamp [ns]", "duration [ms]"]
             else:
-                mapped_datum["confidence"] = event["confidence"]
+                copy_keys = ["confidence", "timestamp_unix"]
+            
+            for key in copy_keys:
+                mapped_datum[key] = event[key]
 
             results.append(mapped_datum)
         return results
