@@ -415,11 +415,13 @@ def _neon_realtime_recorded_gaze_items(timestamps_realtime_paths):
     for timestamps_path in timestamps_realtime_paths:
         raw_data = _load_raw_data(_find_raw_path(timestamps_path))
         timestamps = _load_timestamps_data(timestamps_path)
+        unix_ts_path = timestamps_path.parent / f'{timestamps_path.stem}_unix{timestamps_path.suffix}'
+        timestamps_unix = _load_timestamps_data(unix_ts_path)
         conf_data = _load_worn_data(_find_worn_path(timestamps_path))
 
-        raw_data, timestamps = _equalize_length_if_necessary(raw_data, timestamps)
+        raw_data, timestamps, timestamps_unix = _equalize_length_if_necessary(raw_data, timestamps, timestamps_unix)
         conf_data = _validated_conf_data(conf_data, timestamps)
-        yield from zip(raw_data, timestamps[0], conf_data, timestamps[1])
+        yield from zip(raw_data, timestamps, conf_data, timestamps_unix)
 
 
 def _find_timestamps_200hz_path(root_dir: Path):
