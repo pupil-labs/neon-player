@@ -620,7 +620,7 @@ class Exporter:
         """
         fixations_on_surf structure: fixations_on_surf[world_frame_idx][event_idx]
         """
- 
+
         dataset = []
         for fixs_for_frame in fixations_on_surf:
             if fixs_for_frame:
@@ -635,10 +635,11 @@ class Exporter:
                         "fixation y [normalized]": 1.0 - fix["norm_pos"][1],
                     })
 
-        file_path = os.path.join(
-            self.metrics_dir, "fixations_on_surface" + surface_name + ".csv"
-        )
+        if len(dataset) > 0:
+            file_path = os.path.join(
+                self.metrics_dir, "fixations_on_surface" + surface_name + ".csv"
+            )
 
-        fixation_df = pd.DataFrame(dataset)
-        mean_df = fixation_df.groupby(['fixation id']).mean()
-        mean_df.to_csv(file_path)
+            fixation_df = pd.DataFrame(dataset)
+            mean_df = fixation_df.groupby(['fixation id']).mean()
+            mean_df.to_csv(file_path)
