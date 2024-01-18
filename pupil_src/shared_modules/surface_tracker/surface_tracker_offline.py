@@ -27,6 +27,8 @@ import pyglui
 import pyglui.cygl.utils as pyglui_utils
 from observable import Observable
 from plugin import Plugin
+import file_methods as fm
+import player_methods as pm
 
 from . import background_tasks, offline_utils
 from .cache import Cache
@@ -39,6 +41,8 @@ from .surface_tracker import (
     APRILTAG_SHARPENING_ON,
     Surface_Tracker,
 )
+
+from gaze_producer.gaze_from_recording import GazeFromRecording
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +100,7 @@ class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
         )
 
         self.__surface_location_context = {}
+        self.gaze_offset_plugin = None
 
     @property
     def Surface_Class(self):
@@ -426,6 +431,26 @@ class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
 
         all_world_timestamps = self.g_pool.timestamps
         all_gaze_events = self.g_pool.gaze_positions
+
+        if self.gaze_offset_plugin is None:
+            for plugin in self.g_pool.plugins:
+                if isinstance(plugin, GazeFromRecording):
+                    self.gaze_offset_plugin = plugin
+                    break
+
+        # apply offset correction
+        gaze_data = [datum.copy() for datum in self.g_pool.gaze_positions]
+        gaze_ts = self.g_pool.gaze_positions.data_ts
+
+        for gaze_event in gaze_data:
+            offset = self.gaze_offset_plugin.get_manual_correction_for_ts(gaze_event["timestamp"])
+            gaze_event['norm_pos'] = (
+                gaze_event['norm_pos'][0] + offset[0],
+                gaze_event['norm_pos'][1] + offset[1],
+            )
+
+        serialized_gaze_data = [fm.Serialized_Dict(gaze) for gaze in gaze_data]
+        all_gaze_events = pm.Bisector(serialized_gaze_data, gaze_ts)
 
         self._start_gaze_buffer_filler(all_gaze_events, all_world_timestamps, section)
 

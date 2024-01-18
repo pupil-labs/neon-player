@@ -15,6 +15,7 @@ from gaze_producer.gaze_producer_base import GazeProducerBase
 from plugin_timeline import PluginTimeline
 from tasklib.manager import UniqueTaskManager
 
+import data_changed
 import file_methods as fm
 import player_methods as pm
 
@@ -28,6 +29,9 @@ class GazeFromRecording(GazeProducerBase):
 
         self.inject_plugin_dependencies()
         self._task_manager = UniqueTaskManager(plugin=self)
+        self._correction_changed_announcer = data_changed.Announcer(
+            "gaze_positions", g_pool.rec_dir, plugin=self
+        )
 
         self._setup_storages()
         self._setup_controllers()
@@ -94,6 +98,7 @@ class GazeFromRecording(GazeProducerBase):
             self._gaze_mapper_controller,
             self._gaze_mapper_storage,
             index_range_as_str=self._index_range_as_str,
+            correction_changed_announcer=self._correction_changed_announcer
         )
 
     def _recording_index_range(self):
@@ -124,6 +129,12 @@ class GazeFromRecording(GazeProducerBase):
     def get_manual_correction_for_frame(self, frame_idx):
         for mapper in self._gaze_mapper_storage:
             if frame_idx >= mapper.mapping_index_range[0] and frame_idx < mapper.mapping_index_range[1]:
+                return (mapper.manual_correction_x, mapper.manual_correction_y)
+        return (0, 0)
+
+    def get_manual_correction_for_ts(self, ts):
+        for mapper in self._gaze_mapper_storage:
+            if ts >= mapper.gaze_ts[0] and ts < mapper.gaze_ts[-1]:
                 return (mapper.manual_correction_x, mapper.manual_correction_y)
         return (0, 0)
 

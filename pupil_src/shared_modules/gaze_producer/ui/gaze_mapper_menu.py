@@ -24,11 +24,13 @@ class GazeMapperMenu(plugin_ui.StorageEditMenu):
         gaze_mapper_controller,
         gaze_mapper_storage,
         index_range_as_str,
+        correction_changed_announcer
     ):
         super().__init__(gaze_mapper_storage)
         self._gaze_mapper_controller = gaze_mapper_controller
         self._gaze_mapper_storage = gaze_mapper_storage
         self._index_range_as_str = index_range_as_str
+        self._correction_changed_announcer = correction_changed_announcer
 
         gaze_mapper_controller.add_observer(
             "on_gaze_mapping_calculated", self._on_gaze_mapping_calculated
@@ -99,7 +101,12 @@ class GazeMapperMenu(plugin_ui.StorageEditMenu):
             step=0.01,
             max=0.5,
             label="Manual Correction " + axis.upper(),
+            setter=lambda value,axis=axis:self._on_correction_changed(value, axis)
         )
+
+    def _on_correction_changed(self, value, axis):
+        setattr(self, f'manual_correction_{axis}', value)
+        self._correction_changed_announcer.announce_new(delay=1)
 
     def _on_name_change(self, new_name):
         self._gaze_mapper_storage.rename(self.current_item, new_name)
