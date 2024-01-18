@@ -119,7 +119,6 @@ def player(
         # capture
         from video_capture import File_Source
         from video_export.plugins.eye_video_exporter import Eye_Video_Exporter
-        from video_export.plugins.imotions_exporter import iMotions_Exporter
         from video_export.plugins.world_video_exporter import World_Video_Exporter
         from video_overlay.plugins import Eye_Overlay, Video_Overlay
         from vis_circle import Vis_Circle
@@ -169,7 +168,6 @@ def player(
             Log_History,
             GazeFromRecording,
             World_Video_Exporter,
-            iMotions_Exporter,
             Eye_Video_Exporter,
             Offline_Head_Pose_Tracker,
             IMUTimeline,
