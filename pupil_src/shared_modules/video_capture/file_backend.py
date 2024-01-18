@@ -341,6 +341,12 @@ class File_Source(Playback_Source, Base_Source):
         else:
             return OnDemandDecoder(container, video_stream)
 
+    def ts_to_ns(self, ts):
+        for video in self.videoset.videos:
+            ns = video.ts_to_ns(ts)
+            if ns is not None:
+                return ns
+
     @property
     def initialised(self):
         return not self.videoset.is_empty()

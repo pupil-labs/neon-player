@@ -176,6 +176,7 @@ class Video:
     def __init__(self, path: str) -> None:
         self.path = path
         self.ts = None
+        self.ts_ns_lookup = None
         self._pts = None
         self._is_valid = None  # calculated on demand
 
@@ -216,10 +217,22 @@ class Video:
     def load_ts(self):
         try:
             self.ts = np.load(self.ts_loc)
+            tsns = np.load(self.tsNs_loc)
+            self.ts_ns_lookup = np.array([self.ts, tsns])
+
         except FileNotFoundError:
             self.ts = np.array([])
+            self.ts_ns_lookup = np.array([])
             return
+
         self.ts = self._fix_negative_time_jumps(self.ts)
+
+    def ts_to_ns(self, ts):
+        idx = np.where(self.timestamps == ts)
+        if len(idx) == 0:
+            return None
+
+        return self.ts_ns_lookup[1, idx].ravel()[0]
 
     def load_pts(self, container):
         packets = container.demux(video=0)
@@ -236,6 +249,10 @@ class Video:
     @property
     def ts_loc(self) -> str:
         return os.path.join(self.base, f"{self.name}_timestamps.npy")
+
+    @property
+    def tsNs_loc(self) -> str:
+        return os.path.join(self.base, f"{self.name}_timestamps_unix.npy")
 
     @property
     def base(self) -> str:

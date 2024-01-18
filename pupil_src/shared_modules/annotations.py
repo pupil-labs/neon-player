@@ -358,13 +358,23 @@ class Annotation_Player(AnnotationPlugin, Plugin):
             csv_writer.writerow(csv_keys)
             for annotation, idx in zip(annotation_section["data"], annotation_idc):
                 csv_row = [idx]
-                csv_row.extend(annotation.get(k, "") for k in csv_keys[1:])
+                for k in csv_keys[1:]:
+                    if k == "timestamp [ns]":
+                        tsns = self.g_pool.capture.ts_to_ns(annotation["timestamp"])
+                        if tsns is None:
+                            tsns = ""
+                        csv_row.append(tsns)
+                    elif k == "duration [ms]":
+                        csv_row.append(annotation["duration"] * 1000)
+                    else:
+                        csv_row.append(annotation.get(k, ""))
+
                 csv_writer.writerow(csv_row)
             logger.info("Created 'annotations.csv' file.")
 
     @staticmethod
     def parse_csv_keys(annotations):
-        csv_keys = ("index", "timestamp", "label", "duration")
+        csv_keys = ("index", "timestamp [ns]", "label", "duration [ms]")
         system_keys = set(csv_keys)
         user_keys = set()
         for annotation in annotations:
@@ -373,6 +383,8 @@ class Annotation_Player(AnnotationPlugin, Plugin):
             user_keys |= set(annotation.keys()) - system_keys
 
         user_keys.discard("topic")  # topic is always "annotation"
+        user_keys.discard("timestamp")
+        user_keys.discard("duration")
 
         # return tuple with system keys first and alphabetically sorted
         # user keys afterwards
