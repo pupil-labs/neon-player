@@ -229,7 +229,7 @@ class IMUTimeline(Plugin):
         self.menu.append(ui.Info_Text(
             "This plugin visualizes gyroscope, accelerometer, and"
             " orientation data from Neon recordings. Results are"
-            " exported in 'imu_timeline.csv'."
+            " exported in 'imu.csv'."
         ))
         self.menu.append(ui.Info_Text(
             "Units:\n"
