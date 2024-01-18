@@ -81,6 +81,11 @@ class IMURecording:
             ("pitch", "<f4"),
             ("yaw", "<f4"),
             ("roll", "<f4"),
+            ("quaternion_w", "<f4"),
+            ("quaternion_x", "<f4"),
+            ("quaternion_y", "<f4"),
+            ("quaternion_z", "<f4"),
+            ("tsNs", "uint64")
         ]
     )
 
@@ -107,7 +112,9 @@ class IMURecording:
                 imu_data.append((
                     packet.gyroData.x, packet.gyroData.y, packet.gyroData.z,
                     packet.accelData.x, packet.accelData.y, packet.accelData.z,
-                    *euler
+                    *euler,
+                    packet.rotVecData.w, packet.rotVecData.x, packet.rotVecData.y, packet.rotVecData.z,
+                    packet.tsNs,
                 ))
 
             self.raw = np.array(imu_data, dtype=IMURecording.DTYPE_RAW).view(
@@ -122,19 +129,22 @@ class IMURecording:
 class IMUTimeline(Plugin):
     """
     plot and export imu data
-    export: imu_timeline.csv
+    export: imu.csv
     keys:
-        imu_timestamp: timestamp of the source image frame
-        world_index: associated_frame: closest world video frame
-        gyro_x: angular velocity about the x axis in degrees/s
-        gyro_y: angular velocity about the y axis in degrees/s
-        gyro_z: angular velocity about the z axis in degrees/s
-        accel_x: linear acceleration along the x axis in G (9.80665 m/s^2)
-        accel_y: linear acceleration along the y axis in G (9.80665 m/s^2)
-        accel_z: linear acceleration along the z axis in G (9.80665 m/s^2)
-        pitch: orientation expressed as Euler angles
-        yaw: orientation expressed as Euler angles
-        roll: orientation expressed as Euler angles
+        timestamp [ns]: timestamp of the source image frame
+        gyro x [deg/s]: angular velocity about the x axis in degrees/s
+        gyro y [deg/s]: angular velocity about the y axis in degrees/s
+        gyro z [deg/s]: angular velocity about the z axis in degrees/s
+        acceleration x [G]: linear acceleration along the x axis in G (9.80665 m/s^2)
+        acceleration y [G]: linear acceleration along the y axis in G (9.80665 m/s^2)
+        acceleration z [G]: linear acceleration along the z axis in G (9.80665 m/s^2)
+        roll [deg]: orientation expressed as Euler angles
+        pitch [deg]: orientation expressed as Euler angles
+        yaw [deg]: orientation expressed as Euler angles
+        quaternion w: the scalar component of the orientation expressed as a quaternion
+        quaternion x: the x component of the orientation expressed as a quaternion
+        quaternion y: the y component of the orientation expressed as a quaternion
+        quaternion z: the z component of the orientation expressed as a quaternion
     See Pupil docs for relevant coordinate systems
     """
 
@@ -423,22 +433,25 @@ class Imu_Bisector(pm.Bisector):
 class Imu_Exporter(_Base_Positions_Exporter):
     @classmethod
     def csv_export_filename(cls) -> str:
-        return "imu_data.csv"
+        return "imu.csv"
 
     @classmethod
     def csv_export_labels(cls) -> typing.Tuple[csv_utils.CSV_EXPORT_LABEL_TYPE, ...]:
         return (
-            "imu_timestamp",
-            "world_index",
-            "gyro_x",
-            "gyro_y",
-            "gyro_z",
-            "accel_x",
-            "accel_y",
-            "accel_z",
-            "pitch",
-            "yaw",
-            "roll",
+            "timestamp [ns]",
+            "gyro x [deg/s]",
+            "gyro y [deg/s]",
+            "gyro z [deg/s]",
+            "acceleration x [G]",
+            "acceleration y [G]",
+            "acceleration z [G]",
+            "roll [deg]",
+            "pitch [deg]",
+            "yaw [deg]",
+            "quaternion w",
+            "quaternion x",
+            "quaternion y",
+            "quaternion z",
         )
 
     @classmethod
@@ -446,7 +459,7 @@ class Imu_Exporter(_Base_Positions_Exporter):
         cls, raw_value: csv_utils.CSV_EXPORT_RAW_TYPE, world_ts: float, world_index: int
     ) -> dict:
         try:
-            imu_timestamp = str(world_ts)
+            timestamp_ns = raw_value["tsNs"]
             gyro_x = raw_value["gyro_x"]
             gyro_y = raw_value["gyro_y"]
             gyro_z = raw_value["gyro_z"]
@@ -456,8 +469,13 @@ class Imu_Exporter(_Base_Positions_Exporter):
             pitch = raw_value["pitch"]
             yaw = raw_value["yaw"]
             roll = raw_value["roll"]
+            quaternion_w = raw_value["quaternion_w"]
+            quaternion_x = raw_value["quaternion_x"]
+            quaternion_y = raw_value["quaternion_y"]
+            quaternion_z = raw_value["quaternion_z"]
+
         except KeyError:
-            imu_timestamp = None
+            timestamp_ns = None
             gyro_x = None
             gyro_y = None
             gyro_z = None
@@ -467,19 +485,26 @@ class Imu_Exporter(_Base_Positions_Exporter):
             pitch = None
             yaw = None
             roll = None
+            quaternion_w = None
+            quaternion_x = None
+            quaternion_y = None
+            quaternion_z = None
 
         return {
-            "imu_timestamp": imu_timestamp,
-            "world_index": world_index,
-            "gyro_x": gyro_x,
-            "gyro_y": gyro_y,
-            "gyro_z": gyro_z,
-            "accel_x": accel_x,
-            "accel_y": accel_y,
-            "accel_z": accel_z,
-            "pitch": pitch,
-            "yaw": yaw,
-            "roll": roll,
+            "timestamp [ns]": timestamp_ns,
+            "gyro x [deg/s]": gyro_x,
+            "gyro y [deg/s]": gyro_y,
+            "gyro z [deg/s]": gyro_z,
+            "acceleration x [G]": accel_x,
+            "acceleration y [G]": accel_y,
+            "acceleration z [G]": accel_z,
+            "roll [deg]": roll,
+            "pitch [deg]": pitch,
+            "yaw [deg]": yaw,
+            "quaternion w": quaternion_w,
+            "quaternion x": quaternion_x,
+            "quaternion y": quaternion_y,
+            "quaternion z": quaternion_z,
         }
 
     def csv_export_write(self, imu_bisector, timestamps, export_window, export_dir):
