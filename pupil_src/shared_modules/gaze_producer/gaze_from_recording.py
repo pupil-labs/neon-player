@@ -147,7 +147,10 @@ class GazeFromRecording(GazeProducerBase):
                 window = (blink["start_timestamp"], blink["end_timestamp"], )
                 gaze_idx_range = self.g_pool.gaze_positions._start_stop_idc_for_window(window)
                 for gaze_idx in range(*gaze_idx_range):
-                    gaze_data[gaze_idx]["confidence"] = 0.0
+                    if self.g_pool.hide_gaze_during_blinks:
+                        gaze_data[gaze_idx]["confidence"] = 0.0
+                    else:
+                        gaze_data[gaze_idx]["confidence"] = 1.0
 
             gaze_data = [fm.Serialized_Dict(gaze) for gaze in gaze_data]
             self._publish_gaze(pm.Bisector(gaze_data, gaze_ts))

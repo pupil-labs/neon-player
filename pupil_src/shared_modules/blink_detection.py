@@ -73,10 +73,11 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
     This plugin detects blinks using pl-rec-export
     """
 
-    def __init__(self, g_pool):
+    def __init__(self, g_pool, hide_gaze_during_blinks=True):
         super().__init__(g_pool)
 
         g_pool.blinks = pm.Affiliator()
+        g_pool.hide_gaze_during_blinks = hide_gaze_during_blinks
 
         self.status = ""
         self.cache = {"class_points": ()}
@@ -92,6 +93,9 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
         self.menu.append(ui.Text_Input(
             "status", self, label="Detection status:", setter=lambda x: None
         ))
+        self.menu.append(ui.Switch(
+            "hide_gaze_during_blinks", self.g_pool, label="Hide gaze during blinks", setter=self.set_hide_gaze_during_blinks
+        ))
 
         self.glfont = fs.Context()
         self.glfont.add_font("opensans", ui.get_opensans_font_path())
@@ -106,6 +110,13 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
         super().deinit_ui()
         self.g_pool.user_timelines.remove(self.timeline)
         self.timeline = None
+
+    def set_hide_gaze_during_blinks(self, value):
+        self.g_pool.hide_gaze_during_blinks = value
+
+        if len(self.g_pool.blinks) > 0:
+            self.notify_all({"subject": "blinks_changed", "delay": 0.2})
+
 
     def on_notify(self, notification):
         if notification["subject"] == "blinks_changed":
@@ -222,7 +233,6 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
                 self.bg_task = None
                 self.menu_icon.indicator_stop = 0.0
                 self.load_blinks()
-
 
     def cache_activation(self):
         t0, t1 = self.g_pool.timestamps[0], self.g_pool.timestamps[-1]
