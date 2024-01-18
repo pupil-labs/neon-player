@@ -30,7 +30,7 @@ class Raw_Data_Exporter(Plugin):
     """
     gaze_positions.csv
     keys:
-        timestamp [s] - timestamp of the source image frame
+        timestamp [ns] - timestamp of the source image frame
         gaze x [px] - x position in the world image frame in pixel coordinates
         gaze y [px] - y position in the world image frame in pixel coordinates
     """
