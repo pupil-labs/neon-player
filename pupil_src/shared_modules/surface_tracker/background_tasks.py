@@ -299,7 +299,8 @@ class Exporter:
             self._export_fixations_on_surface(
                 self.fixations_on_surfaces[surf_idx], surface, surface_name
             )
-            self._export_surface_heatmap(surface, surface_name)
+            # @TODO: investigate why opencv segfaults on mac when scaling the heatmap image
+            # self._export_surface_heatmap(surface, surface_name)
 
             logger.info(f"Saved surface gaze and fixation data for '{surface.name}'")
 
