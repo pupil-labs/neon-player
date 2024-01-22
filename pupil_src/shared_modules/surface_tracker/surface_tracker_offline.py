@@ -424,14 +424,14 @@ class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
             for surface in self.surfaces:
                 surface.across_surface_heatmap = surface.get_uniform_heatmap((1, 1))
 
-    def get_offset_for_ts(self, ts):
+    def get_gaze_offset_plugin(self):
         if self.gaze_offset_plugin is None:
             for plugin in self.g_pool.plugins:
                 if isinstance(plugin, GazeFromRecording):
                     self.gaze_offset_plugin = plugin
                     break
 
-        return self.gaze_offset_plugin.get_manual_correction_for_ts(ts)
+        return self.gaze_offset_plugin
 
     def _fill_gaze_on_surf_buffer(self):
         in_mark = self.g_pool.seek_control.trim_left
@@ -446,7 +446,7 @@ class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
         gaze_ts = self.g_pool.gaze_positions.data_ts
 
         for gaze_event in gaze_data:
-            offset = self.get_offset_for_ts(gaze_event["timestamp"])
+            offset = self.get_gaze_offset_plugin().get_manual_correction_for_ts(gaze_event["timestamp"])
             gaze_event['norm_pos'] = (
                 gaze_event['norm_pos'][0] + offset[0],
                 gaze_event['norm_pos'][1] + offset[1],
@@ -615,7 +615,7 @@ class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
             gaze_data = [datum.copy() for datum in self.g_pool.gaze_positions]
 
             for gaze_event in gaze_data:
-                offset = self.get_offset_for_ts(gaze_event["timestamp"])
+                offset = self.get_gaze_offset_plugin().get_manual_correction_for_ts(gaze_event["timestamp"])
                 gaze_event['norm_pos'] = (
                     gaze_event['norm_pos'][0] + offset[0],
                     gaze_event['norm_pos'][1] + offset[1],
@@ -624,13 +624,24 @@ class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
             serialized_gaze_data = [fm.Serialized_Dict(gaze) for gaze in gaze_data]
             corrected_gaze_positions = pm.Bisector(serialized_gaze_data, self.g_pool.gaze_positions.data_ts)
 
+            fixation_data = [datum.copy() for datum in self.g_pool.fixations]
+
+            for fixation_event in fixation_data:
+                offset = self.get_gaze_offset_plugin().get_manual_correction_for_frame(fixation_event["mid_frame_index"])
+                fixation_event['norm_pos'] = (
+                    fixation_event['norm_pos'][0] + offset[0],
+                    fixation_event['norm_pos'][1] + offset[1],
+                )
+
+            corrected_fixations = pm.Affiliator(fixation_data, self.g_pool.fixations.data_ts, self.g_pool.fixations.stop_ts)
+
             proxy = background_tasks.get_export_proxy(
                 notification["export_dir"],
                 notification["range"],
                 self.surfaces,
                 self.g_pool.timestamps,
                 corrected_gaze_positions,
-                self.g_pool.fixations,
+                corrected_fixations,
                 self.camera_model,
                 marker_cache_path,
                 mp_context,
