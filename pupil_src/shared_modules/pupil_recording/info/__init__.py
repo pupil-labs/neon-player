@@ -15,8 +15,10 @@ from .recording_info_2_0 import _RecordingInfoFile_2_0
 from .recording_info_2_1 import _RecordingInfoFile_2_1
 from .recording_info_2_2 import _RecordingInfoFile_2_2
 from .recording_info_2_3 import _RecordingInfoFile_2_3
+from .recording_info_2_4 import _RecordingInfoFile_2_4
 
 RecordingInfoFile.register_child_class(parse_version("2.0"), _RecordingInfoFile_2_0)
 RecordingInfoFile.register_child_class(parse_version("2.1"), _RecordingInfoFile_2_1)
 RecordingInfoFile.register_child_class(parse_version("2.2"), _RecordingInfoFile_2_2)
 RecordingInfoFile.register_child_class(parse_version("2.3"), _RecordingInfoFile_2_3)
+RecordingInfoFile.register_child_class(parse_version("2.4"), _RecordingInfoFile_2_4)

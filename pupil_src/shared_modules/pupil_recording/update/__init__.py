@@ -29,6 +29,8 @@ from .new_style import (
     recording_update_to_latest_new_style,
 )
 
+from version_utils import parse_version
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,12 +55,21 @@ def update_recording(rec_dir: str):
     # Check if already converted
     new_path = Path(rec_dir) / "neon_player"
     if new_path.exists():
+        recording_info = RecordingInfoFile.read_file_from_recording(new_path)
+        if recording_info.meta_version < parse_version("2.4"):
+                raise InvalidRecordingException(
+                    "Outdated Recording Format",
+                    recovery="Backup and delete the `neon_player` subfolder, then load the recording again to start fresh.",
+                )
+
+        recording_update_to_latest_new_style(new_path)
+
         return str(new_path)
 
     # Copy entire contents to a subfolder and convert that
     if platform.system() == 'Windows':
         # On Windows, the process hangs on to file handles for mp4s after renaming
-        # this prevents renaming the tmp folder - so instead, just use the final 
+        # this prevents renaming the tmp folder - so instead, just use the final
         # folder name instead
         rec_dir_tmp = new_path
     else:

@@ -32,6 +32,8 @@ def recording_update_to_latest_new_style(rec_dir: str):
         info_file = update_newstyle_21_22(rec_dir)
     if info_file.meta_version < parse_version("2.3"):
         info_file = update_newstyle_22_23(rec_dir)
+    if info_file.meta_version < parse_version("2.4"):
+        info_file = update_newstyle_23_24(rec_dir)
 
 
 def check_min_player_version(info_file: RecordingInfoFile):
@@ -101,6 +103,15 @@ def update_newstyle_22_23(rec_dir: str):
     old_info_file = RecordingInfoFile.read_file_from_recording(rec_dir)
     new_info_file = RecordingInfoFile.create_empty_file(
         rec_dir, fixed_version=parse_version("2.3")
+    )
+    new_info_file.update_writeable_properties_from(old_info_file)
+    new_info_file.save_file()
+    return new_info_file
+
+def update_newstyle_23_24(rec_dir: str):
+    old_info_file = RecordingInfoFile.read_file_from_recording(rec_dir)
+    new_info_file = RecordingInfoFile.create_empty_file(
+        rec_dir, fixed_version=parse_version("2.4")
     )
     new_info_file.update_writeable_properties_from(old_info_file)
     new_info_file.save_file()
