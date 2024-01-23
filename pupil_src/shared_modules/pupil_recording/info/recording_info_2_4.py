@@ -22,7 +22,7 @@ class _RecordingInfoFile_2_4(_RecordingInfoFile_2_3):
 
     @property
     def min_player_version(self) -> ParsedVersion:
-        return parse_version("4.1-rc.3")
+        return parse_version("4.1")
 
     @property
     def _private_key_schema(self) -> RecordingInfoFile._KeyValueSchema:
@@ -30,5 +30,5 @@ class _RecordingInfoFile_2_4(_RecordingInfoFile_2_3):
             **super()._private_key_schema,
             # overwrite meta_version key from parent
             "meta_version": (utils.validator_version_string, lambda _: "2.4"),
-            "min_player_version": (utils.validator_version_string, lambda _: "4.1-rc.3"),
+            "min_player_version": (utils.validator_version_string, lambda _: "4.1"),
         }
