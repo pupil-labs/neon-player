@@ -123,7 +123,6 @@ def detect_fixations(rec_dir, data_dir, timestamps, frame_size, queue):
             yield f"Processing fixations... {idx}", fixation
 
     # cleanup Neon recording folder
-    print("CLEANUP")
     optic_flow_cache_file = Path(rec_dir).parent / "optic_flow_vectors.npz"
     optic_flow_cache_file.rename(Path(data_dir) /  "optic_flow_vectors.npz")
 
