@@ -59,7 +59,7 @@ def update_recording(rec_dir: str):
         if recording_info.meta_version < parse_version("2.4"):
                 raise InvalidRecordingException(
                     "Outdated Recording Format",
-                    recovery="Backup and delete the `neon_player` subfolder, then load the recording again to start fresh.",
+                    recovery="Backup and delete the `neon_player` subfolder,\nthen load the recording again to start fresh.",
                 )
 
         recording_update_to_latest_new_style(new_path)
