@@ -198,46 +198,6 @@ class AnnotationPlugin(Plugin, abc.ABC):
         self._annotation_list_menu.remove(button_menu)
 
 
-class Annotation_Capture(AnnotationPlugin):
-    """
-    Pupil Capture plugin to record annotations.
-    """
-
-    def __init__(self, g_pool, *args, **kwargs):
-        super().__init__(g_pool, *args, **kwargs)
-        self.ipc_pub = zmq_tools.Msg_Streamer(
-            self.g_pool.zmq_ctx, self.g_pool.ipc_pub_url
-        )
-        self.annotation_sub = zmq_tools.Msg_Receiver(
-            self.g_pool.zmq_ctx, self.g_pool.ipc_sub_url, topics=("annotation",)
-        )
-
-    def customize_menu(self):
-        self.menu.label = "View and Record Annotations"
-
-    def fire_annotation(self, annotation_label):
-        ts = self.g_pool.get_timestamp()
-        new_annotation = create_annotation(annotation_label, ts)
-        new_annotation["added_in_capture"] = True
-        self.ipc_pub.send(new_annotation)
-
-    def recent_events(self, events):
-        recent_annotation_data = []
-        while self.annotation_sub.new_data:
-            topic, annotation_datum = self.annotation_sub.recv()
-            ts = self.g_pool.get_timestamp()
-            annotation_desc = self._annotation_description(
-                label=annotation_datum["label"], age=ts - annotation_datum["timestamp"]
-            )
-            logger.info(annotation_desc)
-            recent_annotation_data.append(annotation_datum)
-        events["annotation"] = recent_annotation_data
-
-    @staticmethod
-    def _annotation_description(label, age) -> str:
-        return f"{label} annotation ({age:.3f} seconds ago)"
-
-
 class Annotation_Player(AnnotationPlugin, Plugin):
     """
     Neon Player plugin to view, edit, and add annotations.
@@ -360,7 +320,11 @@ class Annotation_Player(AnnotationPlugin, Plugin):
                 csv_row = [idx]
                 for k in csv_keys[1:]:
                     if k == "timestamp [ns]":
-                        tsns = self.g_pool.capture.ts_to_ns(annotation["timestamp"])
+                        if "timestamp_unix" in annotation:
+                            tsns = annotation["timestamp_unix"]
+                        else:
+                            tsns = int(self.g_pool.capture.ts_to_ns(annotation["timestamp"]))
+
                         if tsns is None:
                             tsns = ""
                         csv_row.append(tsns)
@@ -384,6 +348,7 @@ class Annotation_Player(AnnotationPlugin, Plugin):
 
         user_keys.discard("topic")  # topic is always "annotation"
         user_keys.discard("timestamp")
+        user_keys.discard("timestamp_unix")
         user_keys.discard("duration")
 
         # return tuple with system keys first and alphabetically sorted

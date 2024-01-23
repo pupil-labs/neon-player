@@ -228,7 +228,7 @@ class Video:
         self.ts = self._fix_negative_time_jumps(self.ts)
 
     def ts_to_ns(self, ts):
-        idx = np.where(self.timestamps == ts)
+        idx = np.where(self.timestamps == ts)[0]
         if len(idx) == 0:
             return None
 

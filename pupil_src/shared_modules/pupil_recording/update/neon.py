@@ -74,6 +74,7 @@ def _transform_neon_v2_1_0_to_pprf_2_1(rec_dir: str):
     _rename_neon_files(recording)
     _rewrite_timestamps(recording)
     _convert_gaze(recording)
+    _convert_annotations(recording)
 
 
 def _generate_pprf_2_1_info_file(rec_dir: str) -> RecordingInfoFile:
@@ -176,6 +177,25 @@ def _convert_gaze(recording: PupilRecording):
     cache_path = rec_path / 'offline_data'
     cache_path.mkdir(exist_ok=True)
     _process_gaze(rec_path.parent, cache_path)
+
+def _convert_annotations(recording: PupilRecording):
+    rec_path = Path(recording.rec_dir)
+
+    labels = (rec_path / 'event.txt').read_text().strip().split('\n')
+    timestamps = np.load(rec_path / 'event_timestamps.npy')
+    timestamps_unix = np.load(rec_path / 'event_timestamps_unix.npy')
+
+    with fm.PLData_Writer(recording.rec_dir, "annotation_player") as writer:
+        for event in zip(labels, timestamps, timestamps_unix):
+            datum = {
+                'topic': 'annotation',
+                'label': event[0],
+                'timestamp': event[1],
+                'timestamp_unix': event[2],
+                'duration': 0.0,
+                'added_in_player': False
+            }
+            writer.append(datum)
 
 
 def android_system_info(info_json: dict) -> str:
