@@ -122,6 +122,11 @@ def detect_fixations(rec_dir, data_dir, timestamps, frame_size, queue):
             fixation = fixation_from_data(row, timestamps, start_time_synced_ns, frame_size)
             yield f"Processing fixations... {idx}", fixation
 
+    # cleanup Neon recording folder
+    print("CLEANUP")
+    optic_flow_cache_file = Path(rec_dir).parent / "optic_flow_vectors.npz"
+    optic_flow_cache_file.rename(Path(data_dir) /  "optic_flow_vectors.npz")
+
     return "Fixation detection complete", ()
 
 
@@ -384,7 +389,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
                 start_offset = (0, 0)
 
                 if self.optic_flow_vectors is None:
-                    self.optic_flow_vectors = load_optic_flow_vectors(Path(self.g_pool.rec_dir).parent)
+                    self.optic_flow_vectors = load_optic_flow_vectors(self.data_dir)
 
                 gaze_points = self.g_pool.gaze_positions.by_ts_window((f["timestamp"], f["timestamp"]+1/30))
                 if len(gaze_points) == 0:
@@ -567,7 +572,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
                 - fixation count
 
             fixation list:
-                id | start timestamp [ns] | end timestamp [ns] | duration [ms] | 
+                id | start timestamp [ns] | end timestamp [ns] | duration [ms] |
                 fixation x [px] | fixation y [px]
         """
         if not self.fixation_data:
