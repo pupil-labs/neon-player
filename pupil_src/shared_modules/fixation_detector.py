@@ -72,10 +72,15 @@ class Fixation_Detector_Base(Plugin):
         return "Fixation Detector"
 
 def fixation_from_data(info, timestamps, world_start_time, frame_size):
-    norm_pos = (
-        float(info['fixation x [px]']) / frame_size[0],
-        1.0 - float(info['fixation y [px]']) / frame_size[1]
-    )
+    if info['fixation x [px]'] == '' or info['fixation y [px]'] == '':
+        norm_pos = None
+        pos_2d = None
+    else:
+        norm_pos = (
+            float(info['fixation x [px]']) / frame_size[0],
+            1.0 - float(info['fixation y [px]']) / frame_size[1]
+        )
+        pos_2d = [float(info[f'fixation {axis} [px]']) for axis in 'xy']
 
     start_time = (float(info['start timestamp [ns]']) - world_start_time) * NS_TO_S
     end_time = (float(info['end timestamp [ns]']) - world_start_time) * NS_TO_S
@@ -95,7 +100,7 @@ def fixation_from_data(info, timestamps, world_start_time, frame_size):
         "start_frame_index": int(start_frame),
         "end_frame_index": int(end_frame),
         "mid_frame_index": int((start_frame + end_frame) // 2),
-        "gaze_point_2d": [float(info[f'fixation {axis} [px]']) for axis in 'xy'],
+        "gaze_point_2d": pos_2d,
         "start timestamp [ns]": start_time_ns,
         "end timestamp [ns]": end_time_ns,
         "duration [ms]": (end_time_ns - start_time_ns) * NS_TO_MS,
@@ -116,9 +121,6 @@ def detect_fixations(rec_dir, data_dir, timestamps, frame_size, queue):
     with fixations_csv.open() as csvfile:
         reader = csv.DictReader(csvfile)
         for idx,row in enumerate(reader):
-            if '' in row.values():
-                continue
-
             fixation = fixation_from_data(row, timestamps, start_time_synced_ns, frame_size)
             yield f"Processing fixations... {idx}", fixation
 
@@ -383,6 +385,9 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
                     break
 
             for f in fixations:
+                if f["norm_pos"] is None:
+                    continue
+
                 # calculate cumulative offset to current timestamp
                 optic_flow_offset = [0, 0]
                 start_offset = (0, 0)
@@ -391,10 +396,11 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
                     self.optic_flow_vectors = load_optic_flow_vectors(self.data_dir)
 
                 gaze_points = self.g_pool.gaze_positions.by_ts_window((f["timestamp"], f["timestamp"]+1/30))
-                if len(gaze_points) == 0:
-                    first_gaze_point = f
-                else:
-                    first_gaze_point = gaze_points[0]
+                first_gaze_point = f
+                for gp in gaze_points:
+                    if gp["norm_pos"] is not None:
+                        first_gaze_point = gp
+                        break
 
                 start_offset = (
                     f["norm_pos"][0] - first_gaze_point["norm_pos"][0],
@@ -554,12 +560,17 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
 
     @classmethod
     def csv_representation_for_fixation(self, fixation):
+        if fixation["gaze_point_2d"] is not None:
+            gp_2d = fixation["gaze_point_2d"]
+        else:
+            gp_2d = [None, None]
+
         return (
             fixation["id"],
             fixation["start timestamp [ns]"],
             fixation["end timestamp [ns]"],
             fixation["duration [ms]"],
-            *fixation["gaze_point_2d"],
+            *gp_2d,
         )
 
     def export_fixations(self, export_window, export_dir):
@@ -593,7 +604,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
             csv_writer.writerow(self.csv_representation_keys())
             for f in fixations_in_section:
 
-                if gaze_offset_plugin is not None:
+                if gaze_offset_plugin is not None and f["norm_pos"] is not None:
                     f = f.copy()
                     manual_correction = gaze_offset_plugin.get_manual_correction_for_frame(f["start_frame_index"])
                     f["norm_pos"] = (
