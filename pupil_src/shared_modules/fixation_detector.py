@@ -589,6 +589,10 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
             logger.warning("No fixations in this recording nothing to export")
             return
 
+        if export_window[0] == self.g_pool.timestamps[0]:
+            # If a fixation starts and ends before the first world frame, this will ensure its included
+            export_window[0] = 0
+
         fixations_in_section = self.g_pool.fixations.by_ts_window(export_window)
         gaze_offset_plugin = None
         for plugin in self.g_pool.plugins:
