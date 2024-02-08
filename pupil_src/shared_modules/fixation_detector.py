@@ -444,10 +444,10 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
         if self.current_fixation_details and self.prev_index != frame.index:
             info = ""
             for f in fixations:
-                info += "Current fixation, {} of {}\n".format(
+                info += "Fixation #{} of {}\n".format(
                     f["id"], len(self.g_pool.fixations)
                 )
-                info += "    Duration: {:.2f} milliseconds\n".format(f["duration"])
+                info += "    Duration: {:.2f} milliseconds\n".format(f["duration [ms]"])
                 info += "    Frame range: {}-{}\n".format(
                     f["start_frame_index"] + 1, f["end_frame_index"] + 1
                 )
@@ -467,7 +467,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
                     time_lapsed = (
                         next_f["timestamp"] - f["timestamp"] + f["duration"] / 1000
                     )
-                    info += "    Time to next fixation: {:.2f} seconds\n".format(
+                    info += "    Time to next fixation: {:.2f} seconds\n ".format(
                         time_lapsed
                     )
                 else:
