@@ -57,7 +57,6 @@ else:
 
 class _CacheRelevantDetectorParams(T.NamedTuple):
     mode: MarkerDetectorMode
-    inverted_markers: bool
     quad_decimate: float
     sharpening: float
 
@@ -181,7 +180,6 @@ class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
 
     def _set_detector_params(self, params: _CacheRelevantDetectorParams):
         self.marker_detector._marker_detector_mode = params.mode
-        self.marker_detector._square_marker_inverted_markers = params.inverted_markers
         self.marker_detector._apriltag_quad_decimate = params.quad_decimate
         self.marker_detector._apriltag_decode_sharpening = params.sharpening
         self.marker_detector.init_detector()
@@ -202,7 +200,6 @@ class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
 
         return _CacheRelevantDetectorParams(
             mode=mode,
-            inverted_markers=previous_cache.get("inverted_markers", False),
             quad_decimate=previous_cache.get("quad_decimate", APRILTAG_HIGH_RES_ON),
             sharpening=previous_cache.get("sharpening", APRILTAG_SHARPENING_ON),
         )
@@ -210,7 +207,6 @@ class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
     def _cache_relevant_params_from_controller(self) -> _CacheRelevantDetectorParams:
         return _CacheRelevantDetectorParams(
             mode=self.marker_detector.marker_detector_mode,
-            inverted_markers=self.marker_detector.inverted_markers,
             quad_decimate=self.marker_detector.apriltag_quad_decimate,
             sharpening=self.marker_detector.apriltag_decode_sharpening,
         )
@@ -239,33 +235,17 @@ class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
         self.__surface_location_context = {}
         self.cache_filler = background_tasks.background_video_processor(
             self.g_pool.capture.source_path,
-            offline_utils.marker_detection_callable.from_detector(
-                self.marker_detector, self.CACHE_MIN_MARKER_PERIMETER
-            ),
+            offline_utils.marker_detection_callable.from_detector(self.marker_detector),
             list(self.marker_cache),
             self.cache_seek_idx,
             mp_context,
         )
 
     def _filter_marker_cache(self, cache_to_filter):
-        marker_type = self.marker_detector.marker_detector_mode.marker_type
-        if marker_type != MarkerType.SQUARE_MARKER:
-            # We only need to filter SQUARE_MARKERs
-            return cache_to_filter
-
-        marker_cache = []
-        for markers in cache_to_filter:
-            if markers:
-                markers = self._filter_markers(markers)
-            marker_cache.append(markers)
-        return Cache(marker_cache)
+        return cache_to_filter
 
     def _filter_markers(self, markers):
-        return [
-            m
-            for m in markers
-            if m.perimeter >= self.marker_detector.marker_min_perimeter
-        ]
+        return markers
 
     def init_ui(self):
         super().init_ui()
@@ -336,12 +316,6 @@ class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
             if frame_index is not None:
                 markers = self._remove_duplicate_markers(markers)
                 self.marker_cache_unfiltered.update(frame_index, markers)
-                marker_type = self.marker_detector.marker_detector_mode.marker_type
-                if marker_type == MarkerType.SQUARE_MARKER:
-                    markers_filtered = self._filter_markers(markers)
-                    self.marker_cache.update(frame_index, markers_filtered)
-                # In all other cases (see _filter_marker_cache()):
-                # `self.marker_cache is self.marker_cache_unfiltered == True`
 
                 for surface in self.surfaces:
                     surface.update_location_cache(
@@ -559,15 +533,6 @@ class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
             current_params = self._cache_relevant_params_from_controller()
             self._recalculate_marker_cache(parameters=current_params)
 
-        elif notification["subject"] == "surface_tracker.marker_min_perimeter_changed":
-            marker_type = self.marker_detector.marker_detector_mode.marker_type
-            if marker_type == MarkerType.SQUARE_MARKER:
-                self.marker_cache = self._filter_marker_cache(
-                    self.marker_cache_unfiltered
-                )
-                for surface in self.surfaces:
-                    surface.location_cache = None
-
         elif notification["subject"] == "surface_tracker.heatmap_params_changed":
             for surface in self.surfaces:
                 if surface.name == notification["name"]:
@@ -697,7 +662,6 @@ class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
         marker_cache_file["version"] = self.MARKER_CACHE_VERSION
 
         current_config = self._cache_relevant_params_from_controller()
-        marker_cache_file["inverted_markers"] = current_config.inverted_markers
         marker_cache_file["quad_decimate"] = current_config.quad_decimate
         marker_cache_file["sharpening"] = current_config.sharpening
         marker_cache_file.save()

@@ -20,7 +20,6 @@ from .surface import Surface
 from .surface_serializer import (
     InvalidSurfaceDefinition,
     _Surface_Serializer_Base,
-    _Surface_Serializer_V00,
     _Surface_Serializer_V01,
 )
 
@@ -107,19 +106,6 @@ class _Surface_File_Store_Base(abc.ABC):
         surfaces = filter(lambda s: s is not None, surfaces)
         return surfaces
 
-
-class _Surface_File_Store_V00(_Surface_File_Store_Base):
-    # _Surface_File_Store_Base API
-
-    @property
-    def file_name(self) -> str:
-        return "surface_definitions"
-
-    @property
-    def serializer(self) -> _Surface_Serializer_Base:
-        return _Surface_Serializer_V00()
-
-
 class _Surface_File_Store_V01(_Surface_File_Store_Base):
     # _Surface_File_Store_Base API
 
@@ -163,7 +149,6 @@ class Surface_File_Store(_Surface_File_Store_Base):
     def __init__(self, parent_dir, **kwargs):
         super().__init__(parent_dir=parent_dir, **kwargs)
         self.__versioned_file_stores: Surface_File_Store.Versioned_File_Store_Mapping = {
-            0: _Surface_File_Store_V00(parent_dir=parent_dir),
             1: _Surface_File_Store_V01(parent_dir=parent_dir),
             # Add any new file store versions here...
         }

@@ -55,8 +55,6 @@ class Surface_Tracker(Plugin, metaclass=ABCMeta):
     def __init__(
         self,
         g_pool,
-        marker_min_perimeter: int = 60,
-        inverted_markers: bool = False,
         marker_detector_mode: T.Union[
             MarkerDetectorMode, T.Tuple
         ] = DEFAULT_DETECTOR_MODE,
@@ -82,9 +80,6 @@ class Surface_Tracker(Plugin, metaclass=ABCMeta):
 
         self.marker_detector = MarkerDetectorController(
             marker_detector_mode=marker_detector_mode,
-            marker_min_perimeter=marker_min_perimeter,
-            square_marker_inverted_markers=inverted_markers,
-            square_marker_use_online_mode=use_online_detection,
             apriltag_quad_decimate=use_high_res,
             apriltag_decode_sharpening=sharpen,
         )
@@ -210,7 +205,6 @@ class Surface_Tracker(Plugin, metaclass=ABCMeta):
         )
 
         menu.append(self._apriltag_marker_param_menu())
-        menu.append(self._square_marker_param_menu())
         return menu
 
     def _apriltag_marker_param_menu(self):
@@ -254,47 +248,6 @@ class Surface_Tracker(Plugin, metaclass=ABCMeta):
                 getter=get_should_sharpen,
                 setter=set_should_sharpen,
                 label="Sharpen image",
-            )
-        )
-        return menu
-
-    def _square_marker_param_menu(self):
-        def set_marker_min_perimeter(val):
-            self.marker_detector.marker_min_perimeter = val
-            self.notify_all(
-                {
-                    "subject": "surface_tracker.marker_min_perimeter_changed",
-                    "delay": 0.5,
-                }
-            )
-
-        def set_inverted_markers(val):
-            self.marker_detector.inverted_markers = val
-            self.notify_all(
-                {"subject": "surface_tracker.marker_detection_params_changed"}
-            )
-
-        menu = ui.Growing_Menu("Legacy Marker Parameters")
-        menu.collapsed = True
-
-        menu.append(
-            ui.Slider(
-                "marker_min_perimeter",
-                self.marker_detector,
-                label="Min Marker Perimeter",
-                setter=set_marker_min_perimeter,
-                step=1,
-                min=30,
-                max=100,
-            )
-        )
-
-        menu.append(
-            ui.Switch(
-                "inverted_markers",
-                self.marker_detector,
-                setter=set_inverted_markers,
-                label="Use inverted markers",
             )
         )
         return menu
@@ -542,8 +495,6 @@ class Surface_Tracker(Plugin, metaclass=ABCMeta):
     def get_init_dict(self):
         marker_detector_mode = self.marker_detector.marker_detector_mode.as_tuple()
         return {
-            "marker_min_perimeter": self.marker_detector.marker_min_perimeter,
-            "inverted_markers": self.marker_detector.inverted_markers,
             "marker_detector_mode": marker_detector_mode,
             "use_high_res": self.marker_detector.apriltag_quad_decimate,
             "sharpen": self.marker_detector.apriltag_decode_sharpening,

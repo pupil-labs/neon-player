@@ -111,49 +111,6 @@ class _Surface_Serializer_Base(abc.ABC):
             deprecated_definition=deprecated_definition,
         )
 
-
-class _Surface_Serializer_V00(_Surface_Serializer_Base):
-    version = 0
-
-    def dict_from_surface_marker_aggregate(
-        self, surface_marker_aggregate: Surface_Marker_Aggregate
-    ) -> dict:
-        id = parse_surface_marker_tag_id(uid=surface_marker_aggregate.uid)
-        marker_type = parse_surface_marker_type(uid=surface_marker_aggregate.uid)
-        if marker_type != Surface_Marker_Type.SQUARE:
-            err_msg = f"{type(self).__name__} can only recognize {Surface_Marker_Type.SQUARE.value} markers"
-            raise InvalidSurfaceDefinition(err_msg)
-        verts_uv = surface_marker_aggregate.verts_uv
-        if verts_uv is not None:
-            verts_uv = [v.tolist() for v in verts_uv]
-        return {"id": id, "verts_uv": verts_uv}
-
-    def surface_marker_aggregate_from_dict(
-        self, surface_marker_aggregate_dict: dict
-    ) -> Surface_Marker_Aggregate:
-        tag_id = surface_marker_aggregate_dict["id"]
-        uid = create_surface_marker_uid(
-            marker_type=Surface_Marker_Type.SQUARE,
-            tag_family=None,
-            tag_id=Surface_Marker_TagID(tag_id),
-        )
-        verts_uv = surface_marker_aggregate_dict["verts_uv"]
-        return Surface_Marker_Aggregate(uid=uid, verts_uv=verts_uv)
-
-    def dict_from_surface(self, surface: Surface) -> dict:
-        surface_definition = super().dict_from_surface(surface=surface)
-        # The format of v00 doesn't store any value for "version" key
-        del surface_definition["version"]
-        return surface_definition
-
-    def surface_from_dict(self, surface_class, surface_definition: dict) -> Surface:
-        # The format of v00 doesn't store any value for "version" key
-        surface_definition["version"] = surface_definition.get("version", self.version)
-        return super().surface_from_dict(
-            surface_class=surface_class, surface_definition=surface_definition
-        )
-
-
 class _Surface_Serializer_V01(_Surface_Serializer_Base):
     version = 1
 

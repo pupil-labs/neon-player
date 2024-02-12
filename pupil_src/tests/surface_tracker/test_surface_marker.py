@@ -17,7 +17,6 @@ from surface_tracker.surface_marker import (
     Surface_Marker_TagID,
     Surface_Marker_Type,
     _Apriltag_V3_Marker_Detection,
-    _Square_Marker_Detection,
     create_surface_marker_uid,
     parse_surface_marker_tag_family,
     parse_surface_marker_tag_id,
@@ -27,58 +26,11 @@ from surface_tracker.surface_marker import (
 
 def test_surface_marker_from_raw_detection():
     # TODO: Test `from_*_detection` methods below
-    # Surface_Marker.from_square_tag_detection({})
     # Surface_Marker.from_apriltag_v3_detection(pupil_apriltags.Detection())
     assert True
 
 
 def test_surface_marker_deserialize():
-    # Square tag deserialization test
-
-    SQUARE_MARKER_TAG_ID = 55
-    SQUARE_MARKER_CONF = 0.0039215686274509665
-    SQUARE_MARKER_VERTS = [
-        [[1084.0, 186.0]],
-        [[1089.0, 198.0]],
-        [[1099.0, 195.0]],
-        [[1095.0, 184.0]],
-    ]
-    SQUARE_MARKER_PERIM = 46.32534599304199
-
-    # This is the format in which old (before Apriltag support was added) square tags where represented when serialized to msgpack
-    old_serialized_square = [
-        SQUARE_MARKER_TAG_ID,
-        SQUARE_MARKER_CONF,
-        SQUARE_MARKER_VERTS,
-        SQUARE_MARKER_PERIM,
-    ]
-    # This is the format in which new square tags are represented when serialized to msgpack
-    new_serialized_square = [
-        [
-            SQUARE_MARKER_TAG_ID,
-            SQUARE_MARKER_CONF,
-            SQUARE_MARKER_VERTS,
-            SQUARE_MARKER_PERIM,
-            _Square_Marker_Detection.marker_type.value,
-        ]
-    ]
-
-    # Both formats should be supported by `Surface_Marker.deserialize` for backwards compatibility
-    old_marker_square = Surface_Marker.deserialize(old_serialized_square)
-    new_marker_square = Surface_Marker.deserialize(new_serialized_square)
-
-    assert old_marker_square.marker_type == Surface_Marker_Type.SQUARE
-    assert old_marker_square.tag_id == SQUARE_MARKER_TAG_ID
-    assert old_marker_square.id_confidence == SQUARE_MARKER_CONF
-    assert old_marker_square.verts_px == SQUARE_MARKER_VERTS
-    assert old_marker_square.perimeter == SQUARE_MARKER_PERIM
-
-    assert new_marker_square.marker_type == old_marker_square.marker_type
-    assert new_marker_square.tag_id == old_marker_square.tag_id
-    assert new_marker_square.id_confidence == old_marker_square.id_confidence
-    assert new_marker_square.verts_px == old_marker_square.verts_px
-    assert new_marker_square.perimeter == old_marker_square.perimeter
-
     # Apriltag V3 deserialization test
 
     APRILTAG_V3_FAMILY = "tag36h11"

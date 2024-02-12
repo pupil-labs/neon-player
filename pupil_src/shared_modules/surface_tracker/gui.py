@@ -50,17 +50,14 @@ def rgb_to_rgba(
 
 
 SURFACE_MARKER_COLOR_RGB_BY_TYPE = {
-    Surface_Marker_Type.SQUARE: PUPIL_COLOR_RGB_PRIMARY_IRIS_LIGHT_BLUE_60P,
     Surface_Marker_Type.APRILTAG_V3: PUPIL_COLOR_RGB_PRIMARY_IRIS_GREEN_60P,
 }
 
 SURFACE_MARKER_TOGGLE_ACTIVE_COLOR_RGB_BY_TYPE = {
-    Surface_Marker_Type.SQUARE: (0, 209, 102),
     Surface_Marker_Type.APRILTAG_V3: (0, 209, 102),
 }
 
 SURFACE_MARKER_TOGGLE_INACTIVE_COLOR_RGB_BY_TYPE = {
-    Surface_Marker_Type.SQUARE: (255, 51, 153),
     Surface_Marker_Type.APRILTAG_V3: (255, 51, 153),
 }
 
@@ -317,12 +314,6 @@ class GUI:
 
         for marker in self.tracker.markers:
             marker_type = marker.marker_type
-            if (
-                marker_type == Surface_Marker_Type.SQUARE
-                and marker.perimeter < self.tracker.marker_detector.marker_min_perimeter
-            ):
-                continue
-
             centroid = marker.centroid()
             if marker.uid in surface.registered_markers_dist.keys():
                 active_markers = active_markers_by_type.get(marker_type, [])

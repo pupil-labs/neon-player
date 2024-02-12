@@ -39,7 +39,6 @@ Surface_Marker_TagID = typing.NewType("Surface_Marker_TagID", int)
 
 @enum.unique
 class Surface_Marker_Type(enum.Enum):
-    SQUARE = "legacy"
     APRILTAG_V3 = "apriltag_v3"
 
 
@@ -143,48 +142,6 @@ class Surface_Base_Marker(metaclass=abc.ABCMeta):
         return centroid
 
 
-_Square_Marker_Detection_Raw = collections.namedtuple(
-    "Square_Marker_Detection",
-    ["raw_id", "id_confidence", "verts_px", "perimeter", "raw_marker_type"],
-)
-
-
-class _Square_Marker_Detection(_Square_Marker_Detection_Raw, Surface_Base_Marker):
-    __slots__ = ()
-
-    marker_type = Surface_Marker_Type.SQUARE
-
-    @staticmethod
-    def from_tuple(state: tuple) -> "_Square_Marker_Detection":
-        cls = _Square_Marker_Detection
-        expected_marker_type = cls.marker_type
-
-        assert len(state) > 0
-        assert isinstance(state[-1], str)
-
-        try:
-            real_marker_type = Surface_Marker_Type(state[-1])
-        except ValueError:
-            real_marker_type = expected_marker_type
-            state = (*state, real_marker_type.value)
-
-        assert real_marker_type == expected_marker_type
-        return cls(*state)
-
-    def to_tuple(self) -> tuple:
-        return tuple(self)
-
-    @property
-    def uid(self) -> Surface_Marker_UID:
-        return create_surface_marker_uid(
-            marker_type=self.marker_type, tag_family=None, tag_id=self.tag_id
-        )
-
-    @property
-    def tag_id(self) -> Surface_Marker_TagID:
-        return Surface_Marker_TagID(int(self.raw_id))
-
-
 _Apriltag_V3_Marker_Detection_Raw = collections.namedtuple(
     "Apriltag_V3_Marker_Detection",
     [
@@ -268,18 +225,6 @@ _Surface_Marker_Raw = collections.namedtuple("Surface_Marker", ["raw_marker"])
 
 class Surface_Marker(_Surface_Marker_Raw, Surface_Base_Marker):
     @staticmethod
-    def from_square_tag_detection(detection: dict) -> "Surface_Marker":
-        cls = _Square_Marker_Detection
-        raw_marker = cls(
-            raw_id=detection["id"],
-            id_confidence=detection["id_confidence"],
-            verts_px=detection["verts"],
-            perimeter=detection["perimeter"],
-            raw_marker_type=cls.marker_type.value,
-        )
-        return Surface_Marker(raw_marker=raw_marker)
-
-    @staticmethod
     def from_apriltag_v3_detection(
         detection: Apriltag_V3_Detection,
     ) -> "Surface_Marker":
@@ -309,14 +254,7 @@ class Surface_Marker(_Surface_Marker_Raw, Surface_Base_Marker):
 
     @staticmethod
     def from_tuple(state: tuple) -> "Surface_Marker":
-        marker_type = state[-1]
-        if marker_type == _Square_Marker_Detection.marker_type.value:
-            raw_marker = _Square_Marker_Detection.from_tuple(state)
-        elif marker_type == _Apriltag_V3_Marker_Detection.marker_type.value:
-            raw_marker = _Apriltag_V3_Marker_Detection.from_tuple(state)
-        else:
-            raw_marker_type = _Square_Marker_Detection.marker_type.value
-            raw_marker = _Square_Marker_Detection(*state, raw_marker_type)  # Legacy
+        raw_marker = _Apriltag_V3_Marker_Detection.from_tuple(state)
         assert raw_marker is not None
         return Surface_Marker(raw_marker=raw_marker)
 
