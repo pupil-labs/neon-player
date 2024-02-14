@@ -16,6 +16,9 @@ from pupil_recording import PupilRecording
 from task_manager import ManagedTask
 from video_export.plugin_base.video_exporter import VideoExporter
 
+from gaze_producer.gaze_from_recording import GazeFromRecording
+import file_methods as fm
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,6 +35,7 @@ class World_Video_Exporter(VideoExporter):
         self.logger = logging.getLogger(__name__)
         self.logger.info("World Video Exporter has been launched.")
         self.rec_name = "world.mp4"
+        self.gaze_offset_plugin = None
 
     def customize_menu(self):
         self.menu.label = "World Video Exporter"
@@ -71,10 +75,23 @@ class World_Video_Exporter(VideoExporter):
     def _precomputed_eye_data_for_range(self, export_range):
         export_window = pm.exact_window(self.g_pool.timestamps, export_range)
         pre_computed = {
-            "gaze": self.g_pool.gaze_positions,
             "pupil": self.g_pool.pupil_positions,
             "fixations": self.g_pool.fixations,
         }
+
+        # apply offset to gaze
+        gaze_data = [datum.copy() for datum in self.g_pool.gaze_positions]
+        gaze_ts = self.g_pool.gaze_positions.data_ts
+
+        for gaze_event in gaze_data:
+            offset = self.get_offset_for_ts(gaze_event["timestamp"])
+            gaze_event['norm_pos'] = (
+                gaze_event['norm_pos'][0] + offset[0],
+                gaze_event['norm_pos'][1] + offset[1],
+            )
+
+        serialized_gaze_data = [fm.Serialized_Dict(gaze) for gaze in gaze_data]
+        pre_computed["gaze"] = pm.Bisector(serialized_gaze_data, gaze_ts)
 
         for key, bisector in pre_computed.items():
             init_dict = bisector.init_dict_for_window(export_window)
@@ -82,6 +99,15 @@ class World_Video_Exporter(VideoExporter):
             pre_computed[key] = init_dict
 
         return pre_computed
+
+    def get_offset_for_ts(self, ts):
+        if self.gaze_offset_plugin is None:
+            for plugin in self.g_pool.plugins:
+                if isinstance(plugin, GazeFromRecording):
+                    self.gaze_offset_plugin = plugin
+                    break
+
+        return self.gaze_offset_plugin.get_manual_correction_for_ts(ts)
 
 
 class GlobalContainer:
