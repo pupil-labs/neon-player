@@ -91,6 +91,14 @@ class Vis_Polyline(Plugin, Observable):
             step=self.polyline_style_controller.rgba_step,
             label="Blue",
         )
+        polyline_style_color_a_slider = ui.Slider(
+            "a",
+            self.polyline_style_controller,
+            min=self.polyline_style_controller.rgba_min,
+            max=self.polyline_style_controller.rgba_max,
+            step=self.polyline_style_controller.rgba_step,
+            label="Alpha",
+        )
 
         scan_path_timeframe_range = ui.Slider(
             "timeframe",
@@ -110,6 +118,7 @@ class Vis_Polyline(Plugin, Observable):
         polyline_style_color_menu.append(polyline_style_color_r_slider)
         polyline_style_color_menu.append(polyline_style_color_g_slider)
         polyline_style_color_menu.append(polyline_style_color_b_slider)
+        polyline_style_color_menu.append(polyline_style_color_a_slider)
 
         scan_path_menu = ui.Growing_Menu("Gaze History")
         scan_path_menu.collapsed = False
@@ -192,14 +201,18 @@ class Vis_Polyline(Plugin, Observable):
 
                     break
 
+        overlay = frame.img.copy()
         cv2.polylines(
-            frame.img,
+            overlay,
             pts,
             isClosed=False,
             color=self.polyline_style_controller.cv2_bgra,
             thickness=self.polyline_style_controller.thickness,
             lineType=cv2.LINE_AA,
         )
+
+        overlaid = cv2.addWeighted(overlay, self.polyline_style_controller.a, frame.img, 1.0 - self.polyline_style_controller.a, 0)
+        frame.img[:] = overlaid
 
     def _draw_scan_path_debug(self, frame, events):
         from methods import denormalize
