@@ -244,6 +244,8 @@ def _export_world_video(
         g_pool.timestamps = timestamps
         g_pool.delayed_notifications = {}
         g_pool.notifications = []
+        g_pool.export_start_frame = start_frame
+        g_pool.export_end_frame = end_frame
 
         for initializers in pre_computed_eye_data.values():
             initializers["data"] = [
