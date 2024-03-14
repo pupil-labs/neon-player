@@ -137,7 +137,7 @@ class Vis_Light_Points(Plugin, Observable):
     def init_ui(self):
         self.add_menu()
         self.menu.label = self.pretty_class_name
-        self.falloff_slider = ui.Slider("falloff", self, min=1, step=1, max=1000)
+        self.falloff_slider = ui.Slider("falloff", self, min=1, step=1, max=1000, label="Falloff")
         self.menu.append(self.falloff_slider)
 
         self.scan_path_timeframe_range = ui.Slider(
