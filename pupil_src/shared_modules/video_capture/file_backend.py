@@ -46,7 +46,7 @@ class FileSeekError(Exception):
 class Frame:
     """docstring of Frame"""
 
-    def __init__(self, timestamp, av_frame, index):
+    def __init__(self, timestamp, av_frame, index, timestamp_unix):
         self.timestamp = float(timestamp)
         self.index = int(index)
         self.width = av_frame.width
@@ -57,9 +57,10 @@ class Frame:
         self._img = None
         self._gray = None
         self.is_fake = False
+        self.timestamp_unix = timestamp_unix
 
     def copy(self):
-        return Frame(self.timestamp, self._av_frame, self.index)
+        return Frame(self.timestamp, self._av_frame, self.index, self.timestamp_unix)
 
     @property
     def img(self):
@@ -436,10 +437,18 @@ class File_Source(Playback_Source, Base_Source):
         # update indices, we know that we advanced until target_frame_index!
         self.current_frame_idx = self.target_frame_idx
         self.target_frame_idx += 1
+
+        timestamp_unix = None
+        for v in self.videoset.videos:
+            timestamp_unix = v.ts_to_ns(target_entry.timestamp)
+            if timestamp_unix is not None:
+                break
+
         return Frame(
             timestamp=target_entry.timestamp,
             av_frame=av_frame,
             index=self.current_frame_idx,
+            timestamp_unix=timestamp_unix,
         )
 
     def _get_fake_frame_and_advance(self, target_entry):

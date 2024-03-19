@@ -68,26 +68,21 @@ def write_timestamps(file_loc, timestamps, output_format="npy"):
     ts_file = f"{name}_timestamps"
     ts_loc = os.path.join(directory, ts_file)
     ts = np.array(timestamps)
+
     if output_format not in ("npy", "csv", "all"):
         raise ValueError(f"Unknown timestamp output format `{output_format}`")
+
     if output_format in ("npy", "all"):
         np.save(ts_loc + ".npy", ts)
+
     if output_format in ("csv", "all"):
-        output_video = Video(file_loc)
-        try:
-            container = output_video.load_container()
-            pts = output_video.load_pts(container)
-            ts_pts = np.vstack((ts, pts)).T
-            np.savetxt(
-                ts_loc + ".csv",
-                ts_pts,
-                fmt=["%f", "%i"],
-                delimiter=",",
-                header="timestamps [seconds],pts",
-            )
-        except InvalidContainerError:
-            logger.error(f"Failed to extract PTS frome exported video {file_loc}")
-            return
+        np.savetxt(
+            ts_loc + ".csv",
+            ts,
+            delimiter=",",
+            header="timestamp [ns]",
+            comments='',
+        )
 
 
 class NonMonotonicTimestampError(ValueError):
@@ -107,6 +102,7 @@ class AV_Writer(abc.ABC):
         """
 
         self.timestamps = []
+        self.timestamps_unix = []
         self.start_time = start_time_synced
         self.last_video_pts = float("-inf")
 
@@ -209,6 +205,7 @@ class AV_Writer(abc.ABC):
 
         self.last_video_pts = pts
         self.timestamps.append(ts)
+        self.timestamps_unix.append(input_frame.timestamp_unix)
 
     def close(self, timestamp_export_format="npy", closed_suffix=""):
         """Close writer, triggering stream and timestamp save.
@@ -234,7 +231,7 @@ class AV_Writer(abc.ABC):
         if self.configured and timestamp_export_format is not None:
             # Requires self.container to be closed since we extract pts
             # from the exported video file.
-            write_timestamps(output_file_path, self.timestamps, timestamp_export_format)
+            write_timestamps(output_file_path, self.timestamps_unix, timestamp_export_format)
 
     def release(self):
         """Close writer, triggering stream and timestamp save."""
