@@ -32,7 +32,7 @@ from pupil_labs.rec_export.export import _process_gaze
 
 logger = logging.getLogger(__name__)
 
-NEWEST_SUPPORTED_VERSION = parse_version("2.2")
+NEWEST_SUPPORTED_VERSION = parse_version("2.3")
 
 
 
