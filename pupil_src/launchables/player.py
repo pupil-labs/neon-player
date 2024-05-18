@@ -408,6 +408,13 @@ def player(
             g_pool.ipc_pub.notify(notification)
 
         def do_export(_):
+            for plugin in g_pool.plugins:
+                if isinstance(plugin, GazeFromRecording):
+                    # some exports (world video) run in a separate process and
+                    # load gaze mapper settings from disk, so we need to make sure
+                    # these are saved first
+                    plugin._gaze_mapper_storage.save_to_disk()
+
             left_idx = g_pool.seek_control.trim_left
             right_idx = g_pool.seek_control.trim_right
             export_range = left_idx, right_idx + 1  # exclusive range.stop
