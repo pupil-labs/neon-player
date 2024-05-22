@@ -123,6 +123,10 @@ class ScanPathController(Observable):
     def on_gaze_data_changed(self):
         self._preproc.cancel()
         self._bg_task.cancel()
+
+        if self.g_pool.process == "exporter":
+            return
+        
         self._gaze_data_store.mark_invalid()
 
     def on_update_ui(self):
