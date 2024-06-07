@@ -30,7 +30,7 @@ class GazeFromRecording(GazeProducerBase):
         self.inject_plugin_dependencies()
         self._task_manager = UniqueTaskManager(plugin=self)
         self._correction_changed_announcer = data_changed.Announcer(
-            "gaze_positions", g_pool.rec_dir, plugin=self
+            "gaze_correction", g_pool.rec_dir, plugin=self
         )
 
         self._setup_storages()

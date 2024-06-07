@@ -137,6 +137,7 @@ def _export_world_video(
 
     # We are not importing manual gaze correction. In Player corrections have already
     # been applied.
+    from gaze_producer.gaze_from_recording import GazeFromRecording
     from fixation_detector import Offline_Fixation_Detector
 
     # Plug-ins
@@ -158,6 +159,7 @@ def _export_world_video(
     try:
         vis_plugins = sorted(
             [
+                GazeFromRecording,
                 Vis_Circle,
                 Vis_Cross,
                 Vis_Polyline,

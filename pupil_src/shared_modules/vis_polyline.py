@@ -41,6 +41,14 @@ class Vis_Polyline(Plugin, Observable):
             "on_update_ui", self._update_scan_path_ui
         )
 
+        self._gaze_changed_listener = Listener(
+            plugin=self, topic="gaze_positions", rec_dir=g_pool.rec_dir
+        )
+        self._gaze_changed_listener.add_observer(
+            method_name="on_data_changed",
+            observer=self.scan_path_controller.on_gaze_data_changed,
+        )
+
     def get_init_dict(self):
         return {
             "polyline_style_init_dict": self.polyline_style_controller.get_init_dict(),

@@ -120,6 +120,15 @@ class ScanPathController(Observable):
         self._bg_task.cleanup()
         self._params.cleanup()
 
+    def on_gaze_data_changed(self):
+        if self._gaze_data_store.is_valid:
+            return
+
+        self._preproc.cancel()
+        self._bg_task.cancel()
+
+        self._gaze_data_store.mark_invalid()
+
     def on_update_ui(self):
         pass
 
