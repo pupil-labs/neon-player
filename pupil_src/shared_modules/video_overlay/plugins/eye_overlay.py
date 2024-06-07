@@ -22,6 +22,8 @@ class Eye_Overlay(Observable, Plugin):
     icon_chr = chr(0xEC02)
     icon_font = "pupil_icons"
 
+    order = 1.0
+
     def __init__(
         self,
         g_pool,

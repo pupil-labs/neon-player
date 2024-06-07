@@ -23,6 +23,8 @@ from video_overlay.ui.management import UIManagementGeneric
 class Video_Overlay(Observable, Plugin):
     icon_chr = "O"
 
+    order = 1.0
+
     def __init__(self, g_pool):
         super().__init__(g_pool)
         self.manager = OverlayManager(g_pool.rec_dir)
