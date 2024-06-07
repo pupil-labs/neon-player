@@ -48,14 +48,6 @@ class Vis_Light_Points(Plugin, Observable):
             "on_update_ui", self._update_scan_path_ui
         )
 
-        self._gaze_changed_listener = Listener(
-            plugin=self, topic="gaze_positions", rec_dir=g_pool.rec_dir
-        )
-        self._gaze_changed_listener.add_observer(
-            method_name="on_data_changed",
-            observer=self.scan_path_controller.on_gaze_data_changed,
-        )
-
     def recent_events(self, events):
         self.scan_path_controller.process()
 
@@ -84,7 +76,6 @@ class Vis_Light_Points(Plugin, Observable):
                     pts[:,1] -= int(manual_correction[1]*frame.img.shape[0])
 
                     break
-
 
         img = frame.img
         overlay = np.ones(img.shape[:-1], dtype=img.dtype)
