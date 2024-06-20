@@ -15,6 +15,8 @@ import signal
 from functools import partial
 from types import SimpleNamespace
 
+import pupil_labs.neon_recording as nr
+
 # UI Platform tweaks
 if platform.system() == "Linux":
     scroll_factor = 10.0
@@ -92,6 +94,7 @@ def player(
         )
         from hotkey import Hotkey
         from imu_timeline import IMUTimeline
+        from eye_state_timeline import EyeStateTimeline
         from log_display import Log_Display
         from log_history import Log_History
         from methods import delta_t, denormalize, get_system_info, normalize
@@ -171,6 +174,7 @@ def player(
             Eye_Video_Exporter,
             Offline_Head_Pose_Tracker,
             IMUTimeline,
+            EyeStateTimeline,
         ] + runtime_plugins
 
         plugins = system_plugins + user_plugins
@@ -387,6 +391,8 @@ def player(
         g_pool.get_timestamp = lambda: 0.0
         g_pool.user_dir = user_dir
         g_pool.rec_dir = rec_dir
+        g_pool.recording_api = nr.load(f"{rec_dir}/..")
+
         g_pool.meta_info = meta_info
         g_pool.min_data_confidence = session_settings.get(
             "min_data_confidence", MIN_DATA_CONFIDENCE_DEFAULT
