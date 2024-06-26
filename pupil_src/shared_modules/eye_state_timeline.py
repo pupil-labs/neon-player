@@ -160,9 +160,9 @@ class EyeStateTimeline(Plugin):
         if new_value:
 
             if toggle_name.startswith("pupil_diameter"):
-                height = self.TIMELINE_LINE_HEIGHT * 2
+                height = self.TIMELINE_LINE_HEIGHT * 3
             else:
-                height = self.TIMELINE_LINE_HEIGHT * 6
+                height = self.TIMELINE_LINE_HEIGHT * 7
 
             self.timelines[toggle_name] = ui.Timeline(
                 toggle_name,
@@ -192,6 +192,7 @@ class EyeStateTimeline(Plugin):
         data = self.resampled_data.data[keys]
         y_limits = get_limits(data, keys)
 
+        gl.glTranslatef(0, self.TIMELINE_LINE_HEIGHT * scale, 0)
         with gl_utils.Coord_System(0, width, *y_limits):
             for key in keys:
                 data_keyed = data[key]
@@ -205,8 +206,20 @@ class EyeStateTimeline(Plugin):
         self._draw_legend_grouped(self.legend_keys[name], width, height, scale, self.glfont_raw)
 
     def _draw_legend_grouped(self, labels, width, height, scale, glfont):
-        glfont.set_size(self.TIMELINE_LINE_HEIGHT * 0.8 * scale)
         pad = width * 2 / 3
+
+        friendly_labels = None
+        glfont.set_size(self.TIMELINE_LINE_HEIGHT * scale)
+        glfont.set_align_string(v_align="left", h_align="top")
+        for heading in ["pupil_diameter", "eyeball_center", "optical_axis"]:
+            if labels[0].startswith(heading):
+                friendly_labels = {label: label.replace(f"{heading}_", "").replace("_", " ").title() for label in labels}
+                glfont.draw_text(10, 0, heading.replace("_", " ").title())
+                gl.glTranslatef(0, self.TIMELINE_LINE_HEIGHT * scale, 0)
+                break
+
+        glfont.set_size(self.TIMELINE_LINE_HEIGHT * 0.8 * scale)
+        glfont.set_align_string(v_align="right", h_align="top")
         for label in labels:
             color = self.CMAP[label]
             cygl_utils.draw_polyline(
@@ -219,7 +232,7 @@ class EyeStateTimeline(Plugin):
                 thickness=4.0 * scale,
             )
 
-            glfont.draw_text(width, 0, label)
+            glfont.draw_text(width, 0, friendly_labels.get(label, label))
             gl.glTranslatef(0, self.TIMELINE_LINE_HEIGHT * scale, 0)
 
     def on_notify(self, notification):
