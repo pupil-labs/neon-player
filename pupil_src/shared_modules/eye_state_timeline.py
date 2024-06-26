@@ -178,6 +178,9 @@ class EyeStateTimeline(Plugin):
             del self.timelines[toggle_name]
 
     def draw_raw(self, name, width, height, scale):
+        if self.g_pool.recording_api.eye_state.data.size < 1:
+            return
+
         ts_min = self.g_pool.recording_api.scene.ts[0]
         ts_max = self.g_pool.recording_api.scene.ts[-1]
         timestamps = np.linspace(ts_min, ts_max, width)
