@@ -162,7 +162,7 @@ class EyeStateTimeline(Plugin):
             if toggle_name.startswith("pupil_diameter"):
                 height = self.TIMELINE_LINE_HEIGHT * 2
             else:
-                height = self.TIMELINE_LINE_HEIGHT * 3
+                height = self.TIMELINE_LINE_HEIGHT * 6
 
             self.timelines[toggle_name] = ui.Timeline(
                 toggle_name,
