@@ -161,6 +161,11 @@ class IMUTimeline(Plugin):
         "yaw": cygl_utils.RGBA(0.49803, 0.70588, 0.05490, 1.0),
         "roll": cygl_utils.RGBA(1.0, 0.49803, 0.05490, 1.0),
     }
+    HEADING_MAP = {
+        "gyro": "Gyroscope",
+        "accel": "Accelerometer",
+        "ori": "Orientation",
+    }
     NUMBER_SAMPLES_TIMELINE = 4000
     TIMELINE_LINE_HEIGHT = 16
     icon_chr = chr(0xEC22)
@@ -287,7 +292,7 @@ class IMUTimeline(Plugin):
                 "gyro",
                 self.draw_raw_gyro,
                 self.draw_legend_gyro,
-                self.TIMELINE_LINE_HEIGHT * 3,
+                self.TIMELINE_LINE_HEIGHT * 4,
             )
             self.g_pool.user_timelines.append(self.gyro_timeline)
         elif self.gyro_timeline is not None:
@@ -301,7 +306,7 @@ class IMUTimeline(Plugin):
                 "accel",
                 self.draw_raw_accel,
                 self.draw_legend_accel,
-                self.TIMELINE_LINE_HEIGHT * 3,
+                self.TIMELINE_LINE_HEIGHT * 4,
             )
             self.g_pool.user_timelines.append(self.accel_timeline)
         elif self.accel_timeline is not None:
@@ -315,7 +320,7 @@ class IMUTimeline(Plugin):
                 "orientation",
                 self.draw_orient,
                 self.draw_legend_orient,
-                self.TIMELINE_LINE_HEIGHT * 3,
+                self.TIMELINE_LINE_HEIGHT * 4,
             )
             self.g_pool.user_timelines.append(self.orient_timeline)
         elif self.orient_timeline is not None:
@@ -372,11 +377,30 @@ class IMUTimeline(Plugin):
         )
 
     def _draw_legend_grouped(self, labels, width, height, scale, glfont):
+        labels = labels.copy() # don't modify the source list
+
+        glfont.set_size(self.TIMELINE_LINE_HEIGHT * scale)
+        glfont.set_align_string(v_align="left", h_align="top")
+        friendly_labels = {}
+        for idx, label in enumerate(labels):
+            if label in ["pitch", "yaw", "roll"]:
+                # these fields don't share a common prefix
+                # add one to make the next for loop a little cleaner
+                labels[idx] = f"ori_{label}"
+
+        for prefix in ["gyro", "accel", "ori"]:
+            if labels[0].startswith(prefix):
+                friendly_labels = {label: label.replace(f"{prefix}_", "").replace("_", " ").title() for label in labels}
+                glfont.draw_text(10, 0, self.HEADING_MAP[prefix])
+                gl.glTranslatef(0, self.TIMELINE_LINE_HEIGHT * scale, 0)
+                break
+
         glfont.set_size(self.TIMELINE_LINE_HEIGHT * 0.8 * scale)
+        glfont.set_align_string(v_align="right", h_align="top")
         pad = width * 2 / 3
         for label in labels:
-            color = self.CMAP[label]
-            glfont.draw_text(width, 0, label)
+            color = self.CMAP[label.replace("ori_", "")]
+            glfont.draw_text(width, 0, friendly_labels.get(label, label))
 
             cygl_utils.draw_polyline(
                 [

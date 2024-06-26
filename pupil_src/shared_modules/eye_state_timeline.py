@@ -208,13 +208,13 @@ class EyeStateTimeline(Plugin):
     def _draw_legend_grouped(self, labels, width, height, scale, glfont):
         pad = width * 2 / 3
 
-        friendly_labels = None
+        friendly_labels = {}
         glfont.set_size(self.TIMELINE_LINE_HEIGHT * scale)
         glfont.set_align_string(v_align="left", h_align="top")
-        for heading in ["pupil_diameter", "eyeball_center", "optical_axis"]:
-            if labels[0].startswith(heading):
-                friendly_labels = {label: label.replace(f"{heading}_", "").replace("_", " ").title() for label in labels}
-                glfont.draw_text(10, 0, heading.replace("_", " ").title())
+        for prefix in ["pupil_diameter", "eyeball_center", "optical_axis"]:
+            if labels[0].startswith(prefix):
+                friendly_labels = {label: label.replace(f"{prefix}_", "").replace("_", " ").title() for label in labels}
+                glfont.draw_text(10, 0, prefix.replace("_", " ").title())
                 gl.glTranslatef(0, self.TIMELINE_LINE_HEIGHT * scale, 0)
                 break
 
