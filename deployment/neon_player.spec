@@ -87,26 +87,30 @@ def main():
         icon_name = "neon-" + name + ICON_EXT[current_platform]
         icon_path = (deployment_root / "icons" / icon_name).resolve()
 
-        if current_platform == SupportedPlatform.macos:
-            codesign_identity = os.environ["MACOS_CODESIGN_IDENTITY"]
-        else:
-            codesign_identity = None
+        exe_kwargs = {
+            "exclude_binaries": True,
+            "name": f"neon_{name}",
+            "debug": False,
+            "strip": False,
+            "upx": False,
+            "console": True,
+            "icon": str(icon_path),
+            "resources": [f"{icon_path},ICON,icon"],
+            "target_arch": "x86_64",
+            "entitlements_file": "entitlements.plist",
+            "codesign_identity": os.environ.get("MACOS_CODESIGN_IDENTITY", None),
+        }
 
-        exe = EXE(
-            pyz,
-            a.scripts,
-            exclude_binaries=True,
-            name=f"neon_{name}",
-            debug=False,
-            strip=False,
-            upx=False,
-            console=True,
-            icon=str(icon_path),
-            resources=[f"{icon_path},ICON,icon"],
-            target_arch="x86_64",
-            codesign_identity=codesign_identity,
-            entitlements_file="entitlements.plist",
-        )
+        try:
+            exe = EXE(pyz, a.scripts, **exe_kwargs)
+        except SystemError as exc:
+            if "codesign_identity" in exe_kwargs:
+                print("Failed to build EXE. Codesign problem? Trying again without codesign...", file=sys.stderr)
+                del exe_kwargs["codesign_identity"]
+                exe = EXE(pyz, a.scripts, **exe_kwargs)
+        
+            else:
+                raise exc
 
         extras: list[tuple[str, str, str]] = []
         extras.append((version_file_path.name, str(version_file_path), "DATA"))
