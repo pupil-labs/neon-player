@@ -60,6 +60,8 @@ def main():
         "pylsl",
         "sklearn",
         "glfw",
+        "scipy._lib.array_api_compat.numpy.fft",
+        "scipy.special._special_ufuncs",
     ):
         datas, binaries, hiddenimports = collect_all(
             name, exclude_datas=["**/__pycache__"]
@@ -108,7 +110,7 @@ def main():
                 print("Failed to build EXE. Codesign problem? Trying again without codesign...", file=sys.stderr)
                 del exe_kwargs["codesign_identity"]
                 exe = EXE(pyz, a.scripts, **exe_kwargs)
-        
+
             else:
                 raise exc
 
