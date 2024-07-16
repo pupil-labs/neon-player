@@ -81,7 +81,8 @@ def write_timestamps(file_loc, timestamps, output_format="npy"):
             ts,
             delimiter=",",
             header="timestamp [ns]",
-            comments='',
+            comments="",
+            fmt="%0.0f"
         )
 
 

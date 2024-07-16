@@ -163,8 +163,8 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
             for b in blinks_in_section:
                 csv_writer.writerow({
                     "blink id": b["id"],
-                    "start timestamp [ns]": b["start timestamp [ns]"],
-                    "end timestamp [ns]": b["end timestamp [ns]"],
+                    "start timestamp [ns]": f'{b["start timestamp [ns]"]:0.0f}',
+                    "end timestamp [ns]": f'{b["end timestamp [ns]"]:0.0f}',
                     "duration [ms]": (b["end timestamp [ns]"] - b["start timestamp [ns]"]) * NS_TO_MS,
                 })
             logger.info("Created 'blinks.csv' file.")

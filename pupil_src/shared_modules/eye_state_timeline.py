@@ -286,7 +286,7 @@ class EyeStateExporter(_Base_Positions_Exporter):
         data = {
             v: raw_value[k] for k, v in EyeStateExporter.field_map.items()
         }
-        data['timestamp [ns]'] *= 1e9
+        data["timestamp [ns]"] = f"{data['timestamp [ns]']*1e9:0.0f}"
 
         return data
 

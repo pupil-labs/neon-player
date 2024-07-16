@@ -628,8 +628,8 @@ class Exporter:
                 for fix in fixs_for_frame:
                     dataset.append({
                         "fixation id": fix["id"],
-                        "start timestamp [ns]": fix["start timestamp [ns]"],
-                        "end timestamp [ns]": fix["end timestamp [ns]"],
+                        "start timestamp [ns]": f'{fix["start timestamp [ns]"]:0.0f}',
+                        "end timestamp [ns]": f'{fix["end timestamp [ns]"]:0.0f}',
                         "duration [ms]": fix["duration [ms]"],
                         "fixation detected on surface": fix["on_surf"],
                         "fixation x [normalized]": fix["norm_pos"][0],
