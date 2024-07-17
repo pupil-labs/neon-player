@@ -44,12 +44,12 @@ jobs:
         run: .\reproducible_build.ps1
         shell: powershell
         working-directory: deployment
-      - name: Import macOS codesign certificates
-        if: runner.os == 'macOS'
-        uses: apple-actions/import-codesign-certs@v1
-        with:
-          p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
-          p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+      #- name: Import macOS codesign certificates
+      #  if: runner.os == 'macOS'
+      #  uses: apple-actions/import-codesign-certs@v1
+      #  with:
+      #    p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
+      #    p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
       - name: Bundle on Unix
         if: runner.os != 'Windows'
         run: ./reproducible_build.sh
