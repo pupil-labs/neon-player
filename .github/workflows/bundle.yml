@@ -23,11 +23,11 @@ jobs:
           - ubuntu-20.04
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - name: Install Neon Player dependencies
@@ -46,7 +46,7 @@ jobs:
         working-directory: deployment
       #- name: Import macOS codesign certificates
       #  if: runner.os == 'macOS'
-      #  uses: apple-actions/import-codesign-certs@v1
+      #  uses: apple-actions/import-codesign-certs@v3
       #  with:
       #    p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
       #    p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
@@ -65,7 +65,7 @@ jobs:
           MACOS_NOTARYTOOL_TEAM_ID: ${{ secrets.MACOS_NOTARYTOOL_TEAM_ID }}
           MACOS_NOTARYTOOL_APPSPECIFIC_PASSWORD: ${{ secrets.MACOS_NOTARYTOOL_APPSPECIFIC_PASSWORD }}
       - name: Upload build as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: bundle-${{ matrix.platform }}
@@ -84,9 +84,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download build artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
       - name: Create Github release draft
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             *.msi
