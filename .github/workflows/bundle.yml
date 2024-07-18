@@ -87,8 +87,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            *.msi
-            *.dmg
-            *.deb
+            bundle-*/*.msi
+            bundle-*/*.dmg
+            bundle-*/*.deb
           draft: true
           name: Neon Player Release
