@@ -70,12 +70,9 @@ jobs:
         with:
           name: bundle-${{ matrix.platform }}
           path: |
-            deployment/*.rar
             deployment/*.msi
-            deployment/*.app
             deployment/*.dmg
-            deployment/*.json
-            deployment/*.zip
+            deployment/*.deb
 
   draft_release:
     name: Draft Github release
@@ -92,6 +89,6 @@ jobs:
           files: |
             *.msi
             *.dmg
-            *.zip
+            *.deb
           draft: true
           name: Neon Player Release

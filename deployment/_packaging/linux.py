@@ -9,9 +9,7 @@ def create_zipped_deb_packages(dist_root: pathlib.Path, app_version: ParsedVersi
     deb_folder = dist_root / "debs"
     deb_folder.mkdir(exist_ok=True)
     deb_pkg = create_deb_package(dist_root, "Neon Player", app_version)
-    deb_pkg.rename(deb_folder / deb_pkg.name)
-
-    shutil.make_archive(str(dist_root), "zip", deb_folder)
+    deb_pkg.rename(dist_root.parent / f"{dist_root.name}{deb_pkg.suffix}")
 
 
 def create_deb_package(
