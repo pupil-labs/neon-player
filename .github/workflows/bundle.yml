@@ -71,6 +71,7 @@ jobs:
           name: bundle-${{ matrix.platform }}
           path: |
             deployment/*.rar
+            deployment/*.msi
             deployment/*.app
             deployment/*.dmg
             deployment/*.json
@@ -88,7 +89,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            *.rar
+            *.msi
             *.dmg
             *.zip
           draft: true
