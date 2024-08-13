@@ -121,6 +121,13 @@ class Mutable_Bisector(Bisector):
         self.data_ts = np.insert(self.data_ts, insert_idx, timestamp)
         self.data = np.insert(self.data, insert_idx, datum)
 
+    def delete(self, datum):
+        search = np.where(self.data == datum)[0]
+        if search:
+            idx = search[0]
+            self.data_ts = np.delete(self.data_ts, idx)
+            self.data = np.delete(self.data, idx)
+
 
 class Affiliator(Bisector):
     """docstring for ClassName"""

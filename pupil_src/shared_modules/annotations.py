@@ -103,9 +103,7 @@ class AnnotationPlugin(Plugin, abc.ABC):
         self.menu.append(
             ui.Button("Add Annotation Type", self._on_add_annotation_clicked)
         )
-        self._annotation_list_menu = ui.Growing_Menu(
-            "Annotation List - Click to Remove"
-        )
+        self._annotation_list_menu = ui.Growing_Menu("Annotation Types (click to remove)")
         self.menu.append(self._annotation_list_menu)
         self._create_initial_annotation_list()
 
@@ -246,6 +244,8 @@ class Annotation_Player(AnnotationPlugin, Plugin):
         self.last_frame_index = -1
 
         self.timeline = None
+        self._frame_annotations_list = ui.Growing_Menu("Annotations in This Frame (click to remove)")
+        self._annotations_to_buttons = {}
 
     def init_ui(self):
         super().init_ui()
@@ -258,6 +258,7 @@ class Annotation_Player(AnnotationPlugin, Plugin):
 
         self.glfont_raw = glfont_generator()
         self.g_pool.user_timelines.append(self.timeline)
+        self.menu.append(self._frame_annotations_list)
 
     def draw_timeline(self, width, height, scale):
         glfont = self.glfont_raw
@@ -334,9 +335,12 @@ class Annotation_Player(AnnotationPlugin, Plugin):
         logger.info(annotation_desc)
         new_annotation = create_annotation(annotation_label, ts)
         new_annotation["added_in_player"] = True
+
+        annotation = fm.Serialized_Dict(python_dict=new_annotation)
         self.annotations.insert(
-            new_annotation["timestamp"], fm.Serialized_Dict(python_dict=new_annotation)
+            new_annotation["timestamp"], annotation
         )
+        self.add_frame_annotation_button(annotation)
 
     def recent_events(self, events):
         frame = events.get("frame")
@@ -344,14 +348,30 @@ class Annotation_Player(AnnotationPlugin, Plugin):
             return
         self.last_frame_ts = frame.timestamp
         if frame.index != self.last_frame_index:
+            self._annotations_to_buttons.clear()
+            for item in list(self._frame_annotations_list):
+                self._frame_annotations_list.remove(item)
+
             self.last_frame_index = frame.index
             frame_window = pm.enclosing_window(self.g_pool.timestamps, frame.index)
-            events = self.annotations.by_ts_window(frame_window)
-            for event in events:
+            annotations = self.annotations.by_ts_window(frame_window)
+            for annotation in annotations:
                 annotation_desc = self._annotation_description(
-                    label=event["label"], world_index=frame.index
+                    label=annotation["label"], world_index=frame.index
                 )
                 logger.info(annotation_desc)
+
+                self.add_frame_annotation_button(annotation)
+
+    def add_frame_annotation_button(self, annotation):
+        button = ui.Button(label=annotation["label"], function=lambda: None)
+        button.function = lambda: self.delete_annotation(annotation)
+        self._frame_annotations_list.append(button)
+        self._annotations_to_buttons[annotation] = button
+
+    def delete_annotation(self, annotation):
+        self.annotations.delete(annotation)
+        self._frame_annotations_list.remove(self._annotations_to_buttons[annotation])
 
     def on_notify(self, notification):
         if notification["subject"] == "should_export":
