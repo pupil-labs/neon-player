@@ -19,10 +19,10 @@ from collections import namedtuple
 
 import file_methods as fm
 import player_methods as pm
-import zmq_tools
 from hotkey import Hotkey
 from plugin import Plugin
-from pyglui import ui
+from pyglui import pyfontstash, ui
+from pyglui.cygl import utils as cygl_utils
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,14 @@ def create_annotation(label, timestamp, duration=0.0, **custom_fields):
         "duration": duration,
         **custom_fields,
     }
+
+
+def glfont_generator():
+    glfont = pyfontstash.fontstash.Context()
+    glfont.add_font("opensans", ui.get_opensans_font_path())
+    glfont.set_color_float((1.0, 1.0, 1.0, 0.8))
+    glfont.set_align_string(v_align="right", h_align="top")
+    return glfont
 
 
 class AnnotationDefinition(T.NamedTuple):
@@ -112,6 +120,8 @@ class AnnotationPlugin(Plugin, abc.ABC):
     def deinit_ui(self):
         self._clear_buttons_quickbar()
         self.remove_menu()
+        self.g_pool.user_timelines.remove(self.timeline)
+        self.timeline = None
 
     def _clear_buttons_quickbar(self):
         # only call this from deinit_ui()
@@ -206,6 +216,8 @@ class Annotation_Player(AnnotationPlugin, Plugin):
     _FILE_DEFINITIONS_VERSION = 1
     _FILE_DEFINITIONS_NAME = "annotation_definitions.json"
 
+    TIMELINE_LINE_HEIGHT = 16
+
     class VersionMismatchError(ValueError):
         pass
 
@@ -232,6 +244,52 @@ class Annotation_Player(AnnotationPlugin, Plugin):
             self.annotations = self.load_annotations("annotation")
         self.last_frame_ts = None
         self.last_frame_index = -1
+
+        self.timeline = None
+
+    def init_ui(self):
+        super().init_ui()
+        self.timeline = ui.Timeline(
+            "Annotations",
+            self.draw_timeline,
+            self.draw_legend,
+            16,
+        )
+
+        self.glfont_raw = glfont_generator()
+        self.g_pool.user_timelines.append(self.timeline)
+
+    def draw_timeline(self, width, height, scale):
+        glfont = self.glfont_raw
+
+        glfont.set_size(self.TIMELINE_LINE_HEIGHT * scale)
+        glfont.set_align_string(v_align="left")
+
+        ts_min = self.g_pool.timestamps[0]
+        ts_max = self.g_pool.timestamps[-1]
+
+        for annotation in self.annotations:
+            x = (annotation['timestamp'] - ts_min) / (ts_max - ts_min) * width - 1
+            for definition in self._definition_to_buttons:
+                if definition.label == annotation['label']:
+                    char = definition.hotkey
+                    char_width = glfont.text_bounds(0, 0, char)
+                    glfont.draw_text(x - char_width // 2, 0, char)
+                    break
+            else:
+                cygl_utils.draw_circle(
+                    (x, height / 2),
+                    self.TIMELINE_LINE_HEIGHT / 4,
+                    4,
+                    cygl_utils.RGBA(1, 1, 1, 1)
+                )
+
+    def draw_legend(self, width, height, scale):
+        glfont = self.glfont_raw
+
+        glfont.set_size(self.TIMELINE_LINE_HEIGHT * scale)
+        glfont.set_align_string(v_align="right", h_align="top")
+        glfont.draw_text(width, 0, "Annotations")
 
     def load_annotations(self, file_name):
         annotation_pldata = fm.load_pldata_file(self.g_pool.rec_dir, file_name)
