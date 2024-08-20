@@ -628,8 +628,8 @@ class Exporter:
                 for fix in fixs_for_frame:
                     dataset.append({
                         "fixation id": fix["id"],
-                        "start timestamp [ns]": f'{fix["start timestamp [ns]"]:0.0f}',
-                        "end timestamp [ns]": f'{fix["end timestamp [ns]"]:0.0f}',
+                        "start timestamp [ns]": fix["start timestamp [ns]"],
+                        "end timestamp [ns]": fix["end timestamp [ns]"],
                         "duration [ms]": fix["duration [ms]"],
                         "fixation detected on surface": fix["on_surf"],
                         "fixation x [normalized]": fix["norm_pos"][0],
@@ -643,4 +643,7 @@ class Exporter:
 
             fixation_df = pd.DataFrame(dataset)
             mean_df = fixation_df.groupby(['fixation id']).mean()
+            mean_df["start timestamp [ns]"] = mean_df["start timestamp [ns]"].map(lambda v: f"{v:0.0f}")
+            mean_df["end timestamp [ns]"] = mean_df["end timestamp [ns]"].map(lambda v: f"{v:0.0f}")
+
             mean_df.to_csv(file_path)
