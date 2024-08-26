@@ -592,11 +592,12 @@ class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
             fixation_data = [datum.copy() for datum in self.g_pool.fixations]
 
             for fixation_event in fixation_data:
-                offset = self.get_gaze_offset_plugin().get_manual_correction_for_frame(fixation_event["mid_frame_index"])
-                fixation_event['norm_pos'] = (
-                    fixation_event['norm_pos'][0] + offset[0],
-                    fixation_event['norm_pos'][1] + offset[1],
-                )
+                if fixation_event['norm_pos'] is not None:
+                    offset = self.get_gaze_offset_plugin().get_manual_correction_for_frame(fixation_event["mid_frame_index"])
+                    fixation_event['norm_pos'] = (
+                        fixation_event['norm_pos'][0] + offset[0],
+                        fixation_event['norm_pos'][1] + offset[1],
+                    )
 
             corrected_fixations = pm.Affiliator(fixation_data, self.g_pool.fixations.data_ts, self.g_pool.fixations.stop_ts)
 

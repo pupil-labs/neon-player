@@ -247,6 +247,9 @@ class Surface(abc.ABC):
         results = []
         for event in events:
             gaze_norm_pos = event["norm_pos"]
+            if gaze_norm_pos is None:
+                continue
+
             gaze_img_point = methods.denormalize(
                 gaze_norm_pos, camera_model.resolution, flip_y=True
             )
@@ -270,7 +273,7 @@ class Surface(abc.ABC):
                 copy_keys = ["id", "duration", "start timestamp [ns]", "end timestamp [ns]", "duration [ms]"]
             else:
                 copy_keys = ["confidence", "timestamp_unix"]
-            
+
             for key in copy_keys:
                 mapped_datum[key] = event[key]
 
