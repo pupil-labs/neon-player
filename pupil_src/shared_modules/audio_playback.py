@@ -184,6 +184,7 @@ class Audio_Playback(System_Plugin_Base):
 
             logger.warning("Audio device could not be started")
             logger.debug(traceback.format_exc())
+            
     def _setup_audio_vis(self):
         self.audio_timeline = None
         self.audio_viz_trans = Audio_Viz_Transform(
