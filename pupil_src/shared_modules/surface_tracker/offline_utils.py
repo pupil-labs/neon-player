@@ -20,6 +20,8 @@ class marker_detection_callable(MarkerDetectorController):
             apriltag_nthreads=detector._apriltag_nthreads,
             apriltag_quad_decimate=detector.apriltag_quad_decimate,
             apriltag_decode_sharpening=detector.apriltag_decode_sharpening,
+            brightness=detector.brightness,
+            contrast=detector.contrast,
         )
 
     def __call__(self, frame):

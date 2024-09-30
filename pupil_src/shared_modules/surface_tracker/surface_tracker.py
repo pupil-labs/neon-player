@@ -61,6 +61,8 @@ class Surface_Tracker(Plugin, metaclass=ABCMeta):
         use_online_detection: bool = False,
         use_high_res=APRILTAG_HIGH_RES_ON,
         sharpen=APRILTAG_SHARPENING_ON,
+        brightness=0,
+        contrast=1.0,
     ):
         super().__init__(g_pool)
 
@@ -82,6 +84,8 @@ class Surface_Tracker(Plugin, metaclass=ABCMeta):
             marker_detector_mode=marker_detector_mode,
             apriltag_quad_decimate=use_high_res,
             apriltag_decode_sharpening=sharpen,
+            brightness=brightness,
+            contrast=contrast,
         )
         self._surface_file_store = Surface_File_Store(parent_dir=self._save_dir)
 
@@ -136,6 +140,7 @@ class Surface_Tracker(Plugin, metaclass=ABCMeta):
             hotkey=Hotkey.SURFACE_TRACKER_ADD_SURFACE_CAPTURE_AND_PLAYER_HOTKEY(),
         )
         self.g_pool.quickbar.append(self.add_button)
+
         self._update_ui()
 
     def _update_ui(self):
@@ -191,8 +196,30 @@ class Surface_Tracker(Plugin, metaclass=ABCMeta):
                     {"subject": "surface_tracker.marker_detection_params_changed"}
                 )
 
+        def set_brightness(value):
+            if self.marker_detector.brightness != value:
+                self.marker_detector.brightness = value
+                self.notify_all({
+                    "subject": "surface_tracker.marker_detection_params_changed",
+                    "delay": 2.0,
+                })
+
+        def set_contrast(value):
+            if self.marker_detector.contrast != value:
+                self.marker_detector.contrast = value
+                self.notify_all({
+                    "subject": "surface_tracker.marker_detection_params_changed",
+                    "delay": 2.0,
+                })
+
         menu = ui.Growing_Menu("Marker Detection Parameters")
         menu.collapsed = True
+        menu.append(
+            ui.Slider("brightness", self.marker_detector, min=0, max=100, label="Brightness", setter=set_brightness)
+        )
+        menu.append(
+            ui.Slider("contrast", self.marker_detector, min=1.0, max=3.0, label="Contrast", setter=set_contrast)
+        )
         menu.append(
             ui.Selector(
                 "marker_detector_mode",
@@ -205,6 +232,7 @@ class Surface_Tracker(Plugin, metaclass=ABCMeta):
         )
 
         menu.append(self._apriltag_marker_param_menu())
+
         return menu
 
     def _apriltag_marker_param_menu(self):
@@ -498,6 +526,8 @@ class Surface_Tracker(Plugin, metaclass=ABCMeta):
             "marker_detector_mode": marker_detector_mode,
             "use_high_res": self.marker_detector.apriltag_quad_decimate,
             "sharpen": self.marker_detector.apriltag_decode_sharpening,
+            "brightness": self.marker_detector.brightness,
+            "contrast": self.marker_detector.contrast,
         }
 
     def save_surface_definitions_to_file(self):

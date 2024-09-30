@@ -13,6 +13,7 @@ import enum
 import logging
 import typing as T
 
+import cv2
 import pupil_apriltags
 
 from .surface_marker import Surface_Marker, Surface_Marker_Type
@@ -181,11 +182,16 @@ class MarkerDetectorController(Surface_Base_Marker_Detector):
         apriltag_nthreads: int = 2,
         apriltag_quad_decimate: float = ...,
         apriltag_decode_sharpening: float = ...,
+        brightness: int = 0,
+        contrast: float = 1.0,
     ):
         self._marker_detector_mode = marker_detector_mode
         self._apriltag_nthreads = apriltag_nthreads
         self._apriltag_quad_decimate = apriltag_quad_decimate
         self._apriltag_decode_sharpening = apriltag_decode_sharpening
+
+        self.brightness = brightness
+        self.contrast = contrast
 
         self.init_detector()
 
@@ -237,6 +243,7 @@ class MarkerDetectorController(Surface_Base_Marker_Detector):
     def detect_markers_iter(
         self, gray_img, frame_index: int
     ) -> T.Iterable[Surface_Marker]:
+        adjusted_img = cv2.convertScaleAbs(gray_img, alpha=self.contrast, beta=self.brightness)
         yield from self.__detector.detect_markers_iter(
-            gray_img=gray_img, frame_index=frame_index
+            gray_img=adjusted_img, frame_index=frame_index
         )
