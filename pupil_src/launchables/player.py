@@ -115,6 +115,7 @@ def player(
         from surface_tracker import Surface_Tracker_Offline
         from system_graphs import System_Graphs
         from system_timelines import System_Timelines
+        from image_adjustments import Image_Adjustments
 
         # helpers/utils
         from version_utils import parse_version
@@ -175,6 +176,7 @@ def player(
             Offline_Head_Pose_Tracker,
             IMUTimeline,
             EyeStateTimeline,
+            Image_Adjustments,
         ] + runtime_plugins
 
         plugins = system_plugins + user_plugins

@@ -128,7 +128,6 @@ def _export_world_video(
     Simulates the generation for the world video and saves a certain time range as a video.
     It simulates a whole g_pool such that all plugins run as normal.
     """
-    from glob import glob
     from time import time
 
     import file_methods as fm
@@ -144,6 +143,7 @@ def _export_world_video(
     from plugin import Plugin_List, import_runtime_plugins
     from video_capture import EndofVideoError, File_Source
     from video_overlay.plugins import Eye_Overlay, Video_Overlay
+    from image_adjustments import Image_Adjustments
     from vis_circle import Vis_Circle
     from vis_cross import Vis_Cross
     from vis_light_points import Vis_Light_Points
@@ -167,6 +167,7 @@ def _export_world_video(
                 Vis_Watermark,
                 Eye_Overlay,
                 Video_Overlay,
+                Image_Adjustments,
             ],
             key=lambda x: x.__name__,
         )
