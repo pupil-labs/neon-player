@@ -63,6 +63,7 @@ logger = logging.getLogger(__name__)
 NS_TO_S = 1e-9
 NS_TO_MS = 1e-6
 
+
 class Fixation_Detector_Base(Plugin):
     icon_chr = chr(0xEC03)
     icon_font = "pupil_icons"
@@ -70,6 +71,7 @@ class Fixation_Detector_Base(Plugin):
     @classmethod
     def parse_pretty_class_name(cls) -> str:
         return "Fixation Detector"
+
 
 def fixation_from_data(info, timestamps, world_start_time, frame_size):
     if info['fixation x [px]'] == '' or info['fixation y [px]'] == '':
@@ -108,6 +110,7 @@ def fixation_from_data(info, timestamps, world_start_time, frame_size):
 
     return (datum, start_time, end_time)
 
+
 def detect_fixations(rec_dir, data_dir, timestamps, frame_size, queue):
     yield "Detecting fixations...", ()
 
@@ -120,13 +123,13 @@ def detect_fixations(rec_dir, data_dir, timestamps, frame_size, queue):
 
     with fixations_csv.open() as csvfile:
         reader = csv.DictReader(csvfile)
-        for idx,row in enumerate(reader):
+        for idx, row in enumerate(reader):
             fixation = fixation_from_data(row, timestamps, start_time_synced_ns, frame_size)
             yield f"Processing fixations... {idx}", fixation
 
     # cleanup Neon recording folder
     optic_flow_cache_file = Path(rec_dir).parent / "optic_flow_vectors.npz"
-    optic_flow_cache_file.replace(Path(data_dir) /  "optic_flow_vectors.npz")
+    optic_flow_cache_file.replace(Path(data_dir) / "optic_flow_vectors.npz")
 
     return "Fixation detection complete", ()
 
@@ -319,6 +322,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
             self._classify()
         elif notification["subject"] == "should_export":
             self.export_fixations(notification["ts_window"], notification["export_dir"])
+            self.export_saccades(notification["ts_window"], notification["export_dir"])
 
     def _classify(self):
         """
@@ -600,7 +604,6 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
                 gaze_offset_plugin = plugin
                 break
 
-
         with open(
             os.path.join(export_dir, "fixations.csv"), "w", encoding="utf-8", newline=""
         ) as csvfile:
@@ -622,3 +625,36 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
 
                 csv_writer.writerow(self.csv_representation_for_fixation(f))
             logger.info("Created 'fixations.csv' file.")
+
+    def export_saccades(self, export_window, export_dir):
+        export_window[0] = max(export_window[0], self.g_pool.timestamps[0])
+        export_window_ns = [self.g_pool.capture.ts_to_ns(v) for v in export_window]
+
+        input_file_path = os.path.join(self.data_dir, "saccades.csv")
+        with open(input_file_path, mode="r") as input_csv_file:
+            csv_reader = csv.DictReader(input_csv_file)
+
+            with open(
+                os.path.join(export_dir, "saccades.csv"), "w", encoding="utf-8", newline=""
+            ) as csvfile:
+                csv_writer = csv.DictWriter(csvfile, fieldnames=[
+                    "saccade id",
+                    "start timestamp [ns]",
+                    "end timestamp [ns]",
+                    "duration [ms]",
+                    "amplitude [px]",
+                    "amplitude [deg]",
+                    "mean velocity [px/s]",
+                    "peak velocity [px/s]",
+                ])
+                csv_writer.writeheader()
+
+                for saccade in csv_reader:
+                    if float(saccade["end timestamp [ns]"]) < export_window_ns[0]:
+                        continue
+                    if float(saccade["start timestamp [ns]"]) > export_window_ns[1]:
+                        break
+
+                    csv_writer.writerow(saccade)
+
+                logger.info("Created 'saccades.csv' file.")
