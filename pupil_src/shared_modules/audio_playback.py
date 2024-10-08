@@ -48,11 +48,6 @@ class FileSeekError(Exception):
 
 
 class Audio_Playback(System_Plugin_Base):
-    """Calibrate using a marker on your screen
-    We use a ring detector that moves across the screen to 9 sites
-    Points are collected at sites not between
-    """
-
     icon_chr = chr(0xE050)
     icon_font = "pupil_icons"
 
@@ -184,11 +179,12 @@ class Audio_Playback(System_Plugin_Base):
 
             logger.warning("Audio device could not be started")
             logger.debug(traceback.format_exc())
-            
+
     def _setup_audio_vis(self):
         self.audio_timeline = None
         self.audio_viz_trans = Audio_Viz_Transform(
-            self.g_pool.rec_dir, log_scaling=self.log_scale
+            self.g_pool.rec_dir, log_scaling=self.log_scale,
+            sps_rate=120,
         )
         self.audio_viz_data = None
         self.xlim = (self.g_pool.timestamps[0], self.g_pool.timestamps[-1])
@@ -352,6 +348,7 @@ class Audio_Playback(System_Plugin_Base):
     def update_audio_viz(self):
         if self.audio_viz_trans is not None:
             self.audio_viz_data, finished = self.audio_viz_trans.get_data(
+                seconds=self.g_pool.timestamps[-1],
                 log_scale=self.log_scale
             )
             if not finished and self.audio_timeline:
