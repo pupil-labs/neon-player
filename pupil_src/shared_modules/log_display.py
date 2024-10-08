@@ -102,10 +102,12 @@ class Log_Display(System_Plugin_Base):
         self.alpha -= min(0.2, events["dt"])
 
     def gl_display(self):
+        gl_utils.glViewport(0, 0, *self.g_pool.ui_render_size)
         if self.should_redraw:
             # render log content
             self.tex.push()
             push_ortho(*self.window_size)
+
             _, _, lineh = self.glfont.vertical_metrics()
             y = self.window_size[1] / 3 - 0.5 * lineh * len(self.rendered_log)
             for record in self.rendered_log:

@@ -17,6 +17,7 @@ from gl_utils import GLFWErrorReporting
 
 GLFWErrorReporting.set_default()
 
+import OpenGL.GL as gl
 from plugin import System_Plugin_Base
 from pyglui import graph, ui
 from pyglui.cygl.utils import RGBA, mix_smooth
@@ -68,6 +69,7 @@ class System_Graphs(System_Plugin_Base):
         self.fps_graph.adjust_window_size(*fb_size)
 
     def gl_display(self):
+        gl_utils.glViewport(0, 0, *self.g_pool.ui_render_size)
         if self.show_cpu:
             self.cpu_graph.draw()
         if self.show_fps:

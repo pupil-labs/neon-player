@@ -182,7 +182,7 @@ def player(
         plugins = system_plugins + user_plugins
 
         def consume_events_and_render_buffer():
-            gl_utils.glViewport(0, 0, *g_pool.camera_render_size)
+            gl_utils.glViewport(0, 0, *g_pool.camera_render_rect[2:])
             g_pool.capture.gl_display()
             for p in g_pool.plugins:
                 p.gl_display()
@@ -203,10 +203,14 @@ def player(
             for b in user_input.buttons:
                 button, action, mods = b
                 x, y = glfw.get_cursor_pos(main_window)
+
+                x -= g_pool.camera_render_rect[0]
+                y -= g_pool.camera_render_rect[1]
+
                 pos = gl_utils.window_coordinate_to_framebuffer_coordinate(
                     main_window, x, y, cached_scale=None
                 )
-                pos = normalize(pos, g_pool.camera_render_size)
+                pos = normalize(pos, g_pool.camera_render_rect[2:])
                 pos = denormalize(pos, g_pool.capture.frame_size)
 
                 for plugin in g_pool.plugins:
@@ -234,18 +238,19 @@ def player(
 
             # Always clear buffers on resize to make sure that there are no overlapping
             # artifacts from previous frames.
-            gl_utils.glClear(GL_COLOR_BUFFER_BIT)
-            gl_utils.glClearColor(0, 0, 0, 1)
+            gl_utils.glClearColor(0.4, 0.4, 0.4, 1.0)
+            gl_utils.clear_gl_screen()
 
             content_scale = gl_utils.get_content_scale(window)
             framebuffer_scale = gl_utils.get_framebuffer_scale(window)
             g_pool.gui.scale = content_scale
             window_size = w, h
-            g_pool.camera_render_size = w - int(icon_bar_width * g_pool.gui.scale), h
+            g_pool.ui_render_size = w - int(icon_bar_width * g_pool.gui.scale), h
+            g_pool.camera_render_rect = center_and_scale(g_pool.capture.frame_size, g_pool.ui_render_size)
             g_pool.gui.update_window(*window_size)
             g_pool.gui.collect_menus()
             for p in g_pool.plugins:
-                p.on_window_resize(window, *g_pool.camera_render_size)
+                p.on_window_resize(window, *g_pool.ui_render_size)
 
             # Minimum window size required, otherwise parts of the UI can cause openGL
             # issues with permanent effects. Depends on the content scale, which can
@@ -259,9 +264,6 @@ def player(
                 glfw.DONT_CARE,
                 glfw.DONT_CARE,
             )
-
-            # Needed, to update the window buffer while resizing
-            consume_events_and_render_buffer()
 
         def on_window_key(window, key, scancode, action, mods):
             g_pool.gui.update_key(key, scancode, action, mods)
@@ -277,8 +279,12 @@ def player(
                 window, x, y, cached_scale=None
             )
             g_pool.gui.update_mouse(x, y)
+            x -= g_pool.camera_render_rect[0]
+            y -= g_pool.camera_render_rect[1]
+
             pos = x, y
-            pos = normalize(pos, g_pool.camera_render_size)
+
+            pos = normalize(pos, g_pool.camera_render_rect[2:])
             # Position in img pixels
             pos = denormalize(pos, g_pool.capture.frame_size)
             for p in g_pool.plugins:
@@ -334,7 +340,7 @@ def player(
         g_pool.ipc_sub_url = ipc_sub_url
         g_pool.ipc_push_url = ipc_push_url
         g_pool.plugin_by_name = {p.__name__: p for p in plugins}
-        g_pool.camera_render_size = None
+        g_pool.camera_render_rect = None
 
         video_path = recording.files().core().world().videos()[0].resolve()
         try:
@@ -696,8 +702,10 @@ def player(
             glfw.poll_events()
             # render visual feedback from loaded plugins
             if gl_utils.is_window_visible(main_window):
-                gl_utils.glViewport(0, 0, *g_pool.camera_render_size)
-                g_pool.capture.gl_display()
+                gl_utils.glClearColor(0.4, 0.4, 0.4, 1.0)
+                gl_utils.clear_gl_screen()
+
+                gl_utils.glViewport(*g_pool.camera_render_rect)
                 for p in g_pool.plugins:
                     p.gl_display()
 
@@ -717,10 +725,13 @@ def player(
                 for b in user_input.buttons:
                     button, action, mods = b
                     x, y = glfw.get_cursor_pos(main_window)
+
+                    x -= g_pool.camera_render_rect[0]
+                    y -= g_pool.camera_render_rect[1]
                     pos = gl_utils.window_coordinate_to_framebuffer_coordinate(
                         main_window, x, y, cached_scale=None
                     )
-                    pos = normalize(pos, g_pool.camera_render_size)
+                    pos = normalize(pos, g_pool.camera_render_rect[2:])
                     pos = denormalize(pos, g_pool.capture.frame_size)
 
                     for plugin in g_pool.plugins:
@@ -908,7 +919,7 @@ def player_drop(
         glfont.set_align_string(v_align="center", h_align="middle")
         glfont.set_color_float((0.2, 0.2, 0.2, 0.9))
         gl_utils.basic_gl_setup()
-        glClearColor(0.4, 0.4, 0.4, 0.0)
+        glClearColor(0.4, 0.4, 0.4, 1.0)
         text = "Drop a Neon recording onto this window."
         tip = "From Pupil Cloud:\n-Right-click your recording\n-Select \"Download -> Native Recording Data\"\n-Extract the folder from the zip file\n\n"
         tip += "Directly from device:\n-Export from the recordings list\n-Transfer via USB\n[Online Guide]"
@@ -1072,3 +1083,28 @@ def player_profiled(
     print(
         "created cpu time graph for world process. Please check out the png next to the player.py file"
     )
+
+
+def center_and_scale(source_size, target_size):
+    source_width, source_height = source_size
+    target_width, target_height = target_size
+
+    # Calculate aspect ratios
+    source_aspect = source_width / source_height
+    target_aspect = target_width / target_height
+
+    # Determine scaling factor
+    if source_aspect > target_aspect:
+        scale = target_width / source_width
+    else:
+        scale = target_height / source_height
+
+    # Calculate new dimensions
+    new_width = int(source_width * scale)
+    new_height = int(source_height * scale)
+
+    # Calculate offsets to center the source in the target
+    x_offset = (target_width - new_width) // 2
+    y_offset = (target_height - new_height) // 2
+
+    return x_offset, y_offset, new_width, new_height
