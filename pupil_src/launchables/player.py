@@ -181,54 +181,6 @@ def player(
 
         plugins = system_plugins + user_plugins
 
-        def consume_events_and_render_buffer():
-            gl_utils.glViewport(0, 0, *g_pool.camera_render_rect[2:])
-            g_pool.capture.gl_display()
-            for p in g_pool.plugins:
-                p.gl_display()
-
-            gl_utils.glViewport(0, 0, *window_size)
-
-            try:
-                clipboard = glfw.get_clipboard_string(main_window).decode()
-            except (AttributeError, glfw.GLFWError):
-                # clipbaord is None, might happen on startup
-                clipboard = ""
-            g_pool.gui.update_clipboard(clipboard)
-            user_input = g_pool.gui.update()
-            if user_input.clipboard and user_input.clipboard != clipboard:
-                # only write to clipboard if content changed
-                glfw.set_clipboard_string(main_window, user_input.clipboard)
-
-            for b in user_input.buttons:
-                button, action, mods = b
-                x, y = glfw.get_cursor_pos(main_window)
-
-                x -= g_pool.camera_render_rect[0]
-                y -= g_pool.camera_render_rect[1]
-
-                pos = gl_utils.window_coordinate_to_framebuffer_coordinate(
-                    main_window, x, y, cached_scale=None
-                )
-                pos = normalize(pos, g_pool.camera_render_rect[2:])
-                pos = denormalize(pos, g_pool.capture.frame_size)
-
-                for plugin in g_pool.plugins:
-                    if plugin.on_click(pos, button, action):
-                        break
-
-            for key, scancode, action, mods in user_input.keys:
-                for plugin in g_pool.plugins:
-                    if plugin.on_key(key, scancode, action, mods):
-                        break
-
-            for char_ in user_input.chars:
-                for plugin in g_pool.plugins:
-                    if plugin.on_char(char_):
-                        break
-
-            glfw.swap_buffers(main_window)
-
         # Callback functions
         def on_resize(window, w, h):
             nonlocal window_size
@@ -238,7 +190,6 @@ def player(
 
             # Always clear buffers on resize to make sure that there are no overlapping
             # artifacts from previous frames.
-            gl_utils.glClearColor(0.4, 0.4, 0.4, 1.0)
             gl_utils.clear_gl_screen()
 
             content_scale = gl_utils.get_content_scale(window)
@@ -246,7 +197,13 @@ def player(
             g_pool.gui.scale = content_scale
             window_size = w, h
             g_pool.ui_render_size = w - int(icon_bar_width * g_pool.gui.scale), h
-            g_pool.camera_render_rect = center_and_scale(g_pool.capture.frame_size, g_pool.ui_render_size)
+
+            renderable_space = [
+                int(w - max(-g_pool.menubar.configuration['pos'][0], g_pool.menubar.configuration['min_size'][0] + 10)),
+                int(h - max(-g_pool.user_timelines.configuration['pos'][1], g_pool.user_timelines.configuration['min_size'][1]) - 15),
+            ]
+            g_pool.camera_render_rect = center_and_scale(g_pool.capture.frame_size, renderable_space)
+
             g_pool.gui.update_window(*window_size)
             g_pool.gui.collect_menus()
             for p in g_pool.plugins:
@@ -670,6 +627,8 @@ def player(
                             }
                         )
 
+        last_menubar_pos = g_pool.menubar.configuration['pos'][0]
+        last_timeline_pos = g_pool.user_timelines.configuration['pos'][1]
         while not glfw.window_should_close(main_window) and not process_was_interrupted:
             # fetch newest notifications
             new_notifications = []
@@ -682,6 +641,12 @@ def player(
                 handle_notifications(n)
                 for p in g_pool.plugins:
                     p.on_notify(n)
+
+            menubar_resized = last_menubar_pos != g_pool.menubar.configuration['pos'][0]
+            timelines_resized = last_timeline_pos != g_pool.user_timelines.configuration['pos'][1]
+            if menubar_resized or timelines_resized:
+                last_menubar_pos = g_pool.menubar.configuration['pos'][0]
+                on_resize(main_window, *glfw.get_framebuffer_size(main_window))
 
             events = {}
             # report time between now and the last loop interation
@@ -702,10 +667,14 @@ def player(
             glfw.poll_events()
             # render visual feedback from loaded plugins
             if gl_utils.is_window_visible(main_window):
-                gl_utils.glClearColor(0.4, 0.4, 0.4, 1.0)
                 gl_utils.clear_gl_screen()
 
-                gl_utils.glViewport(*g_pool.camera_render_rect)
+                gl_utils.glViewport(
+                    g_pool.camera_render_rect[0],
+                    window_size[1] - (g_pool.camera_render_rect[3] + g_pool.camera_render_rect[1]),
+                    g_pool.camera_render_rect[2],
+                    g_pool.camera_render_rect[3],
+                )
                 for p in g_pool.plugins:
                     p.gl_display()
 
@@ -1107,4 +1076,4 @@ def center_and_scale(source_size, target_size):
     x_offset = (target_width - new_width) // 2
     y_offset = (target_height - new_height) // 2
 
-    return x_offset, y_offset, new_width, new_height
+    return [x_offset, y_offset, new_width, new_height]
