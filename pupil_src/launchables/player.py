@@ -695,8 +695,8 @@ def player(
                     button, action, mods = b
                     x, y = glfw.get_cursor_pos(main_window)
 
-                    x -= g_pool.camera_render_rect[0]
-                    y -= g_pool.camera_render_rect[1]
+                    x -= g_pool.camera_render_rect[0] / g_pool.gui.scale
+                    y -= g_pool.camera_render_rect[1] / g_pool.gui.scale
                     pos = gl_utils.window_coordinate_to_framebuffer_coordinate(
                         main_window, x, y, cached_scale=None
                     )
