@@ -199,8 +199,8 @@ def player(
             g_pool.ui_render_size = w - int(icon_bar_width * g_pool.gui.scale), h
 
             renderable_space = [
-                int(w - max(-g_pool.menubar.configuration['pos'][0], g_pool.menubar.configuration['min_size'][0] + 10)),
-                int(h - max(-g_pool.user_timelines.configuration['pos'][1], g_pool.user_timelines.configuration['min_size'][1]) - 15),
+                int(w - g_pool.gui.scale * max(-g_pool.menubar.configuration['pos'][0], g_pool.menubar.configuration['min_size'][0] + 10)),
+                int(h - g_pool.gui.scale * max(-g_pool.user_timelines.configuration['pos'][1], g_pool.user_timelines.configuration['min_size'][1]) - 15),
             ]
             g_pool.camera_render_rect = center_and_scale(g_pool.capture.frame_size, renderable_space)
 
