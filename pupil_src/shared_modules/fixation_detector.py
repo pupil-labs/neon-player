@@ -518,6 +518,9 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
         )
 
     def load_offline_data(self):
+        if not os.path.isfile(os.path.join(self.data_dir, "saccades.csv")):
+            raise FileNotFoundError()
+
         path_stop_ts = os.path.join(self.data_dir, "fixations_stop_timestamps.npy")
         fixation_stop_ts = np.load(path_stop_ts)
         path_meta = os.path.join(self.data_dir, "fixations.meta")
