@@ -9,7 +9,9 @@ See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
 import cv2
+import gl_utils
 import numpy as np
+
 from OpenGL import GL as gl
 from pyglui.cygl import utils as cygl_utils
 from pyglui.pyfontstash import fontstash
@@ -27,6 +29,7 @@ class DetectionRenderer:
         self._general_settings = general_settings
         self._detection_storage = detection_storage
         self._optimization_storage = optimization_storage
+        self._plugin = plugin
 
         self._square_definition = np.array(
             [[0, 0], [1, 0], [1, 1], [0, 1]], dtype=np.float32
@@ -46,6 +49,12 @@ class DetectionRenderer:
         self.glfont.set_color_float((0.8, 0.2, 0.1, 0.8))
 
     def _on_gl_display(self):
+        gl_utils.glViewport(
+            self._plugin.g_pool.camera_render_rect[0],
+            self._plugin.g_pool.ui_render_size[1] - (self._plugin.g_pool.camera_render_rect[3] + self._plugin.g_pool.camera_render_rect[1]),
+            self._plugin.g_pool.camera_render_rect[2],
+            self._plugin.g_pool.camera_render_rect[3],
+        )
         self._render()
 
     def _render(self):
