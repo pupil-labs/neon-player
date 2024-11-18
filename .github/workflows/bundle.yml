@@ -19,7 +19,7 @@ jobs:
       matrix:
         platform:
           - windows-latest
-          - macOS-12
+          - macOS-13
           - ubuntu-20.04
     runs-on: ${{ matrix.platform }}
     steps:
