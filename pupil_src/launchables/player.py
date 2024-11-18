@@ -37,10 +37,7 @@ def player(
 ):
     # general imports
     import logging
-    from glob import glob
     from time import localtime, sleep, strftime, time
-
-    import numpy as np
 
     # networking
     import zmq
@@ -74,7 +71,6 @@ def player(
         import glfw
         from file_methods import Persistent_Dict, next_export_sub_dir
         from gl_utils import GLFWErrorReporting
-        from OpenGL.GL import GL_COLOR_BUFFER_BIT
 
         GLFWErrorReporting.set_default()
 
@@ -198,10 +194,21 @@ def player(
             window_size = w, h
             g_pool.ui_render_size = w - int(icon_bar_width * g_pool.gui.scale), h
 
-            renderable_space = [
-                int(w - g_pool.gui.scale * max(-g_pool.menubar.configuration['pos'][0], g_pool.menubar.configuration['min_size'][0] + 10)),
-                int(h - g_pool.gui.scale * max(-g_pool.user_timelines.configuration['pos'][1], g_pool.user_timelines.configuration['min_size'][1]) - 15),
-            ]
+            renderable_space = [w, h]
+            if not session_settings.get("allow_sidebar_overlap", False):
+                sidebar_width = max(
+                    -g_pool.menubar.configuration['pos'][0],
+                    g_pool.menubar.configuration['min_size'][0]
+                ) + 10
+                renderable_space[0] -= int(g_pool.gui.scale * sidebar_width)
+
+            if not session_settings.get("allow_timeline_overlap", False):
+                timeline_height = max(
+                    -g_pool.user_timelines.configuration['pos'][1],
+                    g_pool.user_timelines.configuration['min_size'][1]
+                ) + 15
+                renderable_space[1] -= int(g_pool.gui.scale * timeline_height)
+
             g_pool.camera_render_rect = center_and_scale(g_pool.capture.frame_size, renderable_space)
 
             g_pool.gui.update_window(*window_size)
@@ -476,14 +483,34 @@ def player(
             # Set the newly calculated size (scaled capture frame size + scaled icon bar width)
             glfw.set_window_size(main_window, int(f_width), int(f_height))
 
+        def set_allow_timeline_overlap(v):
+            session_settings["allow_timeline_overlap"] = v
+            on_resize(main_window, *glfw.get_framebuffer_size(main_window))
+
+        def set_allow_sidebar_overlap(v):
+            session_settings["allow_sidebar_overlap"] = v
+            on_resize(main_window, *glfw.get_framebuffer_size(main_window))
+
         general_settings = ui.Growing_Menu("General", header_pos="headline")
-        general_settings.append(ui.Button("Reset window size", set_window_size))
         general_settings.append(ui.Info_Text(f"Player Version: {g_pool.version}"))
         general_settings.append(
             ui.Info_Text(
                 f"Recording Software Version: {meta_info.recording_software_version}"
             )
         )
+        general_settings.append(ui.Button("Reset window size", set_window_size))
+        general_settings.append(ui.Switch(
+            "allow_timeline_overlap",
+            label="Allow timelines to overlap scene",
+            getter=lambda: session_settings.get("allow_timeline_overlap", False),
+            setter=set_allow_timeline_overlap,
+        ))
+        general_settings.append(ui.Switch(
+            "allow_sidebar_overlap",
+            label="Allow sidebar to overlap scene",
+            getter=lambda: session_settings.get("allow_sidebar_overlap", False),
+            setter=set_allow_sidebar_overlap,
+        ))
 
         general_settings.append(
             ui.Button("Restart with default settings", reset_restart)
@@ -794,7 +821,6 @@ def player_drop(
         GLFWErrorReporting.set_default()
 
         import gl_utils
-        import player_methods as pm
         from file_methods import Persistent_Dict
         from OpenGL.GL import glClearColor
         from pupil_recording import (
@@ -1024,8 +1050,6 @@ def player_profiled(
     import cProfile
     import os
     import subprocess
-
-    from .player import player
 
     cProfile.runctx(
         "player(rec_dir, ipc_pub_url, ipc_sub_url, ipc_push_url, user_dir, app_version, debug)",
