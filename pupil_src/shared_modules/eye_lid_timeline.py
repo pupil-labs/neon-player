@@ -64,10 +64,10 @@ class EyeLidTimeline(Plugin):
     CMAP = {
         "eyelid_angle_top_left": cygl_utils.RGBA(0.12156, 0.46666, 0.70588, 1.0),
         "eyelid_angle_bottom_left": cygl_utils.RGBA(0.83921, 0.15294, 0.15686, 1.0),
-        "eyelid_aperture_left": cygl_utils.RGBA(0.58039, 0.40392, 0.74117, 1.0),
+        "eyelid_aperture_left": cygl_utils.RGBA(0.12156, 0.46666, 0.70588, 1.0),
         "eyelid_angle_top_right": cygl_utils.RGBA(1.0, 0.49803, 0.05490, 1.0),
         "eyelid_angle_bottom_right": cygl_utils.RGBA(0.54901, 0.33725, 0.29411, 1.0),
-        "eyelid_aperture_right": cygl_utils.RGBA(0.12156, 0.46666, 0.70588, 1.0),
+        "eyelid_aperture_right": cygl_utils.RGBA(1.0, 0.49803, 0.05490, 1.0),
     }
     NUMBER_SAMPLES_TIMELINE = 4000
     TIMELINE_LINE_HEIGHT = 16
@@ -195,7 +195,10 @@ class EyeLidTimeline(Plugin):
         for prefix in ["eyelid_aperture", "eyelid_angle"]:
             if labels[0].startswith(prefix):
                 friendly_labels = {
-                    label: label.replace(f"{prefix}_", "").replace("_", " ").title()
+                    label: label.replace(f"{prefix}_", "")
+                    .replace("_", " ")
+                    .replace("bottom", "bot")
+                    .title()
                     for label in labels
                 }
                 glfont.draw_text(10, 0, prefix.replace("_", " ").title())
@@ -245,10 +248,10 @@ class EyeLidExporter(_Base_Positions_Exporter):
         "ts": "timestamp [ns]",
         "eyelid_angle_top_left": "eyelid angle top left",
         "eyelid_angle_bottom_left": "eyelid angle bottom left",
-        "eyelid_aperture_left": "eyelid aperture left",
+        "eyelid_aperture_left": "eyelid aperture left [mm]",
         "eyelid_angle_top_right": "eyelid angle top right",
         "eyelid_angle_bottom_right": "eyelid angle bottom right",
-        "eyelid_aperture_right": "eyelid aperture right",
+        "eyelid_aperture_right": "eyelid aperture right [mm]",
     }
 
     @classmethod
