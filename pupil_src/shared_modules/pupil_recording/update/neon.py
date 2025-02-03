@@ -1,5 +1,4 @@
-"""
-(*)~---------------------------------------------------------------------------
+"""(*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
 Copyright (C) Pupil Labs
 
@@ -8,11 +7,11 @@ Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
+
 import logging
 import re
 import shutil
 import tempfile
-import typing as T
 from pathlib import Path
 
 import av
@@ -22,18 +21,17 @@ import numpy as np
 import player_methods as pm
 from version_utils import parse_version
 
+from pupil_labs.rec_export.export import _process_gaze
+
 from ..info import RecordingInfoFile
 from ..info import recording_info_utils as utils
 from ..recording import PupilRecording
 from ..recording_utils import VALID_VIDEO_EXTENSIONS, InvalidRecordingException
 from . import update_utils
 
-from pupil_labs.rec_export.export import _process_gaze
-
 logger = logging.getLogger(__name__)
 
-NEWEST_SUPPORTED_VERSION = parse_version("2.3")
-
+NEWEST_SUPPORTED_VERSION = parse_version("2.5")
 
 
 def transform_neon_to_corresponding_new_style(rec_dir: str):
@@ -43,11 +41,12 @@ def transform_neon_to_corresponding_new_style(rec_dir: str):
 
     if neon_version > NEWEST_SUPPORTED_VERSION:
         raise InvalidRecordingException(
-            f"This version of player is too old! Please upgrade."
+            "This version of player is too old! Please upgrade."
         )
 
     else:
         _transform_neon_v2_1_0_to_pprf_2_1(rec_dir)
+
 
 def _transform_neon_v2_1_0_to_pprf_2_1(rec_dir: str):
     _generate_pprf_2_1_info_file(rec_dir)
@@ -174,26 +173,27 @@ def _convert_gaze(recording: PupilRecording):
 
     # pre-emptively create gaze file for blink and fixation detectors
     rec_path = Path(recording.rec_dir)
-    cache_path = rec_path / 'offline_data'
+    cache_path = rec_path / "offline_data"
     cache_path.mkdir(exist_ok=True)
     _process_gaze(rec_path.parent, cache_path)
+
 
 def _convert_annotations(recording: PupilRecording):
     rec_path = Path(recording.rec_dir)
 
-    labels = (rec_path / 'event.txt').read_text().strip().split('\n')
-    timestamps = np.load(rec_path / 'event_timestamps.npy')
-    timestamps_unix = np.load(rec_path / 'event_timestamps_unix.npy')
+    labels = (rec_path / "event.txt").read_text().strip().split("\n")
+    timestamps = np.load(rec_path / "event_timestamps.npy")
+    timestamps_unix = np.load(rec_path / "event_timestamps_unix.npy")
 
     with fm.PLData_Writer(recording.rec_dir, "annotation_player") as writer:
-        for event in zip(labels, timestamps, timestamps_unix):
+        for event in zip(labels, timestamps, timestamps_unix, strict=False):
             datum = {
-                'topic': 'annotation',
-                'label': event[0],
-                'timestamp': event[1],
-                'timestamp_unix': event[2],
-                'duration': 0.0,
-                'added_in_player': False
+                "topic": "annotation",
+                "label": event[0],
+                "timestamp": event[1],
+                "timestamp_unix": event[2],
+                "duration": 0.0,
+                "added_in_player": False,
             }
             writer.append(datum)
 
@@ -245,7 +245,7 @@ class BrokenFirstFrameRecordingIssue:
                 stream_should_skip_frame = {
                     in_stream: in_stream.codec_context.type == "video"
                     or in_stream.codec_context.type == "audio"
-                    for in_stream in stream_mapping.keys()
+                    for in_stream in stream_mapping
                 }
 
                 for packet in in_container.demux():
@@ -416,7 +416,10 @@ def _neon_posthoc_200hz_gaze_items(
 ):
     raw_data = _load_raw_data(raw_200hz_path)
     timestamps = _load_timestamps_data(timestamps_200hz_path)
-    unix_ts_path = timestamps_200hz_path.parent / f'{timestamps_200hz_path.stem}_unix{timestamps_200hz_path.suffix}'
+    unix_ts_path = (
+        timestamps_200hz_path.parent
+        / f"{timestamps_200hz_path.stem}_unix{timestamps_200hz_path.suffix}"
+    )
     timestamps_unix = _load_timestamps_data(unix_ts_path)
 
     if worn_200hz_path is not None:
@@ -426,22 +429,29 @@ def _neon_posthoc_200hz_gaze_items(
             timestamps, timestamps_realtime_paths
         )
 
-    raw_data, timestamps, timestamps_unix = _equalize_length_if_necessary(raw_data, timestamps, timestamps_unix)
+    raw_data, timestamps, timestamps_unix = _equalize_length_if_necessary(
+        raw_data, timestamps, timestamps_unix
+    )
     conf_data = _validated_conf_data(conf_data, timestamps)
-    yield from zip(raw_data, timestamps, conf_data, timestamps_unix)
+    yield from zip(raw_data, timestamps, conf_data, timestamps_unix, strict=False)
 
 
 def _neon_realtime_recorded_gaze_items(timestamps_realtime_paths):
     for timestamps_path in timestamps_realtime_paths:
         raw_data = _load_raw_data(_find_raw_path(timestamps_path))
         timestamps = _load_timestamps_data(timestamps_path)
-        unix_ts_path = timestamps_path.parent / f'{timestamps_path.stem}_unix{timestamps_path.suffix}'
+        unix_ts_path = (
+            timestamps_path.parent
+            / f"{timestamps_path.stem}_unix{timestamps_path.suffix}"
+        )
         timestamps_unix = _load_timestamps_data(unix_ts_path)
         conf_data = _load_worn_data(_find_worn_path(timestamps_path))
 
-        raw_data, timestamps, timestamps_unix = _equalize_length_if_necessary(raw_data, timestamps, timestamps_unix)
+        raw_data, timestamps, timestamps_unix = _equalize_length_if_necessary(
+            raw_data, timestamps, timestamps_unix
+        )
         conf_data = _validated_conf_data(conf_data, timestamps)
-        yield from zip(raw_data, timestamps, conf_data, timestamps_unix)
+        yield from zip(raw_data, timestamps, conf_data, timestamps_unix, strict=False)
 
 
 def _find_timestamps_200hz_path(root_dir: Path):
@@ -507,7 +517,7 @@ def _load_worn_data(path: Path):
 
 
 def _find_and_load_densified_worn_data(
-    timestamps_200hz, timestamps_realtime_paths: T.List[Path]
+    timestamps_200hz, timestamps_realtime_paths: list[Path]
 ):
     if not timestamps_realtime_paths:
         return None
@@ -520,12 +530,12 @@ def _find_and_load_densified_worn_data(
     return conf_data[densification_idc]
 
 
-def _find_and_load_realtime_recorded_worn_data(timestamps_realtime_paths: T.List[Path]):
+def _find_and_load_realtime_recorded_worn_data(timestamps_realtime_paths: list[Path]):
     # assumes at least one path in `timestamps_realtime_paths`, otherwise np.concatenate
     # will raise ValueError: need at least one array to concatenate
-    assert (
-        len(timestamps_realtime_paths) > 0
-    ), "Requires at least one real-time recorded gaze timestamp path"
+    assert len(timestamps_realtime_paths) > 0, (
+        "Requires at least one real-time recorded gaze timestamp path"
+    )
     conf_all = []
     ts_all = []
     for timestamps_path in timestamps_realtime_paths:
@@ -565,7 +575,7 @@ def _validated_conf_data(conf_data, timestamps):
     return conf_data
 
 
-def matched_files_by_name_pattern(parent_dir: Path, name_pattern: str) -> T.List[Path]:
+def matched_files_by_name_pattern(parent_dir: Path, name_pattern: str) -> list[Path]:
     # Get all non-recursive directory contents
     contents = filter(Path.is_file, parent_dir.iterdir())
     # Filter content that matches the name by regex pattern
