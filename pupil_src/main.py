@@ -1,5 +1,4 @@
-"""
-(*)~---------------------------------------------------------------------------
+"""(*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
 Copyright (C) Pupil Labs
 
@@ -38,9 +37,7 @@ from version_utils import get_version
 app_version = get_version()
 if parsed_args.version:
     running_from = "bundle" if running_from_bundle else "source"
-    version_message = (
-        f"Neon Player version {app_version} ({running_from})"
-    )
+    version_message = f"Neon Player version {app_version} ({running_from})"
 
     print(version_message)
     sys.exit()
@@ -62,14 +59,14 @@ def set_bundled_glfw_environ_var():
 
 if running_from_bundle:
     # Specifiy user dir.
-    folder_name = f"neon_player_settings"
+    folder_name = "neon_player_settings"
     user_dir = os.path.expanduser(os.path.join("~", folder_name))
 
     # set libglfw env variable to prevent endless version check loop within pyglfw
     set_bundled_glfw_environ_var()
 else:
     # Specifiy user dir.
-    user_dir = os.path.join(pupil_base_dir, f"neon_player_settings")
+    user_dir = os.path.join(pupil_base_dir, "neon_player_settings")
 
     # Add pupil_external binaries to PATH
     if platform.system() == "Windows":
@@ -191,7 +188,7 @@ def launcher():
         logger.setLevel(logging.NOTSET)
         # Stream to file
         fh = logging.FileHandler(
-            os.path.join(user_dir, f"neon_player.log"),
+            os.path.join(user_dir, "neon_player.log"),
             mode="w",
             encoding="utf-8",
         )
@@ -216,13 +213,13 @@ def launcher():
         sub = zmq_tools.Msg_Receiver(zmq.Context(), ipc_sub_url, topics=("logging",))
         while True:
             topic, msg = sub.recv()
-            if isinstance(msg['args'], list):
-                msg['args'] = tuple(msg['args'])
+            if isinstance(msg["args"], list):
+                msg["args"] = tuple(msg["args"])
 
             record = logging.makeLogRecord(msg)
             logger.handle(record)
 
-    ## IPC
+    # IPC
     timebase = Value(c_double, 0)
     eye_procs_alive = Value(c_bool, 0), Value(c_bool, 0)
 
@@ -298,15 +295,31 @@ def launcher():
             cmd_sub.recv()
             break
 
+    import io
     import logging
+    import zipfile
+
+    import requests
 
     if unknown_args:
         logging.warning(f"Unknown command-line arguments: {unknown_args}")
 
-    rec_dir = os.path.expanduser(parsed_args.recording)
-    cmd_push.notify(
-        {"subject": "player_drop_process.should_start", "rec_dir": rec_dir}
-    )
+    if parsed_args.recording.startswith("https://api.cloud.pupil-labs"):
+        cloud_url = parsed_args.recording
+        response = requests.get(cloud_url)
+        if response.status_code == 200:
+            logging.info(f"Downloading recording from {cloud_url.split('?')[0]}")
+            zip_data = zipfile.ZipFile(io.BytesIO(response.content))
+            rec_dir = os.path.join(user_dir, "cloud_recordings")
+            zip_data.extractall(rec_dir)
+            rec_dir = os.path.join(rec_dir, zip_data.namelist()[0].split("/")[0])
+            logging.info(f"Recording downloaded to {rec_dir}")
+        else:
+            raise Exception(f"Failed to download recording from {cloud_url}")
+    else:
+        rec_dir = os.path.expanduser(parsed_args.recording)
+
+    cmd_push.notify({"subject": "player_drop_process.should_start", "rec_dir": rec_dir})
 
     with Prevent_Idle_Sleep():
         try:
@@ -390,13 +403,11 @@ def process_notification(
             args=(ipc_push_url, notification["pair_url"], notification["source_path"]),
         ).start()
     elif "notify.meta.should_doc" in topic:
-        cmd_push.notify(
-            {
-                "subject": "meta.doc",
-                "actor": "launcher",
-                "doc": launcher.__doc__,
-            }
-        )
+        cmd_push.notify({
+            "subject": "meta.doc",
+            "actor": "launcher",
+            "doc": launcher.__doc__,
+        })
     elif "notify.launcher_process.should_stop" in topic:
         cmd_push.notify({"subject": "player_process.should_stop"})
 
