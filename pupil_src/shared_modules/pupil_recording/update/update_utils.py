@@ -12,6 +12,8 @@ import logging
 import typing as T
 from pathlib import Path
 
+import pupil_labs.neon_recording as nr
+
 import av
 import camera_models as cm
 import numpy as np
@@ -26,33 +28,17 @@ def _try_patch_world_instrinsics_file(rec_dir: str, videos: T.Sequence[Path]) ->
     if not videos:
         return
 
-    # Make sure the default value always correlates to the frame size of BrokenStream
-    frame_size = (1280, 720)
-    # TODO: Due to the naming conventions for multipart-recordings, we can't
-    # easily lookup 'any' video name in the default_intrinsics, since it
-    # might be a multipart recording. Therefore we need to compute a hint here
-    # for the lookup. This could be improved.
-    camera_hint = ""
-    for video in videos:
-        try:
-            with av.open(str(video), format=video.suffix[1:]) as container:
-                if container.streams.video[0].format is None:
-                    continue
+    recording = nr.load(Path(rec_dir).parent)
 
-                for camera in cm.default_intrinsics:
-                    if camera in video.name:
-                        camera_hint = camera
-                        break
-                frame_size = (
-                    container.streams.video[0].format.width,
-                    container.streams.video[0].format.height,
-                )
-                break
-        except av.AVError:
-            continue
+    resolution = (recording.scene.width, recording.scene.height)
+    intrinsics = {
+        "camera_matrix": recording.calibration.scene_camera_matrix,
+        "dist_coefs": recording.calibration.scene_distortion_coefficients,
+        "cam_type": "radial"
+    }
 
-    intrinsics = cm.Camera_Model.from_file(rec_dir, camera_hint, frame_size)
-    intrinsics.save(rec_dir, "world")
+    camera = cm.Camera_Model._from_raw_intrinsics("world", resolution, intrinsics)
+    camera.save(rec_dir, "world")
 
 
 _ConversionCallback = T.Callable[[np.array], np.array]

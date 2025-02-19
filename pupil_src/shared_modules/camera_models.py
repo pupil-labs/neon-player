@@ -463,9 +463,6 @@ class Camera_Model(abc.ABC):
         :param cam_name: Name of the camera, e.g. 'Pupil Cam 1 ID2'.
         :param resolution: Camera resolution.
         """
-        file_path = os.path.join(
-            directory, "{}.intrinsics".format(cam_name.replace(" ", "_"))
-        )
         try:
             return Camera_Model.all_from_file(directory, cam_name)[resolution]
         except Exception:
