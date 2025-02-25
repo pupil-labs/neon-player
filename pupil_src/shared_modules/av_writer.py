@@ -190,19 +190,8 @@ class AV_Writer(abc.ABC):
         # TODO: Use custom Frame wrapper class, that wraps backend-specific frames.
         # This way we could just attach the pts here to the frame.
         # Currently this will fail e.g. for av.VideoFrame.
-        video_packed_encoded = False
         for packet in self.encode_frame(input_frame, pts):
-            if packet.stream is self.video_stream:
-                if video_packed_encoded:
-                    # NOTE: Assumption: Each frame is encoded into a single packet!
-                    # This is required for the frame.pts == packet.pts assumption below.
-                    logger.warning("Single frame yielded more than one packet")
-                video_packed_encoded = True
             self.container.mux(packet)
-
-        if not video_packed_encoded:
-            logger.warning(f"Encoding frame {input_frame.index} failed!")
-            return
 
         self.last_video_pts = pts
         self.timestamps.append(ts)
@@ -270,7 +259,7 @@ class MPEG_Writer(AV_Writer):
 
     @property
     def codec(self):
-        return "mpeg4"
+        return "h264"
 
     def on_first_frame(self, input_frame) -> None:
         # setup av frame once to use as buffer throughout the process
@@ -331,7 +320,7 @@ class MPEG_Audio_Writer(MPEG_Writer):
     @staticmethod
     def _add_stream(container, template):
         stream = container.add_stream(
-            codec_name=template.codec.name, rate=template.rate
+            codec_name=template.codec.name, rate=template.rate, time_base=Fraction(1, template.rate)
         )
         try:
             stream.layout = template.layout
