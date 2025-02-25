@@ -73,7 +73,7 @@ def _load_audio_single(file_path, return_pts_based_timestamps=False):
         container = av.open(str(file_path))
         stream = next(iter(container.streams.audio))
         logger.debug(f"Loaded audiostream: {stream} from {file_path}")
-    except (av.AVError, StopIteration):
+    except (av.FFmpegError, StopIteration):
         return None
 
     ts_path = file_path.with_name(file_path.stem + "_timestamps.npy")
@@ -97,7 +97,7 @@ def _load_audio_single(file_path, return_pts_based_timestamps=False):
 
     try:
         container.seek(0)
-    except av.AVError as err:
+    except av.FFmpegError as err:
         logger.debug(f"{err}")
         return None
 
@@ -140,7 +140,7 @@ class Audio_Viz_Transform:
                 for frame in packet.decode():
                     if frame:
                         yield frame
-            except av.AVError:
+            except av.FFmpegError:
                 logger.debug(traceback.format_exc())
 
     def sec_to_frames(self, sec):

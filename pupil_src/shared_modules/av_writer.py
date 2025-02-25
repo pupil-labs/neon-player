@@ -519,7 +519,7 @@ class _AudioPacketIterator:
 
         for part_idx, audio_part in enumerate(audio_parts):
             frames = container_decode(audio_part.container, audio=0)
-            frames = iter_catch(frames, av.AVError)
+            frames = iter_catch(frames, av.FFmpegError)
             for frame, timestamp in zip(frames, audio_part.timestamps):
                 if frame is None:
                     continue  # ignore audio decoding errors

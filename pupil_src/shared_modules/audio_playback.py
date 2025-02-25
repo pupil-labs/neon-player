@@ -276,7 +276,7 @@ class Audio_Playback(System_Plugin_Base):
                 for frame in packet.decode():
                     if frame:
                         yield frame
-            except av.AVError:
+            except av.FFmpegError:
                 logger.debug(traceback.format_exc())
 
     def audio_idx_to_pts(self, idx):
@@ -287,7 +287,7 @@ class Audio_Playback(System_Plugin_Base):
             self.audio.container.seek(
                 self.audio_idx_to_pts(seek_pos), stream=self.audio.stream
             )
-        except av.AVError:
+        except av.FFmpegError:
             raise FileSeekError()
         else:
             self.audio_frame_iterator = self.get_audio_frame_iterator()

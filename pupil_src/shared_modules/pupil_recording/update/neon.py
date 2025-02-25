@@ -286,7 +286,7 @@ class BrokenFirstFrameRecordingIssue:
                     # If no error is raised, ignore this video.
                     try:
                         _ = next(packets).decode()
-                    except av.AVError:
+                    except av.FFmpegError:
                         pass  # Expected
                     except StopIteration:
                         continue  # Not expected
@@ -298,7 +298,7 @@ class BrokenFirstFrameRecordingIssue:
                     # If an error is raised, ignore this video.
                     try:
                         _ = next(packets).decode()
-                    except av.AVError:
+                    except av.FFmpegError:
                         continue  # Not expected
                     except StopIteration:
                         continue  # Not expected
@@ -311,7 +311,7 @@ class BrokenFirstFrameRecordingIssue:
                         continue
 
                     yield v_path, ts_path
-            except av.AVError:
+            except av.FFmpegError:
                 logger.exception(
                     f"Encountered an issue while reading {v_path}. "
                     "Skipping file. Transformed recording might be incomplete."

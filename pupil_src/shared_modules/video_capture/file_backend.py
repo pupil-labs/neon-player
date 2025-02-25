@@ -196,7 +196,7 @@ class OnDemandDecoder(Decoder):
 
     def get_frame_iterator(self):
         frames = container_decode(self.container, self.video_stream)
-        frames = iter_catch(frames, av.AVError)
+        frames = iter_catch(frames, av.FFmpegError)
         for frame in frames:
             if frame:
                 yield frame
@@ -562,7 +562,7 @@ class File_Source(Playback_Source, Base_Source):
                 # explicit conversion to python int required, else:
                 # TypeError: ('Container.seek only accepts integer offset.')
                 self.video_stream.seek(int(target_entry.pts))
-            except av.AVError as e:
+            except av.FFmpegError as e:
                 raise FileSeekError() from e
         else:
             # TODO: Why seek here? Might be inefficient.

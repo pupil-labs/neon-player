@@ -194,13 +194,13 @@ class Video:
         try:
             cont = self._open_container()
             # Three failure scenarios:
-            # 1. Broken video -> AVError
+            # 1. Broken video -> FFmpegError
             # 2. decode() does not yield anything
             # 3. decode() yields None
             first_frame = next(container_decode(cont, video=0), None)
             if first_frame is None:
                 raise InvalidContainerError("Container does not contain frames")
-        except av.AVError as averr:
+        except av.FFmpegError as averr:
             raise InvalidContainerError from averr
         else:
             cont.seek(0)
