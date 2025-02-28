@@ -90,7 +90,7 @@ class FakeFrame:
     Show FakeFrame when the video is broken or there is a gap between timestamp.
     """
 
-    def __init__(self, width, height, timestamp, index):
+    def __init__(self, width, height, timestamp, index, timestamp_unix):
         self.timestamp = float(timestamp)
         self.index = int(index)
         self.width = width
@@ -101,9 +101,10 @@ class FakeFrame:
         static_img = np.ones(shape, dtype=np.uint8) * 128
         self.img = self.bgr = static_img
         self.is_fake = True
+        self.timestamp_unix = timestamp_unix
 
     def copy(self):
-        return FakeFrame(self.width, self.height, self.timestamp, self.index)
+        return FakeFrame(self.width, self.height, self.timestamp, self.index, self.timestamp_unix)
 
     @property
     def gray(self):
@@ -459,6 +460,7 @@ class File_Source(Playback_Source, Base_Source):
             height=self.frame_size[1],
             timestamp=target_entry.timestamp,
             index=self.current_frame_idx,
+            timestamp_unix=-1,
         )
 
     def recent_events_external_timing(self, events):
