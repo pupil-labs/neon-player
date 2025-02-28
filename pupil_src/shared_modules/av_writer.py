@@ -93,7 +93,7 @@ class NonMonotonicTimestampError(ValueError):
 
 
 class AV_Writer(abc.ABC):
-    def __init__(self, output_file_path: str, start_time_synced: int):
+    def __init__(self, output_file_path: str, start_time_synced: int, video_bitrate: int):
         """
         A generic writer for frames to a file using pyAV.
 
@@ -132,11 +132,8 @@ class AV_Writer(abc.ABC):
             codec_name=self.codec, rate=1 / self.time_base
         )
 
-        # TODO: Where does this bit-rate come from? Seems like an unreasonable
-        # value. Also 10e3 == 1e4, which makes this even weirder!
-        BIT_RATE = 15000 * 10e3
-        self.video_stream.bit_rate = BIT_RATE
-        self.video_stream.bit_rate_tolerance = BIT_RATE / 20
+        self.video_stream.bit_rate = video_bitrate
+        self.video_stream.bit_rate_tolerance = video_bitrate / 20
         self.video_stream.thread_count = max(1, mp.cpu_count() - 1)
 
         self.closed = False
@@ -320,7 +317,8 @@ class MPEG_Audio_Writer(MPEG_Writer):
     @staticmethod
     def _add_stream(container, template):
         stream = container.add_stream(
-            codec_name=template.codec.name, rate=template.rate, time_base=Fraction(1, template.rate)
+            codec_name=template.codec.name, rate=template.rate, time_base=Fraction(1, template.rate),
+            bit_rate=template.bit_rate
         )
         try:
             stream.layout = template.layout

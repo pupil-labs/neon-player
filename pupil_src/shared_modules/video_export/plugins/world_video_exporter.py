@@ -271,6 +271,7 @@ def _export_world_video(
                 out_file_path,
                 start_time_synced=trimmed_timestamps[0],
                 audio_dir=rec_dir,
+                video_bitrate=cap.video_stream.video_stream.bit_rate
             )
 
             while frames_to_export > current_frame:
