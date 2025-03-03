@@ -181,15 +181,23 @@ class EyeStateTimeline(Plugin):
         if self.g_pool.recording_api.eye_state.data.size < 1:
             return
 
-        ts_min = self.g_pool.recording_api.scene.ts[0]
-        ts_max = self.g_pool.recording_api.scene.ts[-1]
-        timestamps = np.linspace(ts_min, ts_max, width)
+        ts_min = self.g_pool.recording_api.scene.abs_ts[0]
+        ts_max = self.g_pool.recording_api.scene.abs_ts[-1]
+        timestamps = np.linspace(ts_min, ts_max, width).astype('int64')
 
-        if self.resampled_data is None or self.resampled_data.data.shape[0] != width:
+        if self.resampled_data is None or len(self.resampled_data) != width:
             self.resampled_data = self.g_pool.recording_api.eye_state.sample(timestamps)
 
         keys = self.legend_keys[name]
-        data = self.resampled_data.data[keys]
+        data = {}
+        for k in keys:
+            if any([k.endswith(f'_{v}') for v in 'xyz']):
+                dim_idx = 'xyz'.index(k[-1])
+                lookup_key = k[:-2]
+                data[k] = np.array([v[dim_idx] for v in getattr(self.resampled_data.timeseries, lookup_key)])
+            else:
+                data[k] = getattr(self.resampled_data.timeseries, k)
+
         y_limits = get_limits(data, keys)
 
         gl.glTranslatef(0, self.TIMELINE_LINE_HEIGHT * scale, 0)
