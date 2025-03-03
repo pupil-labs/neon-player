@@ -1,5 +1,4 @@
-"""
-(*)~---------------------------------------------------------------------------
+"""(*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
 Copyright (C) Pupil Labs
 
@@ -8,6 +7,7 @@ Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
+
 import asyncio
 import os
 import platform
@@ -81,6 +81,8 @@ def player(
         from audio_playback import Audio_Playback
         from blink_detection import Offline_Blink_Detection
         from csv_utils import write_key_value_file
+        from eye_lid_timeline import EyeLidTimeline
+        from eye_state_timeline import EyeStateTimeline
 
         # from marker_auto_trim_marks import Marker_Auto_Trim_Marks
         from fixation_detector import Offline_Fixation_Detector
@@ -89,8 +91,8 @@ def player(
             Offline_Head_Pose_Tracker,
         )
         from hotkey import Hotkey
+        from image_adjustments import Image_Adjustments
         from imu_timeline import IMUTimeline
-        from eye_state_timeline import EyeStateTimeline
         from log_display import Log_Display
         from log_history import Log_History
         from methods import delta_t, denormalize, get_system_info, normalize
@@ -111,7 +113,6 @@ def player(
         from surface_tracker import Surface_Tracker_Offline
         from system_graphs import System_Graphs
         from system_timelines import System_Timelines
-        from image_adjustments import Image_Adjustments
 
         # helpers/utils
         from version_utils import parse_version
@@ -127,9 +128,9 @@ def player(
         from vis_polyline import Vis_Polyline
         from vis_watermark import Vis_Watermark
 
-        assert parse_version(pyglui_version) >= parse_version(
-            "1.31.0"
-        ), "pyglui out of date, please upgrade to newest version"
+        assert parse_version(pyglui_version) >= parse_version("1.31.0"), (
+            "pyglui out of date, please upgrade to newest version"
+        )
 
         process_was_interrupted = False
 
@@ -172,6 +173,7 @@ def player(
             Offline_Head_Pose_Tracker,
             IMUTimeline,
             EyeStateTimeline,
+            EyeLidTimeline,
             Image_Adjustments,
         ] + runtime_plugins
 
@@ -179,8 +181,7 @@ def player(
 
         # Callback functions
         def on_resize(window, w, h):
-            nonlocal window_size
-            nonlocal content_scale
+            nonlocal window_size, content_scale
             if w == 0 or h == 0:
                 return
 
@@ -196,20 +197,28 @@ def player(
 
             renderable_space = [w, h]
             if not session_settings.get("allow_sidebar_overlap", False):
-                sidebar_width = max(
-                    -g_pool.menubar.configuration['pos'][0],
-                    g_pool.menubar.configuration['min_size'][0]
-                ) + 10
+                sidebar_width = (
+                    max(
+                        -g_pool.menubar.configuration["pos"][0],
+                        g_pool.menubar.configuration["min_size"][0],
+                    )
+                    + 10
+                )
                 renderable_space[0] -= int(g_pool.gui.scale * sidebar_width)
 
             if not session_settings.get("allow_timeline_overlap", False):
-                timeline_height = max(
-                    -g_pool.user_timelines.configuration['pos'][1],
-                    g_pool.user_timelines.configuration['min_size'][1]
-                ) + 15
+                timeline_height = (
+                    max(
+                        -g_pool.user_timelines.configuration["pos"][1],
+                        g_pool.user_timelines.configuration["min_size"][1],
+                    )
+                    + 15
+                )
                 renderable_space[1] -= int(g_pool.gui.scale * timeline_height)
 
-            g_pool.camera_render_rect = center_and_scale(g_pool.capture.frame_size, renderable_space)
+            g_pool.camera_render_rect = center_and_scale(
+                g_pool.capture.frame_size, renderable_space
+            )
 
             g_pool.gui.update_window(*window_size)
             g_pool.gui.collect_menus()
@@ -272,9 +281,10 @@ def player(
 
         def _restart_with_recording(rec_dir):
             logger.debug(f"Starting new session with '{rec_dir}'")
-            ipc_pub.notify(
-                {"subject": "player_drop_process.should_start", "rec_dir": rec_dir}
-            )
+            ipc_pub.notify({
+                "subject": "player_drop_process.should_start",
+                "rec_dir": rec_dir,
+            })
             glfw.set_window_should_close(g_pool.main_window, True)
 
         tick = delta_t()
@@ -428,13 +438,11 @@ def player(
             logger.warning("Resetting all settings and restarting Player.")
             glfw.set_window_should_close(main_window, True)
             ipc_pub.notify({"subject": "clear_settings_process.should_start"})
-            ipc_pub.notify(
-                {
-                    "subject": "player_process.should_start",
-                    "rec_dir": rec_dir,
-                    "delay": 2.0,
-                }
-            )
+            ipc_pub.notify({
+                "subject": "player_process.should_start",
+                "rec_dir": rec_dir,
+                "delay": 2.0,
+            })
 
         def toggle_general_settings(collapsed):
             # this is the menu toggle logic.
@@ -499,18 +507,22 @@ def player(
             )
         )
         general_settings.append(ui.Button("Reset window size", set_window_size))
-        general_settings.append(ui.Switch(
-            "allow_timeline_overlap",
-            label="Allow timelines to overlap scene",
-            getter=lambda: session_settings.get("allow_timeline_overlap", False),
-            setter=set_allow_timeline_overlap,
-        ))
-        general_settings.append(ui.Switch(
-            "allow_sidebar_overlap",
-            label="Allow sidebar to overlap scene",
-            getter=lambda: session_settings.get("allow_sidebar_overlap", False),
-            setter=set_allow_sidebar_overlap,
-        ))
+        general_settings.append(
+            ui.Switch(
+                "allow_timeline_overlap",
+                label="Allow timelines to overlap scene",
+                getter=lambda: session_settings.get("allow_timeline_overlap", False),
+                setter=set_allow_timeline_overlap,
+            )
+        )
+        general_settings.append(
+            ui.Switch(
+                "allow_sidebar_overlap",
+                label="Allow sidebar to overlap scene",
+                getter=lambda: session_settings.get("allow_sidebar_overlap", False),
+                setter=set_allow_sidebar_overlap,
+            )
+        )
 
         general_settings.append(
             ui.Button("Restart with default settings", reset_restart)
@@ -638,24 +650,24 @@ def player(
                     g_pool.plugin_by_name[n["name"]], args=n.get("args", {})
                 )
             elif subject.startswith("meta.should_doc"):
-                ipc_pub.notify(
-                    {"subject": "meta.doc", "actor": g_pool.app, "doc": player.__doc__}
-                )
+                ipc_pub.notify({
+                    "subject": "meta.doc",
+                    "actor": g_pool.app,
+                    "doc": player.__doc__,
+                })
                 for p in g_pool.plugins:
                     if (
                         p.on_notify.__doc__
                         and p.__class__.on_notify != Plugin.on_notify
                     ):
-                        ipc_pub.notify(
-                            {
-                                "subject": "meta.doc",
-                                "actor": p.class_name,
-                                "doc": p.on_notify.__doc__,
-                            }
-                        )
+                        ipc_pub.notify({
+                            "subject": "meta.doc",
+                            "actor": p.class_name,
+                            "doc": p.on_notify.__doc__,
+                        })
 
-        last_menubar_pos = g_pool.menubar.configuration['pos'][0]
-        last_timeline_pos = g_pool.user_timelines.configuration['pos'][1]
+        last_menubar_pos = g_pool.menubar.configuration["pos"][0]
+        last_timeline_pos = g_pool.user_timelines.configuration["pos"][1]
         while not glfw.window_should_close(main_window) and not process_was_interrupted:
             # fetch newest notifications
             new_notifications = []
@@ -669,10 +681,12 @@ def player(
                 for p in g_pool.plugins:
                     p.on_notify(n)
 
-            menubar_resized = last_menubar_pos != g_pool.menubar.configuration['pos'][0]
-            timelines_resized = last_timeline_pos != g_pool.user_timelines.configuration['pos'][1]
+            menubar_resized = last_menubar_pos != g_pool.menubar.configuration["pos"][0]
+            timelines_resized = (
+                last_timeline_pos != g_pool.user_timelines.configuration["pos"][1]
+            )
             if menubar_resized or timelines_resized:
-                last_menubar_pos = g_pool.menubar.configuration['pos'][0]
+                last_menubar_pos = g_pool.menubar.configuration["pos"][0]
                 on_resize(main_window, *glfw.get_framebuffer_size(main_window))
 
             events = {}
@@ -698,7 +712,8 @@ def player(
 
                 gl_utils.glViewport(
                     g_pool.camera_render_rect[0],
-                    window_size[1] - (g_pool.camera_render_rect[3] + g_pool.camera_render_rect[1]),
+                    window_size[1]
+                    - (g_pool.camera_render_rect[3] + g_pool.camera_render_rect[1]),
                     g_pool.camera_render_rect[2],
                     g_pool.camera_render_rect[3],
                 )
@@ -750,9 +765,9 @@ def player(
 
         session_settings["loaded_plugins"] = g_pool.plugins.get_initializers()
         session_settings["min_data_confidence"] = g_pool.min_data_confidence
-        session_settings[
-            "min_calibration_confidence"
-        ] = g_pool.min_calibration_confidence
+        session_settings["min_calibration_confidence"] = (
+            g_pool.min_calibration_confidence
+        )
         session_settings["ui_config"] = g_pool.gui.configuration
         session_settings["window_position"] = glfw.get_window_pos(main_window)
         session_settings["version"] = str(g_pool.version)
@@ -790,8 +805,8 @@ def player_drop(
 ):
     # general imports
     import logging
-    from time import sleep
     import webbrowser
+    from time import sleep
 
     # networking
     import zmq
@@ -859,13 +874,15 @@ def player_drop(
 
         def on_click(window, button, action, mods):
             if button_hovered(window) and action == 1:
-                webbrowser.open('https://docs.pupil-labs.com/neon/data-collection/transfer-recordings-via-usb/')
+                webbrowser.open(
+                    "https://docs.pupil-labs.com/neon/data-collection/transfer-recordings-via-usb/"
+                )
 
         def on_mouse_move(window, x, y):
             if button_hovered(window):
-                glfw.set_cursor(window, cursors['hand'])
+                glfw.set_cursor(window, cursors["hand"])
             else:
-                glfw.set_cursor(window, cursors['standard'])
+                glfw.set_cursor(window, cursors["standard"])
 
         if rec_dir:
             try:
@@ -893,8 +910,8 @@ def player_drop(
         glfw.make_context_current(window)
 
         cursors = {
-            'standard': glfw.create_standard_cursor(glfw.ARROW_CURSOR),
-            'hand': glfw.create_standard_cursor(glfw.HAND_CURSOR),
+            "standard": glfw.create_standard_cursor(glfw.ARROW_CURSOR),
+            "hand": glfw.create_standard_cursor(glfw.HAND_CURSOR),
         }
 
         window_position_manager = gl_utils.WindowPositionManager()
@@ -916,7 +933,7 @@ def player_drop(
         gl_utils.basic_gl_setup()
         glClearColor(0.4, 0.4, 0.4, 1.0)
         text = "Drop a Neon recording onto this window."
-        tip = "From Pupil Cloud:\n-Right-click your recording\n-Select \"Download -> Native Recording Data\"\n-Extract the folder from the zip file\n\n"
+        tip = 'From Pupil Cloud:\n-Right-click your recording\n-Select "Download -> Native Recording Data"\n-Extract the folder from the zip file\n\n'
         tip += "Directly from device:\n-Export from the recordings list\n-Transfer via USB\n[Online Guide]"
 
         def display_string(string, font_size, center_y):
@@ -925,11 +942,11 @@ def player_drop(
 
             glfont.set_size(font_size * content_scale)
 
-            if string.startswith('[') and string.endswith(']'):
+            if string.startswith("[") and string.endswith("]"):
                 color = (0.25, 0.5, 1.0, 1.0)
-            elif string.startswith('-'):
+            elif string.startswith("-"):
                 string = string[1:]
-                color = (0.75, 0.75, .75, 1.0)
+                color = (0.75, 0.75, 0.75, 1.0)
             else:
                 color = (1.0, 1.0, 1.0, 1.0)
 
@@ -1032,9 +1049,10 @@ def player_drop(
         session_settings.close()
         glfw.destroy_window(window)
         if rec_dir:
-            ipc_pub.notify(
-                {"subject": "player_process.should_start", "rec_dir": rec_dir}
-            )
+            ipc_pub.notify({
+                "subject": "player_process.should_start",
+                "rec_dir": rec_dir,
+            })
 
     except Exception:
         logger.exception("Process player_drop crashed with trace:")
