@@ -178,9 +178,8 @@ class GUI:
 
         surface_color = rgb_to_rgba(self.color_primary_rgb, alpha=alpha)
 
-        pyglui_utils.draw_polyline(
-            corners.reshape((5, 2)), color=pyglui_utils.RGBA(*surface_color)
-        )
+        edge_points = self._get_surface_edge_points(surface)
+        pyglui_utils.draw_polyline(edge_points, color=pyglui_utils.RGBA(*surface_color))
         pyglui_utils.draw_polyline(
             top_indicator.reshape((4, 2)), color=pyglui_utils.RGBA(*surface_color)
         )
@@ -188,6 +187,22 @@ class GUI:
         self._draw_surf_menu(
             surface, title_anchor, surface_edit_anchor, marker_edit_anchor
         )
+
+    def _get_surface_edge_points(self, surface, resolution=10):
+        top_edge = [(x, 0.0) for x in np.linspace(0.0, 1.0, resolution)]
+        right_edge = [(1.0, y) for y in np.linspace(0.0, 1.0, resolution)]
+        bottom_edge = [(x, 1.0) for x in np.linspace(1.0, 0.0, resolution)]
+        left_edge = [(0.0, y) for y in np.linspace(1.0, 0.0, resolution)]
+
+        rectangle_points = np.array(
+            top_edge +
+            right_edge[1:] +
+            bottom_edge[1:] +
+            left_edge[1:]
+        )
+        return surface.map_from_surf(
+            rectangle_points, self.tracker.camera_model, compensate_distortion=True
+        ).reshape(-1, 2)
 
     def _get_surface_anchor_points(self, surface):
         corners = np.array([[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]], dtype=np.float32)
