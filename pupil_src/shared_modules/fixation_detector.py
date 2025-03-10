@@ -244,8 +244,6 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
             )
         )
         self.menu.append(ui.Switch("show_fixations", self, label="Show fixations"))
-        self.current_fixation_details = ui.Info_Text("")
-        self.menu.append(self.current_fixation_details)
 
         self.next_fix_button = ui.Thumb(
             "jump_next_fixation",
@@ -294,6 +292,9 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
             ui.Slider("a", self, min=0.0, step=0.05, max=1.0, label="Alpha")
         )
         self.menu.append(color_menu)
+
+        self.current_fixation_details = ui.Info_Text("")
+        self.menu.append(self.current_fixation_details)
 
     def deinit_ui(self):
         self.remove_menu()
