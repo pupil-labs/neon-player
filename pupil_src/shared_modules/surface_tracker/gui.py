@@ -179,7 +179,7 @@ class GUI:
         surface_color = rgb_to_rgba(self.color_primary_rgb, alpha=alpha)
 
         edge_points = self._get_surface_edge_points(surface)
-        pyglui_utils.draw_polyline(edge_points, color=pyglui_utils.RGBA(*surface_color))
+        pyglui_utils.draw_polyline(edge_points, thickness=2, color=pyglui_utils.RGBA(*surface_color))
         pyglui_utils.draw_polyline(
             top_indicator.reshape((4, 2)), color=pyglui_utils.RGBA(*surface_color)
         )
