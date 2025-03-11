@@ -35,7 +35,8 @@ def glfont_generator():
 
 
 def get_limits(data, keys):
-    limits = (np.min(data), np.max(data))
+    finite_data = data[np.isfinite(data)]
+    limits = (np.min(finite_data), np.max(finite_data))
 
     # If the difference between the lower and upper bound is too small,
     # OpenGL will start throwing errors.
@@ -66,6 +67,12 @@ class EyeStateTimeline(Plugin):
         optical axis right x: direction of the right eye optical axis
         optical axis right y: direction of the right eye optical axis
         optical axis right z: direction of the right eye optical axis
+        eyelid_angle_top_left: angle of the top eyelid of the left eye,
+        eyelid_angle_bottom_left: angle of the bottom eyelid of the left eye,
+        eyelid_angle_top_right: angle of the top eyelid of the right eye,
+        eyelid_angle_bottom_right: angle of the bottom eyelid of the right eye,
+        eyelid_aperture_mm_left: aperture of the left eyelid in mm,
+        eyelid_aperture_mm_right: aperture of the left eyelid in mm,
     """
 
     icon_chr = chr(0xEC02)
@@ -90,6 +97,15 @@ class EyeStateTimeline(Plugin):
         "optical_axis_right_x": cygl_utils.RGBA(0.12156, 0.46666, 0.70588, 1.0),
         "optical_axis_right_y": cygl_utils.RGBA(0.49803, 0.70588, 0.05490, 1.0),
         "optical_axis_right_z": cygl_utils.RGBA(1.0, 0.49803, 0.05490, 1.0),
+
+        "eyelid_angle_top_left": cygl_utils.RGBA(0.12156, 0.46666, 0.70588, 1.0),
+        "eyelid_angle_bottom_left": cygl_utils.RGBA(0.83921, 0.15294, 0.15686, 1.0),
+
+        "eyelid_angle_top_right": cygl_utils.RGBA(1.0, 0.49803, 0.05490, 1.0),
+        "eyelid_angle_bottom_right": cygl_utils.RGBA(0.54901, 0.33725, 0.29411, 1.0),
+
+        "eyelid_aperture_mm_left": cygl_utils.RGBA(0.12156, 0.46666, 0.70588, 1.0),
+        "eyelid_aperture_mm_right": cygl_utils.RGBA(1.0, 0.49803, 0.05490, 1.0),
     }
     NUMBER_SAMPLES_TIMELINE = 4000
     TIMELINE_LINE_HEIGHT = 16
@@ -104,6 +120,8 @@ class EyeStateTimeline(Plugin):
         show_pupil_diameters=True,
         show_eyeball_centers=True,
         show_optical_axes=True,
+        show_eyelid_angles=True,
+        show_eyelid_apertures=True,
     ):
         super().__init__(g_pool)
 
@@ -111,12 +129,16 @@ class EyeStateTimeline(Plugin):
             "pupil_diameters": show_pupil_diameters,
             "eyeball_centers": show_eyeball_centers,
             "optical_axes": show_optical_axes,
+            "eyelid_angles": show_eyelid_angles,
+            "eyelid_apertures": show_eyelid_apertures,
         }
 
         self.legend_keys = {
             "pupil_diameters": [f"pupil_diameter_{d}_mm" for d in ["left", "right"]],
             "eyeball_centers": [f"eyeball_center_{d}_{a}" for d in ["left", "right"] for a in "xyz"],
             "optical_axes": [f"optical_axis_{d}_{a}" for d in ["left", "right"] for a in "xyz"],
+            "eyelid_angles": [f"eyelid_angle_{a}_{d}" for d in ["left", "right"] for a in ["top", "bottom"]],
+            "eyelid_apertures": [f"eyelid_aperture_mm_{d}" for d in ["left", "right"]],
         }
 
         self.timelines = {}
@@ -188,18 +210,21 @@ class EyeStateTimeline(Plugin):
             self.resampled_data = self.g_pool.recording_api.eye_state.sample(timestamps)
 
         keys = self.legend_keys[name]
-        data = self.resampled_data[keys]
-        y_limits = get_limits(data, keys)
+        try:
+            data = self.resampled_data[keys]
+            y_limits = get_limits(data, keys)
 
-        gl.glTranslatef(0, self.TIMELINE_LINE_HEIGHT * scale, 0)
-        with gl_utils.Coord_System(0, width, *y_limits):
-            for key_idx, key in enumerate(keys):
-                data_keyed = data[:, key_idx]
-                if data_keyed.shape[0] == 0:
-                    continue
+            gl.glTranslatef(0, self.TIMELINE_LINE_HEIGHT * scale, 0)
+            with gl_utils.Coord_System(0, width, *y_limits):
+                for key_idx, key in enumerate(keys):
+                    data_keyed = data[:, key_idx]
+                    if data_keyed.shape[0] == 0:
+                        continue
 
-                points = list(zip(range(width), data_keyed))
-                cygl_utils.draw_points(points, size=1.5 * scale, color=self.CMAP[key])
+                    points = list(zip(range(width), data_keyed))
+                    cygl_utils.draw_points(points, size=1.5 * scale, color=self.CMAP[key])
+        except KeyError:
+            pass
 
     def draw_legend(self, name, width, height, scale):
         self._draw_legend_grouped(self.legend_keys[name], width, height, scale, self.glfont_raw)
@@ -210,7 +235,7 @@ class EyeStateTimeline(Plugin):
         friendly_labels = {}
         glfont.set_size(self.TIMELINE_LINE_HEIGHT * scale)
         glfont.set_align_string(v_align="left", h_align="top")
-        for prefix in ["pupil_diameter", "eyeball_center", "optical_axis"]:
+        for prefix in ["pupil_diameter", "eyeball_center", "optical_axis", "eyelid_angle", "eyelid_aperture_mm"]:
             if labels[0].startswith(prefix):
                 friendly_labels = {label: label.replace(f"{prefix}_", "").replace("_", " ").title() for label in labels}
                 glfont.draw_text(10, 0, prefix.replace("_", " ").title())
@@ -268,6 +293,12 @@ class EyeStateExporter(_Base_Positions_Exporter):
         "optical_axis_right_x": "optical axis right x",
         "optical_axis_right_y": "optical axis right y",
         "optical_axis_right_z": "optical axis right z",
+        "eyelid_angle_top_left": "eyelid angle top left [deg]",
+        "eyelid_angle_bottom_left": "eyelid angle bottom left [deg]",
+        "eyelid_angle_top_right": "eyelid angle top right [deg]",
+        "eyelid_angle_bottom_right": "eyelid angle bottom right [deg]",
+        "eyelid_aperture_mm_left": "eyelid aperture left [mm]",
+        "eyelid_aperture_mm_right": "eyelid aperture right [mm]",
     }
 
     @classmethod
