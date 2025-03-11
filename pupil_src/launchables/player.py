@@ -79,7 +79,7 @@ def player(
         import player_methods as pm
         from annotations import Annotation_Player
         from audio_playback import Audio_Playback
-        from blink_detection import Offline_Blink_Detection
+        from blink_detection import Blink_Detection
         from csv_utils import write_key_value_file
 
         # from marker_auto_trim_marks import Marker_Auto_Trim_Marks
@@ -161,7 +161,7 @@ def player(
             Eye_Overlay,
             Video_Overlay,
             Offline_Fixation_Detector,
-            Offline_Blink_Detection,
+            Blink_Detection,
             Surface_Tracker_Offline,
             Raw_Data_Exporter,
             Annotation_Player,
