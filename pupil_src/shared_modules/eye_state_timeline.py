@@ -71,8 +71,8 @@ class EyeStateTimeline(Plugin):
         eyelid_angle_bottom_left: angle of the bottom eyelid of the left eye,
         eyelid_angle_top_right: angle of the top eyelid of the right eye,
         eyelid_angle_bottom_right: angle of the bottom eyelid of the right eye,
-        eyelid_aperture_mm_left: aperture of the left eyelid in mm,
-        eyelid_aperture_mm_right: aperture of the left eyelid in mm,
+        eyelid_aperture_left_mm: aperture of the left eyelid in mm,
+        eyelid_aperture_right_mm: aperture of the left eyelid in mm,
     """
 
     icon_chr = chr(0xEC02)
@@ -104,8 +104,8 @@ class EyeStateTimeline(Plugin):
         "eyelid_angle_top_right": cygl_utils.RGBA(1.0, 0.49803, 0.05490, 1.0),
         "eyelid_angle_bottom_right": cygl_utils.RGBA(0.54901, 0.33725, 0.29411, 1.0),
 
-        "eyelid_aperture_mm_left": cygl_utils.RGBA(0.12156, 0.46666, 0.70588, 1.0),
-        "eyelid_aperture_mm_right": cygl_utils.RGBA(1.0, 0.49803, 0.05490, 1.0),
+        "eyelid_aperture_left_mm": cygl_utils.RGBA(0.12156, 0.46666, 0.70588, 1.0),
+        "eyelid_aperture_right_mm": cygl_utils.RGBA(1.0, 0.49803, 0.05490, 1.0),
     }
     NUMBER_SAMPLES_TIMELINE = 4000
     TIMELINE_LINE_HEIGHT = 16
@@ -138,7 +138,7 @@ class EyeStateTimeline(Plugin):
             "eyeball_centers": [f"eyeball_center_{d}_{a}" for d in ["left", "right"] for a in "xyz"],
             "optical_axes": [f"optical_axis_{d}_{a}" for d in ["left", "right"] for a in "xyz"],
             "eyelid_angles": [f"eyelid_angle_{a}_{d}" for d in ["left", "right"] for a in ["top", "bottom"]],
-            "eyelid_apertures": [f"eyelid_aperture_mm_{d}" for d in ["left", "right"]],
+            "eyelid_apertures": [f"eyelid_aperture_{d}_mm" for d in ["left", "right"]],
         }
 
         self.timelines = {}
@@ -235,9 +235,13 @@ class EyeStateTimeline(Plugin):
         friendly_labels = {}
         glfont.set_size(self.TIMELINE_LINE_HEIGHT * scale)
         glfont.set_align_string(v_align="left", h_align="top")
-        for prefix in ["pupil_diameter", "eyeball_center", "optical_axis", "eyelid_angle", "eyelid_aperture_mm"]:
+        for prefix in ["pupil_diameter", "eyeball_center", "optical_axis", "eyelid_angle", "eyelid_aperture"]:
             if labels[0].startswith(prefix):
-                friendly_labels = {label: label.replace(f"{prefix}_", "").replace("_", " ").title() for label in labels}
+                friendly_labels = {
+                    label: label.replace(f"{prefix}_", "").replace("_", " ").replace("_mm", "").title()
+                    for label in labels
+                }
+
                 glfont.draw_text(10, 0, prefix.replace("_", " ").title())
                 gl.glTranslatef(0, self.TIMELINE_LINE_HEIGHT * scale, 0)
                 break
@@ -255,8 +259,10 @@ class EyeStateTimeline(Plugin):
                 line_type=gl.GL_LINES,
                 thickness=4.0 * scale,
             )
-
-            glfont.draw_text(width, 0, friendly_labels.get(label, label))
+            friendly_label = friendly_labels.get(label, label)
+            if friendly_label.endswith(" Mm"):
+                friendly_label = friendly_label[:-3]
+            glfont.draw_text(width, 0, friendly_label)
             gl.glTranslatef(0, self.TIMELINE_LINE_HEIGHT * scale, 0)
 
     def on_notify(self, notification):
@@ -297,8 +303,8 @@ class EyeStateExporter(_Base_Positions_Exporter):
         "eyelid_angle_bottom_left": "eyelid angle bottom left [deg]",
         "eyelid_angle_top_right": "eyelid angle top right [deg]",
         "eyelid_angle_bottom_right": "eyelid angle bottom right [deg]",
-        "eyelid_aperture_mm_left": "eyelid aperture left [mm]",
-        "eyelid_aperture_mm_right": "eyelid aperture right [mm]",
+        "eyelid_aperture_left_mm": "eyelid aperture left [mm]",
+        "eyelid_aperture_right_mm": "eyelid aperture right [mm]",
     }
 
     @classmethod
