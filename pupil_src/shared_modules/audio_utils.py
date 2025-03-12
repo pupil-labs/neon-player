@@ -285,7 +285,7 @@ class Audio_Viz_Transform:
         return a_levels
 
     def log_scale(self, abs_samples):
-        scaled_samples = abs_samples / abs_samples.max() + 0.0001
+        scaled_samples = abs_samples / (abs_samples.max() + 0.0001)
         scaled_samples_log = 10 * np.log10(scaled_samples)
         sc_min = scaled_samples_log.min()
         scaled_samples_log += -sc_min
