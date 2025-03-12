@@ -286,10 +286,14 @@ class Audio_Viz_Transform:
 
     def log_scale(self, abs_samples):
         scaled_samples = abs_samples / (abs_samples.max() + 0.0001)
+        scaled_samples[scaled_samples == 0] = 0.0001
         scaled_samples_log = 10 * np.log10(scaled_samples)
         sc_min = scaled_samples_log.min()
         scaled_samples_log += -sc_min
         sc_max = scaled_samples_log.max()
+        if sc_max == 0:
+            sc_max = 0.0001
+
         scaled_samples_log /= sc_max
 
         return scaled_samples_log
