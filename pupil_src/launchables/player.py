@@ -80,6 +80,7 @@ def player(
         from annotations import Annotation_Player
         from audio_playback import Audio_Playback
         from blink_detection import Blink_Detection
+        from worn_detection import Worn_Detection
         from csv_utils import write_key_value_file
 
         # from marker_auto_trim_marks import Marker_Auto_Trim_Marks
@@ -162,6 +163,7 @@ def player(
             Video_Overlay,
             Fixation_Detector,
             Blink_Detection,
+            Worn_Detection,
             Surface_Tracker_Offline,
             Raw_Data_Exporter,
             Annotation_Player,
