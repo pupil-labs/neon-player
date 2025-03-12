@@ -83,7 +83,7 @@ def player(
         from csv_utils import write_key_value_file
 
         # from marker_auto_trim_marks import Marker_Auto_Trim_Marks
-        from fixation_detector import Offline_Fixation_Detector
+        from fixation_detector import Fixation_Detector
         from gaze_producer.gaze_from_recording import GazeFromRecording
         from head_pose_tracker.offline_head_pose_tracker import (
             Offline_Head_Pose_Tracker,
@@ -160,7 +160,7 @@ def player(
             Vis_Watermark,
             Eye_Overlay,
             Video_Overlay,
-            Offline_Fixation_Detector,
+            Fixation_Detector,
             Blink_Detection,
             Surface_Tracker_Offline,
             Raw_Data_Exporter,
