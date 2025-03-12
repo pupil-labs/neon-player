@@ -70,7 +70,6 @@ class Blink_Detection(Plugin):
         self.timeline = ui.Timeline(
             "Blink Detection", self.draw_activation, self.draw_legend
         )
-        self.timeline.content_height *= 2
         self.g_pool.user_timelines.append(self.timeline)
 
     def deinit_ui(self):
@@ -132,7 +131,7 @@ class Blink_Detection(Plugin):
                     "blink id": b["id"],
                     "start timestamp [ns]": f'{b["start timestamp [ns]"]:0.0f}',
                     "end timestamp [ns]": f'{b["end timestamp [ns]"]:0.0f}',
-                    "duration [ms]": (b["end timestamp [ns]"] - b["start timestamp [ns]"]) * NS_TO_MS,
+                    "duration [ms]": (b["end timestamp [ns]"] - b["start timestamp [ns]"]) * 1e-6,
                 })
             logger.info("Created 'blinks.csv' file.")
 

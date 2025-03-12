@@ -305,6 +305,7 @@ def player(
         g_pool.ipc_push_url = ipc_push_url
         g_pool.plugin_by_name = {p.__name__: p for p in plugins}
         g_pool.camera_render_rect = None
+        g_pool.hide_gaze_during_blinks = False
 
         video_path = recording.files().core().world().videos()[0].resolve()
         try:
