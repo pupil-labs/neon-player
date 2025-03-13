@@ -32,5 +32,5 @@ pupil-detectors>=2.0.2rc2
 pupil-labs-uvc
 pye3d>=0.3.2
 pyglui>=1.31.1b1
-pl-neon-recording
+git+https://github.com/pupil-labs/pl-neon-recording
 -e git+https://github.com/pupil-labs/pl-rec-export.git#egg=pl_rec_export
