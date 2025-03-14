@@ -34,7 +34,7 @@ class Worn_Detection(Plugin):
     icon_chr = chr(0xE81A)
     icon_font = "pupil_icons"
 
-    def __init__(self, g_pool, hide_gaze_when_not_worn=True):
+    def __init__(self, g_pool):
         super().__init__(g_pool)
         self.menu = None
         self.graph_points = None
@@ -107,20 +107,22 @@ class Worn_Detection(Plugin):
 
     def draw_legend(self, width, height, scale):
         self.glfont.push_state()
-        self.glfont.set_align_string(v_align="right", h_align="top")
-        self.glfont.set_size(15.0 * scale)
-        self.glfont.draw_text(width, 0, self.timeline.label)
+        self.glfont.set_align_string(v_align="left", h_align="top")
+        self.glfont.set_size(16.0 * scale)
+        self.glfont.draw_text(10, 0, self.timeline.label)
 
         legend_height = 13.0 * scale
-        pad = 10 * scale
 
-        self.glfont.draw_text(width, legend_height, "Worn")
+        self.glfont.set_size(12.8 * scale)
+        self.glfont.set_align_string(v_align="right", h_align="top")
+
         cygl_utils.draw_polyline(
             [
-                (pad, legend_height + pad * 2 / 3),
-                (width / 2, legend_height + pad * 2 / 3),
+                (20, 20),
+                (60, 20),
             ],
             color=worn_color,
             line_type=gl.GL_LINES,
             thickness=4.0 * scale,
         )
+        self.glfont.draw_text(width, legend_height, "Worn")

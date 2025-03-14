@@ -235,18 +235,19 @@ class Blink_Detection(Plugin):
 
     def draw_legend(self, width, height, scale):
         self.glfont.push_state()
-        self.glfont.set_align_string(v_align="right", h_align="top")
-        self.glfont.set_size(15.0 * scale)
-        self.glfont.draw_text(width, 0, self.timeline.label)
+        self.glfont.set_align_string(v_align="left", h_align="top")
+        self.glfont.set_size(16.0 * scale)
+        self.glfont.draw_text(10, 0, self.timeline.label)
 
         legend_height = 13.0 * scale
-        pad = 10 * scale
 
+        self.glfont.set_size(12.8 * scale)
+        self.glfont.set_align_string(v_align="right", h_align="top")
         self.glfont.draw_text(width, legend_height, "Blinks")
         cygl_utils.draw_polyline(
             [
-                (pad, legend_height + pad * 2 / 3),
-                (width / 2, legend_height + pad * 2 / 3),
+                (20, 22),
+                (60, 22),
             ],
             color=blink_color,
             line_type=gl.GL_LINES,

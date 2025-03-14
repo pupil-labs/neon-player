@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 def glfont_generator():
     glfont = pyfontstash.fontstash.Context()
     glfont.add_font("opensans", ui.get_opensans_font_path())
-    glfont.set_color_float((1.0, 1.0, 1.0, 0.8))
     glfont.set_align_string(v_align="right", h_align="top")
     return glfont
 
@@ -182,6 +181,10 @@ class EyeStateTimeline(Plugin):
 
             if toggle_name.startswith("pupil_diameter"):
                 height = self.TIMELINE_LINE_HEIGHT * 3
+            elif toggle_name.startswith("eyelid_aperture"):
+                height = self.TIMELINE_LINE_HEIGHT * 3
+            elif toggle_name.startswith("eyelid_angle"):
+                height = self.TIMELINE_LINE_HEIGHT * 5
             else:
                 height = self.TIMELINE_LINE_HEIGHT * 7
 
@@ -230,8 +233,6 @@ class EyeStateTimeline(Plugin):
         self._draw_legend_grouped(self.legend_keys[name], width, height, scale, self.glfont_raw)
 
     def _draw_legend_grouped(self, labels, width, height, scale, glfont):
-        pad = width * 2 / 3
-
         friendly_labels = {}
         glfont.set_size(self.TIMELINE_LINE_HEIGHT * scale)
         glfont.set_align_string(v_align="left", h_align="top")
@@ -252,8 +253,8 @@ class EyeStateTimeline(Plugin):
             color = self.CMAP[label]
             cygl_utils.draw_polyline(
                 [
-                    (pad, self.TIMELINE_LINE_HEIGHT / 2),
-                    (width / 4, self.TIMELINE_LINE_HEIGHT / 2),
+                    (20, 8),
+                    (60, 8),
                 ],
                 color=color,
                 line_type=gl.GL_LINES,
