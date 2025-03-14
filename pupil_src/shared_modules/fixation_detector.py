@@ -25,7 +25,6 @@ Terms
       dispersion threshold?
 """
 
-import math
 import csv
 import logging
 import os
@@ -42,20 +41,13 @@ import msgpack
 import numpy as np
 import player_methods as pm
 from hotkey import Hotkey
-from methods import denormalize
 from observable import Observable
 from plugin import Plugin
-from pupil_recording import PupilRecording, RecordingInfo
 from gaze_producer.gaze_from_recording import GazeFromRecording
 from pyglui import ui
-from pyglui.cygl.utils import RGBA, draw_circle
-from pyglui.pyfontstash import fontstash
-from scipy.spatial.distance import pdist
 from progress_reporter import ProgressReporter
 
 from pupil_labs import neon_recording as nr
-from pupil_labs.rec_export.export import _process_fixations
-from pupil_labs.rec_export.explib.fixation_detector.helpers import get_consecutive_delta_angles_from_xy
 from pupil_labs.rec_export.explib.fixation_detector.optic_flow_correction import (
     calculate_optic_flow_vectors,
     save_optic_flow_vectors,
@@ -111,42 +103,33 @@ def detect_fixations(rec_dir, data_dir, timestamps, frame_size, queue):
     saccades_csv = Path(data_dir) / "saccades.csv"
     if not fixations_csv.exists() or not saccades_csv.exists():
         rec = nr.load(Path(rec_dir).parent)
-        fixations_df = pd.DataFrame({
-            "start timestamp [ns]": rec.fixations['start_timestamp_ns'],
-            "end timestamp [ns]": rec.fixations['end_timestamp_ns'],
-            "fixation x [px]": rec.fixations['mean_gaze_x'],
-            "fixation y [px]": rec.fixations['mean_gaze_y'],
-        })
-        fixations_df["fixation id"] = fixations_df.index + 1
-        fixations_df["duration [ms]"] = (fixations_df["end timestamp [ns]"] - fixations_df["start timestamp [ns]"]) * 1e-6
+        df = pd.DataFrame({n: rec.fixations[n] for n in rec.fixations.dtype.names})
+        df.rename(columns={
+            "start_timestamp_ns": "start timestamp [ns]",
+            "end_timestamp_ns": "end timestamp [ns]",
 
+            # fixation data
+            "mean_gaze_x": "fixation x [px]",
+            "mean_gaze_y": "fixation y [px]",
+
+            # saccade data
+            "amplitude_pixels": "amplitude [px]",
+            "amplitude_angle_deg": "amplitude [deg]",
+            "mean_velocity": "mean velocity [px/s]",
+            "max_velocity": "peak velocity [px/s]",
+        }, inplace=True)
+        df["duration [ms]"] = (df["end timestamp [ns]"] - df["start timestamp [ns]"]) * 1e-6
+
+        fixations_df = df[df["event_type"] == 1].copy()
+        fixations_df["fixation id"] = range(len(fixations_df))
+        fixations_df["fixation id"] += 1
+        fixations_df.drop(columns=["ts", "event_type"], inplace=True)
         fixations_df.to_csv(fixations_csv, index=False)
 
-        saccades = []
-        previous_fixation = None
-        for fixation_id, fixation in enumerate(rec.fixations):
-            if previous_fixation is not None:
-                start_time_ns = previous_fixation.start_ts
-                end_time_ns = fixation.end_ts
-                duration_ms = (end_time_ns - start_time_ns) * 1e-6
-                amplitude_px = math.sqrt(
-                    (fixation.mean_gaze_x - previous_fixation.mean_gaze_x) ** 2 +
-                    (fixation.mean_gaze_y - previous_fixation.mean_gaze_y) ** 2
-                )
-                mean_vel = amplitude_px / duration_ms * 1e-3
-                saccade = {
-                    "saccade id": fixation_id,
-                    "start timestamp [ns]": start_time_ns,
-                    "end timestamp [ns]": end_time_ns,
-                    "duration [ms]": duration_ms,
-                    "amplitude [px]": amplitude_px,
-                    "mean velocity [px/s]": mean_vel,
-                }
-                saccades.append(saccade)
-
-            previous_fixation = fixation
-
-        saccades_df = pd.DataFrame(saccades)
+        saccades_df = df[df["event_type"] == 0].copy()
+        saccades_df["saccade id"] = range(len(saccades_df))
+        saccades_df["saccade id"] += 1
+        saccades_df.drop(columns=["ts", "event_type"], inplace=True)
         saccades_df.to_csv(saccades_csv, index=False)
 
     info_json = recording_info_utils.read_neon_info_file(str(Path(rec_dir).parent))
@@ -594,7 +577,7 @@ class Fixation_Detector(Observable, Plugin):
     @classmethod
     def csv_representation_keys(self):
         return (
-            "id",
+            "fixation id",
             "start timestamp [ns]",
             "end timestamp [ns]",
             "duration [ms]",
@@ -604,17 +587,12 @@ class Fixation_Detector(Observable, Plugin):
 
     @classmethod
     def csv_representation_for_fixation(self, fixation):
-        if fixation["gaze_point_2d"] is not None:
-            gp_2d = fixation["gaze_point_2d"]
-        else:
-            gp_2d = [None, None]
-
         return (
             fixation["id"],
             fixation["start timestamp [ns]"],
             fixation["end timestamp [ns]"],
             fixation["duration [ms]"],
-            *gp_2d,
+            *fixation["gaze_point_2d"]
         )
 
     def export_fixations(self, export_window, export_dir):
@@ -626,7 +604,7 @@ class Fixation_Detector(Observable, Plugin):
                 - fixation count
 
             fixation list:
-                id | start timestamp [ns] | end timestamp [ns] | duration [ms] |
+                fixation id | start timestamp [ns] | end timestamp [ns] | duration [ms] |
                 fixation x [px] | fixation y [px]
         """
         if not self.fixation_data:
@@ -658,10 +636,6 @@ class Fixation_Detector(Observable, Plugin):
                         f["norm_pos"][0] + manual_correction[0],
                         f["norm_pos"][1] + manual_correction[1],
                     )
-                    f["gaze_point_2d"] = (
-                        f["gaze_point_2d"][0] + manual_correction[0] * self.g_pool.capture.frame_size[0],
-                        f["gaze_point_2d"][1] - manual_correction[1] * self.g_pool.capture.frame_size[1],
-                    )
 
                 csv_writer.writerow(self.csv_representation_for_fixation(f))
             logger.info("Created \"fixations.csv\" file.")
@@ -677,13 +651,15 @@ class Fixation_Detector(Observable, Plugin):
             with open(
                 os.path.join(export_dir, "saccades.csv"), "w", encoding="utf-8", newline=""
             ) as csvfile:
-                csv_writer = csv.DictWriter(csvfile, fieldnames=[
+                csv_writer = csv.DictWriter(csvfile, extrasaction="ignore", fieldnames=[
                     "saccade id",
                     "start timestamp [ns]",
                     "end timestamp [ns]",
                     "duration [ms]",
                     "amplitude [px]",
+                    "amplitude [deg]",
                     "mean velocity [px/s]",
+                    "peak velocity [px/s]",
                 ])
                 csv_writer.writeheader()
 
