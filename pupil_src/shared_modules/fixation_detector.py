@@ -104,33 +104,56 @@ def detect_fixations(rec_dir, data_dir, timestamps, frame_size, queue):
     if not fixations_csv.exists() or not saccades_csv.exists():
         rec = nr.load(Path(rec_dir).parent)
         df = pd.DataFrame({n: rec.fixations[n] for n in rec.fixations.dtype.names})
-        df.rename(columns={
-            "start_timestamp_ns": "start timestamp [ns]",
-            "end_timestamp_ns": "end timestamp [ns]",
+        if len(df) == 0:
+            with fixations_csv.open("w") as csvfile:
+                csv.writer(csvfile).writerow([
+                    "fixation id",
+                    "start timestamp [ns]",
+                    "end timestamp [ns]",
+                    "duration [ms]",
+                    "fixation x [px]",
+                    "fixation y [px]",
+                ])
+            with saccades_csv.open("w") as csvfile:
+                csv.writer(csvfile).writerow([
+                    "saccade id",
+                    "start timestamp [ns]",
+                    "end timestamp [ns]",
+                    "duration [ms]",
+                    "amplitude [px]",
+                    "amplitude [deg]",
+                    "mean velocity [px/s]",
+                    "peak velocity [px/s]",
+                ])
+        else:
+            df.rename(columns={
+                "start_timestamp_ns": "start timestamp [ns]",
+                "end_timestamp_ns": "end timestamp [ns]",
 
-            # fixation data
-            "mean_gaze_x": "fixation x [px]",
-            "mean_gaze_y": "fixation y [px]",
+                # fixation data
+                "mean_gaze_x": "fixation x [px]",
+                "mean_gaze_y": "fixation y [px]",
 
-            # saccade data
-            "amplitude_pixels": "amplitude [px]",
-            "amplitude_angle_deg": "amplitude [deg]",
-            "mean_velocity": "mean velocity [px/s]",
-            "max_velocity": "peak velocity [px/s]",
-        }, inplace=True)
-        df["duration [ms]"] = (df["end timestamp [ns]"] - df["start timestamp [ns]"]) * 1e-6
+                # saccade data
+                "amplitude_pixels": "amplitude [px]",
+                "amplitude_angle_deg": "amplitude [deg]",
+                "mean_velocity": "mean velocity [px/s]",
+                "max_velocity": "peak velocity [px/s]",
+            }, inplace=True)
 
-        fixations_df = df[df["event_type"] == 1].copy()
-        fixations_df["fixation id"] = range(len(fixations_df))
-        fixations_df["fixation id"] += 1
-        fixations_df.drop(columns=["ts", "event_type"], inplace=True)
-        fixations_df.to_csv(fixations_csv, index=False)
+            df["duration [ms]"] = (df["end timestamp [ns]"] - df["start timestamp [ns]"]) * 1e-6
 
-        saccades_df = df[df["event_type"] == 0].copy()
-        saccades_df["saccade id"] = range(len(saccades_df))
-        saccades_df["saccade id"] += 1
-        saccades_df.drop(columns=["ts", "event_type"], inplace=True)
-        saccades_df.to_csv(saccades_csv, index=False)
+            fixations_df = df[df["event_type"] == 1].copy()
+            fixations_df["fixation id"] = range(len(fixations_df))
+            fixations_df["fixation id"] += 1
+            fixations_df.drop(columns=["ts", "event_type"], inplace=True)
+            fixations_df.to_csv(fixations_csv, index=False)
+
+            saccades_df = df[df["event_type"] == 0].copy()
+            saccades_df["saccade id"] = range(len(saccades_df))
+            saccades_df["saccade id"] += 1
+            saccades_df.drop(columns=["ts", "event_type"], inplace=True)
+            saccades_df.to_csv(saccades_csv, index=False)
 
     info_json = recording_info_utils.read_neon_info_file(str(Path(rec_dir).parent))
     start_time_synced_ns = int(info_json["start_time"])
@@ -141,7 +164,7 @@ def detect_fixations(rec_dir, data_dir, timestamps, frame_size, queue):
             fixation = fixation_from_data(row, timestamps, start_time_synced_ns, frame_size)
             yield f"Processing fixations... {idx}", fixation
 
-    if not (Path(rec_dir).parent / "optic_flow_vectors.npz").exists():
+    if not (Path(rec_dir) / "offline_data" / "optic_flow_vectors.npz").exists():
         with ProgressReporter(queue) as progress:
             optic_flow_vectors = calculate_optic_flow_vectors(Path(rec_dir).parent, progress)
             save_optic_flow_vectors(data_dir, optic_flow_vectors)

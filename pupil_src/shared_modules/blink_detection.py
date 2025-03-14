@@ -142,12 +142,23 @@ class Blink_Detection(Plugin):
         cache_file = data_path / "blinks.csv"
 
         if not cache_file.exists():
-            data = pd.DataFrame({
-                'start timestamp [ns]': self.g_pool.recording_api.blinks['start_timestamp_ns'],
-                'end timestamp [ns]': self.g_pool.recording_api.blinks['end_timestamp_ns'],
-            })
-            data['duration [ms]'] = (data['end timestamp [ns]'] - data['start timestamp [ns]']) * 1e-6
-            data['blink id'] = data.index + 1
+            blinks = self.g_pool.recording_api.blinks
+            if len(blinks) == 0:
+                data = pd.DataFrame({
+                    'blink id': [],
+                    'start timestamp [ns]': [],
+                    'end timestamp [ns]': [],
+                    'duration [ms]': [],
+                })
+
+            else:
+                data = pd.DataFrame({
+                    'start timestamp [ns]': self.g_pool.recording_api.blinks['start_timestamp_ns'],
+                    'end timestamp [ns]': self.g_pool.recording_api.blinks['end_timestamp_ns'],
+                })
+                data['duration [ms]'] = (data['end timestamp [ns]'] - data['start timestamp [ns]']) * 1e-6
+                data['blink id'] = data.index + 1
+
             data.to_csv(cache_file, index=False)
 
         blink_data = deque()
