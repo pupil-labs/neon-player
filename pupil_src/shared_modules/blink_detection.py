@@ -13,68 +13,38 @@ import logging
 import os
 from collections import deque
 from pathlib import Path
-import multiprocessing as mp
 
-import background_helper as bh
+import pandas as pd
+
 import file_methods as fm
 import gl_utils
 import numpy as np
 import OpenGL.GL as gl
 import player_methods as pm
 import pyglui.cygl.utils as cygl_utils
-from observable import Observable
 from plugin import Plugin
 from pyglui import ui
 from pyglui.pyfontstash import fontstash as fs
-from progress_reporter import ProgressReporter
 
 from pupil_recording.info import recording_info_utils
 
-from pupil_labs.rec_export.export import _process_blinks
-
 logger = logging.getLogger(__name__)
-
-NS_TO_S = 1e-9
-NS_TO_MS = 1e-6
 
 blink_color = cygl_utils.RGBA(0.9961, 0.3789, 0.5313, 0.8)
 
 
-def detect_blinks(neon_rec_path, data_path, queue):
-    yield "Detecting blinks..."
-    with ProgressReporter(queue) as progress:
-        _process_blinks(neon_rec_path, data_path, progress)
-    yield "Blink detection complete"
-
-
 class Blink_Detection(Plugin):
+    """
+    This plugin loads blinks from the recording
+    """
+
     order = 0.8
     icon_chr = chr(0xE81A)
     icon_font = "pupil_icons"
 
-    @classmethod
-    def parse_pretty_class_name(cls) -> str:
-        return "Blink Detector"
-
-    def __init__(self, g_pool):
-        super().__init__(g_pool)
-        self.menu = None
-
-    def init_ui(self):
-        self.add_menu()
-        self.menu.label = "Blink Detector"
-
-    def deinit_ui(self):
-        self.remove_menu()
-
-
-class Offline_Blink_Detection(Observable, Blink_Detection):
-    """
-    This plugin detects blinks using pl-rec-export
-    """
-
     def __init__(self, g_pool, hide_gaze_during_blinks=True):
         super().__init__(g_pool)
+        self.menu = None
 
         g_pool.blinks = pm.Affiliator()
         g_pool.hide_gaze_during_blinks = hide_gaze_during_blinks
@@ -87,12 +57,9 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
 
     def init_ui(self):
         super().init_ui()
-        self.menu.append(ui.Info_Text(
-            "This plugin detects blinks using pl-rec-export"
-        ))
-        self.menu.append(ui.Text_Input(
-            "status", self, label="Detection status:", setter=lambda x: None
-        ))
+        self.add_menu()
+        self.menu.label = "Blink Detection"
+
         self.menu.append(ui.Switch(
             "hide_gaze_during_blinks", self.g_pool, label="Hide gaze during blinks", setter=self.set_hide_gaze_during_blinks
         ))
@@ -103,11 +70,11 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
         self.timeline = ui.Timeline(
             "Blink Detection", self.draw_activation, self.draw_legend
         )
-        self.timeline.content_height *= 2
         self.g_pool.user_timelines.append(self.timeline)
 
     def deinit_ui(self):
         super().deinit_ui()
+        self.remove_menu()
         self.g_pool.user_timelines.remove(self.timeline)
         self.timeline = None
 
@@ -116,7 +83,6 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
 
         if len(self.g_pool.blinks) > 0:
             self.notify_all({"subject": "blinks_changed", "delay": 0.2})
-
 
     def on_notify(self, notification):
         if notification["subject"] == "blinks_changed":
@@ -165,7 +131,7 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
                     "blink id": b["id"],
                     "start timestamp [ns]": f'{b["start timestamp [ns]"]:0.0f}',
                     "end timestamp [ns]": f'{b["end timestamp [ns]"]:0.0f}',
-                    "duration [ms]": (b["end timestamp [ns]"] - b["start timestamp [ns]"]) * NS_TO_MS,
+                    "duration [ms]": (b["end timestamp [ns]"] - b["start timestamp [ns]"]) * 1e-6,
                 })
             logger.info("Created 'blinks.csv' file.")
 
@@ -176,13 +142,24 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
         cache_file = data_path / "blinks.csv"
 
         if not cache_file.exists():
-            self.mp_queue = mp.Queue()
+            blinks = self.g_pool.recording_api.blinks
+            if len(blinks) == 0:
+                data = pd.DataFrame({
+                    'blink id': [],
+                    'start timestamp [ns]': [],
+                    'end timestamp [ns]': [],
+                    'duration [ms]': [],
+                })
 
-            args = (neon_rec_path, data_path, self.mp_queue)
-            self.bg_task = bh.IPC_Logging_Task_Proxy(
-                "Blink detection", detect_blinks, args=args
-            )
-            return
+            else:
+                data = pd.DataFrame({
+                    'start timestamp [ns]': self.g_pool.recording_api.blinks['start_timestamp_ns'],
+                    'end timestamp [ns]': self.g_pool.recording_api.blinks['end_timestamp_ns'],
+                })
+                data['duration [ms]'] = (data['end timestamp [ns]'] - data['start timestamp [ns]']) * 1e-6
+                data['blink id'] = data.index + 1
+
+            data.to_csv(cache_file, index=False)
 
         blink_data = deque()
         blink_start_ts = deque()
@@ -196,8 +173,8 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
             for blink_meta in reader:
                 blink = {
                     "id": blink_meta["blink id"],
-                    "start_timestamp": (float(blink_meta["start timestamp [ns]"]) - start_time_synced_ns) * NS_TO_S,
-                    "end_timestamp": (float(blink_meta["end timestamp [ns]"]) - start_time_synced_ns) * NS_TO_S,
+                    "start_timestamp": (float(blink_meta["start timestamp [ns]"]) - start_time_synced_ns) * 1e-9,
+                    "end_timestamp": (float(blink_meta["end timestamp [ns]"]) - start_time_synced_ns) * 1e-9,
                     "start timestamp [ns]": float(blink_meta["start timestamp [ns]"]),
                     "end timestamp [ns]": float(blink_meta["end timestamp [ns]"]),
                 }
@@ -258,18 +235,19 @@ class Offline_Blink_Detection(Observable, Blink_Detection):
 
     def draw_legend(self, width, height, scale):
         self.glfont.push_state()
-        self.glfont.set_align_string(v_align="right", h_align="top")
-        self.glfont.set_size(15.0 * scale)
-        self.glfont.draw_text(width, 0, self.timeline.label)
+        self.glfont.set_align_string(v_align="left", h_align="top")
+        self.glfont.set_size(16.0 * scale)
+        self.glfont.draw_text(10, 0, self.timeline.label)
 
         legend_height = 13.0 * scale
-        pad = 10 * scale
 
+        self.glfont.set_size(12.8 * scale)
+        self.glfont.set_align_string(v_align="right", h_align="top")
         self.glfont.draw_text(width, legend_height, "Blinks")
         cygl_utils.draw_polyline(
             [
-                (pad, legend_height + pad * 2 / 3),
-                (width / 2, legend_height + pad * 2 / 3),
+                (20, 22),
+                (60, 22),
             ],
             color=blink_color,
             line_type=gl.GL_LINES,

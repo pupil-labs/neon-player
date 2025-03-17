@@ -79,11 +79,12 @@ def player(
         import player_methods as pm
         from annotations import Annotation_Player
         from audio_playback import Audio_Playback
-        from blink_detection import Offline_Blink_Detection
+        from blink_detection import Blink_Detection
+        from worn_detection import Worn_Detection
         from csv_utils import write_key_value_file
 
         # from marker_auto_trim_marks import Marker_Auto_Trim_Marks
-        from fixation_detector import Offline_Fixation_Detector
+        from fixation_detector import Fixation_Detector
         from gaze_producer.gaze_from_recording import GazeFromRecording
         from head_pose_tracker.offline_head_pose_tracker import (
             Offline_Head_Pose_Tracker,
@@ -160,8 +161,9 @@ def player(
             Vis_Watermark,
             Eye_Overlay,
             Video_Overlay,
-            Offline_Fixation_Detector,
-            Offline_Blink_Detection,
+            Fixation_Detector,
+            Blink_Detection,
+            Worn_Detection,
             Surface_Tracker_Offline,
             Raw_Data_Exporter,
             Annotation_Player,
@@ -305,6 +307,7 @@ def player(
         g_pool.ipc_push_url = ipc_push_url
         g_pool.plugin_by_name = {p.__name__: p for p in plugins}
         g_pool.camera_render_rect = None
+        g_pool.hide_gaze_during_blinks = False
 
         video_path = recording.files().core().world().videos()[0].resolve()
         try:

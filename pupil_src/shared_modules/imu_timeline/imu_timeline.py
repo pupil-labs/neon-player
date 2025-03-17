@@ -51,7 +51,6 @@ def parse_neon_imu_raw_packets(buffer):
 def glfont_generator():
     glfont = pyfontstash.fontstash.Context()
     glfont.add_font("opensans", ui.get_opensans_font_path())
-    glfont.set_color_float((1.0, 1.0, 1.0, 0.8))
     glfont.set_align_string(v_align="right", h_align="top")
     return glfont
 
@@ -236,13 +235,13 @@ class IMUTimeline(Plugin):
             " orientation data from Neon recordings. Results are"
             " exported in 'imu.csv'."
         ))
+
         self.menu.append(ui.Info_Text(
             "Units:\n"
             "  * Gyroscope: degrees/second\n"
             "  * Accelerometer: G (9.80665 m/s^2)\n"
             "  * Orientation: Euler angles (degrees)"
         ))
-
 
         self.menu.append(ui.Switch(
             "show_gyro",
@@ -397,15 +396,14 @@ class IMUTimeline(Plugin):
 
         glfont.set_size(self.TIMELINE_LINE_HEIGHT * 0.8 * scale)
         glfont.set_align_string(v_align="right", h_align="top")
-        pad = width * 2 / 3
         for label in labels:
             color = self.CMAP[label.replace("ori_", "")]
             glfont.draw_text(width, 0, friendly_labels.get(label, label))
 
             cygl_utils.draw_polyline(
                 [
-                    (pad, self.TIMELINE_LINE_HEIGHT / 2),
-                    (width / 4, self.TIMELINE_LINE_HEIGHT / 2),
+                    (20, 8),
+                    (60, 8),
                 ],
                 color=color,
                 line_type=gl.GL_LINES,

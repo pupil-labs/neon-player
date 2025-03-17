@@ -25,15 +25,13 @@ Terms
       dispersion threshold?
 """
 
-import time
 import csv
-import enum
 import logging
 import os
 from bisect import bisect_left, bisect_right
-from collections import deque
 from pathlib import Path
 import multiprocessing as mp
+import pandas as pd
 
 import background_helper as bh
 import cv2
@@ -43,49 +41,36 @@ import msgpack
 import numpy as np
 import player_methods as pm
 from hotkey import Hotkey
-from methods import denormalize
 from observable import Observable
 from plugin import Plugin
-from pupil_recording import PupilRecording, RecordingInfo
 from gaze_producer.gaze_from_recording import GazeFromRecording
 from pyglui import ui
-from pyglui.cygl.utils import RGBA, draw_circle
-from pyglui.pyfontstash import fontstash
-from scipy.spatial.distance import pdist
 from progress_reporter import ProgressReporter
 
-from pupil_labs.rec_export.export import _process_fixations
-from pupil_labs.rec_export.explib.fixation_detector.optic_flow_correction import load_optic_flow_vectors
+from pupil_labs import neon_recording as nr
+from pupil_labs.rec_export.explib.fixation_detector.optic_flow_correction import (
+    calculate_optic_flow_vectors,
+    save_optic_flow_vectors,
+    load_optic_flow_vectors,
+)
 from pupil_recording.info import recording_info_utils
 
 logger = logging.getLogger(__name__)
 
-NS_TO_S = 1e-9
-NS_TO_MS = 1e-6
-
-
-class Fixation_Detector_Base(Plugin):
-    icon_chr = chr(0xEC03)
-    icon_font = "pupil_icons"
-
-    @classmethod
-    def parse_pretty_class_name(cls) -> str:
-        return "Fixation Detector"
-
 
 def fixation_from_data(info, timestamps, world_start_time, frame_size):
-    if info['fixation x [px]'] == '' or info['fixation y [px]'] == '':
+    if info["fixation x [px]"] == "" or info["fixation y [px]"] == "":
         norm_pos = None
         pos_2d = None
     else:
         norm_pos = (
-            float(info['fixation x [px]']) / frame_size[0],
-            1.0 - float(info['fixation y [px]']) / frame_size[1]
+            float(info["fixation x [px]"]) / frame_size[0],
+            1.0 - float(info["fixation y [px]"]) / frame_size[1]
         )
-        pos_2d = [float(info[f'fixation {axis} [px]']) for axis in 'xy']
+        pos_2d = [float(info[f"fixation {axis} [px]"]) for axis in "xy"]
 
-    start_time = (float(info['start timestamp [ns]']) - world_start_time) * NS_TO_S
-    end_time = (float(info['end timestamp [ns]']) - world_start_time) * NS_TO_S
+    start_time = (float(info["start timestamp [ns]"]) - world_start_time) * 1e-9
+    end_time = (float(info["end timestamp [ns]"]) - world_start_time) * 1e-9
 
     start_frame, end_frame = np.searchsorted(timestamps, [start_time, end_time])
     end_frame = min(end_frame, len(timestamps) - 1)
@@ -105,19 +90,71 @@ def fixation_from_data(info, timestamps, world_start_time, frame_size):
         "gaze_point_2d": pos_2d,
         "start timestamp [ns]": start_time_ns,
         "end timestamp [ns]": end_time_ns,
-        "duration [ms]": (end_time_ns - start_time_ns) * NS_TO_MS,
+        "duration [ms]": (end_time_ns - start_time_ns) * 1e-6,
     }
 
     return (datum, start_time, end_time)
 
 
 def detect_fixations(rec_dir, data_dir, timestamps, frame_size, queue):
-    yield "Detecting fixations...", ()
+    yield "Processing fixations...", ()
 
-    with ProgressReporter(queue) as progress:
-        _process_fixations(Path(rec_dir).parent, Path(data_dir), progress)
+    fixations_csv = Path(data_dir) / "fixations.csv"
+    saccades_csv = Path(data_dir) / "saccades.csv"
+    if not fixations_csv.exists() or not saccades_csv.exists():
+        rec = nr.load(Path(rec_dir).parent)
+        df = pd.DataFrame({n: rec.fixations[n] for n in rec.fixations.dtype.names})
+        if len(df) == 0:
+            with fixations_csv.open("w") as csvfile:
+                csv.writer(csvfile).writerow([
+                    "fixation id",
+                    "start timestamp [ns]",
+                    "end timestamp [ns]",
+                    "duration [ms]",
+                    "fixation x [px]",
+                    "fixation y [px]",
+                ])
+            with saccades_csv.open("w") as csvfile:
+                csv.writer(csvfile).writerow([
+                    "saccade id",
+                    "start timestamp [ns]",
+                    "end timestamp [ns]",
+                    "duration [ms]",
+                    "amplitude [px]",
+                    "amplitude [deg]",
+                    "mean velocity [px/s]",
+                    "peak velocity [px/s]",
+                ])
+        else:
+            df.rename(columns={
+                "start_timestamp_ns": "start timestamp [ns]",
+                "end_timestamp_ns": "end timestamp [ns]",
 
-    fixations_csv = Path(data_dir) / 'fixations.csv'
+                # fixation data
+                "mean_gaze_x": "fixation x [px]",
+                "mean_gaze_y": "fixation y [px]",
+
+                # saccade data
+                "amplitude_pixels": "amplitude [px]",
+                "amplitude_angle_deg": "amplitude [deg]",
+                "mean_velocity": "mean velocity [px/s]",
+                "max_velocity": "peak velocity [px/s]",
+            }, inplace=True)
+
+            df["duration [ms]"] = (df["end timestamp [ns]"] - df["start timestamp [ns]"]) * 1e-6
+
+            fixations_df = df[df["event_type"] == 1].copy()
+            fixations_df["fixation id"] = range(len(fixations_df))
+            fixations_df["fixation id"] += 1
+            fixations_df.drop(columns=["ts", "event_type"], inplace=True)
+            fixations_df.to_csv(fixations_csv, index=False)
+
+            saccades_df = df[df["event_type"] == 0].copy()
+            saccades_df["saccade id"] = range(len(saccades_df))
+            saccades_df["saccade id"] += 1
+            saccades_df.drop(columns=["ts", "event_type"], inplace=True)
+            saccades_df.to_csv(saccades_csv, index=False)
+
     info_json = recording_info_utils.read_neon_info_file(str(Path(rec_dir).parent))
     start_time_synced_ns = int(info_json["start_time"])
 
@@ -127,18 +164,21 @@ def detect_fixations(rec_dir, data_dir, timestamps, frame_size, queue):
             fixation = fixation_from_data(row, timestamps, start_time_synced_ns, frame_size)
             yield f"Processing fixations... {idx}", fixation
 
-    # cleanup Neon recording folder
-    optic_flow_cache_file = Path(rec_dir).parent / "optic_flow_vectors.npz"
-    optic_flow_cache_file.replace(Path(data_dir) / "optic_flow_vectors.npz")
+    if not (Path(rec_dir) / "offline_data" / "optic_flow_vectors.npz").exists():
+        with ProgressReporter(queue) as progress:
+            optic_flow_vectors = calculate_optic_flow_vectors(Path(rec_dir).parent, progress)
+            save_optic_flow_vectors(data_dir, optic_flow_vectors)
 
-    return "Fixation detection complete", ()
+    return "Fixation processing complete", ()
 
 
-class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
-    """pl-rec-export
+class Fixation_Detector(Observable, Plugin):
+    """Fixation Detector
     """
 
     CACHE_VERSION = 1
+    icon_chr = chr(0xEC03)
+    icon_font = "pupil_icons"
 
     class VersionMismatchError(ValueError):
         pass
@@ -162,7 +202,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
         self.prev_index = -1
         self.bg_task = None
         self.optic_flow_vectors = None
-        self.status = ""
+        self.status = "Please wait..."
         self.data_dir = os.path.join(g_pool.rec_dir, "offline_data")
         self._gaze_changed_listener = data_changed.Listener(
             "gaze_positions", g_pool.rec_dir, plugin=self
@@ -234,7 +274,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
         self.menu.append(
             ui.Info_Text(
                 "To start the export, wait until the detection has finished and press "
-                "the export button or type 'e'."
+                "the export button or type \"e\"."
             )
         )
 
@@ -321,6 +361,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
     def on_notify(self, notification):
         if notification["subject"] == "fixation_detector.should_recalculate":
             self._classify()
+
         elif notification["subject"] == "should_export":
             self.export_fixations(notification["ts_window"], notification["export_dir"])
             self.export_saccades(notification["ts_window"], notification["export_dir"])
@@ -347,7 +388,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
             self.mp_queue
         )
         self.bg_task = bh.IPC_Logging_Task_Proxy(
-            "Fixation detection", detect_fixations, args=args
+            "Fixation processing", detect_fixations, args=args
         )
         self.publish_empty()
 
@@ -356,7 +397,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
             while not self.mp_queue.empty():
                 current_progress = self.mp_queue.get_nowait()
                 self.menu_icon.indicator_stop = current_progress
-                self.status = f'Detecting fixations ({round(100*current_progress)}%)'
+                self.status = f"Processing fixations ({round(100*current_progress)}%)"
 
             for progress, fixation_result in self.bg_task.fetch():
                 self.status = progress
@@ -502,6 +543,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
             self.fixation_data, self.fixation_start_ts, self.fixation_stop_ts
         )
         self._fixations_changed_announcer.announce_existing()
+        self.status = f"{len(self.fixation_data)} fixations detected"
 
     def save_offline_data(self):
         with fm.PLData_Writer(self.data_dir, "fixations") as writer:
@@ -519,7 +561,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
         )
 
     def load_offline_data(self):
-        if not os.path.isfile(os.path.join(self.data_dir, "saccades.csv")):
+        if not os.path.isfile(os.path.join(self.data_dir, "fixations.pldata")):
             raise FileNotFoundError()
 
         path_stop_ts = os.path.join(self.data_dir, "fixations_stop_timestamps.npy")
@@ -558,7 +600,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
     @classmethod
     def csv_representation_keys(self):
         return (
-            "id",
+            "fixation id",
             "start timestamp [ns]",
             "end timestamp [ns]",
             "duration [ms]",
@@ -568,17 +610,12 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
 
     @classmethod
     def csv_representation_for_fixation(self, fixation):
-        if fixation["gaze_point_2d"] is not None:
-            gp_2d = fixation["gaze_point_2d"]
-        else:
-            gp_2d = [None, None]
-
         return (
             fixation["id"],
             fixation["start timestamp [ns]"],
             fixation["end timestamp [ns]"],
             fixation["duration [ms]"],
-            *gp_2d,
+            *fixation["gaze_point_2d"]
         )
 
     def export_fixations(self, export_window, export_dir):
@@ -590,7 +627,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
                 - fixation count
 
             fixation list:
-                id | start timestamp [ns] | end timestamp [ns] | duration [ms] |
+                fixation id | start timestamp [ns] | end timestamp [ns] | duration [ms] |
                 fixation x [px] | fixation y [px]
         """
         if not self.fixation_data:
@@ -622,13 +659,9 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
                         f["norm_pos"][0] + manual_correction[0],
                         f["norm_pos"][1] + manual_correction[1],
                     )
-                    f["gaze_point_2d"] = (
-                        f["gaze_point_2d"][0] + manual_correction[0] * self.g_pool.capture.frame_size[0],
-                        f["gaze_point_2d"][1] - manual_correction[1] * self.g_pool.capture.frame_size[1],
-                    )
 
                 csv_writer.writerow(self.csv_representation_for_fixation(f))
-            logger.info("Created 'fixations.csv' file.")
+            logger.info("Created \"fixations.csv\" file.")
 
     def export_saccades(self, export_window, export_dir):
         export_window[0] = max(export_window[0], self.g_pool.timestamps[0])
@@ -641,7 +674,7 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
             with open(
                 os.path.join(export_dir, "saccades.csv"), "w", encoding="utf-8", newline=""
             ) as csvfile:
-                csv_writer = csv.DictWriter(csvfile, fieldnames=[
+                csv_writer = csv.DictWriter(csvfile, extrasaction="ignore", fieldnames=[
                     "saccade id",
                     "start timestamp [ns]",
                     "end timestamp [ns]",
@@ -661,4 +694,4 @@ class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
 
                     csv_writer.writerow(saccade)
 
-                logger.info("Created 'saccades.csv' file.")
+                logger.info("Created \"saccades.csv\" file.")
