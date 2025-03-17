@@ -91,10 +91,7 @@ class Worn_Detection(Plugin):
         t0, t1 = [self.g_pool.capture.ts_to_ns(self.g_pool.timestamps[v]) for v in [0, -1]]
 
         if self.graph_points is None or width != len(self.graph_points):
-            samples = self.g_pool.recording_api.worn.sample(
-                np.linspace(t0, t1, width),
-                "linear"
-            )
+            samples = self.g_pool.recording_api.worn.sample(np.linspace(t0, t1, width))
             self.graph_points = [(idx, sample[1]) for idx, sample in enumerate(samples)]
 
         with gl_utils.Coord_System(0, len(self.graph_points), -1, 300):
