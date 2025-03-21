@@ -320,9 +320,11 @@ class EyeStateExporter(_Base_Positions_Exporter):
     def dict_export(
         cls, raw_value: csv_utils.CSV_EXPORT_RAW_TYPE, world_ts: float = None, world_index: int = None
     ) -> dict:
-        data = {
-            v: raw_value[k] for k, v in EyeStateExporter.field_map.items()
-        }
+        data = {}
+        for k, v in EyeStateExporter.field_map.items():
+            if hasattr(raw_value, k):
+                data[v] = raw_value[k]
+
         data["timestamp [ns]"] = f"{data['timestamp [ns]']:0.0f}"
 
         return data
