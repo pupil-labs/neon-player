@@ -77,9 +77,9 @@ class IMURecording:
             ("accel_x", "<f4"),
             ("accel_y", "<f4"),
             ("accel_z", "<f4"),
+            ("roll", "<f4"),
             ("pitch", "<f4"),
             ("yaw", "<f4"),
-            ("roll", "<f4"),
             ("quaternion_w", "<f4"),
             ("quaternion_x", "<f4"),
             ("quaternion_y", "<f4"),
@@ -107,7 +107,7 @@ class IMURecording:
             imu_data = []
             for packet in imu_packets:
                 rotation = Rotation.from_quat([packet.rotVecData.x, packet.rotVecData.y, packet.rotVecData.z, packet.rotVecData.w])
-                euler = rotation.as_euler(seq='XZY', degrees=True)
+                euler = rotation.as_euler(seq='YXZ', degrees=True)
                 imu_data.append((
                     packet.gyroData.x, packet.gyroData.y, packet.gyroData.z,
                     packet.accelData.x, packet.accelData.y, packet.accelData.z,
@@ -156,9 +156,9 @@ class IMUTimeline(Plugin):
         "accel_x": cygl_utils.RGBA(0.83921, 0.15294, 0.15686, 1.0),
         "accel_y": cygl_utils.RGBA(0.58039, 0.40392, 0.74117, 1.0),
         "accel_z": cygl_utils.RGBA(0.54901, 0.33725, 0.29411, 1.0),
+        "roll": cygl_utils.RGBA(1.0, 0.49803, 0.05490, 1.0),
         "pitch": cygl_utils.RGBA(0.12156, 0.46666, 0.70588, 1.0),
         "yaw": cygl_utils.RGBA(0.49803, 0.70588, 0.05490, 1.0),
-        "roll": cygl_utils.RGBA(1.0, 0.49803, 0.05490, 1.0),
     }
     HEADING_MAP = {
         "gyro": "Gyroscope",
@@ -217,7 +217,7 @@ class IMUTimeline(Plugin):
         self.data_len = len(self.data_raw)
         self.gyro_keys = ["gyro_x", "gyro_y", "gyro_z"]
         self.accel_keys = ["accel_x", "accel_y", "accel_z"]
-        self.orient_keys = ["pitch", "yaw", "roll"]
+        self.orient_keys = ["roll", "pitch", "yaw"]
 
     def get_init_dict(self):
         return {
