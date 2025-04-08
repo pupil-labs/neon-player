@@ -73,13 +73,18 @@ def project_distort_pts(
     return pts2d.reshape(-1, 2)
 
 
-def cart_to_spherical(vector):
+def cart_to_spherical(vector, in_degrees=False):
     # convert to spherical coordinates
     # source: http://stackoverflow.com/questions/4116658/faster-numpy-cartesian-to-spherical-coordinate-conversion
     x, y, z = vector
     r = np.sqrt(x**2 + y**2 + z**2)
-    theta = np.arccos(y / r)  # for elevation angle defined from Z-axis down
-    psi = np.arctan2(z, x)
+    theta = np.arccos(y / r) - np.pi / 2
+    psi = np.pi / 2 - np.arctan2(z, x)
+
+    if in_degrees:
+        theta = np.rad2deg(theta)
+        psi = np.rad2deg(psi)
+
     return r, theta, psi
 
 
