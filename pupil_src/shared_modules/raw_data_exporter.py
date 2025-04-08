@@ -20,6 +20,8 @@ from plugin import Plugin
 from pyglui import ui
 from rich.progress import track
 
+from methods import cart_to_spherical
+
 from gaze_producer.gaze_from_recording import GazeFromRecording
 
 # logging
@@ -33,6 +35,8 @@ class Raw_Data_Exporter(Plugin):
         timestamp [ns] - timestamp of the source image frame
         gaze x [px] - x position in the world image frame in pixel coordinates
         gaze y [px] - y position in the world image frame in pixel coordinates
+        azimuth [deg] - azimuth of the gaze ray in relation to the scene camera in degrees
+        elevation [deg] - elevation of the gaze ray in relation to the scene camera in degrees
     """
 
     icon_chr = chr(0xE873)
@@ -103,6 +107,7 @@ class Raw_Data_Exporter(Plugin):
                 export_window=export_window,
                 export_dir=export_dir,
                 frame_size=self.g_pool.capture.frame_size,
+                camera=self.g_pool.capture._intrinsics,
             )
 
         if self.should_export_field_info:
@@ -137,6 +142,7 @@ class _Base_Positions_Exporter(abc.ABC):
         export_window,
         export_dir,
         frame_size,
+        camera,
     ):
         export_file = type(self).csv_export_filename()
         export_path = os.path.join(export_dir, export_file)
@@ -154,7 +160,7 @@ class _Base_Positions_Exporter(abc.ABC):
                 description=f"Exporting {export_file}",
                 total=len(export_world_idc),
             ):
-                dict_row = type(self).dict_export(raw_value=g, world_index=idx, frame_size=frame_size)
+                dict_row = type(self).dict_export(raw_value=g, world_index=idx, frame_size=frame_size, camera=camera)
                 dict_writer.writerow(dict_row)
 
         logger.info(f"Created '{export_file}' file.")
@@ -171,11 +177,13 @@ class Gaze_Positions_Exporter(_Base_Positions_Exporter):
             "timestamp [ns]",
             "gaze x [px]",
             "gaze y [px]",
+            "azimuth [deg]",
+            "elevation [deg]",
         )
 
     @classmethod
     def dict_export(
-        cls, raw_value: csv_utils.CSV_EXPORT_RAW_TYPE, world_index: int, frame_size: (int, int)
+        cls, raw_value: csv_utils.CSV_EXPORT_RAW_TYPE, world_index: int, frame_size: (int, int), camera
     ) -> dict:
         gaze_timestamp = str(raw_value["timestamp_unix"])
 
@@ -190,8 +198,14 @@ class Gaze_Positions_Exporter(_Base_Positions_Exporter):
             frame_size[1] - norm_pos[1] * frame_size[1],
         )
 
+        for use_distortion in [True, False]:
+            gaze_3d = camera.unprojectPoints(pixel_pos)[0]
+            _, elevation, azimuth = cart_to_spherical(gaze_3d, True)
+
         return {
             "timestamp [ns]": gaze_timestamp,
             "gaze x [px]": pixel_pos[0],
             "gaze y [px]": pixel_pos[1],
+            "azimuth [deg]": azimuth,
+            "elevation [deg]": elevation,
         }
