@@ -33,4 +33,4 @@ pupil-labs-uvc
 pye3d>=0.3.2
 pyglui>=1.31.1b1
 -e git+https://github.com/pupil-labs/pl-rec-export.git#egg=pl_rec_export
-pl-neon-recording==0.1.12
+pupil-labs-neon-recording

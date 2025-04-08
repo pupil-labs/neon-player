@@ -35,15 +35,14 @@ def glfont_generator():
 
 
 def get_limits(data, keys):
-    limits = (
-        min(data[key].min() if data[key].shape[0] else 0 for key in keys),
-        max(data[key].max() if data[key].shape[0] else 1 for key in keys),
-    )
+    limits = (np.min(data), np.max(data))
+
     # If the difference between the lower and upper bound is too small,
     # OpenGL will start throwing errors.
     limit_min_diff = 0.001
     if limits[1] - limits[0] < limit_min_diff:
         limits = limits[0] - limit_min_diff / 2, limits[0] + limit_min_diff / 2
+
     return limits
 
 
@@ -73,8 +72,8 @@ class EyeStateTimeline(Plugin):
     icon_font = "pupil_icons"
 
     CMAP = {
-        "pupil_diameter_left": cygl_utils.RGBA(0.12156, 0.46666, 0.70588, 1.0),
-        "pupil_diameter_right": cygl_utils.RGBA(1.0, 0.49803, 0.05490, 1.0),
+        "pupil_diameter_left_mm": cygl_utils.RGBA(0.12156, 0.46666, 0.70588, 1.0),
+        "pupil_diameter_right_mm": cygl_utils.RGBA(1.0, 0.49803, 0.05490, 1.0),
 
         "eyeball_center_left_x": cygl_utils.RGBA(0.83921, 0.15294, 0.15686, 1.0),
         "eyeball_center_left_y": cygl_utils.RGBA(0.58039, 0.40392, 0.74117, 1.0),
@@ -115,7 +114,7 @@ class EyeStateTimeline(Plugin):
         }
 
         self.legend_keys = {
-            "pupil_diameters": [f"pupil_diameter_{d}" for d in ["left", "right"]],
+            "pupil_diameters": [f"pupil_diameter_{d}_mm" for d in ["left", "right"]],
             "eyeball_centers": [f"eyeball_center_{d}_{a}" for d in ["left", "right"] for a in "xyz"],
             "optical_axes": [f"optical_axis_{d}_{a}" for d in ["left", "right"] for a in "xyz"],
         }
@@ -189,13 +188,13 @@ class EyeStateTimeline(Plugin):
             self.resampled_data = self.g_pool.recording_api.eye_state.sample(timestamps)
 
         keys = self.legend_keys[name]
-        data = self.resampled_data.data[keys]
+        data = self.resampled_data[keys]
         y_limits = get_limits(data, keys)
 
         gl.glTranslatef(0, self.TIMELINE_LINE_HEIGHT * scale, 0)
         with gl_utils.Coord_System(0, width, *y_limits):
-            for key in keys:
-                data_keyed = data[key]
+            for key_idx, key in enumerate(keys):
+                data_keyed = data[:, key_idx]
                 if data_keyed.shape[0] == 0:
                     continue
 
@@ -240,7 +239,7 @@ class EyeStateTimeline(Plugin):
             self.export_data(notification["ts_window"], notification["export_dir"])
 
     def export_data(self, export_window, export_dir):
-        export_window_unix = [self.g_pool.capture.ts_to_ns(ts) / 1e9 for ts in export_window]
+        export_window_unix = [self.g_pool.capture.ts_to_ns(ts) for ts in export_window]
         all_ts = self.g_pool.recording_api.eye_state.data.ts
 
         window_filter = (export_window_unix[0] <= all_ts) & (all_ts <= export_window_unix[1])
@@ -255,8 +254,8 @@ class EyeStateTimeline(Plugin):
 class EyeStateExporter(_Base_Positions_Exporter):
     field_map = {
         "ts": "timestamp [ns]",
-        "pupil_diameter_left": "pupil diameter left [mm]",
-        "pupil_diameter_right": "pupil diameter right [mm]",
+        "pupil_diameter_left_mm": "pupil diameter left [mm]",
+        "pupil_diameter_right_mm": "pupil diameter right [mm]",
         "eyeball_center_left_x": "eyeball center left x [mm]",
         "eyeball_center_left_y": "eyeball center left y [mm]",
         "eyeball_center_left_z": "eyeball center left z [mm]",
@@ -286,7 +285,7 @@ class EyeStateExporter(_Base_Positions_Exporter):
         data = {
             v: raw_value[k] for k, v in EyeStateExporter.field_map.items()
         }
-        data["timestamp [ns]"] = f"{data['timestamp [ns]']*1e9:0.0f}"
+        data["timestamp [ns]"] = f"{data['timestamp [ns]']:0.0f}"
 
         return data
 
