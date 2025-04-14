@@ -103,7 +103,7 @@ def detect_fixations(rec_dir, data_dir, timestamps, frame_size, queue):
     saccades_csv = Path(data_dir) / "saccades.csv"
     if not fixations_csv.exists() or not saccades_csv.exists():
         rec = nr.load(Path(rec_dir).parent)
-        df = pd.DataFrame({n: rec.fixations[n] for n in rec.fixations.dtype.names})
+        df = pd.DataFrame({n: rec.fixations[n] for n in rec.fixations.data.dtype.names})
         if len(df) == 0:
             with fixations_csv.open("w") as csvfile:
                 csv.writer(csvfile).writerow([
