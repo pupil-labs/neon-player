@@ -660,8 +660,8 @@ class Fixation_Detector(Observable, Plugin):
                         f["norm_pos"][1] + manual_correction[1],
                     )
                     f["gaze_point_2d"] = (
-                        f["norm_pos"][0] * self.g_pool.capture.video_stream.frame_size[0],
-                        (1.0 - f["norm_pos"][1]) * self.g_pool.capture.video_stream.frame_size[1]
+                        f["gaze_point_2d"][0] + manual_correction[0] * self.g_pool.capture.frame_size[0],
+                        f["gaze_point_2d"][1] - manual_correction[1] * self.g_pool.capture.frame_size[1],
                     )
 
                 csv_writer.writerow(self.csv_representation_for_fixation(f))
