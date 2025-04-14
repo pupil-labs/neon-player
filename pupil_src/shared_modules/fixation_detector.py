@@ -172,8 +172,8 @@ def detect_fixations(rec_dir, data_dir, timestamps, frame_size, queue):
     return "Fixation processing complete", ()
 
 
-class Fixation_Detector(Observable, Plugin):
-    """Fixation Detector
+class Fixations_and_Saccades(Observable, Plugin):
+    """Fixations & Saccades
     """
 
     CACHE_VERSION = 1
@@ -235,7 +235,7 @@ class Fixation_Detector(Observable, Plugin):
 
     def init_ui(self):
         self.add_menu()
-        self.menu.label = "Fixation Detector"
+        self.menu.label = "Fixations and Saccades"
 
         def jump_next_fixation(_):
             cur_idx = self.last_frame_idx

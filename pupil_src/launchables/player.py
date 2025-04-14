@@ -79,12 +79,12 @@ def player(
         import player_methods as pm
         from annotations import Annotation_Player
         from audio_playback import Audio_Playback
-        from blink_detection import Blink_Detection
+        from blink_detection import Blinks
         from worn_detection import Worn_Detection
         from csv_utils import write_key_value_file
 
         # from marker_auto_trim_marks import Marker_Auto_Trim_Marks
-        from fixation_detector import Fixation_Detector
+        from fixation_detector import Fixations_and_Saccades
         from gaze_producer.gaze_from_recording import GazeFromRecording
         from head_pose_tracker.offline_head_pose_tracker import (
             Offline_Head_Pose_Tracker,
@@ -161,8 +161,8 @@ def player(
             Vis_Watermark,
             Eye_Overlay,
             Video_Overlay,
-            Fixation_Detector,
-            Blink_Detection,
+            Fixations_and_Saccades,
+            Blinks,
             Worn_Detection,
             Surface_Tracker_Offline,
             Raw_Data_Exporter,

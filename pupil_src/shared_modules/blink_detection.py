@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 blink_color = cygl_utils.RGBA(0.9961, 0.3789, 0.5313, 0.8)
 
 
-class Blink_Detection(Plugin):
+class Blinks(Plugin):
     """
     This plugin loads blinks from the recording
     """

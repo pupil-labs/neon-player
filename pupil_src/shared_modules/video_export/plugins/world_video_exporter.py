@@ -137,7 +137,7 @@ def _export_world_video(
     # We are not importing manual gaze correction. In Player corrections have already
     # been applied.
     from gaze_producer.gaze_from_recording import GazeFromRecording
-    from fixation_detector import Fixation_Detector
+    from fixation_detector import Fixations_and_Saccades
 
     # Plug-ins
     from plugin import Plugin_List, import_runtime_plugins
@@ -171,7 +171,7 @@ def _export_world_video(
             ],
             key=lambda x: x.__name__,
         )
-        analysis_plugins = [Fixation_Detector]
+        analysis_plugins = [Fixations_and_Saccades]
         user_plugins = sorted(
             import_runtime_plugins(os.path.join(user_dir, "plugins")),
             key=lambda x: x.__name__,

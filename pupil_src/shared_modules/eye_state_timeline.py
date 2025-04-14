@@ -150,7 +150,7 @@ class EyeStateTimeline(Plugin):
 
     def init_ui(self):
         self.add_menu()
-        self.menu.label = "Eye state timelines"
+        self.menu.label = "Eye State Timelines"
 
         for toggle_name, enabled in self.toggle_values.items():
             self.menu.append(ui.Switch(
