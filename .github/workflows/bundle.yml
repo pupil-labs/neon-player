@@ -20,7 +20,7 @@ jobs:
         platform:
           - windows-latest
           - macOS-13
-          - ubuntu-20.04
+          - ubuntu-22.04
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
