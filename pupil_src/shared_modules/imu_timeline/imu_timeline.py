@@ -31,17 +31,18 @@ from . import imu_pb2
 
 logger = logging.getLogger(__name__)
 
+
 def parse_neon_imu_raw_packets(buffer):
     index = 0
     packet_sizes = []
     while True:
-        nums = np.frombuffer(buffer[index : index + 2], np.uint16)
+        nums = np.frombuffer(buffer[index: index + 2], np.uint16)
         if not nums:
             break
         index += 2
         packet_size = nums[0]
         packet_sizes.append(packet_size)
-        packet_bytes = buffer[index : index + packet_size]
+        packet_bytes = buffer[index: index + packet_size]
         index += packet_size
         packet = imu_pb2.ImuPacket()
         packet.ParseFromString(packet_bytes)
@@ -107,8 +108,13 @@ class IMURecording:
             imu_packets = parse_neon_imu_raw_packets(raw_data)
             imu_data = []
             for packet in imu_packets:
-                rotation = Rotation.from_quat([packet.rotVecData.x, packet.rotVecData.y, packet.rotVecData.z, packet.rotVecData.w])
-                euler = rotation.as_euler(seq='YXZ', degrees=True)
+                rotation = Rotation.from_quat([
+                    packet.rotVecData.x,
+                    packet.rotVecData.y,
+                    packet.rotVecData.z,
+                    packet.rotVecData.w
+                ])
+                euler = rotation.as_euler(seq='yxz', degrees=True)
                 imu_data.append((
                     packet.gyroData.x, packet.gyroData.y, packet.gyroData.z,
                     packet.accelData.x, packet.accelData.y, packet.accelData.z,
@@ -377,7 +383,7 @@ class IMUTimeline(Plugin):
         )
 
     def _draw_legend_grouped(self, labels, width, height, scale, glfont):
-        labels = labels.copy() # don't modify the source list
+        labels = labels.copy()  # don't modify the source list
 
         glfont.set_size(self.TIMELINE_LINE_HEIGHT * scale)
         glfont.set_align_string(v_align="left", h_align="top")
