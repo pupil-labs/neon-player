@@ -631,7 +631,7 @@ class Fixations_and_Saccades(Observable, Plugin):
                 fixation x [px] | fixation y [px]
         """
         if not self.fixation_data:
-            logger.warning("No fixations in this recording nothing to export")
+            logger.warning("Recording has no fixation data or conversion is still in progress")
             return
 
         if export_window[0] == self.g_pool.timestamps[0]:
@@ -671,8 +671,12 @@ class Fixations_and_Saccades(Observable, Plugin):
         export_window[0] = max(export_window[0], self.g_pool.timestamps[0])
         export_window_ns = [self.g_pool.capture.ts_to_ns(v) for v in export_window]
 
-        input_file_path = os.path.join(self.data_dir, "saccades.csv")
-        with open(input_file_path, mode="r") as input_csv_file:
+        input_file_path = Path(self.data_dir) / "saccades.csv"
+        if not input_file_path.exists():
+            logger.warning("Recording has no saccade data or conversion is still in progress")
+            return
+
+        with input_file_path.open("r") as input_csv_file:
             csv_reader = csv.DictReader(input_csv_file)
 
             with open(
