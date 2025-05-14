@@ -355,7 +355,10 @@ def player(
             default_position=window_position_default,
             previous_position=session_settings.get("window_position", None),
         )
-        glfw.set_window_pos(main_window, window_pos[0], window_pos[1])
+        try:
+            glfw.set_window_pos(main_window, window_pos[0], window_pos[1])
+        except glfw.GLFWError:
+            pass
 
         glfw.make_context_current(main_window)
         cygl.utils.init()
@@ -757,7 +760,11 @@ def player(
             "min_calibration_confidence"
         ] = g_pool.min_calibration_confidence
         session_settings["ui_config"] = g_pool.gui.configuration
-        session_settings["window_position"] = glfw.get_window_pos(main_window)
+        try:
+            session_settings["window_position"] = glfw.get_window_pos(main_window)
+        except glfw.GLFWError:
+            pass
+
         session_settings["version"] = str(g_pool.version)
 
         session_window_size = glfw.get_window_size(main_window)
@@ -906,7 +913,10 @@ def player_drop(
             default_position=window_position_default,
             previous_position=session_settings.get("window_position", None),
         )
-        glfw.set_window_pos(window, window_pos[0], window_pos[1])
+        try:
+            glfw.set_window_pos(window, window_pos[0], window_pos[1])
+        except glfw.GLFWError:
+            pass
 
         glfw.set_drop_callback(window, on_drop)
         glfw.set_mouse_button_callback(window, on_click)
@@ -1031,7 +1041,11 @@ def player_drop(
 
             glfw.poll_events()
 
-        session_settings["window_position"] = glfw.get_window_pos(window)
+        try:
+            session_settings["window_position"] = glfw.get_window_pos(window)
+        except glfw.GLFWError:
+            pass
+
         session_settings.close()
         glfw.destroy_window(window)
         if rec_dir:
