@@ -245,7 +245,10 @@ class EyeStateTimeline(Plugin):
         window_filter = (export_window_unix[0] <= all_ts) & (all_ts <= export_window_unix[1])
         windowed_ts = all_ts[window_filter]
 
-        data = self.g_pool.recording_api.eye_state.sample(windowed_ts)
+        if len(self.g_pool.recording_api.eye_state) == 0:
+            data = []
+        else:
+            data = self.g_pool.recording_api.eye_state.sample(windowed_ts)
 
         eye_state_exporter = EyeStateExporter()
         eye_state_exporter.csv_export_write(data, export_dir)
