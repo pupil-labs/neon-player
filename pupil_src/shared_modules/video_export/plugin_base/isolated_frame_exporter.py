@@ -104,7 +104,12 @@ def _convert_video_file(
     next_update_idx = export_from_index + update_rate
 
     try:
-        writer = MPEG_Writer(output_file, start_time)
+        writer = MPEG_Writer(
+            output_file,
+            start_time,
+            input_source.video_stream.video_stream.bit_rate
+        )
+
         while True:
             try:
                 input_frame = input_source.get_frame()
