@@ -54,7 +54,10 @@ from pyglui.pyfontstash import fontstash
 from scipy.spatial.distance import pdist
 from progress_reporter import ProgressReporter
 
-from pupil_labs.rec_export.export import _process_fixations
+from pupil_labs.rec_export.export import (
+    _process_gaze,
+    _process_fixations,
+)
 from pupil_labs.rec_export.explib.fixation_detector.optic_flow_correction import load_optic_flow_vectors
 from pupil_recording.info import recording_info_utils
 
@@ -114,10 +117,15 @@ def fixation_from_data(info, timestamps, world_start_time, frame_size):
 def detect_fixations(rec_dir, data_dir, timestamps, frame_size, queue):
     yield "Detecting fixations...", ()
 
-    with ProgressReporter(queue) as progress:
-        _process_fixations(Path(rec_dir).parent, Path(data_dir), progress)
+    export_path = Path(data_dir)
 
-    fixations_csv = Path(data_dir) / 'fixations.csv'
+    fixations_csv = export_path / 'fixations.csv'
+
+    if not fixations_csv.exists():
+        with ProgressReporter(queue) as progress:
+            _process_gaze(Path(rec_dir).parent, export_path)
+            _process_fixations(Path(rec_dir).parent, export_path, progress)
+
     info_json = recording_info_utils.read_neon_info_file(str(Path(rec_dir).parent))
     start_time_synced_ns = int(info_json["start_time"])
 
@@ -129,7 +137,8 @@ def detect_fixations(rec_dir, data_dir, timestamps, frame_size, queue):
 
     # cleanup Neon recording folder
     optic_flow_cache_file = Path(rec_dir).parent / "optic_flow_vectors.npz"
-    optic_flow_cache_file.replace(Path(data_dir) / "optic_flow_vectors.npz")
+    if optic_flow_cache_file.exists():
+        optic_flow_cache_file.replace(export_path / "optic_flow_vectors.npz")
 
     return "Fixation detection complete", ()
 
