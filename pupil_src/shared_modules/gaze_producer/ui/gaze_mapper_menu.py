@@ -94,15 +94,17 @@ class GazeMapperMenu(plugin_ui.StorageEditMenu):
         return manual_correction_submenu
 
     def _create_manual_correction_slider(self, axis, gaze_mapper):
-        return ui.Slider(
+        slider = ui.Slider(
             "manual_correction_" + axis,
             self,
             min=-0.5,
-            step=0.01,
+            step=0.001,
             max=0.5,
             label="Manual Correction " + axis.upper(),
             setter=lambda value,axis=axis:self._on_correction_changed(value, axis)
         )
+        slider.display_format = "%0.3f"
+        return slider
 
     def _on_correction_changed(self, value, axis):
         setattr(self, f'manual_correction_{axis}', value)
