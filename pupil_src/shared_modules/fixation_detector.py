@@ -454,7 +454,7 @@ class Fixations_and_Saccades(Observable, Plugin):
                 )
 
                 for frame_idx in range(f["start_frame_index"], frame.index):
-                    optic_flow_idx = frame_idx - 1
+                    optic_flow_idx = np.searchsorted(self.optic_flow_vectors.ts, self.g_pool.timestamps[frame_idx])
                     optic_frame_duration = self.optic_flow_vectors.ts[optic_flow_idx] - self.optic_flow_vectors.ts[optic_flow_idx-1]
                     optic_flow_offset[0] += self.optic_flow_vectors.x[optic_flow_idx] * optic_frame_duration
                     optic_flow_offset[1] += self.optic_flow_vectors.y[optic_flow_idx] * optic_frame_duration

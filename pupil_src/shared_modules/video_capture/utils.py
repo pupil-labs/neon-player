@@ -228,10 +228,10 @@ class Video:
         self.ts = self._fix_negative_time_jumps(self.ts)
 
     def ts_to_ns(self, ts):
-        idx = np.where(self.timestamps == ts)[0]
-        if len(idx) == 0:
+        if ts > self.timestamps[-1]:
             return None
 
+        idx = np.searchsorted(self.timestamps, ts)
         return self.ts_ns_lookup[1, idx].ravel()[0]
 
     def load_pts(self, container):

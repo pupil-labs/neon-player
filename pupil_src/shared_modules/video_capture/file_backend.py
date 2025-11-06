@@ -345,9 +345,10 @@ class File_Source(Playback_Source, Base_Source):
 
     def ts_to_ns(self, ts):
         for video in self.videoset.videos:
+            if ts > video.timestamps[-1]:
+                continue
             ns = video.ts_to_ns(ts)
-            if ns is not None:
-                return ns
+            return ns
 
     @property
     def initialised(self):
