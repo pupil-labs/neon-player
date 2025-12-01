@@ -62,6 +62,7 @@ def main():
         "glfw",
         "scipy._lib.array_api_compat.numpy.fft",
         "scipy.special._special_ufuncs",
+        "jaraco.text",
     ):
         datas, binaries, hiddenimports = collect_all(
             name, exclude_datas=["**/__pycache__"]
@@ -142,7 +143,6 @@ def main():
         blacklist_ext = {
             ".c",
             ".py",
-            ".txt",
             ".cpp",
             ".pxi",
             ".typed",
