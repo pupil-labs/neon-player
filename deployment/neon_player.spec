@@ -51,7 +51,6 @@ def main():
         "zmq",
         "pyre",
         "pyglui",
-        "ndsi",
         "pupil_apriltags",
         "pye3d",
         "OpenGL.GL",

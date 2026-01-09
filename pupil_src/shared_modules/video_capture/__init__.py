@@ -16,7 +16,6 @@ source provides the stream of image frames.
 
 These backends are available:
 - UVC: Local USB sources
-- NDSI: Remote Pupil Mobile sources
 - Fake: Fallback, static grid image
 - File: Loads video from file
 """
