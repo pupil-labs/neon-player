@@ -162,7 +162,14 @@ class Audio_Viz_Transform:
                 try:
                     audio_frames_rs = self.audio_resampler.resample(audio_frame)
                 except av.error.ValueError:
+                    logger.warning(
+                        "Encountered av.error.ValueError while resampling audio"
+                    )
                     continue
+                except av.error.EOFError:
+                    logger.warning("Encountered av.error.EOFError while resampling audio")
+                    break
+
                 if not audio_frames_rs:
                     continue
                 samples = np.concatenate(
