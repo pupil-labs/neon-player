@@ -29,15 +29,23 @@ To run the source code, you will need Python 3.7 or newer! We target Python 3.11
 Note: It is recommended to install the requirements into a
 [virtual environment](https://docs.python.org/3/tutorial/venv.html).
 
-Note: On arm64 macs (e.g. M1 MacBook Air), use the `python3.*-intel64` binary to create
-the virtual environment. We do not yet provide arm64-native wheels for the Pupil Core
-dependencies.
+If you are on MacOS, then you will want to use Homebrew to install the following packages first (and then configure your environment appropriately):
+
+```sh
+brew install glew libusb-compat eigen opencv ffmpeg@5
+export LDFLAGS="-L/opt/homebrew/opt/ffmpeg@5/lib:$LDFLAGS"
+export CPPFLAGS="-I/opt/homebrew/opt/ffmpeg@5/include:$CPPFLAGS"
+export PKG_CONFIG_PATH="/opt/homebrew/opt/ffmpeg@5/lib/pkgconfig:$PKG_CONFIG_PATH"
+```
+
+Then, you can proceed with the following commands on all systems:
 
 ```sh
 git clone https://github.com/pupil-labs/neon-player.git
 cd neon-player
 python -m pip install -r requirements.txt
 ```
+
 If you have trouble installing any of the dependencies, please see the corresponding
 code repository for manual installation steps and troubleshooting.
 
