@@ -50,7 +50,9 @@ uv run -m nuitka src/pupil_labs/neon_player \
     --include-package=google.protobuf \
     --include-module=ctypes.util \
     --include-module=cmath \
-    --include-module=zoneinfo
+    --include-module=zoneinfo \
+    --include-module=av.sidedata.encparams \
+    --include-module=pandas._libs._cyutility
 
 cp -r deployment/* dist/
 cd dist
