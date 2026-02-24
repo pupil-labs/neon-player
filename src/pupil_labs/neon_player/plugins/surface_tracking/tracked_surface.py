@@ -404,6 +404,28 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def preview_options(self, value: SurfaceViewDisplayOptions) -> None:
         self._preview_options = value
 
+    def map_points_by_time(self, points, timestamps):
+        mapped_points = []
+        surface_locations = self.tracker_plugin.surface_locations[self.uid]
+
+        points = np.array(points)
+        timestamps = np.array(timestamps)
+
+        for point, timestamp in zip(points, timestamps):
+            scene_idx = self.tracker_plugin.get_scene_idx_for_time(timestamp)
+            if 0 <= scene_idx < len(surface_locations):
+                location = surface_locations[scene_idx]
+                if location is not None:
+                    mapped_point = perspective_transform(
+                        point.reshape(1, 2), location[0]
+                    )[0]
+                    mapped_points.append(mapped_point)
+                    continue
+
+            mapped_points.append((np.nan, np.nan))
+
+        return np.array(mapped_points)
+
     def image_points_to_surface(self, points):
         if len(points) == 0:
             return np.array([]).reshape(-1, 2)
@@ -422,7 +444,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             gaze_plugin.offset_x * gaze_plugin.recording.scene.width,
             gaze_plugin.offset_y * gaze_plugin.recording.scene.height,
         ])
-        return self.image_points_to_surface(offset_gazes)
+
+        return self.map_points_by_time(offset_gazes, gazes.time)
 
     def export_gazes(self, gazes, destination: Path = Path()):
         mapped_gazes = self.apply_offset_and_map_gazes(gazes)
@@ -438,6 +461,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             "gaze position on surface y [normalized]": mapped_gazes[:, 1],
         })
 
+        gazes = gazes.dropna(subset=["gaze position on surface x [normalized]", "gaze position on surface y [normalized]"])
+
         gazes.to_csv(
             destination / f"gaze_positions_on_surface_{self.name}.csv", index=False
         )
@@ -449,7 +474,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
     def export_fixations(self, gazes, destination: Path = Path()):
         try:
-            gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
             fixations_plugin = Plugin.get_instance_by_name("FixationsPlugin")
         except KeyError:
             logging.warning(
@@ -461,23 +485,20 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         fixation_data["fixation detected on surface"] = 0
 
         fixation_points = fixation_data[["fixation x [px]", "fixation y [px]"]]
-        mapped_fixation_points = self.image_points_to_surface(fixation_points)
+        mapped_fixation_points = self.map_points_by_time(
+            fixation_points, fixation_data["start timestamp [ns]"]
+        )
 
         fixation_data["fixation x [normalized]"] = mapped_fixation_points[:, 0]
         fixation_data["fixation y [normalized]"] = mapped_fixation_points[:, 1]
 
-        gaze_offset = np.array([
-            gaze_plugin.offset_x * gaze_plugin.recording.scene.width,
-            gaze_plugin.offset_y * gaze_plugin.recording.scene.height,
-        ])
-
         fixations_on_surfs = []
-        for fixation in fixation_data.iterrows():
+        for idx, fixation in enumerate(fixation_data.iterrows()):
             start_mask = gazes.time >= fixation[1]["start timestamp [ns]"]
             end_mask = gazes.time <= fixation[1]["end timestamp [ns]"]
             fixation_gazes = gazes[start_mask & end_mask]
-            offset_gazes = fixation_gazes.point + gaze_offset
-            mapped_gazes = self.image_points_to_surface(offset_gazes)
+
+            mapped_gazes = self.apply_offset_and_map_gazes(fixation_gazes)
 
             lower_pass = np.all(mapped_gazes >= 0, axis=1)
             upper_pass = np.all(mapped_gazes <= 1.0, axis=1)

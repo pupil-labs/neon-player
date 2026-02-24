@@ -832,20 +832,45 @@ class SurfaceTrackingPlugin(Plugin):
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
+
+        for surface in self._surfaces:
+            self.job_manager.run_background_action(
+                f"{surface.name} Gazes Export",
+                "SurfaceTrackingPlugin.bg_export_surface_gazes",
+                surface.uid,
+                destination,
+            )
+
+            self.job_manager.run_background_action(
+                f"{surface.name} Fixations Export",
+                "SurfaceTrackingPlugin.bg_export_surface_fixations",
+                surface.uid,
+                destination,
+            )
+
+    def _get_gazes_in_export_window(self):
         start_time, stop_time = neon_player.instance().recording_settings.export_window
         start_mask = self.recording.gaze.time >= start_time
         stop_mask = self.recording.gaze.time <= stop_time
 
-        gazes_in_window = self.recording.gaze[start_mask & stop_mask]
+        return self.recording.gaze[start_mask & stop_mask]
 
-        for surface in self._surfaces:
-            surface.export_gazes(gazes_in_window, destination)
-            try:
-                surface.export_fixations(gazes_in_window, destination)
-            except Exception:
-                logging.warning(
-                    "Failed to export surface fixations. Is fixation plugin enabled?"
-                )
+    def bg_export_surface_gazes(self, surface_uid: str, destination: Path):
+        gazes_in_window = self._get_gazes_in_export_window()
+        surface = self.get_surface(surface_uid)
+        surface.export_gazes(gazes_in_window, destination)
+        yield ProgressUpdate(1.0)
+
+    def bg_export_surface_fixations(self, surface_uid: str, destination: Path):
+        try:
+            gazes_in_window = self._get_gazes_in_export_window()
+            surface = self.get_surface(surface_uid)
+            surface.export_fixations(gazes_in_window, destination)
+            yield ProgressUpdate(1.0)
+        except Exception:
+            logging.exception(
+                "Failed to export surface fixations. Is fixation plugin enabled?"
+            )
 
 
 def insert_interpolated_points(points: npt.NDArray, n_between: int = 10) -> npt.NDArray:
