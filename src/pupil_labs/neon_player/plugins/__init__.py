@@ -133,10 +133,15 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
         gray_frame = t < self.recording.scene.time[0]
         if not gray_frame:
-            scene_frame = self.recording.scene.sample([t], method="backward")[0]
-            gray_frame = abs(t - scene_frame.time) / 1e9 > 1 / 15
+            # Find time value without decoding video
+            closest_idx = self.get_scene_idx_for_time(t, method="backward")
+            if closest_idx >= 0:
+                closest_time = self.recording.scene.time[closest_idx]
+                gray_frame = abs(t - closest_time) / 1e9 > 1 / 15
+            else:
+                gray_frame = True
 
-        return gray_frame
+        return bool(gray_frame)
 
     @property
     @property_params(widget=None, dont_encode=True)
