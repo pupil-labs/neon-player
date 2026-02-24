@@ -98,6 +98,7 @@ class SurfaceHandle(QWidget):
         painter.setPen(pen)
         painter.setBrush("#fff")
         painter.drawEllipse(3, 3, self.width() - 4, self.height() - 4)
+        painter.end()
 
     def mouseMoveEvent(self, event: QMouseEvent):
         if event.buttons() & Qt.MouseButton.LeftButton:
@@ -155,6 +156,7 @@ class SurfaceViewWidget(VideoRenderWidget):
         painter.fillRect(0, 0, self.width(), self.height(), Qt.GlobalColor.black)
         self.transform_painter(painter)
         self.surface.render(painter, neon_player.instance().current_ts)
+        painter.end()
 
 
 class SurfaceViewWindow(QSplitter):

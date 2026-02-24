@@ -103,6 +103,8 @@ class ScalingWidget(QOpenGLWidget):
 
             self._last_frame_time = now
 
+        painter.end()
+
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         self.adjust_size()
@@ -183,3 +185,4 @@ class VideoRenderWidget(ScalingWidget):
         self.transform_painter(painter)
 
         neon_player.instance().render_to(painter)
+        painter.end()

@@ -30,7 +30,7 @@ dependencies = [
     "pupil-labs-neon-recording>=2.0.0",
     "pyobjc; sys_platform == 'darwin'",
     "pyqtgraph>=0.13.7",
-    "pyside6>=6.9.0",
+    "pyside6>=6.10.2",
     "qt-property-widgets",
     "scipy>=1.15.2",
     "setuptools>=78.1.0",

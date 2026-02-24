@@ -349,6 +349,8 @@ class PlayHead(PlotOverlay):
         else:
             painter.fillRect(QRect(x - 1, 0, 3, self.height()), self.color)
 
+        painter.end()
+
 
 class TrimEndMarker(QGraphicsEllipseItem):
     def __init__(self, time, plot: pg.PlotItem, *args, **kwargs) -> None:
