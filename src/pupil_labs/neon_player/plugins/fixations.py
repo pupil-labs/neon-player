@@ -6,6 +6,8 @@ import cv2
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.neon_recording.timeseries import FixationTimeseries
 from PySide6.QtCore import QKeyCombination, QObject, QPointF, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter
 from qt_property_widgets.utilities import (
@@ -24,8 +26,6 @@ from pupil_labs.neon_player.utilities import (
     get_scene_intrinsics,
     unproject_points,
 )
-from pupil_labs.neon_recording import NeonRecording
-from pupil_labs.neon_recording.timeseries import FixationTimeseries
 
 
 class FixationsPlugin(neon_player.Plugin):
@@ -107,7 +107,11 @@ class FixationsPlugin(neon_player.Plugin):
 
         scene_idx = self.get_scene_idx_for_time(time_in_recording)
 
-        offset = np.array([0, 0]) if self.optic_flow_offsets is None else self.optic_flow_offsets[scene_idx]
+        offset = (
+            np.array([0, 0])
+            if self.optic_flow_offsets is None
+            else self.optic_flow_offsets[scene_idx]
+        )
 
         for viz in self._visualizations:
             viz.render(
@@ -235,9 +239,10 @@ class FixationsPlugin(neon_player.Plugin):
         offsets_by_frame_idx = {}
         gaze = recording.gaze
 
-        fidx = 0
-        for fixation in recording.fixations:
-            fidx += 1
+        ALPHA = 0.4  # How much to trust curr position
+        BETA = 0.1  # How much to trust current velocity
+
+        for fidx, fixation in enumerate(recording.fixations):
             gaze_samples = gaze[
                 (fixation.start_time <= gaze.time) & (gaze.time <= fixation.stop_time)
             ]
@@ -265,53 +270,73 @@ class FixationsPlugin(neon_player.Plugin):
             if ref_scene_img is None:
                 continue
 
-            # First work backwards for the first half of gaze points
-            point = ref_gaze.point
-            scene_image = ref_scene_img.copy()
-            for next_scene_frame in reversed(scene_frames[:idx]):
-                next_scene_img = next_scene_frame.gray
-                next_point = calc_optic_flow(
-                    scene_image,
-                    next_scene_img,
-                    point,
-                )
-                offsets_by_frame_idx[next_scene_frame.index] = ref_gaze.point - next_point
+            def track_and_smooth(
+                frame_sequence, start_point, start_img, direction_name
+            ):
+                current_point = start_point
+                current_img = start_img
 
-                point = next_point
-                scene_image = next_scene_img
+                est_pos = np.array([0.0, 0.0])
+                est_vel = np.array([0.0, 0.0])
 
-            # Now work forwards for the second half of gaze points
-            point = ref_gaze.point
-            scene_image = ref_scene_img.copy()
-            for next_scene_frame in scene_frames[idx + 1:]:
-                next_scene_img = next_scene_frame.gray
-                next_point = calc_optic_flow(
-                    scene_image,
-                    next_scene_img,
-                    point,
-                )
-                offsets_by_frame_idx[next_scene_frame.index] = point - next_point
+                MAX_ERR = 30.0
 
-                point = next_point
-                scene_image = next_scene_img
+                for frame in frame_sequence:
+                    next_img = frame.gray
+                    if next_img is None:
+                        break
 
-            yield ProgressUpdate(next_scene_frame.index / len(recording.scene))
+                    next_point, status, err = calc_optic_flow(
+                        current_img, next_img, current_point
+                    )
 
-        offsets_by_frame_idx_arr = []
-        for frame_idx in range(len(recording.scene)):
-            if frame_idx in offsets_by_frame_idx:
-                offsets_by_frame_idx_arr.append(offsets_by_frame_idx[frame_idx])
-            else:
-                offsets_by_frame_idx_arr.append(np.array([0, 0]))
+                    is_tracked = status[0][0] if status is not None else 0
+                    tracking_err = err[0][0] if err is not None else MAX_ERR
+
+                    if is_tracked:
+                        confidence = np.clip(1.0 - (tracking_err / MAX_ERR), 0.0, 1.0)
+                    else:
+                        confidence = 0.0
+
+                    dyn_alpha = ALPHA * confidence
+                    dyn_beta = BETA * confidence
+
+                    raw_offset = ref_gaze.point - next_point
+                    est_pos = est_pos + est_vel
+
+                    residual = raw_offset - est_pos
+                    est_pos = est_pos + dyn_alpha * residual
+                    est_vel = est_vel + dyn_beta * residual
+
+                    offsets_by_frame_idx[frame.index] = est_pos
+
+                    current_point = next_point
+                    current_img = next_img
+
+            track_and_smooth(
+                reversed(scene_frames[:idx]),
+                ref_gaze.point,
+                ref_scene_img,
+                "backward",
+            )
+            track_and_smooth(
+                scene_frames[idx + 1 :], ref_gaze.point, ref_scene_img, "forward"
+            )
+
+            yield ProgressUpdate(fidx / len(recording.fixations))
+
+        num_frames = len(recording.scene)
+
+        offsets_by_frame_idx_arr = np.zeros((num_frames, 2))
+
+        for frame_idx, offset in offsets_by_frame_idx.items():
+            offsets_by_frame_idx_arr[frame_idx] = offset
 
         save_file = self.get_cache_path() / "optic_flow_offsets.npz"
         logging.info(f"Saving optic flow offsets to {save_file}")
         save_file.parent.mkdir(parents=True, exist_ok=True)
         with save_file.open("wb") as file_handle:
-            np.savez(
-                file_handle,
-                offsets=offsets_by_frame_idx_arr
-            )
+            np.savez(file_handle, offsets=offsets_by_frame_idx_arr)
 
         yield ProgressUpdate(1.0)
 
@@ -401,9 +426,7 @@ class FixationCircleViz(FixationVisualization):
             if self.recording.scene.height:
                 offset[1] = gaze_offset[1] * self.recording.scene.height
 
-        for fixation_id, fixation in zip(
-            fixation_ids, fixations, strict=True
-        ):
+        for fixation_id, fixation in zip(fixation_ids, fixations, strict=True):
             if self._adjust_for_optic_flow:
                 center = QPointF(
                     fixation.mean_gaze_point[0] + offset[0] - optic_flow_offset[0],
@@ -466,7 +489,7 @@ def calc_optic_flow(
         0.03,
     ),
     lk_min_eig_threshold: float = 0.005,
-) -> tuple[np.ndarray, np.ndarray, int]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
     # define parameters for Lucas-Kanade algorithm
     lk_params = {
@@ -480,7 +503,7 @@ def calc_optic_flow(
     corrected_points, status, err = cv2.calcOpticalFlowPyrLK(  # type: ignore
         previous_frame, current_frame, points.reshape([-1, 1, 2]), None, **lk_params
     )
-    return corrected_points.reshape(points.shape)
+    return corrected_points.reshape(points.shape), status, err
 
 
 class OpticFlow(T.NamedTuple):
