@@ -37,7 +37,7 @@ class FixationsPlugin(neon_player.Plugin):
         self._visualizations: list[FixationVisualization] = [FixationCircleViz()]
 
         self.gaze_plugin: GazeDataPlugin | None = None
-        self.optic_flow_offsets: np.ndarray | None = None
+        self.flow_dict: dict[int, dict[int, np.ndarray]] = {}
         self.header_action = ListPropertyAppenderAction("visualizations", "+ Add viz")
 
     def seek_by_fixation(self, direction: int) -> None:
@@ -60,7 +60,7 @@ class FixationsPlugin(neon_player.Plugin):
             return
 
         self._load_optic_flow()
-        if self.optic_flow_offsets is None and not self.app.headless:
+        if not self.flow_dict and not self.app.headless:
             job = self.job_manager.run_background_action(
                 "Calculate optic flow", "FixationsPlugin.bg_optic_flow"
             )
@@ -89,37 +89,62 @@ class FixationsPlugin(neon_player.Plugin):
 
         optic_flow_file = self.get_cache_path() / "optic_flow_offsets.npz"
         if optic_flow_file.exists():
-            self.optic_flow_offsets = np.load(optic_flow_file)["offsets"]
+            data = np.load(optic_flow_file)
+            self.flow_dict = {}
+
+            if "flow_data" in data:
+                flow_array = data["flow_data"]
+                for row in flow_array:
+                    fidx, frame_idx = int(row[0]), int(row[1])
+                    if frame_idx not in self.flow_dict:
+                        self.flow_dict[frame_idx] = {}
+                    self.flow_dict[frame_idx][fidx] = np.array([row[2], row[3]])
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
-        if self.recording is None:
-            return
-
-        if not hasattr(self, "fixations"):
+        if self.recording is None or not hasattr(self, "fixations"):
             return
 
         after_mask = self.fixations.start_time <= time_in_recording
         before_mask = self.fixations.stop_time > time_in_recording
+        active_mask = after_mask & before_mask
 
-        filter_mask = after_mask & before_mask
-        fixations = self.fixations[filter_mask]
-        fixation_ids = 1 + np.where(filter_mask)[0]
+        plot_history = any(
+            getattr(viz, "plot_history", False) for viz in self._visualizations
+        )
+
+        if plot_history:
+            past_mask = (self.fixations.stop_time <= time_in_recording) & (
+                self.fixations.stop_time >= time_in_recording - 60_000_000_000
+            )
+            past_idx = np.where(past_mask)[0]
+
+            # Keep only the latest 7 past fixations
+            if len(past_idx) > 7:
+                past_idx = past_idx[-7:]
+
+            active_idx = np.where(active_mask)[0]
+            render_idx = np.concatenate((past_idx, active_idx))
+            render_idx = np.sort(render_idx)
+        else:
+            render_idx = np.where(active_mask)[0]
+
+        if len(render_idx) == 0:
+            return
+
+        fixations = self.fixations[render_idx]
+        fixation_ids = render_idx + 1
 
         scene_idx = self.get_scene_idx_for_time(time_in_recording)
-
-        offset = (
-            np.array([0, 0])
-            if self.optic_flow_offsets is None
-            else self.optic_flow_offsets[scene_idx]
-        )
+        frame_offsets = self.flow_dict.get(scene_idx, {})
 
         for viz in self._visualizations:
             viz.render(
                 painter,
                 fixations,
                 fixation_ids,
-                offset,
+                frame_offsets,
                 self.get_gaze_offset(),
+                time_in_recording,
             )
 
     def get_gaze_offset(self) -> tuple[float, float]:
@@ -235,24 +260,30 @@ class FixationsPlugin(neon_player.Plugin):
 
     def bg_optic_flow(self) -> T.Generator[ProgressUpdate, None, None]:
         recording = self.app.recording
-
-        offsets_by_frame_idx = {}
         gaze = recording.gaze
+        width = recording.scene.width
+        height = recording.scene.height
 
-        ALPHA = 0.4  # How much to trust curr position
-        BETA = 0.1  # How much to trust current velocity
+        ALPHA = 0.4  # Trust curr position
+        BETA = 0.1  # Trust current velocity
+        MAX_ERR = 30.0
+
+        flow_records = []
 
         for fidx, fixation in enumerate(recording.fixations):
             gaze_samples = gaze[
                 (fixation.start_time <= gaze.time) & (gaze.time <= fixation.stop_time)
             ]
 
-            # Pick the gaze at the temporal center of the fixation as the reference
             ref_gaze = gaze_samples[len(gaze_samples) // 2]
 
-            # Now calculate how that reference points moves throughout the fixation
+            if fidx + 6 < len(recording.fixations):
+                track_end_time = recording.fixations[fidx + 6].stop_time
+            else:
+                track_end_time = fixation.stop_time + (5 * 1_000_000_000)
+
             start_scene_idx, stop_scene_idx = np.searchsorted(
-                recording.scene.time, [fixation.start_time, fixation.stop_time]
+                recording.scene.time, [fixation.start_time, track_end_time]
             )
             scene_frames = recording.scene[start_scene_idx:stop_scene_idx]
 
@@ -270,16 +301,13 @@ class FixationsPlugin(neon_player.Plugin):
             if ref_scene_img is None:
                 continue
 
-            def track_and_smooth(
-                frame_sequence, start_point, start_img, direction_name
-            ):
+            def track_and_smooth(frame_sequence, start_point, start_img):
                 current_point = start_point
                 current_img = start_img
 
                 est_pos = np.array([0.0, 0.0])
                 est_vel = np.array([0.0, 0.0])
-
-                MAX_ERR = 30.0
+                lost_frames = 0  # Counter for Optimization 2
 
                 for frame in frame_sequence:
                     next_img = frame.gray
@@ -290,6 +318,9 @@ class FixationsPlugin(neon_player.Plugin):
                         current_img, next_img, current_point
                     )
 
+                    if not (0 <= next_point[0] < width and 0 <= next_point[1] < height):
+                        break
+
                     is_tracked = status[0][0] if status is not None else 0
                     tracking_err = err[0][0] if err is not None else MAX_ERR
 
@@ -297,6 +328,14 @@ class FixationsPlugin(neon_player.Plugin):
                         confidence = np.clip(1.0 - (tracking_err / MAX_ERR), 0.0, 1.0)
                     else:
                         confidence = 0.0
+
+                    if confidence < 0.1:
+                        lost_frames += 1
+                    else:
+                        lost_frames = 0
+
+                    if lost_frames > 5:
+                        break
 
                     dyn_alpha = ALPHA * confidence
                     dyn_beta = BETA * confidence
@@ -308,35 +347,39 @@ class FixationsPlugin(neon_player.Plugin):
                     est_pos = est_pos + dyn_alpha * residual
                     est_vel = est_vel + dyn_beta * residual
 
-                    offsets_by_frame_idx[frame.index] = est_pos
+                    flow_records.append({
+                        "fidx": fidx,
+                        "frame_idx": frame.index,
+                        "offset_x": est_pos[0],
+                        "offset_y": est_pos[1],
+                    })
 
                     current_point = next_point
                     current_img = next_img
 
+            # Process backward to the start of the fixation
             track_and_smooth(
-                reversed(scene_frames[:idx]),
-                ref_gaze.point,
-                ref_scene_img,
-                "backward",
+                reversed(scene_frames[:idx]), ref_gaze.point, ref_scene_img
             )
-            track_and_smooth(
-                scene_frames[idx + 1 :], ref_gaze.point, ref_scene_img, "forward"
-            )
+            # Process forward through the fixation and up to the smart limit
+            track_and_smooth(scene_frames[idx + 1 :], ref_gaze.point, ref_scene_img)
 
             yield ProgressUpdate(fidx / len(recording.fixations))
 
-        num_frames = len(recording.scene)
-
-        offsets_by_frame_idx_arr = np.zeros((num_frames, 2))
-
-        for frame_idx, offset in offsets_by_frame_idx.items():
-            offsets_by_frame_idx_arr[frame_idx] = offset
+        if len(flow_records) > 0:
+            flow_array = np.array([
+                [r["fidx"], r["frame_idx"], r["offset_x"], r["offset_y"]]
+                for r in flow_records
+            ])
+        else:
+            flow_array = np.zeros((0, 4))
 
         save_file = self.get_cache_path() / "optic_flow_offsets.npz"
         logging.info(f"Saving optic flow offsets to {save_file}")
         save_file.parent.mkdir(parents=True, exist_ok=True)
+
         with save_file.open("wb") as file_handle:
-            np.savez(file_handle, offsets=offsets_by_frame_idx_arr)
+            np.savez(file_handle, flow_data=flow_array)
 
         yield ProgressUpdate(1.0)
 
@@ -350,6 +393,7 @@ class FixationVisualization(PersistentPropertiesMixin, QObject):
         super().__init__()
         self._use_offset = True
         self._adjust_for_optic_flow = True
+        self._plot_history = False
         self.recording: NeonRecording | None = None
 
     def render(
@@ -357,8 +401,9 @@ class FixationVisualization(PersistentPropertiesMixin, QObject):
         painter: QPainter,
         fixations: FixationTimeseries,
         fixation_ids: np.ndarray,
-        optic_flow_offsets: np.ndarray,
+        frame_offsets: dict[int, np.ndarray],
         gaze_offset: tuple[float, float],
+        time_in_recording: int,
     ) -> None:
         raise NotImplementedError("Subclasses must implement this method")
 
@@ -387,6 +432,14 @@ class FixationVisualization(PersistentPropertiesMixin, QObject):
     def adjust_for_optic_flow(self, value: bool) -> None:
         self._adjust_for_optic_flow = value
 
+    @property
+    def plot_history(self) -> bool:
+        return self._plot_history
+
+    @plot_history.setter
+    def plot_history(self, value: bool) -> None:
+        self._plot_history = value
+
 
 class FixationCircleViz(FixationVisualization):
     label = "Circle"
@@ -394,8 +447,10 @@ class FixationCircleViz(FixationVisualization):
     def __init__(self) -> None:
         super().__init__()
         self._color = QColor(255, 255, 0, 196)
-        self._base_radius = 50
-        self._stroke_width = 5
+        self._history_color = QColor(18, 99, 204, 192)
+        self._line_color = QColor(144, 164, 174, 128)
+        self._base_radius = 24
+        self._stroke_width = 4
         self._font_size = 20
 
     def render(
@@ -403,15 +458,15 @@ class FixationCircleViz(FixationVisualization):
         painter: QPainter,
         fixations: FixationTimeseries,
         fixation_ids: np.ndarray,
-        optic_flow_offset: np.ndarray,
+        frame_offsets: dict[int, np.ndarray],
         gaze_offset: tuple[float, float],
+        time_in_recording: int,
     ) -> None:
         if self.recording is None:
             return
 
         pen = painter.pen()
         pen.setWidth(self._stroke_width)
-        pen.setColor(self._color)
         painter.setPen(pen)
 
         font = painter.font()
@@ -426,19 +481,52 @@ class FixationCircleViz(FixationVisualization):
             if self.recording.scene.height:
                 offset[1] = gaze_offset[1] * self.recording.scene.height
 
-        for fixation_id, fixation in zip(fixation_ids, fixations, strict=True):
-            if self._adjust_for_optic_flow:
-                center = QPointF(
-                    fixation.mean_gaze_point[0] + offset[0] - optic_flow_offset[0],
-                    fixation.mean_gaze_point[1] + offset[1] - optic_flow_offset[1],
-                )
-            else:
-                center = QPointF(
-                    fixation.mean_gaze_point[0] + offset[0],
-                    fixation.mean_gaze_point[1] + offset[1],
-                )
+        width = self.recording.scene.width
+        height = self.recording.scene.height
+        previous_center = None
 
-            painter.drawEllipse(center, self._base_radius, self._base_radius)
+        for fixation_id, fixation in zip(fixation_ids, fixations):
+            internal_fidx = fixation_id - 1
+
+            if self._adjust_for_optic_flow:
+                # If history points fell out of the tracking array or FOV, skip drawing
+                if internal_fidx not in frame_offsets:
+                    continue
+
+                of_x, of_y = frame_offsets[internal_fidx]
+                cx = fixation.mean_gaze_point[0] + offset[0] - of_x
+                cy = fixation.mean_gaze_point[1] + offset[1] - of_y
+            else:
+                cx = fixation.mean_gaze_point[0] + offset[0]
+                cy = fixation.mean_gaze_point[1] + offset[1]
+
+            center = QPointF(cx, cy)
+
+            # Draw chronologically connecting lines
+            if self._plot_history and previous_center is not None:
+                line_pen = painter.pen()
+                line_pen.setColor(self._line_color)
+                painter.setPen(line_pen)
+                painter.drawLine(previous_center, center)
+
+            previous_center = center
+
+            if not (0 <= cx <= width and 0 <= cy <= height):
+                continue
+
+            is_active = (fixation.start_time <= time_in_recording) and (
+                fixation.stop_time > time_in_recording
+            )
+            circle_color = self._color if is_active else self._history_color
+
+            circle_pen = painter.pen()
+            circle_pen.setColor(circle_color)
+            painter.setPen(circle_pen)
+
+            dur_ms = (fixation.stop_time - fixation.start_time) / 1e6
+            radius = max(5.0, self._base_radius * (dur_ms / 250.0))
+
+            painter.drawEllipse(center, radius, radius)
             painter.drawText(center, str(fixation_id))
 
     @property
@@ -448,6 +536,22 @@ class FixationCircleViz(FixationVisualization):
     @color.setter
     def color(self, value: QColor) -> None:
         self._color = value
+
+    @property
+    def history_color(self) -> QColor:
+        return self._history_color
+
+    @history_color.setter
+    def history_color(self, value: QColor) -> None:
+        self._history_color = value
+
+    @property
+    def line_color(self) -> QColor:
+        return self._line_color
+
+    @line_color.setter
+    def line_color(self, value: QColor) -> None:
+        self._line_color = value
 
     @property
     @property_params(min=1, max=999)
@@ -491,7 +595,6 @@ def calc_optic_flow(
     lk_min_eig_threshold: float = 0.005,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
-    # define parameters for Lucas-Kanade algorithm
     lk_params = {
         "winSize": lk_winSize,
         "maxLevel": lk_maxLevel,
@@ -499,7 +602,6 @@ def calc_optic_flow(
         "minEigThreshold": lk_min_eig_threshold,
     }
 
-    # trace points using the Lucas-Kanade algorithm
     corrected_points, status, err = cv2.calcOpticalFlowPyrLK(  # type: ignore
         previous_frame, current_frame, points.reshape([-1, 1, 2]), None, **lk_params
     )
