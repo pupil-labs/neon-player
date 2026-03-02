@@ -290,7 +290,7 @@ class FixationsPlugin(neon_player.Plugin):
                     next_scene_img,
                     point,
                 )
-                offsets_by_frame_idx[next_scene_frame.index] = point - next_point
+                offsets_by_frame_idx[next_scene_frame.index] = ref_gaze.point - next_point
 
                 point = next_point
                 scene_image = next_scene_img
