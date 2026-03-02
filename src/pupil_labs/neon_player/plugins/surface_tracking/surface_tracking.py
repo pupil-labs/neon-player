@@ -824,7 +824,7 @@ class SurfaceTrackingPlugin(Plugin):
                     frame_pixels = ndarray_from_qimage(frame)
                     av_frame = av.VideoFrame.from_ndarray(frame_pixels, format="bgr24")
 
-                    plv_frame = plv.VideoFrame(av_frame, rel_ts, output_idx, "")
+                    plv_frame = plv.VideoFrame(av_frame=av_frame, index=output_idx, time=rel_ts, source="")
                     writer.write_frame(plv_frame)
 
                 yield ProgressUpdate((output_idx + 1) / len(scene_frames))

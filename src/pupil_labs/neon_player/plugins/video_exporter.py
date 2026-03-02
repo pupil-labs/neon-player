@@ -127,7 +127,7 @@ class VideoExporter(neon_player.Plugin):
                 frame_pixels = ndarray_from_qimage(frame)
                 av_frame = av.VideoFrame.from_ndarray(frame_pixels, format="bgr24")
 
-                plv_frame = plv.VideoFrame(av_frame, rel_ts, frame_idx, "")
+                plv_frame = plv.VideoFrame(av_frame=av_frame, index=frame_idx, time=rel_ts, source="")
                 writer.write_frame(plv_frame)
 
                 progress = (frame_idx + 1) / len(combined_timestamps)
