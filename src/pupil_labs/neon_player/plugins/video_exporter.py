@@ -97,7 +97,10 @@ class VideoExporter(neon_player.Plugin):
 
                 audio_rel_ts = (audio_frame.time - start_time) / 1e9
                 plv_audio_frame = plv.AudioFrame(
-                    audio_frame.av_frame, audio_rel_ts, audio_frame_idx, ""
+                    audio_frame.av_frame,
+                    index=audio_frame_idx,
+                    time=audio_rel_ts,
+                    source=""
                 )
                 writer.write_frame(plv_audio_frame)
                 try:
