@@ -171,7 +171,7 @@ class SurfaceTrackingPlugin(Plugin):
 
             locations = self.surface_locations[surface.uid]
             location = locations[frame_idx]
-            if not location:
+            if location is None:
                 continue
 
             if surface.tracker_surface is None:
@@ -235,7 +235,7 @@ class SurfaceTrackingPlugin(Plugin):
                     pass
 
             if anchors is None:
-                if not surface.location:
+                if surface.location is None:
                     return
                 anchors = perspective_transform(
                     normalized_corners(),
@@ -396,9 +396,12 @@ class SurfaceTrackingPlugin(Plugin):
         locations_path = self.get_cache_path() / f"{surface_uid}_locations.npy"
         if locations_path.exists():
             data = np.load(locations_path, allow_pickle=True)
-            self.surface_locations[surface_uid] = data
+            self.surface_locations[surface_uid] = [
+                tuple(np.array(v, dtype=np.float64) for v in frame_location)
+                for frame_location in data
+            ]
 
-            surface2image = data[surface.defining_frame_index][1]
+            surface2image = self.surface_locations[surface_uid][surface.defining_frame_index][1]
 
             # set surface size
             image = utils.crop_image(
@@ -485,7 +488,7 @@ class SurfaceTrackingPlugin(Plugin):
 
         for idx, frame in enumerate(scene_frames):
             location = self.surface_locations[surface_uid][frame.index]
-            if not location:
+            if location is None:
                 continue
 
             surface.location = location
