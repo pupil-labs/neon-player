@@ -34,7 +34,7 @@ class FixationsPlugin(neon_player.Plugin):
     def __init__(self) -> None:
         super().__init__()
 
-        self._visualizations: list[FixationVisualization] = [FixationCircleViz()]
+        self._visualizations: list[FixationVisualization] = [ScanpathViz(), FixationCircleViz()]
 
         self.gaze_plugin: GazeDataPlugin | None = None
         self.flow_dict: dict[int, dict[int, np.ndarray]] = {}
@@ -513,7 +513,7 @@ class ScanpathViz(FixationVisualization):
         super().__init__()
         self._plot_line = True
         self._current_fixation_color = QColor(18, 99, 204, 191)
-        self._history_color = QColor(18, 99, 204, 191)
+        self._circle_color = QColor(18, 99, 204, 191)
         self._line_color = QColor(144, 164, 174, 128)
         self._base_radius = 10
         self._stroke_width = 5
@@ -578,15 +578,8 @@ class ScanpathViz(FixationVisualization):
             if not (0 <= cx <= width and 0 <= cy <= height):
                 continue
 
-            is_active = (fixation.start_time <= time_in_recording) and (
-                fixation.stop_time > time_in_recording
-            )
-            circle_color = (
-                self._current_fixation_color if is_active else self._history_color
-            )
-
             circle_pen = painter.pen()
-            circle_pen.setColor(circle_color)
+            circle_pen.setColor(self._circle_color)
             painter.setPen(circle_pen)
 
             dur_ms = (fixation.stop_time - fixation.start_time) / 1e6
@@ -606,20 +599,12 @@ class ScanpathViz(FixationVisualization):
         self._plot_line = value
 
     @property
-    def current_fixation_color(self) -> QColor:
-        return self._current_fixation_color
+    def circle_color(self) -> QColor:
+        return self._circle_color
 
-    @current_fixation_color.setter
-    def current_fixation_color(self, value: QColor) -> None:
-        self._current_fixation_color = value
-
-    @property
-    def history_color(self) -> QColor:
-        return self._history_color
-
-    @history_color.setter
-    def history_color(self, value: QColor) -> None:
-        self._history_color = value
+    @circle_color.setter
+    def circle_color(self, value: QColor) -> None:
+        self._circle_color = value
 
     @property
     def line_color(self) -> QColor:
