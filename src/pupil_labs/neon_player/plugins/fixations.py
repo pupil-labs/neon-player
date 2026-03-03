@@ -262,8 +262,17 @@ class FixationsPlugin(neon_player.Plugin):
         gaze = recording.gaze
 
         flow_records = []
+        gray_cache: dict[int, np.ndarray] = {}
+        gray_cache_times: dict[int, int] = {}
 
         for fidx, fixation in enumerate(recording.fixations):
+            stale_keys = [
+                k for k, t in gray_cache_times.items() if t < fixation.start_time
+            ]
+            for k in stale_keys:
+                del gray_cache[k]
+                del gray_cache_times[k]
+
             gaze_samples = gaze[
                 (fixation.start_time <= gaze.time) & (gaze.time <= fixation.stop_time)
             ]
@@ -284,7 +293,11 @@ class FixationsPlugin(neon_player.Plugin):
                 continue
 
             idx = int(np.argmin(diff))
-            ref_scene_img = scene_frames[idx].gray
+            ref_frame = scene_frames[idx]
+            if ref_frame.index not in gray_cache:
+                gray_cache[ref_frame.index] = ref_frame.gray
+                gray_cache_times[ref_frame.index] = ref_frame.time
+            ref_scene_img = gray_cache[ref_frame.index]
 
             if ref_scene_img is None:
                 continue
@@ -294,7 +307,10 @@ class FixationsPlugin(neon_player.Plugin):
                 current_img = start_img
 
                 for frame in frame_sequence:
-                    next_img = frame.gray
+                    if frame.index not in gray_cache:
+                        gray_cache[frame.index] = frame.gray
+                        gray_cache_times[frame.index] = frame.time
+                    next_img = gray_cache[frame.index]
                     if next_img is None:
                         break
 
