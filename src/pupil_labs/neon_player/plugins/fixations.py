@@ -270,13 +270,8 @@ class FixationsPlugin(neon_player.Plugin):
 
             ref_gaze = gaze_samples[len(gaze_samples) // 2]
 
-            if fidx + 8 < len(recording.fixations):
-                track_end_time = recording.fixations[fidx + 8].stop_time
-            else:
-                track_end_time = fixation.stop_time + (60_000_000_000)
-
             start_scene_idx, stop_scene_idx = np.searchsorted(
-                recording.scene.time, [fixation.start_time, track_end_time]
+                recording.scene.time, [fixation.start_time, fixation.stop_time + 2e9]
             )
             scene_frames = recording.scene[start_scene_idx:stop_scene_idx]
 
