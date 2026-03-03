@@ -260,10 +260,6 @@ class FixationsPlugin(neon_player.Plugin):
     def bg_optic_flow(self) -> T.Generator[ProgressUpdate, None, None]:
         recording = self.app.recording
         gaze = recording.gaze
-        width = recording.scene.width
-        height = recording.scene.height
-
-        MAX_ERR = 30.0
 
         flow_records = []
 
@@ -302,36 +298,12 @@ class FixationsPlugin(neon_player.Plugin):
                 current_point = start_point
                 current_img = start_img
 
-                lost_frames = 0
-
                 for frame in frame_sequence:
                     next_img = frame.gray
                     if next_img is None:
                         break
 
-                    next_point, status, err = calc_optic_flow(
-                        current_img, next_img, current_point
-                    )
-
-                    if not (0 <= next_point[0] < width and 0 <= next_point[1] < height):
-                        break
-
-                    is_tracked = status[0][0] if status is not None else 0
-                    tracking_err = err[0][0] if err is not None else MAX_ERR
-
-                    if is_tracked:
-                        confidence = np.clip(1.0 - (tracking_err / MAX_ERR), 0.0, 1.0)
-                    else:
-                        confidence = 0.0
-
-                    if confidence < 0.1:
-                        lost_frames += 1
-                    else:
-                        lost_frames = 0
-
-                    if lost_frames > 5:
-                        break
-
+                    next_point = calc_optic_flow(current_img, next_img, current_point)
                     raw_offset = ref_gaze.point - next_point
 
                     flow_records.append({
@@ -697,7 +669,7 @@ def calc_optic_flow(
         0.03,
     ),
     lk_min_eig_threshold: float = 0.005,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> np.ndarray:
 
     lk_params = {
         "winSize": lk_winSize,
@@ -709,7 +681,7 @@ def calc_optic_flow(
     corrected_points, status, err = cv2.calcOpticalFlowPyrLK(  # type: ignore
         previous_frame, current_frame, points.reshape([-1, 1, 2]), None, **lk_params
     )
-    return corrected_points.reshape(points.shape), status, err
+    return corrected_points.reshape(points.shape)
 
 
 class OpticFlow(T.NamedTuple):
