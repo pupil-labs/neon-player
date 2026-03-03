@@ -108,17 +108,16 @@ class FixationsPlugin(neon_player.Plugin):
         before_mask = self.fixations.stop_time > time_in_recording
         active_mask = after_mask & before_mask
 
-        plot_history = any(
-            getattr(viz, "plot_history", False) for viz in self._visualizations
+        requires_history = any(
+            getattr(viz, "requires_history", False) for viz in self._visualizations
         )
 
-        if plot_history:
+        if requires_history:
             past_mask = (self.fixations.stop_time <= time_in_recording) & (
                 self.fixations.stop_time >= time_in_recording - 60_000_000_000
             )
             past_idx = np.where(past_mask)[0]
 
-            # Keep only the latest 7 past fixations
             if len(past_idx) > 7:
                 past_idx = past_idx[-7:]
 
@@ -277,10 +276,10 @@ class FixationsPlugin(neon_player.Plugin):
 
             ref_gaze = gaze_samples[len(gaze_samples) // 2]
 
-            if fidx + 6 < len(recording.fixations):
-                track_end_time = recording.fixations[fidx + 6].stop_time
+            if fidx + 8 < len(recording.fixations):
+                track_end_time = recording.fixations[fidx + 8].stop_time
             else:
-                track_end_time = fixation.stop_time + (5 * 1_000_000_000)
+                track_end_time = fixation.stop_time + (60_000_000_000)
 
             start_scene_idx, stop_scene_idx = np.searchsorted(
                 recording.scene.time, [fixation.start_time, track_end_time]
@@ -386,6 +385,8 @@ class FixationsPlugin(neon_player.Plugin):
 
 class FixationVisualization(PersistentPropertiesMixin, QObject):
     changed = Signal()
+    requires_history: bool = False
+    _max_radius: float = 80.0
 
     _known_types: T.ClassVar[list] = []
 
@@ -393,7 +394,6 @@ class FixationVisualization(PersistentPropertiesMixin, QObject):
         super().__init__()
         self._use_offset = True
         self._adjust_for_optic_flow = True
-        self._plot_history = False
         self.recording: NeonRecording | None = None
 
     def render(
@@ -432,14 +432,6 @@ class FixationVisualization(PersistentPropertiesMixin, QObject):
     def adjust_for_optic_flow(self, value: bool) -> None:
         self._adjust_for_optic_flow = value
 
-    @property
-    def plot_history(self) -> bool:
-        return self._plot_history
-
-    @plot_history.setter
-    def plot_history(self, value: bool) -> None:
-        self._plot_history = value
-
 
 class FixationCircleViz(FixationVisualization):
     label = "Circle"
@@ -447,10 +439,126 @@ class FixationCircleViz(FixationVisualization):
     def __init__(self) -> None:
         super().__init__()
         self._color = QColor(255, 255, 0, 196)
-        self._history_color = QColor(18, 99, 204, 192)
+        self._base_radius = 10
+        self._stroke_width = 5
+        self._font_size = 20
+
+    def render(
+        self,
+        painter: QPainter,
+        fixations: FixationTimeseries,
+        fixation_ids: np.ndarray,
+        frame_offsets: dict[int, np.ndarray],
+        gaze_offset: tuple[float, float],
+        time_in_recording: int,
+    ) -> None:
+        if self.recording is None:
+            return
+
+        pen = painter.pen()
+        pen.setWidth(self._stroke_width)
+        painter.setPen(pen)
+
+        font = painter.font()
+        font.setPointSize(self._font_size)
+        painter.setFont(font)
+
+        offset = [0.0, 0.0]
+
+        if self._use_offset:
+            if self.recording.scene.width:
+                offset[0] = gaze_offset[0] * self.recording.scene.width
+            if self.recording.scene.height:
+                offset[1] = gaze_offset[1] * self.recording.scene.height
+
+        width = self.recording.scene.width
+        height = self.recording.scene.height
+
+        for fixation_id, fixation in zip(fixation_ids, fixations):
+            is_active = (fixation.start_time <= time_in_recording) and (
+                fixation.stop_time > time_in_recording
+            )
+            if not is_active:
+                continue
+
+            internal_fidx = fixation_id - 1
+
+            if self._adjust_for_optic_flow:
+                if internal_fidx not in frame_offsets:
+                    continue
+
+                of_x, of_y = frame_offsets[internal_fidx]
+                cx = fixation.mean_gaze_point[0] + offset[0] - of_x
+                cy = fixation.mean_gaze_point[1] + offset[1] - of_y
+            else:
+                cx = fixation.mean_gaze_point[0] + offset[0]
+                cy = fixation.mean_gaze_point[1] + offset[1]
+
+            if not (0 <= cx <= width and 0 <= cy <= height):
+                continue
+
+            center = QPointF(cx, cy)
+
+            circle_pen = painter.pen()
+            circle_pen.setColor(self._color)
+            painter.setPen(circle_pen)
+
+            dur_ms = (fixation.stop_time - fixation.start_time) / 1e6
+            radius = min(
+                self._max_radius, max(5.0, self._base_radius * (dur_ms / 100.0))
+            )
+
+            painter.drawEllipse(center, radius, radius)
+            painter.drawText(center, str(fixation_id))
+
+    @property
+    def color(self) -> QColor:
+        return self._color
+
+    @color.setter
+    def color(self, value: QColor) -> None:
+        self._color = value
+
+    @property
+    @property_params(min=1, max=999)
+    def base_radius(self) -> int:
+        return self._base_radius
+
+    @base_radius.setter
+    def base_radius(self, value: int) -> None:
+        self._base_radius = value
+
+    @property
+    @property_params(min=1, max=999)
+    def stroke_width(self) -> int:
+        return self._stroke_width
+
+    @stroke_width.setter
+    def stroke_width(self, value: int) -> None:
+        self._stroke_width = value
+
+    @property
+    @property_params(min=1, max=200)
+    def font_size(self) -> int:
+        return self._font_size
+
+    @font_size.setter
+    def font_size(self, value: int) -> None:
+        self._font_size = value
+
+
+class ScanpathViz(FixationVisualization):
+    label = "Scanpath"
+    requires_history = True
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._plot_line = True
+        self._current_fixation_color = QColor(18, 99, 204, 191)
+        self._history_color = QColor(18, 99, 204, 191)
         self._line_color = QColor(144, 164, 174, 128)
-        self._base_radius = 24
-        self._stroke_width = 4
+        self._base_radius = 10
+        self._stroke_width = 5
         self._font_size = 20
 
     def render(
@@ -489,7 +597,6 @@ class FixationCircleViz(FixationVisualization):
             internal_fidx = fixation_id - 1
 
             if self._adjust_for_optic_flow:
-                # If history points fell out of the tracking array or FOV, skip drawing
                 if internal_fidx not in frame_offsets:
                     continue
 
@@ -502,8 +609,7 @@ class FixationCircleViz(FixationVisualization):
 
             center = QPointF(cx, cy)
 
-            # Draw chronologically connecting lines
-            if self._plot_history and previous_center is not None:
+            if self._plot_line and previous_center is not None:
                 line_pen = painter.pen()
                 line_pen.setColor(self._line_color)
                 painter.setPen(line_pen)
@@ -517,25 +623,37 @@ class FixationCircleViz(FixationVisualization):
             is_active = (fixation.start_time <= time_in_recording) and (
                 fixation.stop_time > time_in_recording
             )
-            circle_color = self._color if is_active else self._history_color
+            circle_color = (
+                self._current_fixation_color if is_active else self._history_color
+            )
 
             circle_pen = painter.pen()
             circle_pen.setColor(circle_color)
             painter.setPen(circle_pen)
 
             dur_ms = (fixation.stop_time - fixation.start_time) / 1e6
-            radius = max(5.0, self._base_radius * (dur_ms / 250.0))
+            radius = min(
+                self._max_radius, max(5.0, self._base_radius * (dur_ms / 100.0))
+            )
 
             painter.drawEllipse(center, radius, radius)
             painter.drawText(center, str(fixation_id))
 
     @property
-    def color(self) -> QColor:
-        return self._color
+    def plot_line(self) -> bool:
+        return self._plot_line
 
-    @color.setter
-    def color(self, value: QColor) -> None:
-        self._color = value
+    @plot_line.setter
+    def plot_line(self, value: bool) -> None:
+        self._plot_line = value
+
+    @property
+    def current_fixation_color(self) -> QColor:
+        return self._current_fixation_color
+
+    @current_fixation_color.setter
+    def current_fixation_color(self, value: QColor) -> None:
+        self._current_fixation_color = value
 
     @property
     def history_color(self) -> QColor:
