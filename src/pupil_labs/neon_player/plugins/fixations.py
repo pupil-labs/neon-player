@@ -263,8 +263,6 @@ class FixationsPlugin(neon_player.Plugin):
         width = recording.scene.width
         height = recording.scene.height
 
-        ALPHA = 0.4  # Trust curr position
-        BETA = 0.1  # Trust current velocity
         MAX_ERR = 30.0
 
         flow_records = []
@@ -300,13 +298,11 @@ class FixationsPlugin(neon_player.Plugin):
             if ref_scene_img is None:
                 continue
 
-            def track_and_smooth(frame_sequence, start_point, start_img):
+            def track_frames(frame_sequence, start_point, start_img):
                 current_point = start_point
                 current_img = start_img
 
-                est_pos = np.array([0.0, 0.0])
-                est_vel = np.array([0.0, 0.0])
-                lost_frames = 0  # Counter for Optimization 2
+                lost_frames = 0
 
                 for frame in frame_sequence:
                     next_img = frame.gray
@@ -336,32 +332,22 @@ class FixationsPlugin(neon_player.Plugin):
                     if lost_frames > 5:
                         break
 
-                    dyn_alpha = ALPHA * confidence
-                    dyn_beta = BETA * confidence
-
                     raw_offset = ref_gaze.point - next_point
-                    est_pos = est_pos + est_vel
-
-                    residual = raw_offset - est_pos
-                    est_pos = est_pos + dyn_alpha * residual
-                    est_vel = est_vel + dyn_beta * residual
 
                     flow_records.append({
                         "fidx": fidx,
                         "frame_idx": frame.index,
-                        "offset_x": est_pos[0],
-                        "offset_y": est_pos[1],
+                        "offset_x": raw_offset[0],
+                        "offset_y": raw_offset[1],
                     })
 
                     current_point = next_point
                     current_img = next_img
 
             # Process backward to the start of the fixation
-            track_and_smooth(
-                reversed(scene_frames[:idx]), ref_gaze.point, ref_scene_img
-            )
+            track_frames(reversed(scene_frames[:idx]), ref_gaze.point, ref_scene_img)
             # Process forward through the fixation and up to the smart limit
-            track_and_smooth(scene_frames[idx + 1 :], ref_gaze.point, ref_scene_img)
+            track_frames(scene_frames[idx + 1 :], ref_gaze.point, ref_scene_img)
 
             yield ProgressUpdate(fidx / len(recording.fixations))
 
