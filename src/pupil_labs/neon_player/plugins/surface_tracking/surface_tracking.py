@@ -84,12 +84,6 @@ class SurfaceTrackingPlugin(Plugin):
 
             return
 
-        for surface in self._surfaces:
-            if surface.tracker_surface is None:
-                continue
-
-            surface.location = self.surface_locations[surface.uid][frame_idx]
-
         # if we're editing a surface's markers
         if any(s.edit for s in self._surfaces):
             self._update_editing_markers()
@@ -176,6 +170,8 @@ class SurfaceTrackingPlugin(Plugin):
 
             if surface.tracker_surface is None:
                 continue
+
+            surface.location = location
 
             show_heatmap = surface.show_heatmap and surface.heatmap_alpha > 0.0
             if show_heatmap and surface._heatmap is not None:
