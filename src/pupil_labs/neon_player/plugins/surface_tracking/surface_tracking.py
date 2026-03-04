@@ -397,8 +397,8 @@ class SurfaceTrackingPlugin(Plugin):
         if locations_path.exists():
             data = np.load(locations_path, allow_pickle=True)
             self.surface_locations[surface_uid] = [
-                tuple(np.array(v, dtype=np.float64) for v in frame_location)
-                for frame_location in data
+                None if location is None else tuple(np.array(v, dtype=np.float64) for v in location)
+                for location in data
             ]
 
             surface2image = self.surface_locations[surface_uid][surface.defining_frame_index][1]
