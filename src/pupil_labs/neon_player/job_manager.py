@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import pickle
 import subprocess
@@ -71,8 +72,21 @@ class BackgroundJob(QObject):
     def _handle_connection(self):
         self.socket = self.server.nextPendingConnection()
         self.socket.readyRead.connect(self._read_progress_update)
-        self.socket.disconnected.connect(self.finished.emit)
+        self.socket.errorOccurred.connect(self._on_socket_error)
+        self.socket.disconnected.connect(self._on_socket_disconnected)
         self.server.close()
+
+    def _on_socket_error(self, err):
+        if err == QLocalSocket.LocalSocketError.PeerClosedError:
+            return
+
+        logging.error("Job %s failed with unexpectedly with error %s", self.name, err)
+        self.cancel()
+
+    def _on_socket_disconnected(self):
+        err = self.socket.error()
+        if err in (None, QLocalSocket.LocalSocketError.PeerClosedError):
+            self.finished.emit()
 
     def _read_progress_update(self):
         if not self.socket:
@@ -128,14 +142,21 @@ class JobManager(QObject):
             if not hasattr(job, "__iter__"):
                 logging.warning("A background job did not generate progress updates")
             else:
-                outstream = QDataStream(socket)
-                for update in job:
-                    data = pickle.dumps(update)
-                    outstream.writeUInt32(len(data))
-                    outstream.writeRawData(data)
-                    socket.flush()
+                try:
+                    outstream = QDataStream(socket)
+                    for update in job:
+                        data = pickle.dumps(update)
+                        outstream.writeUInt32(len(data))
+                        outstream.writeRawData(data)
+                        socket.flush()
+                except Exception as e:
+                    logging.exception(f"IPC communication failed in work_job: {e}")
+                    return
 
-            socket.disconnectFromServer()
+            socket.flush()
+            socket.close()
+            if socket.state() != socket.LocalSocketState.UnconnectedState:
+                socket.waitForDisconnected(5000)
 
         else:
             with tqdm(total=1.0) as pbar:
@@ -194,5 +215,6 @@ class JobManager(QObject):
 
     def remove_job(self, job: BackgroundJob) -> None:
         self.job_counter -= 1
-        self.current_jobs.remove(job)
+        with contextlib.suppress(ValueError):
+            self.current_jobs.remove(job)
         self.job_finished.emit(job)
