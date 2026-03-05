@@ -432,7 +432,7 @@ class SurfaceTrackingPlugin(Plugin):
             # refresh
             self.trigger_scene_update()
 
-        self.attempt_load_surface_heatmap(surface_uid)
+            self.attempt_load_surface_heatmap(surface_uid)
 
     def add_visibility_timeline(self, surface):
         surf_viz_path = self.get_cache_path() / f"{surface.uid}_surface_visibility.pkl"
@@ -470,6 +470,10 @@ class SurfaceTrackingPlugin(Plugin):
 
         else:
             surface = self.get_surface(surface_uid)
+            # prevent heatmap job from starting up if other jobs are pending
+            if len(surface.jobs) > 0:
+                return
+
             heatmap_job = self.job_manager.run_background_action(
                 f"Build Surface Heatmap [{surface.name}]",
                 "SurfaceTrackingPlugin.bg_build_heatmap",
@@ -712,6 +716,10 @@ class SurfaceTrackingPlugin(Plugin):
                 w.hide()
 
     def on_locations_invalidated(self, surface: "TrackedSurface") -> None:
+        locations_path = self.get_cache_path() / f"{surface.uid}_locations.npy"
+        if locations_path.exists():
+           locations_path.unlink()
+
         surf_path = self.get_cache_path() / f"{surface.uid}_surface.pkl"
         with surf_path.open("wb") as f:
             pickle.dump(surface.tracker_surface, f)

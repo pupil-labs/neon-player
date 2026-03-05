@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import typing as T  # noqa: N812
 from enum import Enum
@@ -176,8 +177,12 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             j.cancel()
 
         self.jobs.append(job)
-        job.finished.connect(lambda: self.jobs.remove(job))
-        job.canceled.connect(lambda: self.jobs.remove(job))
+        job.finished.connect(lambda: self._remove_job(job))
+        job.canceled.connect(lambda: self._remove_job(job))
+
+    def _remove_job(self, job):
+        with contextlib.suppress(ValueError):
+            self.jobs.remove(job)
 
     def __del__(self):
         self.cleanup_widgets()
