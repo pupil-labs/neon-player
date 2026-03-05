@@ -678,17 +678,18 @@ class SurfaceTrackingPlugin(Plugin):
                     marker_widget.hide()
 
             surface.cleanup_widgets()
-            locations_path = self.get_cache_path() / f"{surface.uid}_locations.npy"
-            if locations_path.exists():
-                locations_path.unlink()
 
-            surf_path = self.get_cache_path() / f"{surface.uid}_surface.pkl"
-            if surf_path.exists():
-                surf_path.unlink()
-
-            heatmap_path = self.get_cache_path() / f"{surface.uid}_heatmap.png"
-            if heatmap_path.exists():
-                heatmap_path.unlink()
+            surface_files = [
+                "surface.pkl",
+                "locations.npy",
+                "heatmap.png",
+                "surface_visibility.pkl",
+                "gazes.pkl"
+            ]
+            for surface_file in surface_files:
+                file_path = self.get_cache_path() / f"{surface.uid}_{surface_file}"
+                if file_path.exists():
+                    file_path.unlink()
 
             self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
             self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
