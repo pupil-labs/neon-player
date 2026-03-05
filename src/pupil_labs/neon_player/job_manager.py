@@ -38,6 +38,7 @@ class BackgroundJob(QObject):
         self.job_id = job_id
         self.progress = -1
         self.socket = None
+        self._expected_payload_size = None
 
         server_name = f"neon-player-job-{job_id}"
         self.server = QLocalServer()
@@ -80,14 +81,16 @@ class BackgroundJob(QObject):
         stream = QDataStream(self.socket)
         while self.socket.bytesAvailable() >= 4:
             # Read the length of the data
-            expected_len = stream.readUInt32()
+            if self._expected_payload_size is None:
+                self._expected_payload_size = stream.readUInt32()
 
             # Wait until all data is available
-            if self.socket.bytesAvailable() < expected_len:
+            if self.socket.bytesAvailable() < self._expected_payload_size:
                 return
 
             # Read and unpickle the data
-            data = stream.readRawData(expected_len)
+            data = stream.readRawData(self._expected_payload_size)
+            self._expected_payload_size = None
             try:
                 obj = pickle.loads(data)  # noqa: S301
                 self.progress_changed.emit(obj.progress)
