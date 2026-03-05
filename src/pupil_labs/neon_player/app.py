@@ -131,6 +131,8 @@ class NeonPlayerApp(QApplication):
         except Exception:
             logging.exception("Failed to load settings")
 
+        self.main_window.splash_widget.update_recent_recordings()
+
         if self.args.job and self.args.recording:
             self.load(Path(self.args.recording))
         elif self.args.recording:
@@ -334,6 +336,34 @@ class NeonPlayerApp(QApplication):
         self.unload()
         logging.info("Opening recording at path: %s", path)
         self.recording = nr.load(path)
+
+        # Update recent recordings metadata
+        path_str = str(path.absolute())
+        from datetime import datetime
+
+        start_time = datetime.fromtimestamp(self.recording.info["start_time"] / 1e9)
+        date_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
+        wearer = self.recording.wearer["name"]
+
+        rec_info = {
+            "path": path_str,
+            "name": path.name,
+            "wearer": wearer,
+            "date": date_str,
+        }
+
+        recent = []
+        for r in self.settings.recent_recordings:
+            if isinstance(r, str):
+                continue
+            if r["path"] != path_str:
+                recent.append(r)
+
+        recent.insert(0, rec_info)
+        self.settings.recent_recordings = recent[:10]
+        self.save_settings()
+        self.main_window.splash_widget.update_recent_recordings()
+
         os.chdir(path)
         self.playback_start_anchor = 0
 
