@@ -67,6 +67,14 @@ class SurfaceTrackingPlugin(Plugin):
             self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
             self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
 
+        for marker_widget in self.marker_edit_widgets.values():
+            marker_widget.hide()
+
+        for surface in self._surfaces:
+            surface.cleanup_widgets()
+
+        self._surfaces.clear()
+
     def _update_displays(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
         if frame_idx >= len(self.markers_by_frame):
@@ -97,6 +105,10 @@ class SurfaceTrackingPlugin(Plugin):
         if edit_surface is not None and edit_surface.location is None:
             for marker_widget in self.marker_edit_widgets.values():
                 marker_widget.hide()
+
+            for handle_widget in edit_surface.handle_widgets.values():
+                handle_widget.hide()
+
             return
 
         for marker_uid, marker_widget in self.marker_edit_widgets.items():
@@ -165,13 +177,12 @@ class SurfaceTrackingPlugin(Plugin):
 
             locations = self.surface_locations[surface.uid]
             location = locations[frame_idx]
+            surface.location = location
             if location is None:
                 continue
 
             if surface.tracker_surface is None:
                 continue
-
-            surface.location = location
 
             show_heatmap = surface.show_heatmap and surface.heatmap_alpha > 0.0
             if show_heatmap and surface._heatmap is not None:
