@@ -47,11 +47,11 @@ border-radius: 5px;
        <height>300</height>
       </size>
      </property>
-     <layout class="QVBoxLayout" name="verticalLayout_3" stretch="1,0,1">
+     <layout class="QVBoxLayout" name="verticalLayout_3" stretch="1,0,3,1">
       <item>
        <widget class="QLabel" name="label">
         <property name="styleSheet">
-         <string notr="true">font-size: 30pt; font-weight: bold</string>
+         <string notr="true">font-size: 30pt; font-weight: bold; margin-bottom: 20px;</string>
         </property>
         <property name="text">
          <string>Welcome to Neon Player!</string>
@@ -62,7 +62,7 @@ border-radius: 5px;
        </widget>
       </item>
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout" stretch="0,1,0">
+       <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,2,1">
         <item>
          <spacer name="horizontalSpacer">
           <property name="orientation">
@@ -79,7 +79,7 @@ border-radius: 5px;
         <item>
          <widget class="QWidget" name="dropbox" native="true">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
@@ -91,7 +91,7 @@ border-radius: 5px;
            </size>
           </property>
           <property name="styleSheet">
-           <string notr="true">#dropbox { background: #080808 }</string>
+           <string notr="true">#dropbox { background: #080808; border: 1px dotted #ccc; border-radius: 5px; }</string>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_2">
            <property name="spacing">
@@ -101,13 +101,13 @@ border-radius: 5px;
             <number>10</number>
            </property>
            <property name="topMargin">
-            <number>50</number>
+            <number>30</number>
            </property>
            <property name="rightMargin">
             <number>10</number>
            </property>
            <property name="bottomMargin">
-            <number>50</number>
+            <number>30</number>
            </property>
            <item>
             <widget class="QLabel" name="label_3">
@@ -151,6 +151,96 @@ border-radius: 5px;
             <width>40</width>
             <height>20</height>
            </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="recent_h_layout" stretch="1,10,1">
+        <item>
+         <spacer name="recent_spacer_l">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QWidget" name="recent_container" native="true">
+          <layout class="QVBoxLayout" name="recent_v_layout">
+           <item>
+            <widget class="QLabel" name="recent_label">
+             <property name="styleSheet">
+              <string notr="true">font-size: 14pt; font-weight: bold; color: #aaa; margin-top: 30px;</string>
+             </property>
+             <property name="text">
+              <string>Recently opened</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QTableWidget" name="recent_table">
+             <property name="styleSheet">
+              <string notr="true">QTableWidget { 
+    background-color: #000; 
+    alternate-background-color: #080808;
+    border: none; 
+    gridline-color: transparent; 
+    color: #ccc; 
+    font-size: 11pt;
+    outline: 0;
+}
+QTableWidget::item { 
+    padding: 10px; 
+    border-bottom: 1px solid #222;
+}
+QTableWidget::item:hover {
+    background-color: #111;
+}
+QHeaderView::section {
+    background-color: #000;
+    color: #888;
+    padding: 5px;
+    border: none;
+    border-bottom: 2px solid #333;
+    font-weight: bold;
+    font-size: 10pt;
+}
+</string>
+             </property>
+             <property name="editTriggers">
+              <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+             </property>
+             <property name="alternatingRowColors">
+              <bool>true</bool>
+             </property>
+             <property name="selectionMode">
+              <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
+             </property>
+             <property name="selectionBehavior">
+              <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+             </property>
+             <property name="showGrid">
+              <bool>false</bool>
+             </property>
+             <property name="sortingEnabled">
+              <bool>true</bool>
+             </property>
+             <attribute name="horizontalHeaderStretchLastSection">
+              <bool>true</bool>
+             </attribute>
+             <attribute name="verticalHeaderVisible">
+              <bool>false</bool>
+             </attribute>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <spacer name="recent_spacer_r">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
           </property>
          </spacer>
         </item>
