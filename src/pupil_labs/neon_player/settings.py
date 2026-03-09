@@ -25,6 +25,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
         super().__init__()
         self._skip_gray_frames_on_load = True
         self._show_fps = False
+        self._recent_recordings: list[dict[str, str]] = []
 
         plugin_names = [k.__name__ for k in Plugin.known_classes]
         plugin_names.sort()
@@ -36,6 +37,16 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
             "EventsPlugin": True,
             "ExportAllPlugin": True,
         })
+
+    @property
+    @property_params(widget=None)
+    def recent_recordings(self) -> list[dict[str, str]]:
+        return self._recent_recordings
+
+    @recent_recordings.setter
+    def recent_recordings(self, value: list[dict[str, str]]) -> None:
+        self._recent_recordings = value.copy()
+        self.changed.emit()
 
     @property
     def skip_gray_frames_on_load(self) -> bool:

@@ -3,6 +3,7 @@ import typing
 import webbrowser
 from pathlib import Path
 
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import (
     QKeyCombination,
     Qt,
@@ -44,7 +45,6 @@ from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
-from pupil_labs.neon_recording import NeonRecording
 
 try:
     from pupil_labs.neon_player.ui.splash import Ui_Splash
@@ -61,6 +61,94 @@ class SplashWidget(Ui_Class, QtBaseClass):
         self.setupUi(self)
         self.logo.setPixmap(QPixmap(asset_path("Primary-White-76px.png")))
         self.setAcceptDrops(True)
+        self.update_recent_recordings()
+
+    def update_recent_recordings(self) -> None:
+        app = neon_player.instance()
+        recent = app.settings.recent_recordings
+
+        existing_recent = []
+        for r in recent:
+            if isinstance(r, dict) and "path" in r and Path(r["path"]).exists():
+                existing_recent.append(r)
+
+        if len(existing_recent) != len(recent):
+            app.settings.recent_recordings = existing_recent
+            app.save_settings()
+            recent = existing_recent
+
+        has_recent = len(recent) > 0
+        self.recent_container.setVisible(has_recent)
+        if not has_recent:
+            return
+
+        from PySide6.QtWidgets import QHeaderView, QTableWidgetItem
+
+        self.recent_table.setSortingEnabled(False)
+        self.recent_table.clear()
+        self.recent_table.setColumnCount(4)
+        self.recent_table.setHorizontalHeaderLabels([
+            "Recording Name",
+            "Wearer",
+            "Date",
+            "Path",
+        ])
+        self.recent_table.setRowCount(len(recent))
+
+        header = self.recent_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setDefaultAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+
+        for row, info in enumerate(recent):
+            item_name = QTableWidgetItem(info["name"])
+            item_name.setData(Qt.ItemDataRole.UserRole, info["path"])
+            item_name.setForeground(QColor("#6d7be0"))
+            font = item_name.font()
+            font.setBold(True)
+            item_name.setFont(font)
+
+            item_wearer = QTableWidgetItem(info.get("wearer", "-"))
+
+            item_date = QTableWidgetItem(info.get("date", "-"))
+
+            item_path = QTableWidgetItem(info["path"])
+            item_path.setForeground(QColor("#666"))
+
+            self.recent_table.setItem(row, 0, item_name)
+            self.recent_table.setItem(row, 1, item_wearer)
+            self.recent_table.setItem(row, 2, item_date)
+            self.recent_table.setItem(row, 3, item_path)
+
+        self.recent_table.setColumnWidth(0, 250)
+        self.recent_table.setColumnWidth(1, 150)
+        self.recent_table.setColumnWidth(2, 200)
+
+        self.recent_table.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
+
+        try:
+            self.recent_table.cellClicked.disconnect()
+        except Exception:
+            pass
+        self.recent_table.cellClicked.connect(self._on_recent_cell_clicked)
+
+        self.recent_table.setSortingEnabled(True)
+        self.recent_table.sortByColumn(2, Qt.SortOrder.DescendingOrder)
+
+        row_height = 45
+        header_height = self.recent_table.horizontalHeader().height() or 30
+        total_height = header_height + (row_height * len(recent)) + 20
+        self.recent_table.setMinimumHeight(min(total_height, 600))
+
+    def _on_recent_cell_clicked(self, row: int, column: int) -> None:
+        item = self.recent_table.item(row, 0)
+        path_str = item.data(Qt.ItemDataRole.UserRole)
+        if path_str:
+            neon_player.instance().load(Path(path_str))
 
     def dragEnterEvent(self, event) -> None:
         # Accept directories only
@@ -339,6 +427,7 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(1, self.timeline.reset_view)
 
     def on_recording_closed(self):
+        self.splash_widget.update_recent_recordings()
         self.greeting_switcher.setCurrentIndex(0)
         self.timeline_dock.hide()
         self.settings_dock.hide()
