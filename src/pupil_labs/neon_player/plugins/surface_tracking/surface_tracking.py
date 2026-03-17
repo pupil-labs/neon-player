@@ -17,7 +17,7 @@ from pupil_labs.camera import Camera, perspective_transform
 from pupil_labs.marker_mapper import Surface, utils
 from pupil_labs.marker_mapper.surface import normalized_corners
 from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QPointF, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
     QColorConstants,
@@ -506,6 +506,9 @@ class SurfaceTrackingPlugin(Plugin):
                     h -= 1
 
                 surface.preview_options.render_size = [w, h]
+                # emit a change signal to trigger a save
+                # delayed because it is otherwise ignored during load time
+                QTimer.singleShot(10, self.changed.emit)
 
             self.add_visibility_timeline(surface)
 
