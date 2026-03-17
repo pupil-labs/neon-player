@@ -488,24 +488,24 @@ class SurfaceTrackingPlugin(Plugin):
                 for location in data
             ]
 
-            surface2image = self.surface_locations[surface_uid][surface.defining_frame_index][1]
+            if surface.preview_options.render_size == [0, 0]:
+                surface2image = self.surface_locations[surface_uid][surface.defining_frame_index][1]
 
-            # set surface size
-            image = utils.crop_image(
-                np.zeros((1, 1, 3), np.uint8),
-                surface2image,
-                width=500,
-                height=None,
-            )
+                # set surface size
+                image = utils.crop_image(
+                    np.zeros((1, 1, 3), np.uint8),
+                    surface2image,
+                    width=500,
+                    height=None,
+                )
 
-            w, h = image.shape[1], image.shape[0]
-            if w % 2 != 0:
-                w -= 1
-            if h % 2 != 0:
-                h -= 1
+                w, h = image.shape[1], image.shape[0]
+                if w % 2 != 0:
+                    w -= 1
+                if h % 2 != 0:
+                    h -= 1
 
-            surface.preview_options.render_size = [w, h]
-            surface.changed.emit()
+                surface.preview_options.render_size = [w, h]
 
             self.add_visibility_timeline(surface)
 

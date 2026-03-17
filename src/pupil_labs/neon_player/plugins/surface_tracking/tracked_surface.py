@@ -67,7 +67,17 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
         self._visualizations: list[GazeVisualization] = [
             CircleViz(),
         ]
-        self.render_size = [500, 500]
+        self._render_size = [0, 0]
+
+    @property
+    def render_size(self) -> list[int]:
+        return self._render_size
+
+    @render_size.setter
+    @property_params(widget=None)
+    def render_size(self, value: list[int]) -> None:
+        self._render_size = value
+        self.changed.emit()
 
     @property
     @property_params(
