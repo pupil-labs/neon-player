@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -17,7 +18,6 @@ from qt_property_widgets.widgets import PropertyForm, PropertyWidget
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
-from pupil_labs.neon_recording import NeonRecording
 
 
 class RecordingInfoWidget(QWidget):
@@ -146,7 +146,7 @@ class SettingsPanel(QScrollArea):
         expander = self.plugin_list_widget.add_expander(
             cls.get_label(), settings_form, not app.loading_recording
         )
-        if hasattr(instance, "header_action"):
+        if getattr(instance, "header_action", None) is not None:
             tb = QToolButton()
             tb.setText(instance.header_action.name)
             tb.setCursor(Qt.CursorShape.PointingHandCursor)

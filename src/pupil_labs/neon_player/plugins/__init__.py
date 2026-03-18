@@ -3,6 +3,7 @@ import typing as T
 from pathlib import Path
 
 from numpyencoder import NumpyEncoder
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPainter
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
@@ -10,7 +11,6 @@ from qt_property_widgets.utilities import PersistentPropertiesMixin, property_pa
 from pupil_labs import neon_player
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
-from pupil_labs.neon_recording import NeonRecording
 
 if T.TYPE_CHECKING:
     from pupil_labs.neon_player.app import NeonPlayerApp
@@ -62,6 +62,9 @@ class Plugin(PersistentPropertiesMixin, QObject):
         self.app.main_window.timeline.register_data_point_action(
             event_name, action_name, callback
         )
+
+    def unregister_data_point_actions(self, event_name: str) -> None:
+        self.app.main_window.timeline.unregister_data_point_actions(event_name)
 
     def add_dynamic_action(self, name: str, func: T.Callable) -> None:
         my_prop_form = self.app.main_window.settings_panel.plugin_class_expanders[
