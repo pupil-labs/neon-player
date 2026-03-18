@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import typing as T
 
@@ -269,13 +270,17 @@ class TimeLineDock(QWidget):
         if tooltip_text:
             QToolTip.showText(QCursor.pos(), tooltip_text)
 
-            for line in self.hover_lines.values():
-                line.setPos(x)
-                line.setVisible(True)
+            for line in list(self.hover_lines.values()):
+                try:
+                    line.setPos(x)
+                    line.setVisible(True)
+                except RuntimeError:
+                    pass
         else:
             QToolTip.hideText()
-            for line in self.hover_lines.values():
-                line.setVisible(False)
+            for line in list(self.hover_lines.values()):
+                with contextlib.suppress(RuntimeError):
+                    line.setVisible(False)
 
     def _add_plot_data_item_tooltip(self, item, x, x_threshold, lines, plot_name=""):
         hovered_plot_name = plot_name
@@ -817,6 +822,7 @@ class TimeLineDock(QWidget):
     def add_timeline_scatter(
         self, name: str, data: list[tuple[int, int]], item_name: str = "", **kwargs
     ) -> pg.PlotDataItem:
+        stroke_width = 3 if self.devicePixelRatio() > 1 else 1.5
         return self.add_timeline_plot(
             name,
             data,
@@ -825,7 +831,7 @@ class TimeLineDock(QWidget):
             symbol="d",
             symbolSize=8,
             symbolBrush=None,
-            symbolPen=pg.mkPen("#969696", width=3),
+            symbolPen=pg.mkPen("#969696", width=stroke_width),
             **kwargs,
         )
 
