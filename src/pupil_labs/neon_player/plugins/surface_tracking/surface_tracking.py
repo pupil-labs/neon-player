@@ -1,5 +1,7 @@
+import json
 import logging
 import pickle
+import shutil
 import typing as T
 import uuid
 from itertools import starmap
@@ -15,7 +17,7 @@ from pupil_labs.camera import Camera, perspective_transform
 from pupil_labs.marker_mapper import Surface, utils
 from pupil_labs.marker_mapper.surface import normalized_corners
 from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QPointF, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
     QColorConstants,
@@ -25,11 +27,21 @@ from PySide6.QtGui import (
     QPainterPath,
     QPen,
 )
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import (
+    QDialog,
+    QGridLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QSpacerItem,
+    QVBoxLayout,
+)
 from qt_property_widgets.utilities import action_params, property_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action
+from pupil_labs.neon_player.settings import RecordingSettings
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.utilities import (
     SlotDebouncer,
@@ -39,6 +51,74 @@ from pupil_labs.neon_player.utilities import (
 
 from .tracked_surface import TrackedSurface
 from .ui import MarkerEditWidget
+
+
+class SurfaceImportDialog(QDialog):
+    def __init__(self, surfaces_to_import, existing_surfaces, import_callback, parent=None):
+        super().__init__(parent)
+        self.surfaces_to_import = surfaces_to_import
+        self.existing_surfaces = existing_surfaces
+        self.import_callback = import_callback
+        self.importable_surfaces = []
+
+        self.setWindowTitle("Import Surface Definitions")
+        self.setMinimumWidth(600)
+        self.setMinimumHeight(300)
+
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        self.surface_grid = QGridLayout()
+        layout.addLayout(self.surface_grid)
+        self._populate_surface_grid()
+
+        spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        layout.addItem(spacer)
+
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.reject)
+        layout.addWidget(close_button)
+
+    def _populate_surface_grid(self):
+        self.surface_grid.addWidget(QLabel("<b>Name</b>"), 0, 0)
+        self.surface_grid.addWidget(QLabel("<b>Status</b>"), 0, 1)
+
+        existing_names = {s.name for s in self.existing_surfaces}
+        existing_uids = {s.uid for s in self.existing_surfaces}
+
+        for row, surface_data in enumerate(self.surfaces_to_import):
+            if surface_data["name"] in existing_names:
+                status = "❌ Surface name already exists"
+                can_import = False
+            elif surface_data["uid"] in existing_uids:
+                status = "❌ Surface ID already exists"
+                can_import = False
+            else:
+                status = "✅ Can be imported"
+                can_import = True
+                self.importable_surfaces.append(surface_data)
+
+            name_label = QLabel(surface_data["name"])
+            self.surface_grid.addWidget(name_label, row + 1, 0)
+
+            status_label = QLabel(status)
+            if can_import:
+                status_label.setStyleSheet("color: #00AA00;")
+            else:
+                status_label.setStyleSheet("color: #AA0000;")
+            self.surface_grid.addWidget(status_label, row + 1, 1)
+
+            import_button = QPushButton("Import")
+            import_button.setEnabled(can_import)
+            import_button.clicked.connect(
+                lambda _, s=surface_data, b=import_button: self.on_import(s, b)
+            )
+            self.surface_grid.addWidget(import_button, row + 1, 2)
+
+    def on_import(self, surface_data, button):
+        self.import_callback(surface_data)
+        button.setText("Imported")
+        button.setEnabled(False)
 
 
 class SurfaceTrackingPlugin(Plugin):
@@ -408,24 +488,27 @@ class SurfaceTrackingPlugin(Plugin):
                 for location in data
             ]
 
-            surface2image = self.surface_locations[surface_uid][surface.defining_frame_index][1]
+            if surface.preview_options.render_size == [0, 0]:
+                surface2image = self.surface_locations[surface_uid][surface.defining_frame_index][1]
 
-            # set surface size
-            image = utils.crop_image(
-                np.zeros((1, 1, 3), np.uint8),
-                surface2image,
-                width=500,
-                height=None,
-            )
+                # set surface size
+                image = utils.crop_image(
+                    np.zeros((1, 1, 3), np.uint8),
+                    surface2image,
+                    width=500,
+                    height=None,
+                )
 
-            w, h = image.shape[1], image.shape[0]
-            if w % 2 != 0:
-                w -= 1
-            if h % 2 != 0:
-                h -= 1
+                w, h = image.shape[1], image.shape[0]
+                if w % 2 != 0:
+                    w -= 1
+                if h % 2 != 0:
+                    h -= 1
 
-            surface.preview_options.render_size = [w, h]
-            surface.changed.emit()
+                surface.preview_options.render_size = [w, h]
+                # emit a change signal to trigger a save
+                # delayed because it is otherwise ignored during load time
+                QTimer.singleShot(10, self.changed.emit)
 
             self.add_visibility_timeline(surface)
 
@@ -849,9 +932,62 @@ class SurfaceTrackingPlugin(Plugin):
                 yield ProgressUpdate((output_idx + 1) / len(scene_frames))
 
     @action
+    @action_params(
+        compact=True,
+        icon=QIcon(str(neon_player.asset_path("duplicate.svg")))
+    )
+    def import_surface_definitions(self, source: Path = Path()) -> None:
+        # get surface definitions from json
+        json_path = source / ".neon_player" / "settings.json"
+        other_recording = RecordingSettings.from_dict(json.load(json_path.open("r")))
+        surface_settings = other_recording.plugin_states.get('SurfaceTrackingPlugin', {})
+        surfaces = surface_settings.get('surfaces', [])
+        if len(surfaces) == 0:
+            QMessageBox.information(
+                None,
+                "Import Surface Definitions",
+                "No surface definitions found in the selected recording."
+            )
+            return
+
+        # Show import dialog
+        dialog = SurfaceImportDialog(
+            surfaces,
+            self.surfaces,
+            lambda surface_data: self._import_surface(surface_data, source)
+        )
+        dialog.exec()
+
+    def _import_surface(self, surface_data: dict, source_path: Path) -> None:
+        logging.info(f"Importing {surface_data['name']} ({surface_data['uid']}) from {source_path}")
+        src_def_file = (
+            source_path
+            / ".neon_player"
+            / "cache"
+            / "SurfaceTrackingPlugin"
+            / f"{surface_data['uid']}_surface.pkl"
+        )
+        if not src_def_file.exists():
+            logging.error(f"Surface definition file {src_def_file} not found")
+            return
+
+        new_def_file = (
+            self.recording._rec_dir
+            / ".neon_player"
+            / "cache"
+            / "SurfaceTrackingPlugin"
+            / src_def_file.name
+        )
+        shutil.copy(src_def_file, new_def_file)
+
+        surfaces = self._surfaces.copy()
+        surface = TrackedSurface.from_dict(surface_data)
+        surfaces.append(surface)
+        self.surfaces = surfaces
+
+    @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
-
         for surface in self._surfaces:
             self.job_manager.run_background_action(
                 f"{surface.name} Gazes Export",
