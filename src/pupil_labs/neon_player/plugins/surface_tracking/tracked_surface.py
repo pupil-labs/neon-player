@@ -488,9 +488,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         )
 
     def export_fixations(self, gazes, destination: Path = Path()):
-        try:
-            fixations_plugin = Plugin.get_instance_by_name("FixationsPlugin")
-        except KeyError:
+        fixations_plugin = Plugin.get_instance_by_name("FixationsPlugin")
+        if fixations_plugin is None:
             logging.warning(
                 "Surface fixations export requires gaze and fixations plugins."
             )
