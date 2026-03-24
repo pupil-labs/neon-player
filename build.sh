@@ -51,7 +51,8 @@ uv run -m nuitka src/pupil_labs/neon_player \
     --include-module=cmath \
     --include-module=zoneinfo \
     --include-module=av.sidedata.encparams \
-    --include-module=pandas._libs._cyutility
+    --include-module=pandas._libs._cyutility \
+    --include-qt-plugins=multimedia
 
 cp -r deployment/* dist/
 cd dist
