@@ -85,8 +85,10 @@ class BackgroundJob(QObject):
 
     def _on_socket_disconnected(self):
         err = self.socket.error()
-        if err in (None, QLocalSocket.LocalSocketError.PeerClosedError):
-            self.finished.emit()
+        if err not in (None, QLocalSocket.LocalSocketError.PeerClosedError):
+            logging.warning(f"Unexpected job socket disconnection {err} for job {self.name}")
+
+        self.finished.emit()
 
     def _read_progress_update(self):
         if not self.socket:
