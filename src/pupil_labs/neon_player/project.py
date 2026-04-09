@@ -40,7 +40,7 @@ def get_recording_list(path: Path) -> list[RecordingDescription]:
     Only a subset of fields is extracted to provide a brief description.
     """
     recordings = []
-    folders = [p for p in path.iterdir() if p.is_dir()]
+    folders = sorted([p for p in path.iterdir() if p.is_dir()])
     for folder in folders:
         if desc := get_recording_description(folder):
             recordings.append(desc)
