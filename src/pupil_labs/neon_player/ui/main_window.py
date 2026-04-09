@@ -741,6 +741,7 @@ class MainWindow(QMainWindow):
         self.video_widget.set_time_in_recording(ts)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
+        self.project_sidebar.on_recording_loaded(recording)
         self.video_widget.on_recording_loaded(recording)
 
 

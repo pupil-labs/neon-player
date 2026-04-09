@@ -1,6 +1,6 @@
 import logging
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
 
@@ -24,10 +24,11 @@ def get_recording_description(path: Path) -> RecordingDescription | None:
     """
     try:
         rec = nr.load(path)
+        duration = timedelta(seconds=rec.duration / 1e9)
         return RecordingDescription(
             name=path.name,
             path=path,
-            duration=timedelta(seconds=rec.duration / 1e9),
+            duration=duration,
             wearer=rec.wearer["name"]
         )
     except FileNotFoundError:  # path / info.json / wearer.json
@@ -54,14 +55,28 @@ class Project(QObject):
     def __init__(self):
         super().__init__()
 
-        self.recording_list : list[RecordingDescription] = []
+        self.recording_dict : dict[str, RecordingDescription] = {}
         self.initialized : bool = False
+
+    @property
+    def recordings(self) -> list[RecordingDescription]:
+        return list(self.recording_dict.values())
+
+    def get_recording_path(self, recording_name: str) -> Path | None:
+        """
+        Get the file path of a recording by its name.
+        """
+        if recording_name not in self.recording_dict:
+            return None
+
+        return self.recording_dict[recording_name].path
 
     def load_recording_list(self, path: Path):
         logging.info(f"Loading recording list from: {path}")
         self.initialized = False
-        self.recording_list = get_recording_list(path)
+        recordings = get_recording_list(path)
+        self.recording_dict = {rec.name: rec for rec in recordings}
 
-        logging.info(f"Found {len(self.recording_list)} recordings in the provided folder")
+        logging.info(f"Found {len(self.recording_dict)} recordings in the provided folder")
         self.initialized = True
-        self.recording_list_loaded.emit(self.recording_list)
+        self.recording_list_loaded.emit(self.recordings)

@@ -365,7 +365,7 @@ class NeonPlayerApp(QApplication):
 
         if self.args.project and not self.project.initialized:
             self.project.load_recording_list(path)
-            path = self.project.recording_list[0].path
+            path = self.project.recordings[0].path
 
         logging.info("Opening recording at path: %s", path)
         self.recording = nr.load(path)
