@@ -43,6 +43,7 @@ from pupil_labs.neon_player.plugins import (
     video_exporter,  # noqa: F401
 )
 from pupil_labs.neon_player.history import RecordingHistory
+from pupil_labs.neon_player.project import Project
 from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
@@ -79,6 +80,7 @@ class NeonPlayerApp(QApplication):
 
         self.plugins_by_class: dict[str, Plugin] = {}
         self.plugins: list[Plugin] = []
+        self.project: Project = Project()
         self.recording: nr.NeonRecording | None = None
         self.playback_start_anchor = 0
         self.current_ts = 0
@@ -97,6 +99,7 @@ class NeonPlayerApp(QApplication):
 
         parser = argparse.ArgumentParser()
         parser.add_argument("recording", nargs="?", default=None, help="")
+        parser.add_argument("--project", action="store_true")
         parser.add_argument("--progress-ipc-name", type=str, default=None)
         parser.add_argument(
             "--job",
@@ -359,6 +362,11 @@ class NeonPlayerApp(QApplication):
         self.loading_recording = True
         self._initializing = True
         self.unload()
+
+        if self.args.project and not self.project.initialized:
+            self.project.load_recording_list(path)
+            path = self.project.recording_list[0].path
+
         logging.info("Opening recording at path: %s", path)
         self.recording = nr.load(path)
         self.recording_history.add_recording(path, self.recording)

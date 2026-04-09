@@ -47,6 +47,7 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
+from pupil_labs.neon_player.ui.project_sidebar import ProjectSidebar
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
@@ -468,6 +469,12 @@ class MainWindow(QMainWindow):
             self.timeline, "", Qt.DockWidgetArea.BottomDockWidgetArea
         )
 
+        self.project_sidebar = ProjectSidebar()
+        self.project_dock = self.add_dock(
+            self.project_sidebar, "", Qt.DockWidgetArea.LeftDockWidgetArea
+        )
+        app.project.recording_list_loaded.connect(self.project_sidebar.update_recording_table)
+
         self.register_action(
             "&Help/&Online Documentation", on_triggered=self.on_documentation_action
         )
@@ -525,6 +532,7 @@ class MainWindow(QMainWindow):
 
     def reset_docks(self):
         docks_and_areas = {
+            self.project_dock: Qt.DockWidgetArea.LeftDockWidgetArea,
             self.timeline_dock: Qt.DockWidgetArea.BottomDockWidgetArea,
             self.settings_dock: Qt.DockWidgetArea.RightDockWidgetArea,
         }
@@ -536,6 +544,7 @@ class MainWindow(QMainWindow):
 
     def on_recording_opened(self):
         self.greeting_switcher.setCurrentIndex(1)
+        self.project_dock.show()
         self.timeline_dock.show()
         self.settings_dock.show()
         self.menuBar().show()
@@ -544,6 +553,7 @@ class MainWindow(QMainWindow):
 
     def on_recording_closed(self):
         self.greeting_switcher.setCurrentIndex(0)
+        self.project_dock.hide()
         self.timeline_dock.hide()
         self.settings_dock.hide()
         self.menuBar().hide()
