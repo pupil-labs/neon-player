@@ -552,6 +552,10 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(1, self.timeline.reset_view)
 
     def on_recording_closed(self):
+        app = neon_player.instance()
+        if app.project.initialized:
+            return
+
         self.greeting_switcher.setCurrentIndex(0)
         self.project_dock.hide()
         self.timeline_dock.hide()
