@@ -42,7 +42,7 @@ from pupil_labs.neon_player.plugins import (
     surface_tracking,  # noqa: F401
     video_exporter,  # noqa: F401
 )
-from pupil_labs.neon_player.recent import get_recording_metadata
+from pupil_labs.neon_player.history import get_recording_metadata, RecordingHistory
 from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
@@ -87,6 +87,7 @@ class NeonPlayerApp(QApplication):
         self.settings = GeneralSettings()
         self.loading_recording = False
         self.recording_settings = None
+        self.recording_history = RecordingHistory()
 
         self.refresh_timer = QTimer(self)
         self.refresh_timer.setInterval(1000 / 30)
@@ -132,7 +133,12 @@ class NeonPlayerApp(QApplication):
         except Exception:
             logging.exception("Failed to load settings")
 
-        self.main_window.splash_widget.update_recent_recordings()
+        try:
+            self.recording_history = RecordingHistory.from_dict(self.load_recording_history())
+        except FileNotFoundError:
+            logging.warning("Recording history file not found")
+        except Exception:
+            logging.exception("Failed to load recording history")
 
         if self.args.job and self.args.recording:
             self.load(Path(self.args.recording))
@@ -174,6 +180,11 @@ class NeonPlayerApp(QApplication):
         settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
         logging.info(f"Loading settings from {settings_path}")
         return json.loads(settings_path.read_text())
+
+    def load_recording_history(self) -> T.Any:
+        history_path = Path.home() / "Pupil Labs" / "Neon Player" / "history.json"
+        logging.info(f"Loading recording history from {history_path}")
+        return json.loads(history_path.read_text())
 
     def save_settings(self) -> None:
         if self._initializing:
@@ -337,20 +348,7 @@ class NeonPlayerApp(QApplication):
         self.unload()
         logging.info("Opening recording at path: %s", path)
         self.recording = nr.load(path)
-
-        # Update recent recordings metadata
-        rec_info = get_recording_metadata(path, self.recording)
-
-        recent = []
-        for r in self.settings.recent_recordings:
-            if isinstance(r, str):
-                continue
-            if r["path"] != rec_info["path"]:
-                recent.append(r)
-
-        recent.insert(0, rec_info)
-        self.settings.recent_recordings = recent[:10]
-        self.save_settings()
+        self.recording_history.add_recording(path, self.recording)
         self.main_window.splash_widget.update_recent_recordings()
 
         os.chdir(path)

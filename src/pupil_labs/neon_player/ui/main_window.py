@@ -63,21 +63,13 @@ class SplashWidget(Ui_Class, QtBaseClass):
         self.setupUi(self)
         self.logo.setPixmap(QPixmap(asset_path("Primary-White-76px.png")))
         self.setAcceptDrops(True)
-        self.update_recent_recordings()
+
+        app = neon_player.instance()
+        app.recording_history.changed.connect(self.update_recent_recordings)
 
     def update_recent_recordings(self) -> None:
         app = neon_player.instance()
-        recent = app.settings.recent_recordings
-
-        existing_recent = []
-        for r in recent:
-            if isinstance(r, dict) and "path" in r and Path(r["path"]).exists():
-                existing_recent.append(r)
-
-        if len(existing_recent) != len(recent):
-            app.settings.recent_recordings = existing_recent
-            app.save_settings()
-            recent = existing_recent
+        recent = app.recording_history.recordings.items()
 
         has_recent = len(recent) > 0
         self.recent_container.setVisible(has_recent)
@@ -106,9 +98,9 @@ class SplashWidget(Ui_Class, QtBaseClass):
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
 
-        for row, info in enumerate(recent):
+        for row, (path, info) in enumerate(recent):
             item_name = QTableWidgetItem(info["name"])
-            item_name.setData(Qt.ItemDataRole.UserRole, info["path"])
+            item_name.setData(Qt.ItemDataRole.UserRole, path)
             item_name.setForeground(QColor("#6d7be0"))
             font = item_name.font()
             font.setBold(True)
@@ -119,7 +111,7 @@ class SplashWidget(Ui_Class, QtBaseClass):
             item_last_opened = QTableWidgetItem(info.get("last_opened", "-"))
             item_recorded = QTableWidgetItem(info.get("recorded", "-"))
 
-            item_path = QTableWidgetItem(info["path"])
+            item_path = QTableWidgetItem(path)
             item_path.setForeground(QColor("#666"))
 
             self.recent_table.setItem(row, 0, item_name)
