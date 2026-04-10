@@ -342,14 +342,16 @@ class NeonPlayerApp(QApplication):
         from datetime import datetime
 
         start_time = datetime.fromtimestamp(self.recording.info["start_time"] / 1e9)
-        date_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
+        recorded_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
+        last_opened_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         wearer = self.recording.wearer["name"]
 
         rec_info = {
             "path": path_str,
             "name": path.name,
             "wearer": wearer,
-            "date": date_str,
+            "recorded": recorded_str,
+            "last_opened": last_opened_str,
         }
 
         recent = []

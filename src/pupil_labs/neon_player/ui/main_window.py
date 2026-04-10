@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDockWidget,
     QFileDialog,
+    QHeaderView,
     QLabel,
     QMainWindow,
     QMenu,
@@ -31,6 +32,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QStackedLayout,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -82,15 +84,14 @@ class SplashWidget(Ui_Class, QtBaseClass):
         if not has_recent:
             return
 
-        from PySide6.QtWidgets import QHeaderView, QTableWidgetItem
-
         self.recent_table.setSortingEnabled(False)
         self.recent_table.clear()
-        self.recent_table.setColumnCount(4)
+        self.recent_table.setColumnCount(5)
         self.recent_table.setHorizontalHeaderLabels([
             "Recording Name",
             "Wearer",
-            "Date",
+            "Last opened",
+            "Recorded",
             "Path",
         ])
         self.recent_table.setRowCount(len(recent))
@@ -99,7 +100,8 @@ class SplashWidget(Ui_Class, QtBaseClass):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         header.setDefaultAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
@@ -114,19 +116,22 @@ class SplashWidget(Ui_Class, QtBaseClass):
 
             item_wearer = QTableWidgetItem(info.get("wearer", "-"))
 
-            item_date = QTableWidgetItem(info.get("date", "-"))
+            item_last_opened = QTableWidgetItem(info.get("last_opened", "-"))
+            item_recorded = QTableWidgetItem(info.get("recorded", "-"))
 
             item_path = QTableWidgetItem(info["path"])
             item_path.setForeground(QColor("#666"))
 
             self.recent_table.setItem(row, 0, item_name)
             self.recent_table.setItem(row, 1, item_wearer)
-            self.recent_table.setItem(row, 2, item_date)
-            self.recent_table.setItem(row, 3, item_path)
+            self.recent_table.setItem(row, 2, item_last_opened)
+            self.recent_table.setItem(row, 3, item_recorded)
+            self.recent_table.setItem(row, 4, item_path)
 
         self.recent_table.setColumnWidth(0, 250)
         self.recent_table.setColumnWidth(1, 150)
         self.recent_table.setColumnWidth(2, 200)
+        self.recent_table.setColumnWidth(3, 200)
 
         self.recent_table.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
 
