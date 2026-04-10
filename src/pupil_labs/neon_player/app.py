@@ -42,6 +42,7 @@ from pupil_labs.neon_player.plugins import (
     surface_tracking,  # noqa: F401
     video_exporter,  # noqa: F401
 )
+from pupil_labs.neon_player.recent import get_recording_metadata
 from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
@@ -338,27 +339,13 @@ class NeonPlayerApp(QApplication):
         self.recording = nr.load(path)
 
         # Update recent recordings metadata
-        path_str = str(path.absolute())
-        from datetime import datetime
-
-        start_time = datetime.fromtimestamp(self.recording.info["start_time"] / 1e9)
-        recorded_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
-        last_opened_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        wearer = self.recording.wearer["name"]
-
-        rec_info = {
-            "path": path_str,
-            "name": path.name,
-            "wearer": wearer,
-            "recorded": recorded_str,
-            "last_opened": last_opened_str,
-        }
+        rec_info = get_recording_metadata(path, self.recording)
 
         recent = []
         for r in self.settings.recent_recordings:
             if isinstance(r, str):
                 continue
-            if r["path"] != path_str:
+            if r["path"] != rec_info["path"]:
                 recent.append(r)
 
         recent.insert(0, rec_info)
