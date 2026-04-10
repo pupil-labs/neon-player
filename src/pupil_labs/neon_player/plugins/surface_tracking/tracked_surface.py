@@ -67,7 +67,17 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
         self._visualizations: list[GazeVisualization] = [
             CircleViz(),
         ]
-        self.render_size = [500, 500]
+        self._render_size = [0, 0]
+
+    @property
+    def render_size(self) -> list[int]:
+        return self._render_size
+
+    @render_size.setter
+    @property_params(widget=None)
+    def render_size(self, value: list[int]) -> None:
+        self._render_size = value
+        self.changed.emit()
 
     @property
     @property_params(
@@ -478,9 +488,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         )
 
     def export_fixations(self, gazes, destination: Path = Path()):
-        try:
-            fixations_plugin = Plugin.get_instance_by_name("FixationsPlugin")
-        except KeyError:
+        fixations_plugin = Plugin.get_instance_by_name("FixationsPlugin")
+        if fixations_plugin is None:
             logging.warning(
                 "Surface fixations export requires gaze and fixations plugins."
             )

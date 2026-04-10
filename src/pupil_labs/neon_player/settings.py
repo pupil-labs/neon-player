@@ -132,13 +132,14 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
     @property_params(widget=None)
     def plugin_states(self) -> dict[str, dict]:
         app = neon_player.instance()
-        current_states = {
-            class_name: p.to_dict() for class_name, p in app.plugins_by_class.items()
-        }
+        if app.recording_settings == self:
+            current_states = {
+                class_name: p.to_dict() for class_name, p in app.plugins_by_class.items()
+            }
 
-        plugin_states = {**self._plugin_states, **current_states}
+            plugin_states = {**self._plugin_states, **current_states}
 
-        self._plugin_states = {k: v for k, v in plugin_states.items() if v}
+            self._plugin_states = {k: v for k, v in plugin_states.items() if v}
 
         return self._plugin_states
 
