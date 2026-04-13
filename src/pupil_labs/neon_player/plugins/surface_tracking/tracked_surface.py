@@ -513,6 +513,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             fixation_gazes = gazes[start_mask & end_mask]
 
             if not fixation_gazes.size:
+                fixations_on_surfs.append(0)
                 continue
 
             mapped_gazes = self.apply_offset_and_map_gazes(fixation_gazes)
