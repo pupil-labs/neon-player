@@ -277,6 +277,9 @@ class FixationsPlugin(neon_player.Plugin):
                 (fixation.start_time <= gaze.time) & (gaze.time <= fixation.stop_time)
             ]
 
+            if not gaze_samples.size:
+                continue
+
             ref_gaze = gaze_samples[len(gaze_samples) // 2]
 
             start_scene_idx, stop_scene_idx = np.searchsorted(
