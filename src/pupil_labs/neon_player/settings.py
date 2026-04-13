@@ -39,16 +39,6 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
         })
 
     @property
-    @property_params(widget=None)
-    def recent_recordings(self) -> list[dict[str, str]]:
-        return self._recent_recordings
-
-    @recent_recordings.setter
-    def recent_recordings(self, value: list[dict[str, str]]) -> None:
-        self._recent_recordings = value.copy()
-        self.changed.emit()
-
-    @property
     def skip_gray_frames_on_load(self) -> bool:
         return self._skip_gray_frames_on_load
 
