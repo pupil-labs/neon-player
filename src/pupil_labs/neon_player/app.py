@@ -349,7 +349,6 @@ class NeonPlayerApp(QApplication):
         logging.info("Opening recording at path: %s", path)
         self.recording = nr.load(path)
         self.recording_history.add_recording(path, self.recording)
-        self.main_window.splash_widget.update_recent_recordings()
 
         os.chdir(path)
         self.playback_start_anchor = 0

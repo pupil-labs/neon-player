@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QStackedLayout,
+    QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -64,20 +65,41 @@ class SplashWidget(Ui_Class, QtBaseClass):
         self.logo.setPixmap(QPixmap(asset_path("Primary-White-76px.png")))
         self.setAcceptDrops(True)
 
-        app = neon_player.instance()
-        app.recording_history.changed.connect(self.update_recent_recordings)
+    def dragEnterEvent(self, event) -> None:
+        # Accept directories only
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            if len(urls) == 1 and urls[0].isLocalFile() and urls[0].toLocalFile():
+                path = Path(urls[0].toLocalFile())
+                if path.is_dir():
+                    event.acceptProposedAction()
+                    self.dropbox.setStyleSheet("#dropbox { background: #141414 }")
+                    return
 
-    def update_recent_recordings(self) -> None:
-        app = neon_player.instance()
-        recent = app.recording_history.recordings.items()
+        event.ignore()
 
-        has_recent = len(recent) > 0
-        self.recent_container.setVisible(has_recent)
-        if not has_recent:
-            return
+    def dragLeaveEvent(self, event) -> None:
+        self.dropbox.setStyleSheet("#dropbox { background: #080808 }")
 
-        self.recent_table.setSortingEnabled(False)
-        self.recent_table.clear()
+    def dropEvent(self, event) -> None:
+        urls = event.mimeData().urls()
+        if urls and urls[0].isLocalFile():
+            path = Path(urls[0].toLocalFile())
+            if path.is_dir():
+                neon_player.instance().load(path)
+                event.acceptProposedAction()
+                return
+
+        event.ignore()
+
+
+class RecentWidget(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+
+        self.recent_table = QTableWidget(self)
+        self.recent_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.recent_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.recent_table.setColumnCount(5)
         self.recent_table.setHorizontalHeaderLabels([
             "Recording Name",
@@ -86,6 +108,25 @@ class SplashWidget(Ui_Class, QtBaseClass):
             "Recorded",
             "Path",
         ])
+        self.recent_table.cellClicked.connect(self.on_recent_cell_clicked)
+
+        self.back_button = QPushButton("Back")
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.back_button, alignment=Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(QLabel("<h2>Recently Opened</h2>"))
+        layout.addWidget(self.recent_table)
+
+        app = neon_player.instance()
+        app.recording_history.changed.connect(self.update_recent_recordings)
+
+    def update_recent_recordings(self) -> None:
+        app = neon_player.instance()
+        recent = app.recording_history.recordings.items()
+
+        self.recent_table.setSortingEnabled(False)
+        self.recent_table.clearContents()
+
         self.recent_table.setRowCount(len(recent))
 
         header = self.recent_table.horizontalHeader()
@@ -127,12 +168,6 @@ class SplashWidget(Ui_Class, QtBaseClass):
 
         self.recent_table.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
 
-        try:
-            self.recent_table.cellClicked.disconnect()
-        except Exception:
-            pass
-        self.recent_table.cellClicked.connect(self._on_recent_cell_clicked)
-
         self.recent_table.setSortingEnabled(True)
         self.recent_table.sortByColumn(2, Qt.SortOrder.DescendingOrder)
 
@@ -141,38 +176,11 @@ class SplashWidget(Ui_Class, QtBaseClass):
         total_height = header_height + (row_height * len(recent)) + 20
         self.recent_table.setMinimumHeight(min(total_height, 600))
 
-    def _on_recent_cell_clicked(self, row: int, column: int) -> None:
+    def on_recent_cell_clicked(self, row: int, column: int) -> None:
         item = self.recent_table.item(row, 0)
         path_str = item.data(Qt.ItemDataRole.UserRole)
         if path_str:
             neon_player.instance().load(Path(path_str))
-
-    def dragEnterEvent(self, event) -> None:
-        # Accept directories only
-        if event.mimeData().hasUrls():
-            urls = event.mimeData().urls()
-            if len(urls) == 1 and urls[0].isLocalFile() and urls[0].toLocalFile():
-                path = Path(urls[0].toLocalFile())
-                if path.is_dir():
-                    event.acceptProposedAction()
-                    self.dropbox.setStyleSheet("#dropbox { background: #141414 }")
-                    return
-
-        event.ignore()
-
-    def dragLeaveEvent(self, event) -> None:
-        self.dropbox.setStyleSheet("#dropbox { background: #080808 }")
-
-    def dropEvent(self, event) -> None:
-        urls = event.mimeData().urls()
-        if urls and urls[0].isLocalFile():
-            path = Path(urls[0].toLocalFile())
-            if path.is_dir():
-                neon_player.instance().load(path)
-                event.acceptProposedAction()
-                return
-
-        event.ignore()
 
 
 class MainWindow(QMainWindow):
@@ -311,14 +319,19 @@ class MainWindow(QMainWindow):
 
         self.splash_widget = SplashWidget()
         self.splash_widget.browse_button.clicked.connect(self.on_open_action)
+        self.splash_widget.recent_button.clicked.connect(self.on_show_recent_action)
 
         self.video_widget = VideoRenderWidget()
+
+        self.recent_widget = RecentWidget()
+        self.recent_widget.back_button.clicked.connect(self.on_show_splash_action)
 
         self.greeting_switcher = QStackedLayout()
         central_widget = QWidget(self)
         central_widget.setLayout(self.greeting_switcher)
         self.greeting_switcher.addWidget(self.splash_widget)
         self.greeting_switcher.addWidget(self.video_widget)
+        self.greeting_switcher.addWidget(self.recent_widget)
         self.setCentralWidget(central_widget)
 
         app.recording_loaded.connect(self.on_recording_opened)
@@ -424,12 +437,18 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(1, self.timeline.reset_view)
 
     def on_recording_closed(self):
-        self.splash_widget.update_recent_recordings()
         self.greeting_switcher.setCurrentIndex(0)
         self.timeline_dock.hide()
         self.settings_dock.hide()
         self.menuBar().hide()
         self.statusBar().hide()
+
+    def on_show_recent_action(self) -> None:
+        self.recent_widget.update_recent_recordings()
+        self.greeting_switcher.setCurrentIndex(2)
+
+    def on_show_splash_action(self) -> None:
+        self.greeting_switcher.setCurrentIndex(0)
 
     def update_job_status(self) -> None:
         job_manager = neon_player.instance().job_manager

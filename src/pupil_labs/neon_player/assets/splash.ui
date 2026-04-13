@@ -47,7 +47,7 @@ border-radius: 5px;
        <height>300</height>
       </size>
      </property>
-     <layout class="QVBoxLayout" name="verticalLayout_3" stretch="1,0,3,1">
+     <layout class="QVBoxLayout" name="verticalLayout_3" stretch="1,0,0,1">
       <item>
        <widget class="QLabel" name="label">
         <property name="styleSheet">
@@ -157,90 +157,43 @@ border-radius: 5px;
        </layout>
       </item>
       <item>
-       <layout class="QHBoxLayout" name="recent_h_layout" stretch="1,10,1">
+       <layout class="QHBoxLayout" name="recent">
+        <property name="topMargin">
+         <number>20</number>
+        </property>
         <item>
-         <spacer name="recent_spacer_l">
+         <spacer name="recent_spacer_right">
           <property name="orientation">
            <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
           </property>
          </spacer>
         </item>
         <item>
-         <widget class="QWidget" name="recent_container" native="true">
-          <layout class="QVBoxLayout" name="recent_v_layout">
-           <item>
-            <widget class="QLabel" name="recent_label">
-             <property name="styleSheet">
-              <string notr="true">font-size: 14pt; font-weight: bold; color: #aaa; margin-top: 30px;</string>
-             </property>
-             <property name="text">
-              <string>Recently opened</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QTableWidget" name="recent_table">
-             <property name="styleSheet">
-              <string notr="true">QTableWidget { 
-    background-color: #000; 
-    alternate-background-color: #080808;
-    border: none; 
-    gridline-color: transparent; 
-    color: #ccc; 
-    font-size: 11pt;
-    outline: 0;
-}
-QTableWidget::item { 
-    padding: 10px; 
-    border-bottom: 1px solid #222;
-}
-QTableWidget::item:hover {
-    background-color: #111;
-}
-QHeaderView::section {
-    background-color: #000;
-    color: #888;
-    padding: 5px;
-    border: none;
-    border-bottom: 2px solid #333;
-    font-weight: bold;
-    font-size: 10pt;
-}
-</string>
-             </property>
-             <property name="editTriggers">
-              <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
-             </property>
-             <property name="alternatingRowColors">
-              <bool>true</bool>
-             </property>
-             <property name="selectionMode">
-              <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
-             </property>
-             <property name="selectionBehavior">
-              <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
-             </property>
-             <property name="showGrid">
-              <bool>false</bool>
-             </property>
-             <property name="sortingEnabled">
-              <bool>true</bool>
-             </property>
-             <attribute name="horizontalHeaderStretchLastSection">
-              <bool>true</bool>
-             </attribute>
-             <attribute name="verticalHeaderVisible">
-              <bool>false</bool>
-             </attribute>
-            </widget>
-           </item>
-          </layout>
+         <widget class="QPushButton" name="recent_button">
+          <property name="text">
+           <string>See recently opened recordings</string>
+          </property>
+          <property name="flat">
+           <bool>true</bool>
+          </property>
          </widget>
         </item>
         <item>
-         <spacer name="recent_spacer_r">
+         <spacer name="recent_spacer_left">
           <property name="orientation">
            <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
           </property>
          </spacer>
         </item>
