@@ -512,6 +512,9 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             end_mask = gazes.time <= fixation[1]["end timestamp [ns]"]
             fixation_gazes = gazes[start_mask & end_mask]
 
+            if not fixation_gazes.size:
+                continue
+
             mapped_gazes = self.apply_offset_and_map_gazes(fixation_gazes)
 
             lower_pass = np.all(mapped_gazes >= 0, axis=1)
