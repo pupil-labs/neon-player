@@ -97,25 +97,36 @@ class RecentWidget(QWidget):
     def __init__(self) -> None:
         super().__init__()
 
-        self.recent_table = QTableWidget(self)
-        self.recent_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.recent_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.recent_table.setColumnCount(5)
-        self.recent_table.setHorizontalHeaderLabels([
+        self.table = QTableWidget(self)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setShowGrid(False)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels([
             "Recording Name",
             "Wearer",
             "Last opened",
             "Recorded",
             "Path",
         ])
-        self.recent_table.cellClicked.connect(self.on_recent_cell_clicked)
+        self.table.verticalHeader().setVisible(False)
+        self.table.cellClicked.connect(self.on_recent_cell_clicked)
+
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        header.setDefaultAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
 
         self.back_button = QPushButton("Back")
+        self.back_button.setFlat(True)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(50, 50, 50, 50)
         layout.addWidget(self.back_button, alignment=Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(QLabel("<h2>Recently Opened</h2>"))
-        layout.addWidget(self.recent_table)
+        layout.addWidget(self.table)
 
         app = neon_player.instance()
         app.recording_history.changed.connect(self.update_recent_recordings)
@@ -124,20 +135,9 @@ class RecentWidget(QWidget):
         app = neon_player.instance()
         recent = app.recording_history.recordings.items()
 
-        self.recent_table.setSortingEnabled(False)
-        self.recent_table.clearContents()
-
-        self.recent_table.setRowCount(len(recent))
-
-        header = self.recent_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
-        header.setDefaultAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-        )
+        self.table.setSortingEnabled(False)
+        self.table.clearContents()
+        self.table.setRowCount(len(recent))
 
         for row, (path, info) in enumerate(recent):
             item_name = QTableWidgetItem(info["name"])
@@ -155,32 +155,29 @@ class RecentWidget(QWidget):
             item_path = QTableWidgetItem(path)
             item_path.setForeground(QColor("#666"))
 
-            self.recent_table.setItem(row, 0, item_name)
-            self.recent_table.setItem(row, 1, item_wearer)
-            self.recent_table.setItem(row, 2, item_last_opened)
-            self.recent_table.setItem(row, 3, item_recorded)
-            self.recent_table.setItem(row, 4, item_path)
+            self.table.setItem(row, 0, item_name)
+            self.table.setItem(row, 1, item_wearer)
+            self.table.setItem(row, 2, item_last_opened)
+            self.table.setItem(row, 3, item_recorded)
+            self.table.setItem(row, 4, item_path)
 
-        self.recent_table.setColumnWidth(0, 250)
-        self.recent_table.setColumnWidth(1, 150)
-        self.recent_table.setColumnWidth(2, 200)
-        self.recent_table.setColumnWidth(3, 200)
+        self.table.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
 
-        self.recent_table.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
-
-        self.recent_table.setSortingEnabled(True)
-        self.recent_table.sortByColumn(2, Qt.SortOrder.DescendingOrder)
+        self.table.setSortingEnabled(True)
+        self.table.sortByColumn(2, Qt.SortOrder.DescendingOrder)
 
         row_height = 45
-        header_height = self.recent_table.horizontalHeader().height() or 30
+        header_height = self.table.horizontalHeader().height() or 30
         total_height = header_height + (row_height * len(recent)) + 20
-        self.recent_table.setMinimumHeight(min(total_height, 600))
+        self.table.setMinimumHeight(min(total_height, 600))
 
     def on_recent_cell_clicked(self, row: int, column: int) -> None:
-        item = self.recent_table.item(row, 0)
+        item = self.table.item(row, 0)
         path_str = item.data(Qt.ItemDataRole.UserRole)
-        if path_str:
-            neon_player.instance().load(Path(path_str))
+        if not path_str:
+            return
+
+        neon_player.instance().load(Path(path_str))
 
 
 class MainWindow(QMainWindow):
@@ -314,6 +311,13 @@ class MainWindow(QMainWindow):
 
             #DeleteButton {
                 border: none;
+            }
+
+            QTableWidget::item {
+                border-top: 1px solid #292d2d;
+                border-bottom: 1px solid #292d2d;
+                padding: 10px;
+                padding-left: 0px;
             }
         """)
 
