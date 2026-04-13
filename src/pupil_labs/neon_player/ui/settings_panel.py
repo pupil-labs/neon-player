@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QPoint
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -91,7 +91,10 @@ class PluginManagerWidget(QWidget):
         action.setDefaultWidget(form)
         menu.addAction(action)
 
-        menu.exec(self.button.mapToGlobal(self.button.rect().bottomLeft()))
+        # Align the right sides of the menu (i.e., checkboxes) and button
+        bottom_right_corner = self.button.mapToGlobal(self.button.rect().bottomRight())
+        menu_width_offset = QPoint(menu.sizeHint().width() - 10, 0)
+        menu.exec(bottom_right_corner - menu_width_offset)
 
 
 class SettingsPanel(QScrollArea):
