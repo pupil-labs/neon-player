@@ -3,10 +3,10 @@ from datetime import datetime
 from pathlib import Path
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
-from qt_property_widgets.utilities import PersistentPropertiesMixin
 
 
 def get_recording_metadata(path: Path, recording: NeonRecording) -> dict[str, str]:
+    """Short description that is displayed for recently opened recordings."""
     start_time = datetime.fromtimestamp(recording.info["start_time"] / 1e9)
     recorded_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
     last_opened_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -41,7 +41,8 @@ class RecordingHistory(QObject):
         metadata = get_recording_metadata(path, recording)
         key = str(path.resolve())
 
-        # NOTE: always update metadata since the last opened timestamp changes
+        # NOTE: always update metadata since the last opened timestamp changes if
+        # even the key already existed
         self._recordings[key] = metadata
         self._recordings.move_to_end(key, last=False)
         self._cleanup()

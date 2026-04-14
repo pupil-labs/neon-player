@@ -25,7 +25,6 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
         super().__init__()
         self._skip_gray_frames_on_load = True
         self._show_fps = False
-        self._recent_recordings: list[dict[str, str]] = []
 
         plugin_names = [k.__name__ for k in Plugin.known_classes]
         plugin_names.sort()
