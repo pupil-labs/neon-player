@@ -109,15 +109,18 @@ class RecentWidget(QWidget):
             "Recorded",
             "Path",
         ])
-        self.table.verticalHeader().setVisible(False)
         self.table.cellClicked.connect(self.on_recent_cell_clicked)
 
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
-        header.setDefaultAlignment(
+        horiz_header = self.table.horizontalHeader()
+        horiz_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        horiz_header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        horiz_header.setDefaultAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
+
+        vert_header = self.table.verticalHeader()
+        vert_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        vert_header.setVisible(False)
 
         self.back_button = QPushButton("Back")
         self.back_button.setFlat(True)
@@ -166,7 +169,7 @@ class RecentWidget(QWidget):
         self.table.setSortingEnabled(True)
         self.table.sortByColumn(2, Qt.SortOrder.DescendingOrder)
 
-        row_height = 45
+        row_height = 100
         header_height = self.table.horizontalHeader().height() or 30
         total_height = header_height + (row_height * len(recent)) + 20
         self.table.setMinimumHeight(min(total_height, 600))
@@ -201,6 +204,32 @@ class MainWindow(QMainWindow):
             QMenuBar, QMenu {
                 color: #ccc;
                 background: #1c2021;
+            }
+
+            QTableWidget, QHeaderView {
+                background: #1c2021;
+                border: none;
+            }
+
+            QTableWidget::item {
+                border-bottom: 1px solid #292d2d;
+                padding: 20px;
+                padding-left: 0px;
+            }
+
+            QTableWidget::item:selected {
+                background: #292d2d;
+            }
+
+            QHeaderView::section {
+                background-color: transparent;
+                border: none;
+                color: #a09fa6;
+                font-size: 10pt;
+            }
+
+            QHeaderView::section:hover, QPushButton#back_button:hover {
+                background-color: #292d2d;
             }
 
             QMenuBar::item:selected,
@@ -311,13 +340,6 @@ class MainWindow(QMainWindow):
 
             #DeleteButton {
                 border: none;
-            }
-
-            QTableWidget::item {
-                border-top: 1px solid #292d2d;
-                border-bottom: 1px solid #292d2d;
-                padding: 10px;
-                padding-left: 0px;
             }
         """)
 
