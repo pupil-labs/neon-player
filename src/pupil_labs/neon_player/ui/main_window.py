@@ -3,10 +3,10 @@ import typing
 import webbrowser
 from pathlib import Path
 
-from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import (
     QKeyCombination,
     Qt,
+    QSize,
     QTimer,
     QUrl,
 )
@@ -14,6 +14,7 @@ from PySide6.QtGui import (
     QAction,
     QColor,
     QDesktopServices,
+    QIcon,
     QPalette,
     QPixmap,
 )
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDockWidget,
     QFileDialog,
+    QHBoxLayout,
     QHeaderView,
     QLabel,
     QMainWindow,
@@ -48,6 +50,7 @@ from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
+from pupil_labs.neon_recording import NeonRecording
 
 try:
     from pupil_labs.neon_player.ui.splash import Ui_Splash
@@ -63,6 +66,10 @@ class SplashWidget(Ui_Class, QtBaseClass):
         super().__init__()
         self.setupUi(self)
         self.logo.setPixmap(QPixmap(asset_path("Primary-White-76px.png")))
+        icon = self.recent_button.icon()
+        icon.addPixmap(QPixmap(asset_path("recent.svg")), QIcon.Normal, QIcon.Off)
+        self.recent_button.setIcon(icon)
+        self.recent_button.setIconSize(QSize(24, 24))
         self.setAcceptDrops(True)
 
     def dragEnterEvent(self, event) -> None:
@@ -97,7 +104,21 @@ class RecentWidget(QWidget):
     def __init__(self) -> None:
         super().__init__()
 
+        self.back_button = QPushButton("← Back")
+        self.back_button.setFlat(True)
+
+        title_layout = QHBoxLayout()
+        title_icon = QLabel()
+        title_icon.setPixmap(QPixmap(asset_path("recent.svg")).scaledToHeight(24, Qt.TransformationMode.SmoothTransformation))
+        title_layout.addWidget(title_icon)
+        title_layout.addWidget(QLabel("<h2>Recently Opened</h2>"))
+        title_layout.addStretch()
+
+        self.empty_history_label = QLabel("Recently opened recordings will appear here.")
+        self.empty_history_label.setVisible(False)
+
         self.table = QTableWidget(self)
+        self.table.clearFocus()
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setShowGrid(False)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -122,14 +143,13 @@ class RecentWidget(QWidget):
         vert_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         vert_header.setVisible(False)
 
-        self.back_button = QPushButton("Back")
-        self.back_button.setFlat(True)
-
         layout = QVBoxLayout(self)
         layout.setContentsMargins(50, 50, 50, 50)
         layout.addWidget(self.back_button, alignment=Qt.AlignmentFlag.AlignLeft)
-        layout.addWidget(QLabel("<h2>Recently Opened</h2>"))
+        layout.addLayout(title_layout)
+        layout.addWidget(self.empty_history_label)
         layout.addWidget(self.table)
+        layout.addStretch()
 
         app = neon_player.instance()
         app.recording_history.changed.connect(self.update_recent_recordings)
@@ -140,8 +160,14 @@ class RecentWidget(QWidget):
 
         self.table.setSortingEnabled(False)
         self.table.clearContents()
-        self.table.setRowCount(len(recent))
 
+        if not recent:
+            self.table.setVisible(False)
+            self.empty_history_label.setVisible(True)
+            return
+
+        self.empty_history_label.setVisible(False)
+        self.table.setRowCount(len(recent))
         for row, (path, info) in enumerate(recent):
             item_name = QTableWidgetItem(info["name"])
             item_name.setData(Qt.ItemDataRole.UserRole, path)
@@ -228,7 +254,7 @@ class MainWindow(QMainWindow):
                 font-size: 10pt;
             }
 
-            QHeaderView::section:hover, QPushButton#back_button:hover {
+            QHeaderView::section:hover {
                 background-color: #292d2d;
             }
 

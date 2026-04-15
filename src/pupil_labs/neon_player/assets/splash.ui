@@ -177,7 +177,17 @@ border-radius: 5px;
         <item>
          <widget class="QPushButton" name="recent_button">
           <property name="text">
-           <string>See recently opened recordings</string>
+           <string>Show recently opened recordings</string>
+          </property>
+          <property name="icon">
+           <iconset>
+            <normaloff>recent.svg</normaloff>recent.svg</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>24</width>
+            <height>24</height>
+           </size>
           </property>
           <property name="flat">
            <bool>true</bool>
