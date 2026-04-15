@@ -634,6 +634,9 @@ class EventsPlugin(neon_player.Plugin):
                     old_name
                 )
 
+            if old_name in timeline.hover_lines:
+                timeline.hover_lines[new_name] = timeline.hover_lines.pop(old_name)
+
             legend_container = timeline.timeline_legends[new_name].parentItem()
             for item in legend_container.items:
                 if isinstance(item, pg.LabelItem):
