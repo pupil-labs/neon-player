@@ -27,7 +27,7 @@ dependencies = [
     "protobuf<6",
     "pupil-apriltags>=1.0.4.post11",
     "pupil-labs-marker-mapper>=1.0.0",
-    "pupil-labs-neon-recording>=2.1.2",
+    "pupil-labs-neon-recording>=2.1.4",
     "pupil-labs-video>=1.0.11",
     "pyobjc; sys_platform == 'darwin'",
     "pyqtgraph>=0.13.7",
