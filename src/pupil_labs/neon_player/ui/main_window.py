@@ -106,12 +106,19 @@ class HoverRowTable(QTableWidget):
         super().__init__(*args, **kwargs)
         self.setMouseTracking(True)
 
-    def mouseMoveEvent(self, event):
-        idx = self.indexAt(event.pos())
+    def update_hovered_row(self, cursor_position):
+        idx = self.indexAt(cursor_position)
         if idx.isValid():
             self.setCurrentCell(idx.row(), 0)
             self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mouseMoveEvent(self, event):
+        self.update_hovered_row(event.pos())
         super().mouseMoveEvent(event)
+
+    def wheelEvent(self, event):
+        self.update_hovered_row(event.position().toPoint())
+        super().wheelEvent(event)
 
     def leaveEvent(self, event):
         self.clearSelection()
