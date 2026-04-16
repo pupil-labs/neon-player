@@ -5,7 +5,7 @@ from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
 
 
-def get_recording_metadata(path: Path, recording: NeonRecording) -> dict[str, str]:
+def create_recording_metadata(path: Path, recording: NeonRecording) -> dict[str, str]:
     """Short description that is displayed for recently opened recordings."""
     start_time = datetime.fromtimestamp(recording.info["start_time"] / 1e9)
     recorded_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
@@ -25,38 +25,40 @@ class RecordingHistory(QObject):
 
     def __init__(self, capacity: int = 10) -> None:
         super().__init__()
-        self._recordings : OrderedDict[str, dict[str, str]] = OrderedDict()
+        self._recent_recordings : OrderedDict[str, dict[str, str]] = OrderedDict()
         self.capacity : int = capacity
 
     def _cleanup(self) -> None:
-        """Remove non-existing recordings and enforce capacity limit."""
-        self._recordings = OrderedDict({
-            path: meta for path, meta in self._recordings.items() if Path(path).exists()
+        """Remove non-existing recent_recordings and enforce capacity limit."""
+        self._recent_recordings = OrderedDict({
+            path: meta
+            for path, meta in self._recent_recordings.items()
+            if Path(path).exists()
         })
 
-        while len(self._recordings) > self.capacity:
-            self._recordings.popitem()
+        while len(self._recent_recordings) > self.capacity:
+            self._recent_recordings.popitem()
 
     def add_recording(self, path: Path, recording: NeonRecording):
-        metadata = get_recording_metadata(path, recording)
+        metadata = create_recording_metadata(path, recording)
         key = str(path.resolve())
 
         # NOTE: always update metadata since the last opened timestamp changes if
         # even the key already existed
-        self._recordings[key] = metadata
-        self._recordings.move_to_end(key, last=False)
+        self._recent_recordings[key] = metadata
+        self._recent_recordings.move_to_end(key, last=False)
         self._cleanup()
 
         self.changed.emit()
 
     @property
-    def recordings(self):
-        return self._recordings
+    def recent_recordings(self):
+        return self._recent_recordings
 
     @classmethod
-    def from_dict(cls, recordings):
+    def from_dict(cls, recent_recordings):
         instance = cls()
-        instance._recordings = OrderedDict(recordings)
+        instance._recent_recordings = OrderedDict(recent_recordings)
         instance._cleanup()
         instance.changed.emit()
         return instance
