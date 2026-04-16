@@ -149,6 +149,7 @@ class RecentWidget(QWidget):
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.table.setShowGrid(False)
+        self.table.setWordWrap(False)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels([
@@ -224,6 +225,7 @@ class RecentWidget(QWidget):
 
             item_path = QTableWidgetItem(path)
             item_path.setForeground(QColor("#666"))
+            item_path.setToolTip(path)
 
             self.table.setItem(row, 0, item_name)
             self.table.setItem(row, 1, item_wearer)
