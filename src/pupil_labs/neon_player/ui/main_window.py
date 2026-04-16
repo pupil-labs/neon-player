@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QStackedLayout,
     QTableWidget,
     QTableWidgetItem,
@@ -138,6 +139,10 @@ class RecentWidget(QWidget):
         title_layout.addStretch()
 
         self.empty_history_label = QLabel("Recently opened recordings will appear here.")
+        self.empty_history_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.empty_history_label.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
+        )
         self.empty_history_label.setVisible(False)
 
         self.table = HoverRowTable(self)
@@ -198,6 +203,7 @@ class RecentWidget(QWidget):
             return
 
         self.empty_history_label.setVisible(False)
+        self.table.setVisible(True)
         self.table.setRowCount(len(recent))
         for row, (path, info) in enumerate(recent):
             item_name = QTableWidgetItem(info["name"])
