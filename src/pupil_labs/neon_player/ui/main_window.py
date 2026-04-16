@@ -224,7 +224,7 @@ class RecentWidget(QWidget):
             item_wearer = QTableWidgetItem(info.get("wearer", "-"))
             item_wearer.setForeground(QColor("#ededef"))
 
-            item_last_opened = QTableWidgetItem(info.get("last_opened", "-"))
+            item_last_opened = QTableWidgetItem(info["last_opened"])
             item_last_opened.setForeground(QColor("#ededef"))
 
             item_recorded = QTableWidgetItem(info.get("recorded", "-"))

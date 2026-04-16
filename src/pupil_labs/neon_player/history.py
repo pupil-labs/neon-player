@@ -1,3 +1,5 @@
+import logging
+
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
@@ -7,17 +9,19 @@ from PySide6.QtCore import QObject, Signal
 
 def create_recording_metadata(path: Path, recording: NeonRecording) -> dict[str, str]:
     """Short description that is displayed for recently opened recordings."""
-    start_time = datetime.fromtimestamp(recording.info["start_time"] / 1e9)
-    recorded_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
     last_opened_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    wearer = recording.wearer["name"]
+    result = {"name": path.name, "last_opened": last_opened_str}
 
-    return {
-        "name": path.name,
-        "wearer": wearer,
-        "recorded": recorded_str,
-        "last_opened": last_opened_str,
-    }
+    try:
+        start_time = datetime.fromtimestamp(recording.info["start_time"] / 1e9)
+        result["recorded"] = start_time.strftime("%Y-%m-%d %H:%M:%S")
+        result["wearer"] = recording.wearer["name"]
+    except FileNotFoundError:
+        logging.warning(f"Could not extract metadata from the recording")
+    except Exception as e:
+        logging.exception(f"Error occurred while extracting recording metadata: {str(e)}")
+
+    return result
 
 
 class RecordingHistory(QObject):
