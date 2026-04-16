@@ -127,6 +127,9 @@ border-radius: 5px;
                <verstretch>0</verstretch>
               </sizepolicy>
              </property>
+             <property name="cursor">
+              <cursorShape>PointingHandCursor</cursorShape>
+             </property>
              <property name="text">
               <string> Choose a recording folder</string>
              </property>
@@ -177,7 +180,7 @@ border-radius: 5px;
         <item>
          <widget class="QPushButton" name="recent_button">
           <property name="text">
-           <string>Show recently opened recordings</string>
+           <string> Show recently opened recordings</string>
           </property>
           <property name="icon">
            <iconset>

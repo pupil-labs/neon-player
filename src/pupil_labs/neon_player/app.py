@@ -42,7 +42,7 @@ from pupil_labs.neon_player.plugins import (
     surface_tracking,  # noqa: F401
     video_exporter,  # noqa: F401
 )
-from pupil_labs.neon_player.history import get_recording_metadata, RecordingHistory
+from pupil_labs.neon_player.history import RecordingHistory
 from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
