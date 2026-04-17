@@ -216,7 +216,7 @@ class NeonPlayerApp(QApplication):
         try:
             history_path = Path.home() / "Pupil Labs" / "Neon Player" / "history.json"
             history_path.parent.mkdir(parents=True, exist_ok=True)
-            data = self.recording_history.recordings
+            data = self.recording_history.recent_recordings
             with history_path.open("w") as f:
                 json.dump(data, f, cls=ComplexEncoder)
 
