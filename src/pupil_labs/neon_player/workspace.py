@@ -52,6 +52,15 @@ def get_recording_list(path: Path) -> list[RecordingDescription]:
     return recordings
 
 
+def check_if_neon_recording(path: Path) -> bool:
+    """
+    Check if the given path contains a Neon recording.
+    """
+    info_file = path / "info.json"
+    wearer_file = path / "wearer.json"
+    return info_file.exists() and wearer_file.exists()
+
+
 class Workspace(QObject):
     recording_list_loaded = Signal(object)
 

@@ -49,7 +49,7 @@ from pupil_labs.neon_player.ui.plugin_installation_dialog import (
     PluginInstallationDialog,
 )
 from pupil_labs.neon_player.utilities import SlotDebouncer, clone_menu
-from pupil_labs.neon_player.workspace import Workspace
+from pupil_labs.neon_player.workspace import Workspace, check_if_neon_recording
 
 
 class NeonPlayerApp(QApplication):
@@ -357,9 +357,13 @@ class NeonPlayerApp(QApplication):
         self.recording_unloaded.emit()
 
     def initialize(self, path: Path) -> None:
-        # check if path contains a Neon recording
-        workspace_path = path.parent
+        is_neon_recording = check_if_neon_recording(path)
+        recording_path = path if is_neon_recording else None
+        workspace_path = path.parent if is_neon_recording else path
+
         self.workspace.update_recording_list(workspace_path)
+        if recording_path is not None:
+            self.load(recording_path)
 
     def load(self, path: Path) -> None:
         """Load a recording from the given path."""
