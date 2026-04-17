@@ -44,9 +44,9 @@ class ProjectSidebar(QWidget):
         vert_header.setVisible(False)
 
         main_layout = QVBoxLayout(self)
-        main_layout.addWidget(QLabel("Recordings"))
+        main_layout.addWidget(QLabel("Workspace"))
         main_layout.addWidget(self.recordings_table)
-        main_layout.setContentsMargins(10, 0, 0, 0)
+        main_layout.setContentsMargins(10, 10, 10, 10)
         self.setLayout(main_layout)
         self.setMinimumSize(400, 100)
 

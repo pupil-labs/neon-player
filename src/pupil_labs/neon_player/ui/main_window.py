@@ -345,7 +345,7 @@ class MainWindow(QMainWindow):
                 padding-bottom: 5px;
             }
 
-            SettingsPanel QLabel#ExpanderName {
+            SettingsPanel QLabel#ExpanderName, ProjectSidebar>QLabel {
                 color: #fff;
                 font-size: 12pt;
                 font-weight: bold;
