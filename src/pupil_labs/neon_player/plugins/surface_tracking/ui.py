@@ -1,9 +1,9 @@
 from typing import TYPE_CHECKING
 
 import numpy as np
-from PySide6.QtCore import QPointF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QIcon, QMouseEvent, QPainter, QPaintEvent, QPixmap
-from PySide6.QtWidgets import QPushButton, QSplitter, QVBoxLayout, QWidget
+from PySide6.QtCore import QPoint, QPointF, QSize, QTimer, Qt, Signal
+from PySide6.QtGui import QColor, QIcon, QMouseEvent, QPainter, QPaintEvent, QPalette, QPixmap
+from PySide6.QtWidgets import QGridLayout, QLabel, QPushButton, QSizePolicy, QSplitter, QVBoxLayout, QWidget
 from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
@@ -126,6 +126,57 @@ class SurfaceHandle(QWidget):
 
     def emit_new_position(self):
         self.position_changed.emit(self.new_pos)
+
+
+class SurfaceEditWidget(QWidget):
+    edit_saved = Signal()
+    edit_canceled = Signal()
+
+    def __init__(self):
+        super().__init__()
+
+        self.setAutoFillBackground(True)
+        self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        self.setPalette(QPalette(QColor("#1c2021")))
+        self.cached_parent_size: QSize | None = None
+
+        self.label = QLabel("Editing surface", alignment=Qt.AlignmentFlag.AlignCenter)
+        self.save_button = QPushButton("Save")
+        self.save_button.clicked.connect(self.on_save_clicked)
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.on_cancel_clicked)
+
+        layout = QGridLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.addWidget(self.label, 0, 0, 1, 2)
+        layout.addWidget(self.save_button, 1, 0)
+        layout.addWidget(self.cancel_button, 1, 1)
+        self.setLayout(layout)
+        self.adjustSize()
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        if self.cached_parent_size == self.parent().size():
+            return
+
+        vrw = self.parent()
+        offset = QPoint(10, 10) / vrw.scale
+        widget_scaled_size = self.size() / vrw.scale
+
+        x_center = vrw.source_size.width() - widget_scaled_size.width() / 2 - offset.x()
+        y_center = widget_scaled_size.height() / 2 + offset.y()
+        vrw.set_child_scaled_center(self, x_center, y_center)
+        self.cached_parent_size = self.parent().size()
+
+    def set_surface_name(self, name: str) -> None:
+        self.label.setText(f"Editing surface: {name}")
+        self.adjustSize()
+        self.update()
+
+    def on_save_clicked(self):
+        self.edit_saved.emit()
+
+    def on_cancel_clicked(self):
+        self.edit_canceled.emit()
 
 
 class SurfaceViewWidget(VideoRenderWidget):
