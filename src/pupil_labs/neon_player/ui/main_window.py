@@ -6,7 +6,6 @@ from pathlib import Path
 from PySide6.QtCore import (
     QKeyCombination,
     Qt,
-    QSize,
     QTimer,
     QUrl,
 )
@@ -304,6 +303,7 @@ class MainWindow(QMainWindow):
 
             QMenuBar::item:selected,
             QMenu::item:selected {
+                color: #fff;
                 background: #292d2d;
             }
 
@@ -318,8 +318,7 @@ class MainWindow(QMainWindow):
                 padding: 5px;
             }
 
-            #BackButton:hover, #RecentButton:hover,
-            QPushButton:hover {
+            #BackButton:hover, #RecentButton:hover, QPushButton:hover {
                 background: #292d2d;
             }
 
