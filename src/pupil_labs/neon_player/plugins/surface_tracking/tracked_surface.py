@@ -168,6 +168,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self.tracker_surface = None
 
         self._location = None
+        self._locations_valid = False
 
         self.preview_window = None
         self.handle_widgets = {}
@@ -256,6 +257,15 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._location = value
         self.surface_location_changed.emit()
         self.update_handle_positions()
+
+    @property
+    @property_params(dont_encode=True, widget=None)
+    def locations_valid(self) -> bool:
+        return self._locations_valid
+
+    @locations_valid.setter
+    def locations_valid(self, value: bool) -> None:
+        self._locations_valid = value
 
     def update_handle_positions(self) -> None:
         if self._location is None:

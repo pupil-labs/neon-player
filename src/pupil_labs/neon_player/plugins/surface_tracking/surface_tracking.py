@@ -487,6 +487,7 @@ class SurfaceTrackingPlugin(Plugin):
                 None if location is None else tuple(np.array(v, dtype=np.float64) for v in location)
                 for location in data
             ]
+            surface.locations_valid = True
 
             if surface.preview_options.render_size == [0, 0]:
                 surface2image = self.surface_locations[surface_uid][surface.defining_frame_index][1]
@@ -554,7 +555,8 @@ class SurfaceTrackingPlugin(Plugin):
         else:
             surface = self.get_surface(surface_uid)
             # prevent heatmap job from starting up if other jobs are pending
-            if len(surface.jobs) > 0:
+            # or the surface is still being edited
+            if len(surface.jobs) > 0 or surface.edit:
                 return
 
             heatmap_job = self.job_manager.run_background_action(
@@ -798,7 +800,17 @@ class SurfaceTrackingPlugin(Plugin):
             for w in self.marker_edit_widgets.values():
                 w.hide()
 
+            # NOTE: trigger the postponed locations/heatmap update
+            # if the locations were invalidated during edit
+            if not surface.locations_valid:
+                surface.locations_invalidated.emit()
+
     def on_locations_invalidated(self, surface: "TrackedSurface") -> None:
+        # NOTE: don't start any calculations while the surface is being edited
+        surface.locations_valid = False
+        if surface.edit:
+            return
+
         locations_path = self.get_cache_path() / f"{surface.uid}_locations.npy"
         if locations_path.exists():
            locations_path.unlink()
