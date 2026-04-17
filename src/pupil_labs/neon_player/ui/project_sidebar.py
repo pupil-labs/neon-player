@@ -14,19 +14,21 @@ from pupil_labs.neon_recording import NeonRecording
 class ProjectSidebar(QWidget):
     def __init__(self) -> None:
         super().__init__()
+        self.setObjectName("ProjectSidebar")
 
-        self._columns = dict(
-            name="Recording name",
-            duration="Duration",
-            recorded="Recorded",
-            wearer="Wearer"
-        )
+        self._column_field_mapping = {
+            "Recording name": ("name", None),
+            "Duration": ("duration", lambda dur: str(dur)),
+            "Recorded": ("recorded", lambda dt: dt.strftime("%Y-%m-%d %H:%M:%S")),
+            "Wearer": ("wearer", None)
+        }
+        self._column_names = list(self._column_field_mapping.keys())
 
         self.recordings_table = HoverRowTable(self)
-        self.recordings_table.setColumnCount(len(self._columns))
+        self.recordings_table.setColumnCount(len(self._column_names))
         self.recordings_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.recordings_table.setFocusPolicy(Qt.NoFocus)
-        self.recordings_table.setHorizontalHeaderLabels(self._columns.values())
+        self.recordings_table.setHorizontalHeaderLabels(self._column_names)
         self.recordings_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.recordings_table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.recordings_table.cellClicked.connect(self.on_table_cell_clicked)
@@ -65,8 +67,10 @@ class ProjectSidebar(QWidget):
 
         self.recordings_table.setRowCount(len(recording_list))
         for i_row, recording in enumerate(recording_list):
-            for i_col, field in enumerate(self._columns):
-                value = str(getattr(recording, field))
+            for i_col, (field, formatter) in enumerate(self._column_field_mapping.values()):
+                value = getattr(recording, field)
+                if formatter is not None:
+                    value = formatter(value)
                 self.recordings_table.setItem(i_row, i_col, QTableWidgetItem(value))
 
         self.recordings_table.resizeColumnsToContents()

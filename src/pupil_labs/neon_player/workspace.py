@@ -25,8 +25,9 @@ def get_recording_description(path: Path) -> RecordingDescription | None:
     """
     try:
         rec = nr.load(path)
-        duration = timedelta(seconds=rec.duration / 1e9)
         recorded = datetime.fromtimestamp(rec.start_time / 1e9)
+        duration = timedelta(seconds=rec.duration // 1e9)
+
         return RecordingDescription(
             name=path.name,
             path=path,
