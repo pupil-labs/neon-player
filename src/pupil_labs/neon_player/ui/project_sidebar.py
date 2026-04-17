@@ -1,11 +1,13 @@
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QTableWidget, QLabel, QTableWidgetItem, QAbstractItemView
+    QWidget, QVBoxLayout, QLabel, QTableWidgetItem, QAbstractItemView, QHeaderView
 )
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player.project import RecordingDescription, get_recording_list
+from pupil_labs.neon_player.workspace import RecordingDescription
+from pupil_labs.neon_player.ui.components import HoverRowTable
 from pupil_labs.neon_recording import NeonRecording
 
 
@@ -14,38 +16,47 @@ class ProjectSidebar(QWidget):
         super().__init__()
 
         self._columns = dict(
-            name="Recording Name",
+            name="Recording name",
             duration="Duration",
+            recorded="Recorded",
             wearer="Wearer"
         )
 
+        self.recordings_table = HoverRowTable(self)
+        self.recordings_table.setColumnCount(len(self._columns))
+        self.recordings_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.recordings_table.setFocusPolicy(Qt.NoFocus)
+        self.recordings_table.setHorizontalHeaderLabels(self._columns.values())
+        self.recordings_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.recordings_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.recordings_table.cellClicked.connect(self.on_table_cell_clicked)
+
+        horiz_header = self.recordings_table.horizontalHeader()
+        horiz_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        horiz_header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        horiz_header.setDefaultAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        horiz_header.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        vert_header = self.recordings_table.verticalHeader()
+        vert_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        vert_header.setVisible(False)
+
         main_layout = QVBoxLayout(self)
+        main_layout.addWidget(QLabel("Recordings"))
+        main_layout.addWidget(self.recordings_table)
         main_layout.setContentsMargins(10, 0, 0, 0)
         self.setLayout(main_layout)
         self.setMinimumSize(400, 100)
 
-        main_layout.addWidget(QLabel("Recordings"))
-        self.recordings_table = QTableWidget(self)
-        self.recordings_table.setColumnCount(len(self._columns))
-        self.recordings_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.recordings_table.setHorizontalHeaderLabels(self._columns.values())
-        self.recordings_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.recordings_table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.recordings_table.verticalHeader().setVisible(False)
-        self.recordings_table.itemSelectionChanged.connect(self.on_selection_changed)
-        main_layout.addWidget(self.recordings_table)
-
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         pass
 
-    def on_selection_changed(self) -> None:
-        selected_items = self.recordings_table.selectedItems()
-        if not selected_items:
-            return
-
+    def on_table_cell_clicked(self, row: int, column: int) -> None:
         app = neon_player.instance()
-        recording_name = selected_items[0].text()
-        recording_path = app.project.get_recording_path(recording_name)
+        recording_name = self.recordings_table.item(row, 0).text()
+        recording_path = app.workspace.get_recording_path(recording_name)
         app.load(recording_path)
 
     def update_recording_table(self, recording_list: list[RecordingDescription]) -> None:

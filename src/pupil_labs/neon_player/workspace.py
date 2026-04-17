@@ -1,7 +1,7 @@
 import logging
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
@@ -13,6 +13,7 @@ from pupil_labs import neon_recording as nr
 class RecordingDescription:
     name: str
     path: Path
+    recorded: datetime
     duration: timedelta
     wearer: str
 
@@ -25,11 +26,13 @@ def get_recording_description(path: Path) -> RecordingDescription | None:
     try:
         rec = nr.load(path)
         duration = timedelta(seconds=rec.duration / 1e9)
+        recorded = datetime.fromtimestamp(rec.start_time / 1e9)
         return RecordingDescription(
             name=path.name,
             path=path,
             duration=duration,
-            wearer=rec.wearer["name"]
+            wearer=rec.wearer["name"],
+            recorded=recorded
         )
     except FileNotFoundError:  # path / info.json / wearer.json
         return None
@@ -49,7 +52,7 @@ def get_recording_list(path: Path) -> list[RecordingDescription]:
     return recordings
 
 
-class Project(QObject):
+class Workspace(QObject):
     recording_list_loaded = Signal(object)
 
     def __init__(self):
@@ -71,8 +74,8 @@ class Project(QObject):
 
         return self.recording_dict[recording_name].path
 
-    def load_recording_list(self, path: Path):
-        logging.info(f"Loading recording list from: {path}")
+    def update_recording_list(self, path: Path):
+        logging.info(f"Scanning for recordings in: {path}")
         self.initialized = False
         recordings = get_recording_list(path)
         self.recording_dict = {rec.name: rec for rec in recordings}

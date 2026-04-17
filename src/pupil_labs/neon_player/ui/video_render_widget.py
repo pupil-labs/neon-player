@@ -1,5 +1,6 @@
 import time
 
+from enum import Enum, auto
 from PySide6.QtCore import QPoint, QPointF, QPropertyAnimation, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColorConstants,
@@ -185,4 +186,41 @@ class VideoRenderWidget(ScalingWidget):
         self.transform_painter(painter)
 
         neon_player.instance().render_to(painter)
+        painter.end()
+
+
+class VideoLoadingWidget(ScalingWidget):
+    class Status(Enum):
+        IDLE = auto()
+        LOADING = auto()
+        ERROR = auto()
+
+    def __init__(self, parent: QWidget = None):
+        super().__init__(parent)
+        self._status = self.Status.IDLE
+        self.status_labels = {
+            self.Status.IDLE: "Please select a recording in the left sidebar",
+            self.Status.LOADING: "Loading the recording...",
+            self.Status.ERROR: "An error occurred while loading the recording"
+        }
+
+    @property
+    def status(self) -> Status:
+        return self._status
+
+    @status.setter
+    def status(self, status: Status) -> None:
+        self._status = status
+        self.repaint()
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        super().paintEvent(event)
+        painter = QPainter(self)
+        self.transform_painter(painter)
+
+        painter.drawText(
+            self.rect(),
+            Qt.AlignmentFlag.AlignCenter,
+            self.status_labels[self._status]
+        )
         painter.end()

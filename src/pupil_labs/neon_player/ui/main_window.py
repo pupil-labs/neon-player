@@ -50,7 +50,7 @@ from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.project_sidebar import ProjectSidebar
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
-from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
+from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget, VideoLoadingWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
 from pupil_labs.neon_recording import NeonRecording
 
@@ -94,7 +94,7 @@ class SplashWidget(Ui_Class, QtBaseClass):
         if urls and urls[0].isLocalFile():
             path = Path(urls[0].toLocalFile())
             if path.is_dir():
-                neon_player.instance().load(path)
+                neon_player.instance().initialize(path)
                 event.acceptProposedAction()
                 return
 
@@ -428,16 +428,19 @@ class MainWindow(QMainWindow):
         self.splash_widget.browse_button.clicked.connect(self.on_open_action)
         self.splash_widget.recent_button.clicked.connect(self.on_show_recent_action)
 
-        self.video_widget = VideoRenderWidget()
-
         self.recent_widget = RecentWidget()
         self.recent_widget.back_button.clicked.connect(self.on_show_splash_action)
+
+        self.video_widget = VideoRenderWidget()
+
+        self.loading_widget = VideoLoadingWidget()
 
         self.greeting_switcher = QStackedLayout()
         central_widget = QWidget(self)
         central_widget.setLayout(self.greeting_switcher)
         self.greeting_switcher.addWidget(self.splash_widget)
         self.greeting_switcher.addWidget(self.video_widget)
+        self.greeting_switcher.addWidget(self.loading_widget)
         self.greeting_switcher.addWidget(self.recent_widget)
         self.setCentralWidget(central_widget)
 
@@ -473,7 +476,10 @@ class MainWindow(QMainWindow):
         self.project_dock = self.add_dock(
             self.project_sidebar, "", Qt.DockWidgetArea.LeftDockWidgetArea
         )
-        app.project.recording_list_loaded.connect(self.project_sidebar.update_recording_table)
+        app.workspace.recording_list_loaded.connect(
+            self.project_sidebar.update_recording_table
+        )
+        app.workspace.recording_list_loaded.connect(self.on_workspace_loaded)
 
         self.register_action(
             "&Help/&Online Documentation", on_triggered=self.on_documentation_action
@@ -542,8 +548,9 @@ class MainWindow(QMainWindow):
             dock.setFloating(False)
             dock.show()
 
-    def on_recording_opened(self):
-        self.greeting_switcher.setCurrentIndex(1)
+    def on_workspace_loaded(self):
+        self.loading_widget.status = VideoLoadingWidget.Status.IDLE
+        self.greeting_switcher.setCurrentIndex(2)
         self.project_dock.show()
         self.timeline_dock.show()
         self.settings_dock.show()
@@ -551,9 +558,18 @@ class MainWindow(QMainWindow):
         self.statusBar().show()
         QTimer.singleShot(1, self.timeline.reset_view)
 
+    def on_recording_load_started(self):
+        self.loading_widget.status = VideoLoadingWidget.Status.LOADING
+
+    def on_recording_opened(self):
+        self.greeting_switcher.setCurrentIndex(1)
+        self.loading_widget.status = VideoLoadingWidget.Status.IDLE
+        QTimer.singleShot(1, self.timeline.reset_view)
+
     def on_recording_closed(self):
         app = neon_player.instance()
-        if app.project.initialized:
+        if app.workspace.initialized:
+            self.greeting_switcher.setCurrentIndex(2)
             return
 
         self.greeting_switcher.setCurrentIndex(0)
@@ -601,7 +617,7 @@ class MainWindow(QMainWindow):
 
         path = QFileDialog.getExistingDirectory(self, "Open Recording")
         if path:
-            neon_player.instance().load(Path(path))
+            neon_player.instance().initialize(Path(path))
         else:
             app.set_playback_state(was_playing)
 

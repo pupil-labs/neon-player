@@ -43,13 +43,13 @@ from pupil_labs.neon_player.plugins import (
     video_exporter,  # noqa: F401
 )
 from pupil_labs.neon_player.history import RecordingHistory
-from pupil_labs.neon_player.project import Project
 from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
     PluginInstallationDialog,
 )
 from pupil_labs.neon_player.utilities import SlotDebouncer, clone_menu
+from pupil_labs.neon_player.workspace import Workspace
 
 
 class NeonPlayerApp(QApplication):
@@ -80,8 +80,8 @@ class NeonPlayerApp(QApplication):
 
         self.plugins_by_class: dict[str, Plugin] = {}
         self.plugins: list[Plugin] = []
-        self.project: Project = Project()
         self.recording: nr.NeonRecording | None = None
+        self.workspace: Workspace = Workspace()
         self.playback_start_anchor = 0
         self.current_ts = 0
         self.playback_speed = 1.0
@@ -99,7 +99,6 @@ class NeonPlayerApp(QApplication):
 
         parser = argparse.ArgumentParser()
         parser.add_argument("recording", nargs="?", default=None, help="")
-        parser.add_argument("--project", action="store_true")
         parser.add_argument("--progress-ipc-name", type=str, default=None)
         parser.add_argument(
             "--job",
@@ -145,9 +144,9 @@ class NeonPlayerApp(QApplication):
         self.recording_history.changed.connect(self.save_history)
 
         if self.args.job and self.args.recording:
-            self.load(Path(self.args.recording))
+            self.initialize(Path(self.args.recording))
         elif self.args.recording:
-            QTimer.singleShot(1, lambda: self.load(Path(self.args.recording)))
+            QTimer.singleShot(1, lambda: self.initialize(Path(self.args.recording)))
         else:
             self._initializing = False
             os.chdir(Path.home())
@@ -357,15 +356,17 @@ class NeonPlayerApp(QApplication):
         self.recording = None
         self.recording_unloaded.emit()
 
+    def initialize(self, path: Path) -> None:
+        # check if path contains a Neon recording
+        workspace_path = path.parent
+        self.workspace.update_recording_list(workspace_path)
+
     def load(self, path: Path) -> None:
         """Load a recording from the given path."""
+        self.main_window.on_recording_load_started()
         self.loading_recording = True
         self._initializing = True
         self.unload()
-
-        if self.args.project and not self.project.initialized:
-            self.project.load_recording_list(path)
-            path = self.project.recordings[0].path
 
         logging.info("Opening recording at path: %s", path)
         self.recording = nr.load(path)
