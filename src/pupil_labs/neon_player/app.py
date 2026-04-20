@@ -358,10 +358,13 @@ class NeonPlayerApp(QApplication):
 
     def initialize(self, path: Path) -> None:
         is_neon_recording = check_if_neon_recording(path)
-        recording_path = path if is_neon_recording else None
         workspace_path = path.parent if is_neon_recording else path
-
         self.workspace.update_recording_list(workspace_path)
+
+        recording_path = path
+        if not is_neon_recording:
+            recording_path = self.workspace.recordings[0].path
+
         if recording_path is not None:
             self.load(recording_path)
 
