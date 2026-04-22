@@ -11,7 +11,7 @@ import pandas as pd
 from pupil_labs.camera import perspective_transform
 from pupil_labs.marker_mapper import utils
 from pupil_labs.marker_mapper.surface import normalized_corners
-from PySide6.QtCore import QObject, QSize, Signal
+from PySide6.QtCore import QObject, QSize, Signal, QTimer
 from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QFileDialog
 from qt_property_widgets.utilities import (
@@ -170,6 +170,15 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._location = None
         self._locations_valid = False
 
+        # NOTE: surface handle position updates are debounced, the timer
+        # ensure that all updates were received
+        self.locations_invalidated_debounce_timer = QTimer()
+        self.locations_invalidated_debounce_timer.setInterval(2000)
+        self.locations_invalidated_debounce_timer.setSingleShot(True)
+        self.locations_invalidated_debounce_timer.timeout.connect(
+            self.emit_locations_invalidated
+        )
+
         self.preview_window = None
         self.handle_widgets = {}
         self.corner_positions = {}
@@ -266,6 +275,12 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     @locations_valid.setter
     def locations_valid(self, value: bool) -> None:
         self._locations_valid = value
+
+    def emit_locations_invalidated(self) -> None:
+        if self.edit:
+            return
+
+        self.locations_invalidated.emit()
 
     def update_handle_positions(self) -> None:
         if self._location is None:

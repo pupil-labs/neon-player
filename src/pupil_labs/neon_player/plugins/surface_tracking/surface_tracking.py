@@ -803,7 +803,7 @@ class SurfaceTrackingPlugin(Plugin):
             # NOTE: trigger the postponed locations/heatmap update
             # if the locations were invalidated during edit
             if not surface.locations_valid:
-                surface.locations_invalidated.emit()
+                surface.locations_invalidated_debounce_timer.start()
 
     def on_locations_invalidated(self, surface: "TrackedSurface") -> None:
         # NOTE: don't start any calculations while the surface is being edited
