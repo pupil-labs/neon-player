@@ -21,7 +21,7 @@ from qt_property_widgets.utilities import (
 )
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player import Plugin, action
+from pupil_labs.neon_player import Plugin, action, asset_path
 from pupil_labs.neon_player.plugins.gaze import CircleViz, GazeVisualization
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
@@ -162,6 +162,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._heatmap_smoothness = 0.35
         self._heatmap_alpha = 0.75
         self._heatmap = None
+        self._heatmap_valid = False
         self._heatmap_color = ColorMap.Jet
         self._defining_frame_index = -1
 
@@ -169,15 +170,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
         self._location = None
         self._locations_valid = False
-
-        # NOTE: surface handle position updates are debounced, the timer
-        # ensure that all updates were received
-        self.locations_invalidated_debounce_timer = QTimer()
-        self.locations_invalidated_debounce_timer.setInterval(2000)
-        self.locations_invalidated_debounce_timer.setSingleShot(True)
-        self.locations_invalidated_debounce_timer.timeout.connect(
-            self.emit_locations_invalidated
-        )
 
         self.preview_window = None
         self.handle_widgets = {}
@@ -276,12 +268,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def locations_valid(self, value: bool) -> None:
         self._locations_valid = value
 
-    def emit_locations_invalidated(self) -> None:
-        if self.edit:
-            return
-
-        self.locations_invalidated.emit()
-
     def update_handle_positions(self) -> None:
         if self._location is None:
             for w in self.handle_widgets.values():
@@ -310,7 +296,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             self.corner_positions[tuple(corner_id)] = undistorted_corner
             w.set_scene_pos(distorted_corner)
 
-    def recalculate_heatmap(self) -> None:
+    def _recalculate_heatmap(self) -> None:
         Plugin.get_instance_by_name("SurfaceTrackingPlugin").recalculate_heatmap(
             self.uid
         )
@@ -394,6 +380,10 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def show_heatmap(self, value: bool) -> None:
         self._show_heatmap = value
 
+        # Trigger heatmap recalculation if it was invalidated while not shown
+        if self._show_heatmap and not self._heatmap_valid:
+            self.heatmap_invalidated.emit()
+
     @property
     @property_params(min=0, max=1)
     def heatmap_smoothness(self) -> float:
@@ -420,6 +410,15 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     @heatmap_color.setter
     def heatmap_color(self, value: ColorMap) -> None:
         self._heatmap_color = value
+
+    @property
+    @property_params(dont_encode=True, widget=None)
+    def heatmap_valid(self) -> bool:
+        return self._heatmap_valid
+
+    @heatmap_valid.setter
+    def heatmap_valid(self, value: bool) -> None:
+        self._heatmap_valid = value
 
     @property
     @property_params(widget=None)
@@ -621,6 +620,14 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
             aggregation_dict = offset_aggregations if viz.use_offset else aggregations
             viz.render(painter, aggregation_dict[viz._aggregation])
+
+    @action
+    @action_params(
+        compact=True,
+        icon=QIcon(str(asset_path("refresh.svg")))
+    )
+    def recalculate_heatmap(self) -> None:
+        self._recalculate_heatmap()
 
     @action
     @action_params(
