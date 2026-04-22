@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 import numpy as np
-from PySide6.QtCore import QPointF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QPointF, QSize, Qt, Signal
 from PySide6.QtGui import QIcon, QMouseEvent, QPainter, QPaintEvent, QPixmap
 from PySide6.QtWidgets import QPushButton, QSplitter, QVBoxLayout, QWidget
 from qt_property_widgets.widgets import PropertyForm
@@ -74,10 +74,6 @@ class SurfaceHandle(QWidget):
         self.surface = surface
         self.corner_id = corner_id
         self.moved = False
-        self.position_changed_debounce_timer = QTimer()
-        self.position_changed_debounce_timer.setInterval(1000)
-        self.position_changed_debounce_timer.setSingleShot(True)
-        self.position_changed_debounce_timer.timeout.connect(self.emit_new_position)
 
         self.new_pos = None
         self.scene_pos = np.array([0.0, 0.0])
@@ -114,7 +110,7 @@ class SurfaceHandle(QWidget):
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         if not (event.buttons() & Qt.MouseButton.LeftButton) and self.moved:
-            self.position_changed_debounce_timer.start()
+            self.position_changed.emit(self.new_pos)
             self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.moved = False
@@ -123,9 +119,6 @@ class SurfaceHandle(QWidget):
         self.scene_pos = scene_pos
         self.parent().set_child_scaled_center(self, *scene_pos)
         self.show()
-
-    def emit_new_position(self):
-        self.position_changed.emit(self.new_pos)
 
 
 class SurfaceViewWidget(VideoRenderWidget):

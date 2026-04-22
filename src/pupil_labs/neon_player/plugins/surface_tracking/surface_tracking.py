@@ -487,6 +487,7 @@ class SurfaceTrackingPlugin(Plugin):
                 None if location is None else tuple(np.array(v, dtype=np.float64) for v in location)
                 for location in data
             ]
+            surface.locations_valid = True
 
             if surface.preview_options.render_size == [0, 0]:
                 surface2image = self.surface_locations[surface_uid][surface.defining_frame_index][1]
@@ -553,8 +554,10 @@ class SurfaceTrackingPlugin(Plugin):
 
         else:
             surface = self.get_surface(surface_uid)
+            should_recalculate = surface._show_heatmap and surface.locations_valid
             # prevent heatmap job from starting up if other jobs are pending
-            if len(surface.jobs) > 0:
+            # or the surface is edited or heatmap is not displayed
+            if len(surface.jobs) > 0 or not should_recalculate:
                 return
 
             heatmap_job = self.job_manager.run_background_action(
@@ -658,6 +661,7 @@ class SurfaceTrackingPlugin(Plugin):
         surface = self.get_surface(surface_uid)
         cache_file = self.get_cache_path() / f"{surface_uid}_heatmap.png"
         surface._heatmap = cv2.imread(str(cache_file))
+        surface.heatmap_valid = True
         self.trigger_scene_update()
         self.add_surface_gaze_timeline(surface)
 
@@ -666,8 +670,15 @@ class SurfaceTrackingPlugin(Plugin):
         if cache_file.exists():
             cache_file.unlink()
 
-        self.get_surface(surface_uid)._heatmap = None
+        surface = self.get_surface(surface_uid)
+        surface._heatmap = None
+        surface.heatmap_valid = False
         self.trigger_scene_update()
+
+        # NOTE: if the surface is being edited or not shown, postpone
+        # the recalculation of the heatmap
+        if surface.edit or not surface.show_heatmap:
+            return
 
         self.attempt_load_surface_heatmap(surface_uid)
 
@@ -742,7 +753,7 @@ class SurfaceTrackingPlugin(Plugin):
             surface.changed.connect(self.changed.emit)
             SlotDebouncer.debounce(
                 surface.heatmap_invalidated,
-                surface.recalculate_heatmap,
+                surface._recalculate_heatmap,
             )
             surface.marker_edit_changed.connect(
                 lambda s=surface: self.on_marker_edit_changed(s)
@@ -798,16 +809,27 @@ class SurfaceTrackingPlugin(Plugin):
             for w in self.marker_edit_widgets.values():
                 w.hide()
 
+            # NOTE: trigger the postponed locations/heatmap update
+            # if the locations were invalidated during edit
+            if not surface.locations_valid:
+                surface.locations_invalidated.emit()
+
     def on_locations_invalidated(self, surface: "TrackedSurface") -> None:
         locations_path = self.get_cache_path() / f"{surface.uid}_locations.npy"
         if locations_path.exists():
            locations_path.unlink()
+
+        # NOTE: don't start any calculations while the surface is being edited
+        surface.locations_valid = False
+        if surface.edit:
+            return
 
         surf_path = self.get_cache_path() / f"{surface.uid}_surface.pkl"
         with surf_path.open("wb") as f:
             pickle.dump(surface.tracker_surface, f)
 
         surface._heatmap = None
+        surface.heatmap_valid = False
         self.trigger_scene_update()
 
         self._start_bg_surface_locator(surface)
