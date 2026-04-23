@@ -1,21 +1,15 @@
-import logging
 import typing as T
-from csv import DictWriter
 from pathlib import Path
 
-import av
-import numpy as np
 from PySide6.QtCore import QSize
 from PySide6.QtGui import QColorConstants, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QFileDialog
 from qt_property_widgets.utilities import action_params
 
-import pupil_labs.video as plv
 from pupil_labs import neon_player
-from pupil_labs.neon_player import ProgressUpdate, action
+from pupil_labs.neon_player import action
 from pupil_labs.neon_player.job_manager import BackgroundJob
 from pupil_labs.neon_player.plugins.shared import BackgroundVideoExportMixin
-from pupil_labs.neon_player.utilities import ndarray_from_qimage
 
 
 class VideoExporter(neon_player.Plugin, BackgroundVideoExportMixin):
