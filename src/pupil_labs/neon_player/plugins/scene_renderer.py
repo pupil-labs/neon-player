@@ -20,14 +20,17 @@ from pupil_labs.neon_player.utilities import qimage_from_frame, ndarray_from_qim
 class SceneRendererPlugin(Plugin):
     label = "Scene Renderer"
 
+    DEFAULT_BRIGHTNESS = 0.0
+    DEFAULT_CONTRAST = 1.0
+
     def __init__(self) -> None:
         super().__init__()
         self.render_layer = 0
         self.gray = QColorConstants.Gray
 
         self._show_frame_index = False
-        self._brightness = 0.0
-        self._contrast = 1.0
+        self._brightness = self.DEFAULT_BRIGHTNESS
+        self._contrast = self.DEFAULT_CONTRAST
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         if self.recording is None:
@@ -86,6 +89,13 @@ class SceneRendererPlugin(Plugin):
     @contrast.setter
     def contrast(self, value: float) -> None:
         self._contrast = value
+
+    @action
+    @action_params(compact=True, icon=QIcon(str(asset_path("reset_settings.svg"))))
+    def reset_settings(self) -> None:
+        self.show_frame_index = False
+        self.brightness = self.DEFAULT_BRIGHTNESS
+        self.contrast = self.DEFAULT_CONTRAST
 
     @action
     @action_params(compact=True, icon=QIcon(str(asset_path("export.svg"))))
