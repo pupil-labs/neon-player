@@ -351,16 +351,34 @@ class CircleViz(GazeVisualization):
         self._color = QColor(255, 0, 0, 128)
         self._radius = 30
         self._stroke_width = 10
+        self._applied_radius = self._radius
+        self._applied_stroke_width = self._stroke_width
+
+    def cap_radius_stroke(self) -> None:
+        """
+        If stroke width exceeds 2 * radius (i.e., the user tries to fill the whole
+        circle), the circle is rendered incorrectly on exported frames. To prevent this
+        we cap the stroke width to be at most 2 * radius, and adjust the radius
+        accordingly to maintain the overall size of the rendered circle.
+        """
+        self._applied_radius = self.radius
+        self._applied_stroke_width = self.stroke_width
+
+        if self.stroke_width <= 2 * self.radius:
+            return
+
+        self._applied_radius = self.radius / 2 + self.stroke_width / 4
+        self._applied_stroke_width = 2 * self._applied_radius
 
     def render(self, painter: QPainter, gazes: npt.NDArray[np.float64]) -> None:
         pen = painter.pen()
-        pen.setWidth(self._stroke_width)
+        pen.setWidth(self._applied_stroke_width)
         pen.setColor(self._color)
         painter.setPen(pen)
 
         for gaze in gazes:
             center = QPointF(gaze[0], gaze[1])
-            painter.drawEllipse(center, self._radius, self._radius)
+            painter.drawEllipse(center, self._applied_radius, self._applied_radius)
 
     @property
     def color(self) -> QColor:
@@ -378,6 +396,7 @@ class CircleViz(GazeVisualization):
     @radius.setter
     def radius(self, value: int) -> None:
         self._radius = value
+        self.cap_radius_stroke()
 
     @property
     @property_params(min=1, max=999)
@@ -387,7 +406,7 @@ class CircleViz(GazeVisualization):
     @stroke_width.setter
     def stroke_width(self, value: int) -> None:
         self._stroke_width = value
-
+        self.cap_radius_stroke()
 
 class CrosshairViz(GazeVisualization):
     label = "Crosshair"
