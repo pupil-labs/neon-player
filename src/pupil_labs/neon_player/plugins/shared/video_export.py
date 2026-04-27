@@ -84,10 +84,10 @@ class BackgroundVideoExportMixin:
 
         combined_timestamps = self._prepare_timestamps(recording, export_window)
         with (destination / output_timestamps_filename).open("w") as ts_file:
-            writer = DictWriter(ts_file, fieldnames=["recording id", "timestamp"])
+            writer = DictWriter(ts_file, fieldnames=["recording id", "timestamp [ns]"])
             writer.writeheader()
             for ts in combined_timestamps:
-                writer.writerow({"recording id": recording.id, "timestamp": ts})
+                writer.writerow({"recording id": recording.id, "timestamp [ns]": ts})
 
         frame_size = QSize(
             recording.scene.width or 1600, recording.scene.height or 1200
