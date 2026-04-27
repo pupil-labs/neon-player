@@ -1,23 +1,18 @@
-import logging
 import typing as T
-from csv import DictWriter
 from pathlib import Path
 
-import av
-import numpy as np
 from PySide6.QtCore import QSize
 from PySide6.QtGui import QColorConstants, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QFileDialog
 from qt_property_widgets.utilities import action_params
 
-import pupil_labs.video as plv
 from pupil_labs import neon_player
-from pupil_labs.neon_player import ProgressUpdate, action
+from pupil_labs.neon_player import action
 from pupil_labs.neon_player.job_manager import BackgroundJob
-from pupil_labs.neon_player.utilities import ndarray_from_qimage
+from pupil_labs.neon_player.plugins.shared import BackgroundVideoExportMixin
 
 
-class VideoExporter(neon_player.Plugin):
+class VideoExporter(neon_player.Plugin, BackgroundVideoExportMixin):
     label = "Video Exporter"
 
     def __init__(self) -> None:
@@ -38,108 +33,18 @@ class VideoExporter(neon_player.Plugin):
 
         return self.bg_export(destination)
 
+    def render_for_export(self, painter: QPainter, time_in_recording: int) -> None:
+        self.app.render_to(painter, time_in_recording)
+
     def bg_export(self, destination: Path = Path()) -> T.Generator:
-        logging.getLogger("pupil_labs.video.writer").setLevel(logging.ERROR)
-
-        self.is_exporting = True
-        recording = self.app.recording
-
-        gray_preamble = np.arange(
-            recording.start_time, recording.scene.time[0], 1e9 // 30
+        yield from self.bg_export_video(
+            recording=self.app.recording,
+            export_window=self.app.recording_settings.export_window,
+            render_fn=self.render_for_export,
+            destination=destination,
+            output_video_filename="world.mp4",
+            output_timestamps_filename="world_timestamps.csv"
         )
-        gray_prologue = np.arange(
-            recording.scene.time[-1] + 1e9 // 30, recording.stop_time, 1e9 // 30
-        )
-        combined_timestamps = np.concatenate((
-            gray_preamble,
-            recording.scene.time,
-            gray_prologue,
-        ))
-        start_time, stop_time = neon_player.instance().recording_settings.export_window
-        combined_timestamps = combined_timestamps[
-            (combined_timestamps >= start_time) & (combined_timestamps <= stop_time)
-        ]
-        # Find any gaps in the timestamps that are greater than 1/30 of a second
-        gaps = np.where(np.diff(combined_timestamps) > 1e9 // 30)[0]
-
-        # fill the gaps with 30 hz timestamps
-        for gap in reversed(gaps):
-            gap_start = combined_timestamps[gap]
-            gap_end = combined_timestamps[gap + 1] - 1e9 // 60
-            gap_timestamps = np.arange(gap_start, gap_end, 1e9 // 30)
-            combined_timestamps = np.concatenate((
-                combined_timestamps[:gap],
-                gap_timestamps,
-                combined_timestamps[gap + 1 :],
-            ))
-
-        with (destination / "world_timestamps.csv").open("w") as ts_file:
-            writer = DictWriter(ts_file, fieldnames=["recording id", "timestamp [ns]"])
-            writer.writeheader()
-            for ts in combined_timestamps:
-                writer.writerow({"recording id": recording.id, "timestamp [ns]": ts})
-
-        frame_size = QSize(
-            recording.scene.width or 1600, recording.scene.height or 1200
-        )
-
-        audio_frame_timestamps = recording.audio.time[
-            (recording.audio.time >= start_time) & (recording.audio.time <= stop_time)
-        ]
-        audio_iterator = iter(recording.audio.sample(audio_frame_timestamps))
-        audio_frame = next(audio_iterator)
-        audio_frame_idx = 0
-
-        with plv.Writer(destination / "world.mp4") as writer:
-
-            def write_audio_frame():
-                nonlocal audio_frame, audio_frame_idx
-
-                audio_rel_ts = (audio_frame.time - start_time) / 1e9
-                plv_audio_frame = plv.AudioFrame(
-                    audio_frame.av_frame,
-                    index=audio_frame_idx,
-                    time=audio_rel_ts,
-                    source=""
-                )
-                writer.write_frame(plv_audio_frame)
-                try:
-                    audio_frame = next(audio_iterator)
-                    audio_frame_idx += 1
-                except StopIteration:
-                    audio_frame = None
-
-            for frame_idx, ts in enumerate(combined_timestamps):
-                while audio_frame and audio_frame.time < ts:
-                    write_audio_frame()
-
-                rel_ts = (ts - combined_timestamps[0]) / 1e9
-
-                frame = QImage(frame_size, QImage.Format.Format_BGR888)
-                painter = QPainter(frame)
-                painter.fillRect(
-                    0,
-                    0,
-                    frame_size.width(),
-                    frame_size.height(),
-                    QColorConstants.Gray
-                )
-                self.app.render_to(painter, int(ts))
-                painter.end()
-
-                frame_pixels = ndarray_from_qimage(frame)
-                av_frame = av.VideoFrame.from_ndarray(frame_pixels, format="bgr24")
-
-                plv_frame = plv.VideoFrame(av_frame=av_frame, index=frame_idx, time=rel_ts, source="")
-                writer.write_frame(plv_frame)
-
-                progress = (frame_idx + 1) / len(combined_timestamps)
-                yield ProgressUpdate(progress)
-
-            while audio_frame:
-                write_audio_frame()
-
-        self.is_exporting = False
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))

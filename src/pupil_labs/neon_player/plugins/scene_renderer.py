@@ -1,13 +1,22 @@
 import cv2
-from PySide6.QtGui import QColorConstants, QPainter
-from qt_property_widgets.utilities import property_params
+import typing as T
+from pathlib import Path
 
-from pupil_labs.neon_player import Plugin
+from PySide6.QtGui import QColorConstants, QPainter, QIcon
+from qt_property_widgets.utilities import property_params, action, action_params
+
+from pupil_labs import neon_player
+from pupil_labs.neon_player import Plugin, asset_path
+from pupil_labs.neon_player.plugins.shared.video_export import BackgroundVideoExportMixin
+from pupil_labs.neon_player.job_manager import ProgressUpdate
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
 
-class SceneRendererPlugin(Plugin):
+class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
     label = "Scene Renderer"
+
+    DEFAULT_BRIGHTNESS = 0.0
+    DEFAULT_CONTRAST = 1.0
 
     def __init__(self) -> None:
         super().__init__()
@@ -15,8 +24,8 @@ class SceneRendererPlugin(Plugin):
         self.gray = QColorConstants.Gray
 
         self._show_frame_index = False
-        self._brightness = 0.0
-        self._contrast = 1.0
+        self._brightness = self.DEFAULT_BRIGHTNESS
+        self._contrast = self.DEFAULT_CONTRAST
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         if self.recording is None:
@@ -75,3 +84,35 @@ class SceneRendererPlugin(Plugin):
     @contrast.setter
     def contrast(self, value: float) -> None:
         self._contrast = value
+
+    @action
+    @action_params(compact=True, icon=QIcon(str(asset_path("reset_settings.svg"))))
+    def reset_settings(self) -> None:
+        self.show_frame_index = False
+        self.brightness = self.DEFAULT_BRIGHTNESS
+        self.contrast = self.DEFAULT_CONTRAST
+
+    @action
+    @action_params(compact=True, icon=QIcon(str(asset_path("export.svg"))))
+    def export_raw_scene_video(self, destination: Path = Path()) -> None:
+        app = neon_player.instance()
+
+        if not app.headless:
+            return self.job_manager.run_background_action(
+                "Scene Video Export", "SceneRendererPlugin.bg_export", destination
+            )
+
+        return self.bg_export(destination)
+
+    def render_for_export(self, painter: QPainter, time_in_recording: int) -> None:
+        self.render(painter, time_in_recording)
+
+    def bg_export(self, destination: Path = Path()) -> T.Generator[ProgressUpdate, None, None]:
+        yield from self.bg_export_video(
+            recording=self.app.recording,
+            export_window=self.app.recording_settings.export_window,
+            render_fn=self.render_for_export,
+            destination=destination,
+            output_video_filename="scene.mp4",
+            output_timestamps_filename="scene_timestamps.csv"
+        )
