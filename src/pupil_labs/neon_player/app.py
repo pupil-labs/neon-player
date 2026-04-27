@@ -42,6 +42,7 @@ from pupil_labs.neon_player.plugins import (
     surface_tracking,  # noqa: F401
     video_exporter,  # noqa: F401
 )
+from pupil_labs.neon_player.history import RecordingHistory
 from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
@@ -86,6 +87,7 @@ class NeonPlayerApp(QApplication):
         self.settings = GeneralSettings()
         self.loading_recording = False
         self.recording_settings = None
+        self.recording_history = RecordingHistory()
 
         self.refresh_timer = QTimer(self)
         self.refresh_timer.setInterval(1000 / 30)
@@ -131,6 +133,14 @@ class NeonPlayerApp(QApplication):
         except Exception:
             logging.exception("Failed to load settings")
 
+        try:
+            self.recording_history = RecordingHistory.from_dict(self.load_recording_history())
+        except FileNotFoundError:
+            logging.warning("Recording history file not found")
+        except Exception:
+            logging.exception("Failed to load recording history")
+        self.recording_history.changed.connect(self.save_history)
+
         if self.args.job and self.args.recording:
             self.load(Path(self.args.recording))
         elif self.args.recording:
@@ -172,6 +182,11 @@ class NeonPlayerApp(QApplication):
         logging.info(f"Loading settings from {settings_path}")
         return json.loads(settings_path.read_text())
 
+    def load_recording_history(self) -> T.Any:
+        history_path = Path.home() / "Pupil Labs" / "Neon Player" / "history.json"
+        logging.info(f"Loading recording history from {history_path}")
+        return json.loads(history_path.read_text())
+
     def save_settings(self) -> None:
         if self._initializing:
             return
@@ -196,6 +211,18 @@ class NeonPlayerApp(QApplication):
         except Exception:
             logging.exception("Failed to save settings")
             raise
+
+    def save_history(self) -> None:
+        try:
+            history_path = Path.home() / "Pupil Labs" / "Neon Player" / "history.json"
+            history_path.parent.mkdir(parents=True, exist_ok=True)
+            data = self.recording_history.recent_recordings
+            with history_path.open("w") as f:
+                json.dump(data, f, cls=ComplexEncoder)
+
+            logging.info("History saved")
+        except Exception:
+            logging.exception("Failed to save history")
 
     def find_plugins(self, path: Path) -> None:
         sys.path.append(str(path))
@@ -334,6 +361,8 @@ class NeonPlayerApp(QApplication):
         self.unload()
         logging.info("Opening recording at path: %s", path)
         self.recording = nr.load(path)
+        self.recording_history.add_recording(path, self.recording)
+
         os.chdir(path)
         self.playback_start_anchor = 0
 
