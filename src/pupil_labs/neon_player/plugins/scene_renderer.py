@@ -94,7 +94,7 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
 
     @action
     @action_params(compact=True, icon=QIcon(str(asset_path("export.svg"))))
-    def export_scene_video(self, destination: Path = Path()) -> None:
+    def export_raw_scene_video(self, destination: Path = Path()) -> None:
         app = neon_player.instance()
 
         if not app.headless:
