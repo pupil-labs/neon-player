@@ -84,6 +84,18 @@ class Workspace(QObject):
 
         return self.recording_dict[recording_name].path
 
+    def clear(self):
+        self.recording_dict = {}
+        self.initialized = False
+
+    def add_recording(self, path: Path):
+        desc = get_recording_description(path)
+
+        if desc:
+            self.recording_dict[desc.name] = desc
+            self.initialized = True
+            self.recording_list_loaded.emit(self.recordings)
+
     def update_recording_list(self, path: Path):
         logging.info(f"Scanning for recordings in: {path}")
         self.initialized = False

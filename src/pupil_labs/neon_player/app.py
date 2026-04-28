@@ -82,6 +82,7 @@ class NeonPlayerApp(QApplication):
         self.plugins: list[Plugin] = []
         self.recording: nr.NeonRecording | None = None
         self.workspace: Workspace = Workspace()
+        self.batch_mode_enabled: bool = False
         self.playback_start_anchor = 0
         self.current_ts = 0
         self.playback_speed = 1.0
@@ -358,15 +359,17 @@ class NeonPlayerApp(QApplication):
 
     def initialize(self, path: Path) -> None:
         is_neon_recording = check_if_neon_recording(path)
-        workspace_path = path.parent if is_neon_recording else path
-        self.workspace.update_recording_list(workspace_path)
+        self.batch_mode_enabled = not is_neon_recording
 
-        recording_path = path
-        if not is_neon_recording:
+        if is_neon_recording:
+            recording_path = path
+            self.workspace.clear()
+            self.workspace.add_recording(recording_path)
+        else:
+            self.workspace.update_recording_list(path)
             recording_path = self.workspace.recordings[0].path
 
-        if recording_path is not None:
-            self.load(recording_path)
+        self.load(recording_path)
 
     def load(self, path: Path) -> None:
         """Load a recording from the given path."""

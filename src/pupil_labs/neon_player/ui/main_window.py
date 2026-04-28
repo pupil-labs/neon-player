@@ -225,7 +225,7 @@ class RecentWidget(QWidget):
         if not path_str:
             return
 
-        neon_player.instance().load(Path(path_str))
+        neon_player.instance().initialize(Path(path_str))
 
 
 class MainWindow(QMainWindow):
