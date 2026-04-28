@@ -1,6 +1,7 @@
 import logging
 import typing
 import webbrowser
+from enum import Enum
 from pathlib import Path
 
 from PySide6.QtCore import (
@@ -46,6 +47,7 @@ from qt_property_widgets.widgets import PropertyForm
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.ui import QtShortcutType
+from pupil_labs.neon_player.ui.components import HoverRowTable
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.project_sidebar import ProjectSidebar
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
@@ -99,32 +101,6 @@ class SplashWidget(Ui_Class, QtBaseClass):
                 return
 
         event.ignore()
-
-
-class HoverRowTable(QTableWidget):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.setMouseTracking(True)
-
-    def update_hovered_row(self, cursor_position):
-        idx = self.indexAt(cursor_position)
-        if idx.isValid():
-            self.setCurrentCell(idx.row(), 0)
-            self.setCursor(Qt.CursorShape.PointingHandCursor)
-
-    def mouseMoveEvent(self, event):
-        self.update_hovered_row(event.pos())
-        super().mouseMoveEvent(event)
-
-    def wheelEvent(self, event):
-        self.update_hovered_row(event.position().toPoint())
-        super().wheelEvent(event)
-
-    def leaveEvent(self, event):
-        self.clearSelection()
-        self.setCurrentCell(-1, -1)
-        self.setCursor(Qt.CursorShape.ArrowCursor)
-        super().leaveEvent(event)
 
 
 class RecentWidget(QWidget):
@@ -253,6 +229,12 @@ class RecentWidget(QWidget):
 
 
 class MainWindow(QMainWindow):
+    class Screen:
+        Splash = 0
+        Recent = 1
+        VideoRender = 2
+        VideoLoading = 3
+
     def __init__(self) -> None:
         super().__init__()
 
@@ -273,33 +255,6 @@ class MainWindow(QMainWindow):
             QMenuBar, QMenu {
                 color: #ccc;
                 background: #1c2021;
-            }
-
-            QTableWidget, QHeaderView {
-                background: transparent;
-                border: none;
-            }
-
-            QTableWidget::item {
-                border-bottom: 1px solid #292d2d;
-                padding: 20px;
-                padding-left: 0px;
-            }
-
-            QTableWidget::item:selected {
-                background: #292d2d;
-            }
-
-            QHeaderView::section {
-                background-color: transparent;
-                border: none;
-                color: #a09fa6;
-                font-size: 10pt;
-                font-weight: normal;
-            }
-
-            QHeaderView::section:hover {
-                background-color: #292d2d;
             }
 
             QMenuBar::item:selected,
@@ -432,16 +387,15 @@ class MainWindow(QMainWindow):
         self.recent_widget.back_button.clicked.connect(self.on_show_splash_action)
 
         self.video_widget = VideoRenderWidget()
-
         self.loading_widget = VideoLoadingWidget()
 
         self.greeting_switcher = QStackedLayout()
         central_widget = QWidget(self)
         central_widget.setLayout(self.greeting_switcher)
         self.greeting_switcher.addWidget(self.splash_widget)
+        self.greeting_switcher.addWidget(self.recent_widget)
         self.greeting_switcher.addWidget(self.video_widget)
         self.greeting_switcher.addWidget(self.loading_widget)
-        self.greeting_switcher.addWidget(self.recent_widget)
         self.setCentralWidget(central_widget)
 
         app.recording_loaded.connect(self.on_recording_opened)
@@ -550,7 +504,7 @@ class MainWindow(QMainWindow):
 
     def on_workspace_loaded(self):
         self.loading_widget.status = VideoLoadingWidget.Status.IDLE
-        self.greeting_switcher.setCurrentIndex(2)
+        self.greeting_switcher.setCurrentIndex(self.Screen.VideoLoading)
         self.project_dock.show()
         self.timeline_dock.show()
         self.settings_dock.show()
@@ -562,17 +516,17 @@ class MainWindow(QMainWindow):
         self.loading_widget.status = VideoLoadingWidget.Status.LOADING
 
     def on_recording_opened(self):
-        self.greeting_switcher.setCurrentIndex(1)
+        self.greeting_switcher.setCurrentIndex(self.Screen.VideoRender)
         self.loading_widget.status = VideoLoadingWidget.Status.IDLE
         QTimer.singleShot(1, self.timeline.reset_view)
 
     def on_recording_closed(self):
         app = neon_player.instance()
         if app.workspace.initialized:
-            self.greeting_switcher.setCurrentIndex(2)
+            self.greeting_switcher.setCurrentIndex(self.Screen.VideoLoading)
             return
 
-        self.greeting_switcher.setCurrentIndex(0)
+        self.greeting_switcher.setCurrentIndex(self.Screen.Splash)
         self.project_dock.hide()
         self.timeline_dock.hide()
         self.settings_dock.hide()
@@ -581,10 +535,10 @@ class MainWindow(QMainWindow):
 
     def on_show_recent_action(self) -> None:
         self.recent_widget.update_recent_recordings()
-        self.greeting_switcher.setCurrentIndex(2)
+        self.greeting_switcher.setCurrentIndex(self.Screen.Recent)
 
     def on_show_splash_action(self) -> None:
-        self.greeting_switcher.setCurrentIndex(0)
+        self.greeting_switcher.setCurrentIndex(self.Screen.Splash)
 
     def update_job_status(self) -> None:
         job_manager = neon_player.instance().job_manager
