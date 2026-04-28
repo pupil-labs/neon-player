@@ -566,7 +566,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         painter.drawImage(0, 0, qimage_from_frame(surface_image))
 
         gazes = gaze_plugin.get_gazes_for_scene(scene_idx).point
-        gazes = camera.undistort_points(gazes)
+        if len(gazes) > 0:
+            gazes = camera.undistort_points(gazes)
 
         mapped_gazes = self.image_points_to_surface(gazes)
         mapped_gazes[:, 0] *= self.preview_options.render_size[0]
