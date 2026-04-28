@@ -70,6 +70,7 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
         self._render_size = [0, 0]
 
     @property
+    @property_params(prevent_add=True)
     def render_size(self) -> list[int]:
         return self._render_size
 
@@ -566,6 +567,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         painter.drawImage(0, 0, qimage_from_frame(surface_image))
 
         gazes = gaze_plugin.get_gazes_for_scene(scene_idx).point
+        gazes = camera.undistort_points(gazes)
 
         mapped_gazes = self.image_points_to_surface(gazes)
         mapped_gazes[:, 0] *= self.preview_options.render_size[0]
