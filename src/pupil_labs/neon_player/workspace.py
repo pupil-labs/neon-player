@@ -7,10 +7,11 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Signal
 
 from pupil_labs import neon_recording as nr
+from pupil_labs.neon_recording import NeonRecording
 
 
 @dataclass
-class RecordingDescription:
+class RecordingMetadata:
     name: str
     path: Path
     recorded: datetime
@@ -18,17 +19,17 @@ class RecordingDescription:
     wearer: str
 
 
-def get_recording_description(path: Path) -> RecordingDescription | None:
+def get_recording_metadata(path: Path) -> RecordingMetadata | None:
     """
-    Extracts recording name, duration, and wearer name to provide a brief
-    description of the recording.
+    Extracts recording name, duration, and wearer name to provide
+    metadata of the recording.
     """
     try:
         rec = nr.load(path)
         recorded = datetime.fromtimestamp(rec.start_time / 1e9)
         duration = timedelta(seconds=rec.duration // 1e9)
 
-        return RecordingDescription(
+        return RecordingMetadata(
             name=path.name,
             path=path,
             duration=duration,
@@ -39,15 +40,15 @@ def get_recording_description(path: Path) -> RecordingDescription | None:
         return None
 
 
-def get_recording_list(path: Path) -> list[RecordingDescription]:
+def get_recording_list(path: Path) -> list[RecordingMetadata]:
     """
     Get a list of recordings present in a folder.
-    Only a subset of fields is extracted to provide a brief description.
+    Only a subset of fields is extracted to provide metadata.
     """
     recordings = []
     folders = sorted([p for p in path.iterdir() if p.is_dir()])
     for folder in folders:
-        if desc := get_recording_description(folder):
+        if desc := get_recording_metadata(folder):
             recordings.append(desc)
 
     return recordings
@@ -68,40 +69,54 @@ class Workspace(QObject):
     def __init__(self):
         super().__init__()
 
-        self.recording_dict : dict[str, RecordingDescription] = {}
+        self._recording_metadata : dict[str, RecordingMetadata] = {}
+        self._recordings : list[NeonRecording] = []
         self.initialized : bool = False
 
     @property
-    def recordings(self) -> list[RecordingDescription]:
-        return list(self.recording_dict.values())
+    def recordings(self) -> list[NeonRecording]:
+        return self._recordings
+
+    @property
+    def num_recordings(self) -> int:
+        return len(self._recordings)
+
+    @property
+    def recording_metadata(self) -> list[RecordingMetadata]:
+        return list(self._recording_metadata.values())
 
     def get_recording_path(self, recording_name: str) -> Path | None:
         """
         Get the file path of a recording by its name.
         """
-        if recording_name not in self.recording_dict:
+        if recording_name not in self._recording_metadata:
             return None
 
-        return self.recording_dict[recording_name].path
+        return self._recording_metadata[recording_name].path
 
     def clear(self):
-        self.recording_dict = {}
+        self._recording_metadata = {}
+        self._recordings = []
         self.initialized = False
 
     def add_recording(self, path: Path):
-        desc = get_recording_description(path)
+        desc = get_recording_metadata(path)
 
         if desc:
-            self.recording_dict[desc.name] = desc
+            self._recordings.append(nr.load(path))
+            self._recording_metadata[desc.name] = desc
             self.initialized = True
-            self.recording_list_loaded.emit(self.recordings)
+            self.recording_list_loaded.emit(self.recording_metadata)
 
-    def update_recording_list(self, path: Path):
+    def load_recording_list(self, path: Path):
         logging.info(f"Scanning for recordings in: {path}")
         self.initialized = False
-        recordings = get_recording_list(path)
-        self.recording_dict = {rec.name: rec for rec in recordings}
+        recording_list = get_recording_list(path)
+        self._recording_metadata = {rec.name: rec for rec in recording_list}
+        self._recordings = [nr.load(rec.path) for rec in recording_list]
 
-        logging.info(f"Found {len(self.recording_dict)} recordings in the provided folder")
+        logging.info(
+            f"Found {self.num_recordings} recordings in the provided folder"
+        )
         self.initialized = True
-        self.recording_list_loaded.emit(self.recordings)
+        self.recording_list_loaded.emit(self.recording_metadata)

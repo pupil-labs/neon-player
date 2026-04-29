@@ -15,6 +15,7 @@ from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QAction, QIcon, QPainter
 from PySide6.QtWidgets import (
     QApplication,
+    QMessageBox,
     QSystemTrayIcon,
 )
 from qt_property_widgets.utilities import ComplexEncoder, create_action_object
@@ -381,8 +382,17 @@ class NeonPlayerApp(QApplication):
             self.workspace.add_recording(recording_path)
         else:
             # Load all recordings that appear as first-level subfolders
-            self.workspace.update_recording_list(path)
-            recording_path = self.workspace.recordings[0].path
+            self.workspace.load_recording_list(path)
+            if not self.workspace.num_recordings:
+                QMessageBox.critical(
+                    self.main_window,
+                    "No recordings found!",
+                    "Found no recordings in the provided folder. "
+                    "Please ensure that Native Recording Data is used or "
+                    "select a different folder."
+                )
+                return
+            recording_path = self.workspace.recordings[0]._rec_dir
 
         self.workspace_loaded.emit()
         self.load_recording(recording_path)

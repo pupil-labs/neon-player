@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player.workspace import RecordingDescription
+from pupil_labs.neon_player.workspace import RecordingMetadata
 from pupil_labs.neon_player.ui.components import HoverRowTable
 from pupil_labs.neon_recording import NeonRecording
 
@@ -29,6 +29,7 @@ class WorkspaceSidebar(QWidget):
         self.recordings_table.setHorizontalHeaderLabels(self._column_names)
         self.recordings_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.recordings_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.recordings_table.setShowGrid(False)
         self.recordings_table.cellClicked.connect(self.on_table_cell_clicked)
 
         horiz_header = self.recordings_table.horizontalHeader()
@@ -51,7 +52,12 @@ class WorkspaceSidebar(QWidget):
         self.setMinimumSize(400, 100)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
-        pass
+        recording_names = [
+            self.recordings_table.item(row, 0).text()
+            for row in range(self.recordings_table.rowCount())
+        ]
+        recording_index = recording_names.index(recording._rec_dir.name)
+        self.recordings_table.setCurrentCell(recording_index, 0)
 
     def on_table_cell_clicked(self, row: int, column: int) -> None:
         app = neon_player.instance()
@@ -59,7 +65,7 @@ class WorkspaceSidebar(QWidget):
         recording_path = app.workspace.get_recording_path(recording_name)
         app.load_recording(recording_path)
 
-    def update_recording_table(self, recording_list: list[RecordingDescription]) -> None:
+    def update_recording_table(self, recording_list: list[RecordingMetadata]) -> None:
         self.recordings_table.clearContents()
         self.recordings_table.setSortingEnabled(False)
 

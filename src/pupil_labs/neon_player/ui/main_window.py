@@ -295,7 +295,7 @@ class MainWindow(QMainWindow):
                 padding-bottom: 5px;
             }
 
-            SettingsPanel QLabel#ExpanderName {
+            SettingsPanel QLabel#ExpanderName, WorkspaceSidebar QLabel {
                 color: #fff;
                 font-size: 12pt;
                 font-weight: bold;
@@ -699,6 +699,7 @@ class MainWindow(QMainWindow):
         self.video_widget.set_time_in_recording(ts)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
+        self.workspace_sidebar.on_recording_loaded(recording)
         self.video_widget.on_recording_loaded(recording)
 
 
