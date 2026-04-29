@@ -808,6 +808,7 @@ class SurfaceTrackingPlugin(Plugin):
             pickle.dump(surface.tracker_surface, f)
 
         surface._heatmap = None
+        surface.preview_options.render_size = [0, 0]
         self.trigger_scene_update()
 
         self._start_bg_surface_locator(surface)
