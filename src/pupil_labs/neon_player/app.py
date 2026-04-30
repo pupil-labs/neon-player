@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 from pupil_labs.neon_recording.sample import match_ts
 from PySide6.QtCore import QTimer, Signal
-from PySide6.QtGui import QAction, QIcon, QPainter
+from PySide6.QtGui import QAction, QIcon, QPainter, QFontDatabase
 from PySide6.QtWidgets import (
     QApplication,
     QSystemTrayIcon,
@@ -21,7 +21,7 @@ from qt_property_widgets.utilities import ComplexEncoder, create_action_object
 
 from pupil_labs import neon_player
 from pupil_labs import neon_recording as nr
-from pupil_labs.neon_player import Plugin
+from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.ipc_logger import IPCLogger
 from pupil_labs.neon_player.job_manager import JobManager
 from pupil_labs.neon_player.plugin_management import (
@@ -72,6 +72,12 @@ class NeonPlayerApp(QApplication):
         self.setApplicationVersion(app_version)
         self.setWindowIcon(QIcon(str(neon_player.asset_path("neon-player.svg"))))
         self.setStyle("Fusion")
+
+        font_names = ["Inter.ttf", "ChivoMono.ttf"]
+        for font in font_names:
+            font_id = QFontDatabase.addApplicationFont(str(asset_path(font)))
+            if font_id < 0:
+                logging.warning(f"Could not load font {font}")
 
         self.tray_icon = QSystemTrayIcon()
         self.tray_icon.setIcon(self.windowIcon())
