@@ -1,7 +1,7 @@
 import av
 import numpy as np
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QIcon
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
     QFrame,
@@ -181,7 +181,9 @@ class VolumeButton(QToolButton):
         self.audio_output = audio_output
 
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setIcon(QPixmap(neon_player.asset_path("volume-3.svg")))
+        self.setIconSize(QSize(20, 20))
+        self.setFixedSize(QSize(36, 36))
+        self.setIcon(QIcon(str(neon_player.asset_path("volume-2.svg"))))
         self.popup = None
         self.clicked.connect(self.toggle_popup)
 
@@ -197,6 +199,7 @@ class VolumeButton(QToolButton):
 
         slider = QSlider(Qt.Vertical)
         slider.sliderMoved.connect(self.on_slider_moved)
+        slider.setCursor(Qt.CursorShape.PointingHandCursor)
         slider.setValue(int(self.audio_output.volume() * 100))
         slider.setMinimumHeight(140)
         slider.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
@@ -212,4 +215,5 @@ class VolumeButton(QToolButton):
 
     def on_slider_moved(self, value):
         self.audio_output.setVolume(value / 100)
-        self.setIcon(QPixmap(neon_player.asset_path(f"volume-{value//25}.svg")))
+        icon_index = value // 50 + int(value % 50 > 0)
+        self.setIcon(QIcon(str(neon_player.asset_path(f"volume-{icon_index}.svg"))))
