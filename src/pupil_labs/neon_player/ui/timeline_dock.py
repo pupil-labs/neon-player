@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from pupil_labs import neon_player
 from pupil_labs import neon_recording as nr
+from pupil_labs.neon_player.ui.style import Colors
 from pupil_labs.neon_player.ui.timeline_dock_components import (
     FixedLegend,
     PlayHead,
@@ -70,7 +71,7 @@ class TimeLineDock(QWidget):
         self.play_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.play_button.setToolTip("Play/Pause")
         self.play_button.setIconSize(QSize(20, 20))
-        self.play_button.setFixedSize(QSize(36, 36))
+        self.play_button.setFixedSize(QSize(24, 24))
         self.play_button.setIcon(QIcon(str(neon_player.asset_path("play.svg"))))
         self.play_button.clicked.connect(
             lambda: app.get_action("Playback/Play\\Pause").trigger()
@@ -448,7 +449,9 @@ class TimeLineDock(QWidget):
         legend_container = pg.GraphicsLayout()
         legend_container.setSpacing(0)
         legend_container.setContentsMargins(0, 0, 0, 0)
-        legend_label = pg.LabelItem(timeline_row_name, justify="left", family="Inter")
+        legend_label = pg.LabelItem(timeline_row_name, justify="left",
+                                    color=Colors.TextPrimary,
+                                    size="12px", family="Inter")
 
         legend_container.addItem(legend_label)
         legend_container.addItem(legend, row=1, col=0)

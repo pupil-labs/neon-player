@@ -181,9 +181,9 @@ class VolumeButton(QToolButton):
         self.audio_output = audio_output
 
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setIconSize(QSize(20, 20))
-        self.setFixedSize(QSize(36, 36))
+        self.setFixedSize(QSize(24, 24))
         self.setIcon(QIcon(str(neon_player.asset_path("volume-2.svg"))))
+        self.setIconSize(QSize(20, 20))
         self.popup = None
         self.clicked.connect(self.toggle_popup)
 
@@ -217,3 +217,4 @@ class VolumeButton(QToolButton):
         self.audio_output.setVolume(value / 100)
         icon_index = value // 50 + int(value % 50 > 0)
         self.setIcon(QIcon(str(neon_player.asset_path(f"volume-{icon_index}.svg"))))
+        self.setIconSize(QSize(20, 20))
