@@ -448,7 +448,7 @@ class TimeLineDock(QWidget):
         legend_container = pg.GraphicsLayout()
         legend_container.setSpacing(0)
         legend_container.setContentsMargins(0, 0, 0, 0)
-        legend_label = pg.LabelItem(timeline_row_name, justify="left")
+        legend_label = pg.LabelItem(timeline_row_name, justify="left", family="Inter")
 
         legend_container.addItem(legend_label)
         legend_container.addItem(legend, row=1, col=0)
@@ -536,6 +536,7 @@ class TimeLineDock(QWidget):
             plot_data_item.name = plot_name
             if timeline_row_name in self.timeline_legends and plot_name != "":
                 legend.addItem(plot_data_item, plot_name)
+                legend.getLabel(plot_data_item).setText(plot_name, family="Inter")
 
         self.sort_plots()
 
