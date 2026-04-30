@@ -73,12 +73,12 @@ class FixationsPlugin(neon_player.Plugin):
         )
 
         self.register_action(
-            "Playback/Next Fixation",
+            "Playback/Next fixation",
             QKeyCombination(Qt.Key.Key_S),
             lambda: self.seek_by_fixation(1),
         )
         self.register_action(
-            "Playback/Previous Fixation",
+            "Playback/Previous fixation",
             QKeyCombination(Qt.Key.Key_A),
             lambda: self.seek_by_fixation(-1),
         )

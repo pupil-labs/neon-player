@@ -44,6 +44,8 @@ class TimeLineDock(QWidget):
         super().__init__()
         app = neon_player.instance()
 
+        self.setObjectName("TimelineDock")
+
         self.timeline_plots: dict[str, pg.PlotItem] = {}
         self.timeline_legends: dict[str, pg.LegendItem] = {}
         self.plot_colors = [
@@ -65,8 +67,9 @@ class TimeLineDock(QWidget):
 
         self.toolbar_layout = QHBoxLayout()
         self.play_button = QToolButton()
+        self.play_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.play_button.setToolTip("Play/Pause")
-        self.play_button.setIconSize(QSize(32, 32))
+        self.play_button.setIconSize(QSize(20, 20))
         self.play_button.setFixedSize(QSize(36, 36))
         self.play_button.setIcon(QIcon(str(neon_player.asset_path("play.svg"))))
         self.play_button.clicked.connect(

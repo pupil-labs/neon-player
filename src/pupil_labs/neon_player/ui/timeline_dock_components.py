@@ -219,6 +219,7 @@ class TimestampLabel(QLabel):
     def __init__(self) -> None:
         super().__init__()
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setObjectName("TimestampLabel")
         self.set_time(0)
         font = self.font()
         font.setFixedPitch(True)

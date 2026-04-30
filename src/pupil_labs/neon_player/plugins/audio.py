@@ -5,7 +5,7 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
     QFrame,
-    QPushButton,
+    QToolButton,
     QSizePolicy,
     QSlider,
     QVBoxLayout,
@@ -175,11 +175,12 @@ class AudioPlugin(neon_player.Plugin):
         container.close()
 
 
-class VolumeButton(QPushButton):
+class VolumeButton(QToolButton):
     def __init__(self, audio_output):
         super().__init__()
         self.audio_output = audio_output
 
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setIcon(QPixmap(neon_player.asset_path("volume-3.svg")))
         self.popup = None
         self.clicked.connect(self.toggle_popup)
