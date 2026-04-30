@@ -78,6 +78,7 @@ class TimeLineDock(QWidget):
         self.toolbar_layout.addWidget(self.play_button)
 
         self.speed_control = QComboBox()
+        self.speed_control.setCursor(Qt.CursorShape.PointingHandCursor)
         self.speed_control.setToolTip("Playback rate")
         self.speed_control.addItems([
             "-2.00x",
