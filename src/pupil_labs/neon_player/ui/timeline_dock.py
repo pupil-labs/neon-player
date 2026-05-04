@@ -158,6 +158,7 @@ class TimeLineDock(QWidget):
         app.playback_state_changed.connect(self.on_playback_state_changed)
         app.position_changed.connect(self.on_position_changed)
         app.recording_loaded.connect(self.on_recording_loaded)
+        app.recording_unloaded.connect(self.on_recording_unloaded)
 
         self.dragging = None
 
@@ -195,6 +196,11 @@ class TimeLineDock(QWidget):
         self.duration_marker = TrimDurationMarker(*self.trim_markers)
         for tm in [*self.trim_markers, self.duration_marker]:
             trim_plot.addItem(tm)
+
+    def on_recording_unloaded(self):
+        trim_plot = self.get_timeline_plot("Export window", create_if_missing=False)
+        if trim_plot is not None:
+            trim_plot.clear()
 
     def on_playback_state_changed(self, is_playing: bool):
         icon_name = "pause.svg" if is_playing else "play.svg"
