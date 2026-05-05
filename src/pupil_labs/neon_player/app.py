@@ -373,6 +373,7 @@ class NeonPlayerApp(QApplication):
         format is detected) or opens the folder as a workplace, detecting
         recordings in subfolders automatically and loading the first one.
         """
+        self.unload()
         is_neon_recording = check_if_neon_recording(path)
         self.batch_mode_enabled = not is_neon_recording
 
