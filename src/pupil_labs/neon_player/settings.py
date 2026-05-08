@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from PySide6.QtCore import QObject, Signal
 from qt_property_widgets.utilities import (
-    PersistentPropertiesMixin, property_params, ComplexEncoder
+    PersistentPropertiesMixin, property_params, ComplexEncoder, get_properties
 )
 
 from pupil_labs import neon_player
@@ -25,6 +25,17 @@ def plugin_label_lookup(cls_name: str) -> str:
         pass
 
     return f"{cls_name} (missing?)"
+
+
+def has_scope(required_scope: str):
+    def condition(params: dict) -> bool:
+        scope = params.get("scope", "workspace")
+        if isinstance(scope, str):
+            scope = [scope]
+
+        return required_scope in scope
+
+    return condition
 
 
 class GeneralSettings(PersistentPropertiesMixin, QObject):
@@ -100,7 +111,7 @@ class RecordingSettings(PersistentPropertiesMixin):
         self._export_window: list[int] = []
 
     @property
-    @property_params(widget=None)
+    @property_params(widget=None, scope="recording")
     def export_window(self) -> list[int]:
         return self._export_window
 
@@ -132,9 +143,7 @@ class RecordingSettings(PersistentPropertiesMixin):
         condition = None
         if app.batch_mode_enabled:
             target_scope = "workspace" if attached_to_workspace else "recording"
-            condition = lambda params: (
-                params.get("scope", "workspace") == target_scope
-            )
+            condition = has_scope(target_scope)
 
         current_states = {
             class_name: p.to_dict(condition=condition)
@@ -148,7 +157,7 @@ class RecordingSettings(PersistentPropertiesMixin):
         self._plugin_states = {k: v for k, v in plugin_states.items() if v}
 
     @property
-    @property_params(widget=None)
+    @property_params(widget=None, scope=["recording", "workspace"])
     def plugin_states(self) -> dict[str, dict]:
         self._update_plugin_states()
 
@@ -174,6 +183,24 @@ class PluginSettingsDispatcher(QObject):
         self.recording_settings = RecordingSettings()
         self.workspace_settings = RecordingSettings()
         self._batch_mode_enabled: bool = False
+
+    @staticmethod
+    def get_property_scopes(plugin: Plugin) -> dict[str]:
+        properties = get_properties(plugin.__class__)
+        scopes = {}
+
+        for prop_name, prop in properties.items():
+            if not prop.fget:
+                continue
+
+            params = getattr(prop.fget, "parameters", {})
+            scope = params.get("scope", "workspace")
+            if isinstance(scope, str):
+                scope = [scope]
+
+            scopes[prop_name] = scope
+
+        return scopes
 
     def load_recording_settings(
         self, settings_path: Path, recording: NeonRecording
@@ -203,6 +230,10 @@ class PluginSettingsDispatcher(QObject):
         except Exception:
             logging.exception("Failed to load recording settings")
             self.recording_settings = RecordingSettings()
+            self.recording_settings.export_window = [
+                recording.start_time,
+                recording.stop_time,
+            ]
 
         logging.info("Recording settings loaded")
 
@@ -231,8 +262,6 @@ class PluginSettingsDispatcher(QObject):
 
     def save_recording_settings(self, settings_path: Path) -> None:
         data = self.recording_settings.to_dict()
-        if self.batch_mode_enabled:
-            del data["enabled_plugins"]
         self._save_settings_data(data, settings_path)
 
     def save_workspace_settings(self, settings_path: Path) -> None:
@@ -278,11 +307,14 @@ class PluginSettingsDispatcher(QObject):
         if not self.batch_mode_enabled:
             return self.recording_settings.plugin_states
 
-        workspace_states = self.workspace_settings.plugin_states
-        recording_states = self.recording_settings.plugin_states
-        combined_states = {}
-        for class_name in set(workspace_states) | set(recording_states):
-            combined_states[class_name] = workspace_states.get(class_name, {})
-            combined_states[class_name].update(recording_states.get(class_name, {}))
+        workspace_states = self.workspace_settings.to_dict(
+            condition=has_scope("workspace")
+        )["plugin_states"]
+        recording_states = self.recording_settings.to_dict(
+            condition=has_scope("recording")
+        )["plugin_states"]
+        combined_states = merge_plugin_states(
+            workspace_states, recording_states, level="inner"
+        )
 
         return combined_states
