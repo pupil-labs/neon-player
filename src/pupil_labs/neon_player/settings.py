@@ -11,6 +11,8 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, Plugin
 from pupil_labs.neon_recording import NeonRecording
 
+from pupil_labs.neon_player.utilities import merge_plugin_states
+
 
 def plugin_label_lookup(cls_name: str) -> str:
     try:
@@ -139,7 +141,9 @@ class RecordingSettings(PersistentPropertiesMixin):
             for class_name, p in app.plugins_by_class.items()
         }
 
-        plugin_states = {**self._plugin_states, **current_states}
+        plugin_states = merge_plugin_states(
+            self._plugin_states, current_states, level="inner"
+        )
 
         self._plugin_states = {k: v for k, v in plugin_states.items() if v}
 
@@ -227,6 +231,8 @@ class PluginSettingsDispatcher(QObject):
 
     def save_recording_settings(self, settings_path: Path) -> None:
         data = self.recording_settings.to_dict()
+        if self.batch_mode_enabled:
+            del data["enabled_plugins"]
         self._save_settings_data(data, settings_path)
 
     def save_workspace_settings(self, settings_path: Path) -> None:

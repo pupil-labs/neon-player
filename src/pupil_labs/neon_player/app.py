@@ -198,18 +198,14 @@ class NeonPlayerApp(QApplication):
         if self.recording is None:
             return None
 
-        if not self.batch_mode_enabled:
-            return self.recording._rec_dir / ".neon_player" / "settings.json"
-
-        recording_name = self.recording._rec_dir.name
-        return self.workspace.path / ".neon_player" / "cache" / recording_name / "settings.json"
+        return self.recording._rec_dir / ".neon_player" / "settings.json"
 
     @property
     def workspace_settings_path(self) -> Path | None:
         if self.workspace.path is None:
             return None
 
-        return self.workspace.path / ".neon_player" / "settings.json"
+        return self.workspace.path / ".neon_player" / "workspace-settings.json"
 
     def load_global_settings(self) -> T.Any:
         logging.info(f"Loading settings from {self.settings_path}")

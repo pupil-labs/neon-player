@@ -139,6 +139,24 @@ def get_scene_intrinsics(recording: NeonRecording) -> tuple[np.ndarray, np.ndarr
     return scene_camera_matrix, scene_distortion_coefficients
 
 
+def merge_plugin_states(
+    first: dict[str, dict],
+    second: dict[str, dict],
+    level: str = "outer"
+) -> dict[str, dict]:
+    if level == "outer":
+        return {**first, **second}
+
+    merged = first.copy()
+    for k, v in second.items():
+        if k in merged:
+            merged[k] = {**merged[k], **v}
+        else:
+            merged[k] = v
+
+    return merged
+
+
 class SignalDebouncer:
     _signal_debouncer_map: T.ClassVar[dict[Signal, "SignalDebouncer"]] = {}
 
