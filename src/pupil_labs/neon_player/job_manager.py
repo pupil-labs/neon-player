@@ -12,6 +12,7 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from tqdm import tqdm
 
 from pupil_labs import neon_player
+from pupil_labs.neon_recording import NeonRecording
 
 
 @dataclass
@@ -196,7 +197,11 @@ class JobManager(QObject):
                     pbar.refresh()
 
     def run_background_action(
-        self, name: str, action_name: str, *args: T.Any
+        self,
+        name: str,
+        action_name: str,
+        *args: T.Any,
+        recording: NeonRecording | None = None
     ) -> BackgroundJob:
         if neon_player.instance().headless:
             logging.warning("Not starting background job in headless mode")
@@ -204,11 +209,13 @@ class JobManager(QObject):
 
         neon_player.instance().save_settings()
 
-        recording = neon_player.instance().recording
+        if recording is None:
+            recording = neon_player.instance().recording
+
         if recording is None:
             rec_dir = None
         else:
-            rec_dir = neon_player.instance().recording._rec_dir
+            rec_dir = recording._rec_dir
 
         job = BackgroundJob(
             name,
