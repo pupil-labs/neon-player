@@ -159,7 +159,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
     @property
     @property_params(widget=None, dont_encode=True)
     def export_window(self) -> list[int]:
-        return self.app.plugin_settings.export_window
+        return self.app.session_settings.export_window
 
     @property
     @property_params(widget=None, dont_encode=True)

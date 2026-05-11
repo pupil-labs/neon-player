@@ -7,9 +7,6 @@ from pupil_labs.neon_player.settings import (
 
 
 class ExamplePlugin(Plugin):
-    def __init__(self) -> None:
-        super().__init__(connect=False)
-
     @property
     @property_params()
     def default_property(self) -> int:

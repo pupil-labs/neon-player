@@ -41,7 +41,7 @@ from qt_property_widgets.utilities import action_params, property_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action
-from pupil_labs.neon_player.settings import RecordingSettings
+from pupil_labs.neon_player.settings import SessionSettings
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.utilities import (
     SlotDebouncer,
@@ -939,7 +939,7 @@ class SurfaceTrackingPlugin(Plugin):
     def import_surface_definitions(self, source: Path = Path()) -> None:
         # get surface definitions from json
         json_path = source / ".neon_player" / "settings.json"
-        other_recording = RecordingSettings.from_dict(json.load(json_path.open("r")))
+        other_recording = SessionSettings.from_dict(json.load(json_path.open("r")))
         surface_settings = other_recording.plugin_states.get('SurfaceTrackingPlugin', {})
         surfaces = surface_settings.get('surfaces', [])
         if len(surfaces) == 0:

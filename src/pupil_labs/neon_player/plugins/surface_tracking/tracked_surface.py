@@ -174,8 +174,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self.corner_positions = {}
         self.jobs = []
 
-        # XXX: test
-        neon_player.instance().plugin_settings.export_window_changed.connect(
+        neon_player.instance().export_window_changed.connect(
             self.heatmap_invalidated.emit
         )
         self.locations_invalidated.connect(self.heatmap_invalidated.emit)

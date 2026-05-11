@@ -56,6 +56,7 @@ from pupil_labs.neon_player.workspace import Workspace, check_if_neon_recording
 
 
 class NeonPlayerApp(QApplication):
+    export_window_changed = Signal()
     playback_state_changed = Signal(bool)
     position_changed = Signal(object)
     seeked = Signal(object)
@@ -135,7 +136,10 @@ class NeonPlayerApp(QApplication):
 
         # NOTE: plugins should be loaded before initializing the dispatcher
         # to ensure that property scopes are collected correctly
-        self.plugin_settings = PluginSettingsDispatcher()
+        self.session_settings = PluginSettingsDispatcher()
+        self.session_settings.export_window_changed.connect(
+            self.export_window_changed.emit
+        )
 
         try:
             self.settings = GeneralSettings.from_dict(self.load_global_settings())
@@ -229,12 +233,12 @@ class NeonPlayerApp(QApplication):
                 json.dump(data, f, cls=ComplexEncoder)
 
             if self.recording:
-                self.plugin_settings.save_recording_settings(
+                self.session_settings.save_recording_settings(
                     self.recording_settings_path
                 )
 
             if self.batch_mode_enabled:
-                self.plugin_settings.save_workspace_settings(
+                self.session_settings.save_workspace_settings(
                     self.workspace_settings_path
                 )
 
@@ -312,7 +316,7 @@ class NeonPlayerApp(QApplication):
             logging.info(f"Enabling plugin: {kls.__name__}")
             try:
                 if state is None:
-                    state = self.plugin_settings.plugin_states.get(kls.__name__, {})
+                    state = self.session_settings.plugin_states.get(kls.__name__, {})
 
                 plugin: Plugin = kls.from_dict(state)
 
@@ -402,7 +406,7 @@ class NeonPlayerApp(QApplication):
         self.unload()
         is_neon_recording = check_if_neon_recording(path)
         self.batch_mode_enabled = not is_neon_recording
-        self.plugin_settings.batch_mode_enabled = self.batch_mode_enabled
+        self.session_settings.batch_mode_enabled = self.batch_mode_enabled
 
         if is_neon_recording:
             # Only include this recording in the workspace
@@ -422,7 +426,7 @@ class NeonPlayerApp(QApplication):
                 return
 
             recording_path = self.workspace.recordings[0]._rec_dir
-            self.plugin_settings.load_workspace_settings(
+            self.session_settings.load_workspace_settings(
                 self.workspace_settings_path
             )
 
@@ -442,7 +446,7 @@ class NeonPlayerApp(QApplication):
         self.playback_start_anchor = 0
 
         self.main_window.on_recording_loaded(self.recording)
-        self.plugin_settings.load_recording_settings(
+        self.session_settings.load_recording_settings(
             self.recording_settings_path, self.recording
         )
 
@@ -453,8 +457,8 @@ class NeonPlayerApp(QApplication):
 
         QTimer.singleShot(0, self.toggle_plugins_by_settings)
         QTimer.singleShot(10, self.on_recording_load_complete)
-        self.plugin_settings.changed.connect(self.toggle_plugins_by_settings)
-        SlotDebouncer.debounce(self.plugin_settings.changed, self.save_settings)
+        self.session_settings.changed.connect(self.toggle_plugins_by_settings)
+        SlotDebouncer.debounce(self.session_settings.changed, self.save_settings)
 
     def on_recording_load_complete(self) -> None:
         self.loading_recording = False
@@ -462,12 +466,8 @@ class NeonPlayerApp(QApplication):
         logging.info(f"Loaded `{self.recording._rec_dir}`")
 
     def toggle_plugins_by_settings(self) -> None:
-        print(f"Recording settings: {self.plugin_settings.recording_settings.enabled_plugins}")
-        print(f"Workspace settings: {self.plugin_settings.workspace_settings.enabled_plugins}")
-        print(f"Plugin settings: {self.plugin_settings.enabled_plugins}")
-
-        for cls_name, enabled in self.plugin_settings.enabled_plugins.items():
-            state = self.plugin_settings.plugin_states.get(cls_name, {})
+        for cls_name, enabled in self.session_settings.enabled_plugins.items():
+            state = self.session_settings.plugin_states.get(cls_name, {})
             self.toggle_plugin(cls_name, enabled, state)
 
         self._initializing = False

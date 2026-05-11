@@ -162,7 +162,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
                     cls.global_properties = v
 
 
-class RecordingSettings(PersistentPropertiesMixin):
+class SessionSettings(PersistentPropertiesMixin):
     def __init__(self) -> None:
         super().__init__()
         self._enabled_plugins = neon_player.instance().settings.default_plugins.copy()
@@ -195,8 +195,8 @@ class RecordingSettings(PersistentPropertiesMixin):
     def _update_plugin_states(self) -> None:
         app = neon_player.instance()
 
-        attached_to_recording = app.plugin_settings.recording_settings == self
-        attached_to_workspace = app.plugin_settings.workspace_settings == self
+        attached_to_recording = app.session_settings.recording_settings == self
+        attached_to_workspace = app.session_settings.workspace_settings == self
         if not attached_to_recording and not attached_to_workspace:
             return
 
@@ -247,8 +247,8 @@ class PluginSettingsDispatcher(QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self.recording_settings = RecordingSettings()
-        self.workspace_settings = RecordingSettings()
+        self.recording_settings = SessionSettings()
+        self.workspace_settings = SessionSettings()
         self._batch_mode_enabled: bool = False
 
         self.property_scopes: dict[str, dict] = {}
@@ -262,7 +262,7 @@ class PluginSettingsDispatcher(QObject):
         try:
             if settings_path.exists():
                 logging.info(f"Loading recording settings from {settings_path}")
-                self.recording_settings = RecordingSettings.from_dict(
+                self.recording_settings = SessionSettings.from_dict(
                     json.loads(settings_path.read_text())
                 )
 
@@ -275,7 +275,7 @@ class PluginSettingsDispatcher(QObject):
 
             else:
                 logging.info(f"Recording settings file not found, using defaults")
-                self.recording_settings = RecordingSettings()
+                self.recording_settings = SessionSettings()
                 self.recording_settings.export_window = [
                     recording.start_time,
                     recording.stop_time,
@@ -283,7 +283,7 @@ class PluginSettingsDispatcher(QObject):
 
         except Exception:
             logging.exception("Failed to load recording settings")
-            self.recording_settings = RecordingSettings()
+            self.recording_settings = SessionSettings()
             self.recording_settings.export_window = [
                 recording.start_time,
                 recording.stop_time,
@@ -296,16 +296,16 @@ class PluginSettingsDispatcher(QObject):
         try:
             if settings_path.exists():
                 logging.info(f"Loading workspace settings from {settings_path}")
-                self.workspace_settings = RecordingSettings.from_dict(
+                self.workspace_settings = SessionSettings.from_dict(
                     json.loads(settings_path.read_text())
                 )
             else:
                 logging.info(f"Workspace settings file not found, using defaults")
-                self.workspace_settings = RecordingSettings()
+                self.workspace_settings = SessionSettings()
 
         except Exception:
             logging.exception("Failed to load workspace settings")
-            self.workspace_settings = RecordingSettings()
+            self.workspace_settings = SessionSettings()
 
         self.workspace_settings.property_scopes = self.property_scopes
         logging.info("Workspace settings loaded")
@@ -333,7 +333,7 @@ class PluginSettingsDispatcher(QObject):
         self._batch_mode_enabled = batch_mode_enabled
 
     @property
-    def default_source(self) -> RecordingSettings:
+    def default_source(self) -> SessionSettings:
         if not self.batch_mode_enabled:
             return self.recording_settings
 
