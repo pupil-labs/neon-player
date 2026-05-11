@@ -94,7 +94,6 @@ class NeonPlayerApp(QApplication):
 
         self.settings = GeneralSettings()
         self.loading_recording = False
-        self.plugin_settings = PluginSettingsDispatcher()
         self.recording_history = RecordingHistory()
 
         self.refresh_timer = QTimer(self)
@@ -133,6 +132,10 @@ class NeonPlayerApp(QApplication):
         plugin_search_path = Path.home() / "Pupil Labs" / "Neon Player" / "plugins"
         if plugin_search_path.exists():
             self.find_plugins(plugin_search_path)
+
+        # NOTE: plugins should be loaded before initializing the dispatcher
+        # to ensure that property scopes are collected correctly
+        self.plugin_settings = PluginSettingsDispatcher()
 
         try:
             self.settings = GeneralSettings.from_dict(self.load_global_settings())
@@ -381,6 +384,8 @@ class NeonPlayerApp(QApplication):
 
     def unload_recording(self) -> None:
         self.set_playback_state(False)
+        self.save_settings()
+
         class_names = list(self.plugins_by_class.keys())
         for plugin_class_name in class_names:
             self.toggle_plugin(plugin_class_name, False)
