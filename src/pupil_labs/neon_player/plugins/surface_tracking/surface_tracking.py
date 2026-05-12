@@ -13,6 +13,7 @@ import numpy as np
 import numpy.typing as npt
 import pupil_apriltags
 import pupil_labs.video as plv
+from dataclasses import dataclass
 from pupil_labs.camera import Camera, perspective_transform
 from pupil_labs.marker_mapper import Surface, utils
 from pupil_labs.marker_mapper.surface import normalized_corners
@@ -51,6 +52,12 @@ from pupil_labs.neon_player.utilities import (
 
 from .tracked_surface import TrackedSurface
 from .ui import MarkerEditWidget
+
+
+@dataclass
+class DetectedMarker:
+    tag_id: int
+    corners: npt.NDArray[np.float64]
 
 
 class SurfaceImportDialog(QDialog):
@@ -838,7 +845,14 @@ class SurfaceTrackingPlugin(Plugin):
         markers_by_frame = []
         for frame_idx, frame in enumerate(self.recording.scene):
             # @TODO: apply brightness/contrast adjustments
-            markers_by_frame.append(detector.detect(frame.gray))
+            detected_markers = detector.detect(frame.gray)
+
+            # Keep only fields that are used downstream to save memory
+            detected_markers = [
+                DetectedMarker(d.tag_id, d.corners.astype(np.float64))
+                for d in detected_markers
+            ]
+            markers_by_frame.append(detected_markers)
 
             yield ProgressUpdate((frame_idx + 1) / len(self.recording.scene))
 
