@@ -21,11 +21,20 @@ class ProgressUpdate:
     datum: T.Any = None
 
 
-class BackgroundJob(QObject):
+class BaseBackgroundJob(QObject):
     progress_changed = Signal(float)
     finished = Signal()
     canceled = Signal()
 
+    def __init__(self, name: str):
+        super().__init__()
+        self.name = name
+
+    def cancel(self):
+        raise NotImplementedError("Subclasses must implement cancel()")
+
+
+class BackgroundJob(BaseBackgroundJob):
     def __init__(
         self,
         name: str,
@@ -34,9 +43,8 @@ class BackgroundJob(QObject):
         action_name: str,
         *args: T.Any,
     ):
-        super().__init__()
+        super().__init__(name)
 
-        self.name = name
         self.job_id = job_id
         self.progress = -1
         self.socket = None
@@ -121,6 +129,82 @@ class BackgroundJob(QObject):
         self.canceled.emit()
 
 
+class BatchBackgroundJob(BaseBackgroundJob):
+    progress_changed = Signal(float)
+    canceled = Signal()
+    finished = Signal()
+
+    def __init__(
+        self,
+        name: str,
+        job_id: int,
+        action_name: str,
+        args_generator: T.Callable[[NeonRecording], T.Any] | None = None,
+        recordings: list[NeonRecording] | None = None,
+    ):
+        super().__init__(name)
+
+        app = neon_player.instance()
+        if not app.batch_mode_enabled:
+            logging.warning("Batch mode is not enabled, cannot run batch action.")
+            return
+
+        if recordings is None:
+            recordings = app.workspace.recordings
+
+        self.job_id = job_id
+        self.action_name = action_name
+        self.args_generator = args_generator
+        self.recordings = recordings.copy()
+        self.size = len(self.recordings)
+        self.current_idx = 0
+        self.current_job = None
+
+        self._copy_session_settings()
+        self._submit_next_job()
+
+    def cancel(self):
+        if self.current_job:
+            self.current_job.cancel()
+        self.canceled.emit()
+
+    def _copy_session_settings(self):
+        app = neon_player.instance()
+        for rec in self.recordings:
+            pass
+            # shutil.copy(app.session_settings_path, rec.session_settings_path)
+
+    def _submit_next_job(self):
+        current_recording = self.recordings[self.current_idx]
+        progress_str = ""
+        if self.size > 1:
+            progress_str = f" ({self.current_idx + 1}/{self.size})"
+        args = self.args_generator(current_recording) if self.args_generator else []
+
+        app = neon_player.instance()
+        job = app.job_manager.run_background_action(
+            f"{self.name}{progress_str}",
+            self.action_name,
+            *args,
+            recording=current_recording
+        )
+        job.canceled.connect(lambda: self._on_batch_job_canceled())
+        job.finished.connect(lambda: self._on_batch_job_finished())
+        self.current_job = job
+
+    def _on_batch_job_canceled(self):
+        self.canceled.emit()
+
+    def _on_batch_job_finished(self):
+        self.current_idx += 1
+        if self.current_idx < len(self.recordings):
+            self._submit_next_job()
+            self.progress_changed.emit(self.current_idx / self.size)
+        else:
+            self.progress_changed.emit(1.0)
+            self.finished.emit()
+
+
 class JobManager(QObject):
     updated = Signal()
     job_started = Signal(BackgroundJob)
@@ -194,6 +278,36 @@ class JobManager(QObject):
             rec_dir,
             action_name,
             *args,
+        )
+        self.job_counter += 1
+
+        job.canceled.connect(lambda: self.on_job_canceled(job))
+        job.finished.connect(lambda: self.on_job_finished(job))
+        job.progress_changed.connect(lambda _: self.updated.emit())
+
+        self.current_jobs.append(job)
+        self.job_started.emit(job)
+        self.updated.emit()
+
+        logging.info(f"{job.name} started in the background")
+
+        return job
+
+    def run_background_batch_action(
+        self,
+        name: str,
+        action_name: str,
+        args_generator: T.Callable[[NeonRecording], T.Any] | None = None,
+        recordings: list[NeonRecording] | None = None
+    ):
+        neon_player.instance().save_settings()
+
+        job = BatchBackgroundJob(
+            name,
+            self.job_counter,
+            action_name,
+            args_generator=args_generator,
+            recordings=recordings
         )
         self.job_counter += 1
 
