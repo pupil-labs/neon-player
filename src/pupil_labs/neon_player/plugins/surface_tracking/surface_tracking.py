@@ -699,6 +699,7 @@ class SurfaceTrackingPlugin(Plugin):
         prevent_add=True,
         item_params={"label_field": "name"},
         primary=True,
+        scope="recording",
     )
     def surfaces(self) -> list["TrackedSurface"]:
         return self._surfaces
