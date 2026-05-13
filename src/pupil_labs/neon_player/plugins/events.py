@@ -81,7 +81,6 @@ class EventsPlugin(neon_player.Plugin):
     def __init__(self) -> None:
         super().__init__()
         self._event_types: list[EventType] = []
-        self._share_event_types = False
         self.get_timeline().key_pressed.connect(self._on_key_pressed)
         self.header_action = ListPropertyAppenderAction(
             "event_types", "+ Add event type"
