@@ -105,6 +105,7 @@ class NeonPlayerApp(QApplication):
 
         parser = argparse.ArgumentParser()
         parser.add_argument("recording", nargs="?", default=None, help="")
+        parser.add_argument("--workspace", action="store_true")
         parser.add_argument("--progress-ipc-name", type=str, default=None)
         parser.add_argument(
             "--job",
@@ -157,7 +158,14 @@ class NeonPlayerApp(QApplication):
         self.recording_history.changed.connect(self.save_history)
 
         if self.args.job and self.args.recording:
-            self.load(Path(self.args.recording))
+            path_to_load = Path(self.args.recording)
+            if self.args.workspace:
+                self.set_batch_mode(True)
+                self.load_workspace(path_to_load.parent)
+                self.workspace_loaded.emit()
+                self.load_recording(path_to_load)
+            else:
+                self.load(path_to_load)
         elif self.args.recording:
             QTimer.singleShot(1, lambda: self.load(Path(self.args.recording)))
         else:
@@ -405,8 +413,7 @@ class NeonPlayerApp(QApplication):
         """
         self.unload()
         is_neon_recording = check_if_neon_recording(path)
-        self.batch_mode_enabled = not is_neon_recording
-        self.session_settings.batch_mode_enabled = self.batch_mode_enabled
+        self.set_batch_mode(not is_neon_recording)
 
         if is_neon_recording:
             # Only include this recording in the workspace
@@ -414,8 +421,8 @@ class NeonPlayerApp(QApplication):
             self.workspace.add_recording(recording_path)
         else:
             # Load all recordings that appear as first-level subfolders
-            self.workspace.load_recording_list(path)
-            if not self.workspace.num_recordings:
+            self.load_workspace(path)
+            if not self.workspace.recordings:
                 QMessageBox.critical(
                     self.main_window,
                     "No recordings found!",
@@ -426,12 +433,19 @@ class NeonPlayerApp(QApplication):
                 return
 
             recording_path = self.workspace.recordings[0]._rec_dir
-            self.session_settings.load_workspace_settings(
-                self.workspace_settings_path
-            )
 
         self.workspace_loaded.emit()
         self.load_recording(recording_path)
+
+    def set_batch_mode(self, enabled: bool) -> None:
+        self.batch_mode_enabled = enabled
+        self.session_settings.batch_mode_enabled = enabled
+
+    def load_workspace(self, path: Path) -> None:
+        self.workspace.load_recording_list(path)
+        self.session_settings.load_workspace_settings(
+            self.workspace_settings_path
+        )
 
     def load_recording(self, path: Path) -> None:
         """Load a recording from the given path."""
