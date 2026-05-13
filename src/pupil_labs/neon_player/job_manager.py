@@ -60,9 +60,11 @@ class BaseBackgroundJob(QObject):
     finished = Signal()
     canceled = Signal()
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, job_id: int):
         super().__init__()
         self.name = name
+        self.job_id = job_id
+        self.progress = -1
 
     def cancel(self):
         raise NotImplementedError("Subclasses must implement cancel()")
@@ -77,10 +79,8 @@ class BackgroundJob(BaseBackgroundJob):
         action_name: str,
         *args: T.Any,
     ):
-        super().__init__(name)
+        super().__init__(name, job_id)
 
-        self.job_id = job_id
-        self.progress = -1
         self.socket = None
         self._expected_payload_size = None
 
@@ -171,7 +171,7 @@ class BatchBackgroundJob(BaseBackgroundJob):
         args_generator: T.Callable[[NeonRecording], T.Any] | None = None,
         recordings: list[NeonRecording] | None = None,
     ):
-        super().__init__(name)
+        super().__init__(name, job_id)
 
         app = neon_player.instance()
         if not app.batch_mode_enabled:
@@ -181,7 +181,6 @@ class BatchBackgroundJob(BaseBackgroundJob):
         if recordings is None:
             recordings = app.workspace.recordings
 
-        self.job_id = job_id
         self.action_name = action_name
         self.args_generator = args_generator
         self.recordings = recordings.copy()
@@ -228,7 +227,8 @@ class BatchBackgroundJob(BaseBackgroundJob):
         self.current_idx += 1
         if self.current_idx < len(self.recordings):
             self._submit_next_job()
-            self.progress_changed.emit(self.current_idx / self.size)
+            self.progress = self.current_idx / self.size
+            self.progress_changed.emit(self.progress)
         else:
             self.progress_changed.emit(1.0)
             self.finished.emit()
