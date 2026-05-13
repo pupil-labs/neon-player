@@ -53,7 +53,16 @@ class BackgroundJob(QObject):
         args = [
             str(recording_path),
             "--progress-ipc-name",
-            server_name,
+            server_name
+        ]
+
+        # When batch mode is enabled, let the subprocess know that the job
+        # needs to be executed with a workspace (i.e., parent folder) in mind
+        app = neon_player.instance()
+        if app.batch_mode_enabled:
+            args += ["--workspace"]
+
+        args += [
             "--job",
             action_name,
         ] + [str(arg) for arg in args]
