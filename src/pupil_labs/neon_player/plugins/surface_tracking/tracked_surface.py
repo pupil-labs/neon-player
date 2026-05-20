@@ -496,7 +496,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             return
 
         fixation_data = fixations_plugin.get_export_fixations()
-        fixation_data["fixation detected on surface"] = 0
+        fixation_data["fixation detected on surface"] = False
 
         fixation_points = fixation_data[["fixation x [px]", "fixation y [px]"]]
         mapped_fixation_points = self.map_points_by_time(
@@ -513,7 +513,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             fixation_gazes = gazes[start_mask & end_mask]
 
             if not fixation_gazes.size:
-                fixations_on_surfs.append(0)
+                fixations_on_surfs.append(False)
                 continue
 
             mapped_gazes = self.apply_offset_and_map_gazes(fixation_gazes)
@@ -522,7 +522,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             upper_pass = np.all(mapped_gazes <= 1.0, axis=1)
             gazes_on_surface = lower_pass & upper_pass
 
-            fixations_on_surfs.append(np.mean(gazes_on_surface))
+            fixations_on_surfs.append(bool(np.any(gazes_on_surface)))
 
         fixation_data["fixation detected on surface"] = fixations_on_surfs
 
