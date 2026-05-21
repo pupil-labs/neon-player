@@ -141,6 +141,8 @@ class NeonPlayerApp(QApplication):
         self.session_settings.export_window_changed.connect(
             self.export_window_changed.emit
         )
+        self.session_settings.changed.connect(self.toggle_plugins_by_settings)
+        SlotDebouncer.debounce(self.session_settings.changed, self.save_settings)
 
         try:
             self.settings = GeneralSettings.from_dict(self.load_global_settings())
@@ -471,8 +473,6 @@ class NeonPlayerApp(QApplication):
 
         QTimer.singleShot(0, self.toggle_plugins_by_settings)
         QTimer.singleShot(10, self.on_recording_load_complete)
-        self.session_settings.changed.connect(self.toggle_plugins_by_settings)
-        SlotDebouncer.debounce(self.session_settings.changed, self.save_settings)
 
     def on_recording_load_complete(self) -> None:
         self.loading_recording = False

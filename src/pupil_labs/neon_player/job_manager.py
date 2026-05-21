@@ -50,7 +50,7 @@ class BackgroundJob(QObject):
 
         self.server.newConnection.connect(self._handle_connection)
 
-        args = [
+        cmd_args = [
             str(recording_path),
             "--progress-ipc-name",
             server_name
@@ -60,17 +60,17 @@ class BackgroundJob(QObject):
         # needs to be executed with a workspace (i.e., parent folder) in mind
         app = neon_player.instance()
         if app.batch_mode_enabled:
-            args += ["--workspace"]
+            cmd_args += ["--workspace"]
 
-        args += [
+        cmd_args += [
             "--job",
             action_name,
         ] + [str(arg) for arg in args]
 
         if neon_player.is_frozen():
-            cmd = [sys.executable, *args]
+            cmd = [sys.executable, *cmd_args]
         else:
-            cmd = [sys.executable, "-m", "pupil_labs.neon_player", *args]
+            cmd = [sys.executable, "-m", "pupil_labs.neon_player", *cmd_args]
 
         logging.debug(f"Executing bg job {' '.join(cmd)}")
 

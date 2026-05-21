@@ -48,17 +48,6 @@ def get_property_scopes(plugin_cls: type) -> dict[str, list[str]]:
     return scopes
 
 
-def has_scope(required_scope: str):
-    def condition(params: dict) -> bool:
-        scope = params.get("scope", "workspace")
-        if isinstance(scope, str):
-            scope = [scope]
-
-        return required_scope in scope
-
-    return condition
-
-
 def merge_plugin_states(
     saved_states: dict[str, dict],
     new_states: dict[str, dict],
@@ -331,6 +320,8 @@ class PluginSettingsDispatcher(QObject):
     @batch_mode_enabled.setter
     def batch_mode_enabled(self, batch_mode_enabled: bool) -> None:
         self._batch_mode_enabled = batch_mode_enabled
+        if not self._batch_mode_enabled:
+            self.workspace_settings = SessionSettings()
 
     @property
     def default_source(self) -> SessionSettings:
