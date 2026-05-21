@@ -82,6 +82,9 @@ class NeonPlayerApp(QApplication):
         self.recording: nr.NeonRecording | None = None
         self.playback_start_anchor = 0
         self.current_ts = 0
+        self.playback_speed_options = [
+            -4.0, -2.0, -1.0, -0.5, -0.25, -0.125, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0
+        ]
         self.playback_speed = 1.0
 
         self.settings = GeneralSettings()
@@ -447,6 +450,15 @@ class NeonPlayerApp(QApplication):
         self.playback_speed = speed
         self._reset_start_anchor()
         self.speed_changed.emit(speed)
+
+    def switch_playback_speed(self, by: int) -> None:
+        current_idx = self.playback_speed_options.index(self.playback_speed)
+        new_idx = current_idx + by
+        if new_idx < 0 or new_idx >= len(self.playback_speed_options):
+            return
+        
+        new_speed = self.playback_speed_options[new_idx]
+        self.set_playback_speed(new_speed)
 
     def _reset_start_anchor(self) -> None:
         if self.playback_speed == 0:

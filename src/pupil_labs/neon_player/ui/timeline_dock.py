@@ -76,34 +76,23 @@ class TimeLineDock(QWidget):
 
         self.speed_control = QComboBox()
         self.speed_control.setToolTip("Playback rate")
-        self.speed_control.addItems([
-            "-2.00x",
-            "-1.75x",
-            "-1.50x",
-            "-1.25x",
-            "-1.00x",
-            "-0.75x",
-            "-0.50x",
-            "-0.25x",
-        ])
+        self.speed_control.addItems(
+            [f"{s:.3g}x" for s in app.playback_speed_options if s < 0]
+        )
         self.speed_control.insertSeparator(self.speed_control.count())
-        self.speed_control.addItems([
-            " 0.25x",
-            " 0.50x",
-            " 0.75x",
-            " 1.00x",
-            " 1.25x",
-            " 1.50x",
-            " 1.75x",
-            " 2.00x",
-        ])
+        self.speed_control.addItems(
+            [f"{s:.3g}x" for s in app.playback_speed_options if s > 0]
+        )
         font = self.speed_control.font()
         font.setFixedPitch(True)
         self.speed_control.setFont(font)
-        self.speed_control.setCurrentText(" 1.00x")
+        self.speed_control.setCurrentText("1x")
 
         self.speed_control.currentTextChanged.connect(
             lambda t: app.set_playback_speed(float(t[:-1]))
+        )
+        app.speed_changed.connect(
+            lambda speed: self.speed_control.setCurrentText(f"{speed:.3g}x")
         )
 
         self.timestamp_label = TimestampLabel()
