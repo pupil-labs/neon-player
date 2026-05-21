@@ -68,7 +68,7 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
         self.changed.emit()
 
     @property
-    @property_params(min=0, max=100)
+    @property_params(min=0, max=100, scope="recording")
     def brightness(self) -> int:
         return self._brightness
 
@@ -77,7 +77,7 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
         self._brightness = value
 
     @property
-    @property_params(min=0.0, max=3.0)
+    @property_params(min=0.0, max=3.0, scope="recording")
     def contrast(self) -> float:
         return self._contrast
 
@@ -110,7 +110,7 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
     def bg_export(self, destination: Path = Path()) -> T.Generator[ProgressUpdate, None, None]:
         yield from self.bg_export_video(
             recording=self.app.recording,
-            export_window=self.app.recording_settings.export_window,
+            export_window=self.export_window,
             render_fn=self.render_for_export,
             destination=destination,
             output_video_filename="scene.mp4",
