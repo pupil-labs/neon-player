@@ -20,6 +20,40 @@ class ProgressUpdate:
     datum: T.Any = None
 
 
+def prepare_command(
+    recording_path: Path, 
+    action_name: str,
+    args: T.Any,
+    server_name: str,
+    batch_mode_enabled: bool,
+    is_frozen: bool,
+):
+    """
+    Prepares the command line call for running a background job in a subprocess.
+    """
+    
+    cmd_args = [
+        str(recording_path),
+        "--progress-ipc-name",
+        server_name
+    ]
+
+    # When batch mode is enabled, let the subprocess know that the job
+    # needs to be executed with a workspace (i.e., parent folder) in mind
+    if batch_mode_enabled:
+        cmd_args += ["--workspace"]
+
+    cmd_args += [
+        "--job",
+        action_name,
+    ] + [str(arg) for arg in args]
+
+    if is_frozen:
+        return [sys.executable, *cmd_args]
+    
+    return [sys.executable, "-m", "pupil_labs.neon_player", *cmd_args]
+
+
 class BackgroundJob(QObject):
     progress_changed = Signal(float)
     finished = Signal()
@@ -50,28 +84,14 @@ class BackgroundJob(QObject):
 
         self.server.newConnection.connect(self._handle_connection)
 
-        cmd_args = [
-            str(recording_path),
-            "--progress-ipc-name",
-            server_name
-        ]
-
-        # When batch mode is enabled, let the subprocess know that the job
-        # needs to be executed with a workspace (i.e., parent folder) in mind
-        app = neon_player.instance()
-        if app.batch_mode_enabled:
-            cmd_args += ["--workspace"]
-
-        cmd_args += [
-            "--job",
-            action_name,
-        ] + [str(arg) for arg in args]
-
-        if neon_player.is_frozen():
-            cmd = [sys.executable, *cmd_args]
-        else:
-            cmd = [sys.executable, "-m", "pupil_labs.neon_player", *cmd_args]
-
+        cmd = prepare_command(
+            recording_path=recording_path,
+            action_name=action_name,
+            args=args,
+            server_name=server_name,
+            batch_mode_enabled=neon_player.instance().batch_mode_enabled,
+            is_frozen=neon_player.is_frozen(),
+        )
         logging.debug(f"Executing bg job {' '.join(cmd)}")
 
         self.proc = subprocess.Popen(cmd)  # noqa: S603
