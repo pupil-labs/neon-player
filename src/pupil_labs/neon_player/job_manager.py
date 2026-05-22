@@ -22,7 +22,7 @@ class ProgressUpdate:
 
 
 def prepare_command(
-    recording_path: Path, 
+    recording_path: Path,
     action_name: str,
     args: T.Any,
     server_name: str,
@@ -32,7 +32,7 @@ def prepare_command(
     """
     Prepares the command line call for running a background job in a subprocess.
     """
-    
+
     cmd_args = [
         str(recording_path),
         "--progress-ipc-name",
@@ -51,7 +51,7 @@ def prepare_command(
 
     if is_frozen:
         return [sys.executable, *cmd_args]
-    
+
     return [sys.executable, "-m", "pupil_labs.neon_player", *cmd_args]
 
 
