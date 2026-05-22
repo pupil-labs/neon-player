@@ -57,7 +57,6 @@ class AudioPlugin(neon_player.Plugin):
 
         position = self.app.current_ts
         try:
-            self.player.setPlaybackRate(self.app.playback_speed)
             rel_time_ms = round((position - self.recording.audio.time[0]) / 1e6)
 
             # Delay playback if the audio has not yet started, but will
@@ -74,20 +73,28 @@ class AudioPlugin(neon_player.Plugin):
             pass
 
     def on_speed_changed(self, speed: float) -> None:
-        self.sync_position()
+        # NOTE: On MacOS, setting negative playback rates often leads to a bus error
+        # and crashes the application. To prevent this, we stop playback instead of
+        # setting a negative playback rate.
+        if self.app.playback_speed > 0:
+            self.player.setPlaybackRate(self.app.playback_speed)
+        else:
+            self.player.stop()
+
+        self.sync_and_start_playback()
 
     def on_user_seeked(self, position: int) -> None:
         self.sync_position()
 
     def on_playback_state_changed(self, is_playing: bool) -> None:
-        if is_playing and self.app.playback_speed > 0:
+        if is_playing:
             self.sync_and_start_playback()
         else:
             self.player.stop()
 
     def sync_and_start_playback(self):
         self.sync_position()
-        if self.has_audio_at_ts:
+        if self.has_audio_at_ts and self.app.is_playing and self.app.playback_speed > 0:
             self.player.play()
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
