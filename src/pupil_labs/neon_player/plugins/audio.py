@@ -81,6 +81,8 @@ class AudioPlugin(neon_player.Plugin):
         else:
             self.player.stop()
 
+        # Restart playback if it was previously paused due to negative playback speed 
+        # and now has a positive speed
         self.sync_and_start_playback()
 
     def on_user_seeked(self, position: int) -> None:
