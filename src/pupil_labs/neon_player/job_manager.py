@@ -159,10 +159,6 @@ class BackgroundJob(BaseBackgroundJob):
 
 
 class BatchBackgroundJob(BaseBackgroundJob):
-    progress_changed = Signal(float)
-    canceled = Signal()
-    finished = Signal()
-
     def __init__(
         self,
         name: str,
