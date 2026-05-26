@@ -1,6 +1,7 @@
 import contextlib
 import logging
 import pickle
+import shutil
 import subprocess
 import sys
 import typing as T
@@ -28,6 +29,8 @@ def prepare_command(
     server_name: str,
     batch_mode_enabled: bool,
     is_frozen: bool,
+    recording_settings_path: Path | None = None,
+    workspace_settings_path: Path | None = None,
 ):
     """
     Prepares the command line call for running a background job in a subprocess.
@@ -43,6 +46,12 @@ def prepare_command(
     # needs to be executed with a workspace (i.e., parent folder) in mind
     if batch_mode_enabled:
         cmd_args += ["--workspace"]
+
+    if recording_settings_path:
+        cmd_args += ["--recording-settings", str(recording_settings_path)]
+
+    if workspace_settings_path:
+        cmd_args += ["--workspace-settings", str(workspace_settings_path)]
 
     cmd_args += [
         "--job",
@@ -78,6 +87,8 @@ class BackgroundJob(BaseBackgroundJob):
         recording_path: Path,
         action_name: str,
         *args: T.Any,
+        recording_settings_path: Path | None = None,
+        workspace_settings_path: Path | None = None,
     ):
         super().__init__(name, job_id)
 
@@ -100,6 +111,8 @@ class BackgroundJob(BaseBackgroundJob):
             server_name=server_name,
             batch_mode_enabled=neon_player.instance().batch_mode_enabled,
             is_frozen=neon_player.is_frozen(),
+            recording_settings_path=recording_settings_path,
+            workspace_settings_path=workspace_settings_path,
         )
         logging.debug(f"Executing bg job {' '.join(cmd)}")
 
@@ -183,20 +196,45 @@ class BatchBackgroundJob(BaseBackgroundJob):
         self.size = len(self.recordings)
         self.current_idx = 0
         self.current_job = None
-
+        
+        # Copy recording and workspace settings to a temporary folder to prevent
+        # interference with concurrent user's actions in the main app
+        self._tmp_settings_path = (
+            app.workspace_settings_path.parent / "batch_jobs" / f"batch_job_{job_id}"
+        )
+        self._tmp_settings_path.mkdir(parents=True, exist_ok=True)
         self._copy_session_settings()
+
         self._submit_next_job()
 
     def cancel(self):
         if self.current_job:
             self.current_job.cancel()
+        self._clear_tmp_settings()
         self.canceled.emit()
+
+    def _tmp_recording_settings_path(self, recording: NeonRecording) -> Path:
+        return self._tmp_settings_path / recording._rec_dir.name / "settings.json"
+
+    def _tmp_workspace_settings_path(self) -> Path:
+        return self._tmp_settings_path / "workspace-settings.json"
 
     def _copy_session_settings(self):
         app = neon_player.instance()
+
+        logging.debug(f"Copying session settings to {self._tmp_settings_path}")
+        shutil.copy(app.workspace_settings_path, self._tmp_workspace_settings_path())
         for rec in self.recordings:
-            pass
-            # shutil.copy(app.session_settings_path, rec.session_settings_path)
+            original_path = app.recording_settings_path(rec)
+            if original_path is None or not original_path.exists():
+                continue
+            
+            tmp_path = self._tmp_recording_settings_path(rec)
+            tmp_path.parent.mkdir(exist_ok=True)
+            shutil.copy(original_path, tmp_path)
+
+    def _clear_tmp_settings(self):
+        shutil.rmtree(self._tmp_settings_path)
 
     def _submit_next_job(self):
         current_recording = self.recordings[self.current_idx]
@@ -210,13 +248,16 @@ class BatchBackgroundJob(BaseBackgroundJob):
             f"{self.name}{progress_str}",
             self.action_name,
             *args,
-            recording=current_recording
+            recording=current_recording,
+            recording_settings_path=self._tmp_recording_settings_path(current_recording),
+            workspace_settings_path=self._tmp_workspace_settings_path(),
         )
         job.canceled.connect(lambda: self._on_batch_job_canceled())
         job.finished.connect(lambda: self._on_batch_job_finished())
         self.current_job = job
 
     def _on_batch_job_canceled(self):
+        self._clear_tmp_settings()
         self.canceled.emit()
 
     def _on_batch_job_finished(self):
@@ -227,6 +268,7 @@ class BatchBackgroundJob(BaseBackgroundJob):
             self.progress_changed.emit(self.progress)
         else:
             self.progress_changed.emit(1.0)
+            self._clear_tmp_settings()
             self.finished.emit()
 
 
@@ -271,17 +313,23 @@ class JobManager(QObject):
                 socket.waitForDisconnected(5000)
 
         else:
-            with tqdm(total=1.0) as pbar:
-                for update in job:
-                    pbar.n = update.progress
-                    pbar.refresh()
+            self.run_in_foreground(job)
+
+    @staticmethod
+    def run_in_foreground(job: T.Generator[ProgressUpdate, None, None]) -> None:
+        with tqdm(total=1.0) as pbar:
+            for update in job:
+                pbar.n = update.progress
+                pbar.refresh()
 
     def run_background_action(
         self,
         name: str,
         action_name: str,
         *args: T.Any,
-        recording: NeonRecording | None = None
+        recording: NeonRecording | None = None,
+        recording_settings_path: Path | None = None,
+        workspace_settings_path: Path | None = None,
     ) -> BackgroundJob:
         if neon_player.instance().headless:
             logging.warning("Not starting background job in headless mode")
@@ -303,6 +351,8 @@ class JobManager(QObject):
             rec_dir,
             action_name,
             *args,
+            recording_settings_path=recording_settings_path,
+            workspace_settings_path=workspace_settings_path,
         )
         self.job_counter += 1
 

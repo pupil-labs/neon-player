@@ -31,7 +31,7 @@ class VideoExporter(neon_player.Plugin, BackgroundVideoExportMixin):
                 "Video Export", "VideoExporter.export", destination
             )
 
-        return self.bg_export(destination)
+        self.job_manager.run_in_foreground(self.bg_export(destination))
 
     def render_for_export(self, painter: QPainter, time_in_recording: int) -> None:
         self.app.render_to(painter, time_in_recording)
