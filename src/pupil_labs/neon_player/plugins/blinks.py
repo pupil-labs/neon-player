@@ -7,11 +7,13 @@ from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
+from pupil_labs.neon_player.plugins.shared import BackgroundBatchExportMixin
 from pupil_labs.neon_recording import NeonRecording
 
 
-class BlinksPlugin(neon_player.Plugin):
+class BlinksPlugin(neon_player.Plugin, BackgroundBatchExportMixin):
     label = "Blinks"
+    export_fn = "export"
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         if len(recording.blinks) == 0:

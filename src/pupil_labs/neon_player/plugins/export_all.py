@@ -9,10 +9,12 @@ from PySide6.QtGui import QIcon
 from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
+from pupil_labs.neon_player.plugins.shared import BackgroundBatchExportMixin
 
 
-class ExportAllPlugin(neon_player.Plugin):
+class ExportAllPlugin(neon_player.Plugin, BackgroundBatchExportMixin):
     label = "Export All"
+    export_fn = "export_all_enabled_plugins"
 
     def __init__(self):
         super().__init__()
