@@ -1,5 +1,5 @@
 import json
-import shutil
+import logging
 from datetime import datetime
 from importlib.metadata import version
 from pathlib import Path
@@ -9,6 +9,7 @@ from PySide6.QtGui import QIcon
 from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
+from pupil_labs.neon_recording import NeonRecording
 
 
 class ExportAllPlugin(neon_player.Plugin):
@@ -43,9 +44,28 @@ class ExportAllPlugin(neon_player.Plugin):
 
         self.app.export_all(path)
 
+    @staticmethod
+    def _prepare_info_export(recording: NeonRecording) -> dict:
+        info_data = {}
+
+        try:
+            info_data.update(recording.info)
+        except FileNotFoundError:
+            logging.warning("Failed to retrieve recording info for export.")
+
+        # Cloud export also contains the name of the wearer
+        try:
+            info_data["wearer_name"] = recording.wearer["name"]
+        except FileNotFoundError:
+            logging.warning("Failed to retrieve wearer name for export.")
+
+        return info_data
+
     def export(self, destination: Path = Path()) -> None:
         if self.export_meta_data:
-            shutil.copy(self.recording._rec_dir / "info.json", destination)
+            info_data = self._prepare_info_export(self.recording)
+            with open(destination / "info.json", "w") as info_file:
+                json.dump(info_data, info_file, indent=4, sort_keys=True)
 
             try:
                 app_version = version("pupil_labs.neon_player")

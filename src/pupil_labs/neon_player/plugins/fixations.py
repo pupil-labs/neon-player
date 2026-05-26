@@ -265,6 +265,10 @@ class FixationsPlugin(neon_player.Plugin):
         gray_cache: dict[int, np.ndarray] = {}
         gray_cache_times: dict[int, int] = {}
 
+        # Use cache only for fixations below 5 s, corresponding to ~300 MB of
+        # grayscale video.
+        max_fixation_frames_to_cache = 5 * 30
+
         for fidx, fixation in enumerate(recording.fixations):
             stale_keys = [
                 k for k, t in gray_cache_times.items() if t < fixation.start_time
@@ -289,6 +293,7 @@ class FixationsPlugin(neon_player.Plugin):
 
             if len(scene_frames) == 0:
                 continue
+            use_cache = len(scene_frames) <= max_fixation_frames_to_cache
 
             scene_frames_ts = [f.time for f in scene_frames]
             diff = np.abs(np.array(scene_frames_ts) - ref_gaze.time)
@@ -310,10 +315,10 @@ class FixationsPlugin(neon_player.Plugin):
                 current_img = start_img
 
                 for frame in frame_sequence:
-                    if frame.index not in gray_cache:
+                    if use_cache and frame.index not in gray_cache:
                         gray_cache[frame.index] = frame.gray
                         gray_cache_times[frame.index] = frame.time
-                    next_img = gray_cache[frame.index]
+                    next_img = gray_cache.get(frame.index, frame.gray)
                     if next_img is None:
                         break
 

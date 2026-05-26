@@ -44,6 +44,7 @@ uv run -m nuitka src/pupil_labs/neon_player \
     --include-module=unittest.mock \
     --include-module=http.cookies \
     --include-module=PySide6.QtOpenGL \
+    --include-module=tqdm.auto \
     --include-package-data=qt_property_widgets \
     --include-package=plistlib \
     --include-package=google.protobuf \
