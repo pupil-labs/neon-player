@@ -16,6 +16,7 @@ from qt_property_widgets.utilities import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
+from pupil_labs.neon_player.plugins.shared import run_export_across_recordings
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 
 IMMUTABLE_EVENTS = ["recording.begin", "recording.end"]
@@ -420,3 +421,8 @@ class EventsPlugin(neon_player.Plugin):
         events_df.to_csv(destination_file, index=False)
 
         logging.info(f"Exported events to {destination_file}")
+
+    @action
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
+    def export_all_recordings(self, destination: Path = Path(".")):
+        run_export_across_recordings(self, destination)

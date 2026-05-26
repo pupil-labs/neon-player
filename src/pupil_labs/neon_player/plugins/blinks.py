@@ -9,7 +9,7 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import action
 from pupil_labs.neon_recording import NeonRecording
 
-from pupil_labs.neon_player.plugins.shared import get_batch_export_destination_gen
+from pupil_labs.neon_player.plugins.shared import run_export_across_recordings
 
 
 class BlinksPlugin(neon_player.Plugin):
@@ -53,12 +53,4 @@ class BlinksPlugin(neon_player.Plugin):
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export_all_recordings(self, destination: Path = Path(".")):
-        if self.workspace is None:
-            return
-
-        if not self.app.headless:
-            self.job_manager.run_background_batch_action(
-                f"Export all recordings",
-                f"{self.__class__.__name__}.export",
-                get_batch_export_destination_gen(destination),
-            )
+        run_export_across_recordings(self, destination)

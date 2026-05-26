@@ -20,6 +20,7 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import action
 from pupil_labs.neon_player.job_manager import ProgressUpdate
 from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
+from pupil_labs.neon_player.plugins.shared import run_export_across_recordings
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.utilities import (
     cart_to_spherical,
@@ -237,6 +238,11 @@ class FixationsPlugin(neon_player.Plugin):
         export_file = destination / "saccades.csv"
         export_saccades.to_csv(export_file, index=False)
         logging.info(f"Exported saccades to '{export_file}'")
+
+    @action
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
+    def export_all_recordings(self, destination: Path = Path(".")):
+        run_export_across_recordings(self, destination)
 
     @property
     @property_params(

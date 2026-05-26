@@ -15,3 +15,19 @@ def get_batch_export_destination_gen(destination: Path) -> Path:
         save_path.mkdir(exist_ok=True)
         return [save_path]
     return destination_generator
+
+
+def run_export_across_recordings(
+    plugin: neon_player.Plugin, 
+    destination: Path, 
+    action_name: str = "export"
+) -> None:
+    if plugin.workspace is None:
+        return
+
+    if not plugin.app.headless:
+        plugin.job_manager.run_background_batch_action(
+            f"Export all recordings",
+            f"{plugin.__class__.__name__}.{action_name}",
+            get_batch_export_destination_gen(destination),
+        )

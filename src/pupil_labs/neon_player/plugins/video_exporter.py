@@ -9,7 +9,7 @@ from qt_property_widgets.utilities import action_params
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
 from pupil_labs.neon_player.job_manager import BackgroundJob
-from pupil_labs.neon_player.plugins.shared import BackgroundVideoExportMixin
+from pupil_labs.neon_player.plugins.shared import BackgroundVideoExportMixin, run_export_across_recordings
 
 
 class VideoExporter(neon_player.Plugin, BackgroundVideoExportMixin):
@@ -32,6 +32,11 @@ class VideoExporter(neon_player.Plugin, BackgroundVideoExportMixin):
             )
 
         self.job_manager.run_in_foreground(self.bg_export(destination))
+
+    @action
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
+    def export_all_recordings(self, destination: Path = Path()) -> None:
+        run_export_across_recordings(self, destination, action_name="export")
 
     def render_for_export(self, painter: QPainter, time_in_recording: int) -> None:
         self.app.render_to(painter, time_in_recording)
