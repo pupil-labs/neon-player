@@ -9,7 +9,7 @@ def test_prepare_command():
     recording_path = Path("/path/to/recording")
     action_name = "Plugin.action"
     server_name = "neon-player-server-0"
-    
+
     expected_cmd = [
         sys.executable,
         "-m",
@@ -37,7 +37,7 @@ def test_prepare_command_batch_mode():
     recording_path = Path("/path/to/recording")
     action_name = "Plugin.action"
     server_name = "neon-player-server-0"
-    
+
     cmd = prepare_command(
         recording_path,
         action_name,
@@ -84,3 +84,27 @@ def test_prepare_command_job_args_are_forwarded():
 
     for arg in job_args:
         assert arg in cmd
+
+
+def test_prepare_command_custom_settings_paths():
+    recording_path = Path("/path/to/recording")
+    action_name = "Plugin.action"
+    server_name = "neon-player-server-0"
+    recording_settings_path = Path("/custom/recording_settings.json")
+    workspace_settings_path = Path("/custom/workspace_settings.json")
+
+    cmd = prepare_command(
+        recording_path,
+        action_name,
+        args=[],
+        server_name=server_name,
+        batch_mode_enabled=True,
+        is_frozen=False,
+        recording_settings_path=recording_settings_path,
+        workspace_settings_path=workspace_settings_path,
+    )
+
+    assert "--recording-settings" in cmd
+    assert str(recording_settings_path) in cmd
+    assert "--workspace-settings" in cmd
+    assert str(workspace_settings_path) in cmd

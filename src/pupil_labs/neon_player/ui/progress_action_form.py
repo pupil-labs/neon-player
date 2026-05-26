@@ -3,7 +3,7 @@ import typing as T
 from PySide6.QtWidgets import QProgressBar
 from qt_property_widgets.widgets import ActionForm
 
-from pupil_labs.neon_player.job_manager import BackgroundJob
+from pupil_labs.neon_player.job_manager import BaseBackgroundJob
 
 
 class ProgressActionForm(ActionForm):
@@ -25,7 +25,7 @@ class ProgressActionForm(ActionForm):
 
     def _on_action_button_pressed(self) -> None:
         v = self.value()
-        if isinstance(v, BackgroundJob):
+        if isinstance(v, BaseBackgroundJob):
             self.progress_bar.setValue(0)
             self.progress_bar.show()
             self.action_button.setVisible(False)

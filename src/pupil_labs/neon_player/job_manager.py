@@ -196,7 +196,7 @@ class BatchBackgroundJob(BaseBackgroundJob):
         self.size = len(self.recordings)
         self.current_idx = 0
         self.current_job = None
-        
+
         # Copy recording and workspace settings to a temporary folder to prevent
         # interference with concurrent user's actions in the main app
         self._tmp_settings_path = (
@@ -230,7 +230,7 @@ class BatchBackgroundJob(BaseBackgroundJob):
             original_path = app.recording_settings_path(rec)
             if original_path is None or not original_path.exists():
                 continue
-            
+
             tmp_path = self._tmp_recording_settings_path(rec)
             tmp_path.parent.mkdir(exist_ok=True)
             shutil.copy(original_path, tmp_path)
@@ -253,6 +253,7 @@ class BatchBackgroundJob(BaseBackgroundJob):
             recording=current_recording,
             recording_settings_path=self._tmp_recording_settings_path(current_recording),
             workspace_settings_path=self._tmp_workspace_settings_path(),
+            notify_on_completion=False,
         )
         job.canceled.connect(lambda: self._on_batch_job_canceled())
         job.finished.connect(lambda: self._on_batch_job_finished())
@@ -276,9 +277,9 @@ class BatchBackgroundJob(BaseBackgroundJob):
 
 class JobManager(QObject):
     updated = Signal()
-    job_started = Signal(BackgroundJob)
-    job_finished = Signal(BackgroundJob)
-    job_canceled = Signal(BackgroundJob)
+    job_started = Signal(BaseBackgroundJob)
+    job_finished = Signal(BaseBackgroundJob)
+    job_canceled = Signal(BaseBackgroundJob)
 
     def __init__(self):
         super().__init__()
@@ -332,6 +333,7 @@ class JobManager(QObject):
         recording: NeonRecording | None = None,
         recording_settings_path: Path | None = None,
         workspace_settings_path: Path | None = None,
+        notify_on_completion: bool = True
     ) -> BackgroundJob:
         if neon_player.instance().headless:
             logging.warning("Not starting background job in headless mode")
@@ -359,7 +361,7 @@ class JobManager(QObject):
         self.job_counter += 1
 
         job.canceled.connect(lambda: self.on_job_canceled(job))
-        job.finished.connect(lambda: self.on_job_finished(job))
+        job.finished.connect(lambda: self.on_job_finished(job, notify_on_completion))
         job.progress_changed.connect(lambda _: self.updated.emit())
 
         self.current_jobs.append(job)
@@ -376,7 +378,7 @@ class JobManager(QObject):
         action_name: str,
         args_generator: T.Callable[[NeonRecording], T.Any] | None = None,
         recordings: list[NeonRecording] | None = None
-    ):
+    ) -> BatchBackgroundJob:
         neon_player.instance().save_settings()
 
         job = BatchBackgroundJob(
@@ -396,24 +398,25 @@ class JobManager(QObject):
         self.job_started.emit(job)
         self.updated.emit()
 
-        logging.info(f"{job.name} started in the background")
+        logging.info(f"Batch job {job.name} started in the background")
 
         return job
 
-    def on_job_finished(self, job: BackgroundJob) -> None:
+    def on_job_finished(self, job: BaseBackgroundJob, notify_on_completion: bool = True) -> None:
         logging.info(f"{job.name} finished")
-        neon_player.instance().show_notification(
-            "Job finished", f"Job '{job.name}' has completed"
-        )
+        if notify_on_completion:
+            neon_player.instance().show_notification(
+                "Job finished", f"Job '{job.name}' has completed"
+            )
         self.remove_job(job)
         self.updated.emit()
 
-    def on_job_canceled(self, job: BackgroundJob) -> None:
+    def on_job_canceled(self, job: BaseBackgroundJob) -> None:
         self.job_canceled.emit(job)
         self.remove_job(job)
         self.updated.emit()
 
-    def remove_job(self, job: BackgroundJob) -> None:
+    def remove_job(self, job: BaseBackgroundJob) -> None:
         self.job_counter -= 1
         with contextlib.suppress(ValueError):
             self.current_jobs.remove(job)

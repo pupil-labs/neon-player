@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player.job_manager import BackgroundJob
+from pupil_labs.neon_player.job_manager import BaseBackgroundJob
 
 LOG_COLORS = {
     "DEBUG": Qt.GlobalColor.green,
@@ -82,7 +82,7 @@ class QTextEditLogger(logging.Handler):
 
 
 class JobProgressBar(QWidget):
-    def __init__(self, job: BackgroundJob, *args: T.Any, **kwargs: T.Any) -> None:
+    def __init__(self, job: BaseBackgroundJob, *args: T.Any, **kwargs: T.Any) -> None:
         super().__init__(*args, **kwargs)
 
         self.main_layout = QHBoxLayout()
@@ -188,10 +188,10 @@ class ConsoleWindow(QWidget):
         self.console_widget.clear()
         logging.info("Log display cleared")
 
-    def on_job_added(self, job: BackgroundJob) -> None:
+    def on_job_added(self, job: BaseBackgroundJob) -> None:
         self.job_table_layout.addRow(job.name, JobProgressBar(job))
 
-    def remove_job(self, job: BackgroundJob) -> None:
+    def remove_job(self, job: BaseBackgroundJob) -> None:
         for row_idx in range(self.job_table_layout.rowCount()):
             item = self.job_table_layout.itemAt(row_idx, QFormLayout.ItemRole.FieldRole)
             widget = item.widget()
