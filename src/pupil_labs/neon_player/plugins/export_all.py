@@ -13,6 +13,13 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player.plugins.shared import run_export_across_recordings
 
 
+def _create_export_subfolder(destination: Path) -> Path:
+    timestamp_str = time.strftime("%Y-%m-%d_%H-%M-%S")
+    export_path = destination / f"{timestamp_str}_export"
+    export_path.mkdir(parents=True, exist_ok=True)
+    return export_path
+
+
 class ExportAllPlugin(neon_player.Plugin):
     label = "Export All"
     export_fn = "export_all_enabled_plugins"
@@ -21,12 +28,6 @@ class ExportAllPlugin(neon_player.Plugin):
         super().__init__()
         self._export_meta_data = True
         self._export_camera_calibrations = True
-
-    def _create_export_subfolder(self, destination: Path) -> Path:
-        timestamp_str = time.strftime("%Y-%m-%d_%H-%M-%S")
-        export_path = destination / f"{timestamp_str}_export"
-        export_path.mkdir(parents=True, exist_ok=True)
-        return export_path
 
     @property
     def export_meta_data(self) -> bool:
@@ -50,7 +51,7 @@ class ExportAllPlugin(neon_player.Plugin):
         if self.recording is None:
             return
 
-        export_path = self._create_export_subfolder(path)
+        export_path = _create_export_subfolder(path)
         self._export_all_enabled_plugins(export_path)
 
     def _export_all_enabled_plugins(self, export_path: Path):
@@ -103,8 +104,11 @@ class ExportAllPlugin(neon_player.Plugin):
     @neon_player.action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export_all_recordings(self, destination: Path = Path(".")):
-        export_path = self._create_export_subfolder(destination)
-        run_export_across_recordings(self, export_path, action_name="_export_all_enabled_plugins")
+        run_export_across_recordings(
+            plugin=self,
+            destination=_create_export_subfolder(destination),
+            action_name="_export_all_enabled_plugins"
+        )
 
     def format_duration(self, duration_seconds: float) -> str:
         hours = int(duration_seconds // 3600)

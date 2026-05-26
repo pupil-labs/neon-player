@@ -107,15 +107,15 @@ class NeonPlayerApp(QApplication):
         parser = argparse.ArgumentParser()
         parser.add_argument(
             "recording", nargs="?", default=None,
-            help="Path to a recording or workspace to load on startup"
-        )
-        parser.add_argument(
-            "--recording-settings", type=str, default=None,
-            help="Path to recording settings JSON file to use on load"
+            help="Path to a folder with one or more recordings to load on startup"
         )
         parser.add_argument(
             "--workspace", action="store_true",
             help="Whether to load parent folder as workspace"
+        )
+        parser.add_argument(
+            "--recording-settings", type=str, default=None,
+            help="Path to recording settings JSON file to use on load"
         )
         parser.add_argument(
             "--workspace-settings", type=str, default=None,
