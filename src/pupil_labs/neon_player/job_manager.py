@@ -202,6 +202,8 @@ class BatchBackgroundJob(BaseBackgroundJob):
         self._tmp_settings_path = (
             app.workspace_settings_path.parent / "batch_jobs" / f"batch_job_{job_id}"
         )
+        if self._tmp_settings_path.exists():
+            self._clear_tmp_settings()
         self._tmp_settings_path.mkdir(parents=True, exist_ok=True)
         self._copy_session_settings()
 
