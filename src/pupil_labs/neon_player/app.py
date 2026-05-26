@@ -106,11 +106,11 @@ class NeonPlayerApp(QApplication):
 
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "recording", nargs="?", default=None, 
+            "recording", nargs="?", default=None,
             help="Path to a recording or workspace to load on startup"
         )
         parser.add_argument(
-            "--recording-settings", type=str, default=None, 
+            "--recording-settings", type=str, default=None,
             help="Path to recording settings JSON file to use on load"
         )
         parser.add_argument(
@@ -118,7 +118,7 @@ class NeonPlayerApp(QApplication):
             help="Whether to load parent folder as workspace"
         )
         parser.add_argument(
-            "--workspace-settings", type=str, default=None, 
+            "--workspace-settings", type=str, default=None,
             help="Path to workspace settings JSON file to use on load"
         )
         parser.add_argument("--progress-ipc-name", type=str, default=None)
@@ -648,11 +648,7 @@ class NeonPlayerApp(QApplication):
             painter.setFont(font)
             painter.setOpacity(1.0)
 
-    def export_all(self, export_path: Path) -> None:  # noqa: F811
-        timestamp_str = time.strftime("%Y-%m-%d_%H-%M-%S")
-        export_path /= f"{timestamp_str}_export"
-        export_path.mkdir(parents=True, exist_ok=True)
-
+    def export_all(self, export_path: Path) -> None:
         for plugin in self.plugins:
             if hasattr(plugin, "export"):
                 try:

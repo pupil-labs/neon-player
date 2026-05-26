@@ -1,11 +1,6 @@
-import typing as T
-
 from pathlib import Path
-from PySide6.QtGui import QIcon
-from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player import action
 from pupil_labs.neon_recording import NeonRecording
 
 
@@ -18,8 +13,8 @@ def get_batch_export_destination_gen(destination: Path) -> Path:
 
 
 def run_export_across_recordings(
-    plugin: neon_player.Plugin, 
-    destination: Path, 
+    plugin: neon_player.Plugin,
+    destination: Path,
     action_name: str = "export"
 ) -> None:
     if plugin.workspace is None:
