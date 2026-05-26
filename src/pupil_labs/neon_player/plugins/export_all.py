@@ -9,10 +9,10 @@ from PySide6.QtGui import QIcon
 from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player.plugins.shared import BackgroundBatchExportMixin
+from pupil_labs.neon_player.plugins.shared import get_batch_export_destination_gen
 
 
-class ExportAllPlugin(neon_player.Plugin, BackgroundBatchExportMixin):
+class ExportAllPlugin(neon_player.Plugin):
     label = "Export All"
     export_fn = "export_all_enabled_plugins"
 
@@ -88,6 +88,19 @@ class ExportAllPlugin(neon_player.Plugin, BackgroundBatchExportMixin):
             export_file = destination / "calibration.json"
             with export_file.open("w") as out_file:
                 json.dump(calibration, out_file)
+
+    @neon_player.action
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
+    def export_all_recordings(self, destination: Path = Path(".")):
+        if self.workspace is None:
+            return
+
+        if not self.app.headless:
+            self.job_manager.run_background_batch_action(
+                f"Export all recordings",
+                f"{self.__class__.__name__}.export_all_enabled_plugins",
+                get_batch_export_destination_gen(destination),
+            )
 
     def format_duration(self, duration_seconds: float) -> str:
         hours = int(duration_seconds // 3600)

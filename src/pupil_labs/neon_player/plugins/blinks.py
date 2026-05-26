@@ -7,13 +7,13 @@ from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
-from pupil_labs.neon_player.plugins.shared import BackgroundBatchExportMixin
 from pupil_labs.neon_recording import NeonRecording
 
+from pupil_labs.neon_player.plugins.shared import get_batch_export_destination_gen
 
-class BlinksPlugin(neon_player.Plugin, BackgroundBatchExportMixin):
+
+class BlinksPlugin(neon_player.Plugin):
     label = "Blinks"
-    export_fn = "export"
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         if len(recording.blinks) == 0:
@@ -49,3 +49,16 @@ class BlinksPlugin(neon_player.Plugin, BackgroundBatchExportMixin):
 
         export_file = destination / "blinks.csv"
         export_data.to_csv(export_file, index=False)
+
+    @action
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
+    def export_all_recordings(self, destination: Path = Path(".")):
+        if self.workspace is None:
+            return
+
+        if not self.app.headless:
+            self.job_manager.run_background_batch_action(
+                f"Export all recordings",
+                f"{self.__class__.__name__}.export",
+                get_batch_export_destination_gen(destination),
+            )
