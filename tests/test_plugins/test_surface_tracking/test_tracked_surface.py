@@ -51,9 +51,9 @@ def _prepare_test_data():
             # Fixation 2: mapped, but some gaze samples are not mapped, same average coords
             np.array([[0.5, 0.5], [np.nan, np.nan]]),
             # Fixation 3: not mapped, x-coords are outside
-            np.array([[1.2, 0.2], [-0.2, 0.8]]),
+            np.array([[1.3, 0.3], [-0.1, 0.9]]),
             # Fixation 4: not mapped, y-coords are outside
-            np.array([[0.2, -0.2], [0.8, 1.2]]),
+            np.array([[0.3, -0.1], [0.9, 1.3]]),
             # Fixation 5: not mapped, no gaze samples available
             np.array([[np.nan, np.nan], [np.nan, np.nan]]),
         ]
@@ -87,8 +87,19 @@ def test_tracked_surface_append_mapped_fixation_data_fixation_should_be_mapped(f
     assert fixation_row["fixation y [normalized]"].values[0] == 0.5
 
 
-@pytest.mark.parametrize("fixation_id", [3, 4, 5])
+@pytest.mark.parametrize("fixation_id", [3, 4])
 def test_tracked_surface_append_mapped_fixation_data_fixation_should_not_be_mapped(fixation_id):
+    surface, gazes, fixation_data = _prepare_test_data()
+    result = surface._append_mapped_fixation_data(gazes, fixation_data.copy())
+
+    fixation_row = result[result["fixation id"] == fixation_id]
+    assert fixation_row["fixation detected on surface"].values[0] == False
+    assert fixation_row["fixation x [normalized]"].values[0] == 0.6
+    assert fixation_row["fixation y [normalized]"].values[0] == 0.6
+
+
+@pytest.mark.parametrize("fixation_id", [5])
+def test_tracked_surface_append_mapped_fixation_data_fixation_no_mapped_gazes(fixation_id):
     surface, gazes, fixation_data = _prepare_test_data()
     result = surface._append_mapped_fixation_data(gazes, fixation_data.copy())
 

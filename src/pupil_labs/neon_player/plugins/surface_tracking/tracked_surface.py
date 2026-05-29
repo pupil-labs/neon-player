@@ -536,11 +536,14 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             upper_pass = np.all(mapped_gazes <= 1.0, axis=1)
             gazes_on_surface = lower_pass & upper_pass
 
-            any_gaze_on_surface = bool(np.any(gazes_on_surface))
-            fixations_on_surfs.append(any_gaze_on_surface)
-            if any_gaze_on_surface:
-                # Take the average of all mapped gaze samples within the fixation
-                mapped_fixation_points[idx, :] = mapped_gazes[gazes_on_surface].mean(axis=0)
+            # Fixation is detected on surface if at least one gaze sample within
+            # the fixation is mapped within the surface boundaries
+            fixations_on_surfs.append(bool(np.any(gazes_on_surface)))
+
+            # Mapped fixation position is derived as the average of all mapped gaze
+            # samples within the fixation
+            if not np.all(np.isnan(mapped_gazes)):
+                mapped_fixation_points[idx, :] = np.nanmean(mapped_gazes, axis=0)
 
         fixation_data["fixation detected on surface"] = fixations_on_surfs
         fixation_data["fixation x [normalized]"] = mapped_fixation_points[:, 0]
