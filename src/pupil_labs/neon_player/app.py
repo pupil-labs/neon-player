@@ -399,10 +399,10 @@ class NeonPlayerApp(QApplication):
         else:
             if sys.platform == "darwin":
                 # hide dock icon for background jobs
-                from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
+                from AppKit import NSApplication, NSApplicationActivationPolicyProhibited
 
                 NSApplication.sharedApplication().setActivationPolicy_(
-                    NSApplicationActivationPolicyAccessory
+                    NSApplicationActivationPolicyProhibited
                 )
 
         return self.exec()
