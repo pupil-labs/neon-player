@@ -212,12 +212,12 @@ class EventsPlugin(neon_player.Plugin):
             )
             self.register_data_point_action(
                 f"Events - {event_type.name}",
-                f"Set this {event_type.name} as left export boundary",
+                f"Set this {event_type.name} as the left export window boundary",
                 lambda dp: self.set_event_as_export_boundary(dp, left=True),
             )
             self.register_data_point_action(
                 f"Events - {event_type.name}",
-                f"Set this {event_type.name} as right export boundary",
+                f"Set this {event_type.name} as the right export window boundary",
                 lambda dp: self.set_event_as_export_boundary(dp, left=False),
             )
 
@@ -233,8 +233,8 @@ class EventsPlugin(neon_player.Plugin):
         timeline.remove_timeline_plot(f"Events - {event_name}")
         data_point_actions = [
             f"Seek to this {event_name}",
-            f"Set this {event_name} as left export boundary",
-            f"Set this {event_name} as right export boundary",
+            f"Set this {event_name} as the left export window boundary",
+            f"Set this {event_name} as the right export window boundary",
         ]
         for action_name in data_point_actions:
             timeline.unregister_data_point_action(
@@ -289,9 +289,9 @@ class EventsPlugin(neon_player.Plugin):
         timeline = self.get_timeline()
         current_export_window = timeline.get_export_window()
         if left:
-            new_window = (data_point[0], current_export_window[1])
+            new_window = [data_point[0], current_export_window[1]]
         else:
-            new_window = (current_export_window[0], data_point[0])
+            new_window = [current_export_window[0], data_point[0]]
         timeline.set_export_window(new_window)
         self.app.recording_settings.export_window = new_window
 
