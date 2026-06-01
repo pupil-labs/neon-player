@@ -151,6 +151,7 @@ class TimeLineDock(QWidget):
         app.recording_unloaded.connect(self.on_recording_unloaded)
 
         self.dragging = None
+        self.plot_sorting_enabled = True
 
     def sizeHint(self) -> QSize:
         return QSize(100, 150)
@@ -487,7 +488,8 @@ class TimeLineDock(QWidget):
         if plot_name != "":
             legend.addItem(plot_data_item, plot_name)
 
-        self.sort_plots()
+        if self.plot_sorting_enabled:
+            self.sort_plots()
 
         return plot_item
 
@@ -509,7 +511,8 @@ class TimeLineDock(QWidget):
             self.graphics_layout.removeItem(legend.parentItem())
             del self.timeline_legends[plot_name]
 
-        self.sort_plots()
+        if self.plot_sorting_enabled:
+            self.sort_plots()
 
     def remove_timeline_series(self, plot_name: str, series_name: str):
         if plot_name not in self.timeline_plots:
@@ -620,11 +623,13 @@ class TimeLineDock(QWidget):
             legend = self.timeline_legends[timeline_row_name]
             legend.addItem(bars, name=item_name)
 
-        self.sort_plots()
+        if self.plot_sorting_enabled:
+            self.sort_plots()
 
         return plot_widget
 
     def sort_plots(self) -> None:
+        logging.info("Sorting timeline plots")
         items_to_move = {}
         for move_row in range(self.graphics_layout.currentRow, 1, -1):
             legend = self.graphics_layout.getItem(move_row, 0)
@@ -659,6 +664,15 @@ class TimeLineDock(QWidget):
             self.graphics_layout.addItem(plot, row=row, col=1)
 
         self.fix_scroll_size()
+
+    def enable_plot_sorting(self) -> None:
+        self.plot_sorting_enabled = True
+        self.sort_plots()
+
+    def disable_plot_sorting(self) -> bool:
+        was_enabled = self.plot_sorting_enabled
+        self.plot_sorting_enabled = False
+        return was_enabled
 
     def register_data_point_action(
         self, row_name: str, action_name: str, callback: T.Callable

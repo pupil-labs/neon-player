@@ -74,6 +74,13 @@ class EventType(PersistentPropertiesMixin, QObject):
     def uid(self, value: str):
         self._uid = value
 
+    @staticmethod
+    def from_name(name: str) -> "EventType":
+        et = EventType()
+        et.name = name
+        et.uid = str(uuid.uuid4())
+        return et
+
 
 class EventsPlugin(neon_player.Plugin):
     label = "Events"
@@ -81,7 +88,13 @@ class EventsPlugin(neon_player.Plugin):
 
     def __init__(self) -> None:
         super().__init__()
-        self._event_types: list[EventType] = []
+        self._event_types_by_name: dict[str, EventType] = {}
+        self.events: dict[str, list[int]] = {}
+        self.gui_updates_enabled = False
+
+        if self.headless:
+            return
+
         self.get_timeline().key_pressed.connect(self._on_key_pressed)
         self.header_action = ListPropertyAppenderAction(
             "event_types", "+ Add event type"
@@ -96,87 +109,107 @@ class EventsPlugin(neon_player.Plugin):
             if event_type.shortcut.lower() == key_text:
                 self.add_event(event_type)
 
-    def on_recording_loaded(self, recording: NeonRecording) -> None:  # noqa: C901
-        self.events = {}
+    def _load_events(self, recording: NeonRecording) -> tuple[list[EventType], dict]:
+        events = {}
+        event_types = []
 
         try:
             cached_events = self.load_cached_json("events.json")
         except Exception:
-            logging.exception("Failed to load events json")
+            recording_name = recording._rec_dir.name
+            logging.exception(f"Failed to load events json for {recording_name}")
             cached_events = None
 
-        types_to_update = set()
+        if cached_events is not None:
+            return self._load_events_from_cache(cached_events)
 
-        if cached_events is None:
-            type_cache = {et.name: et for et in self._event_types}
+        event_types, events = self._load_events_from_recording(
+            recording, self.global_properties.global_event_types
+        )
+        self.save_cached_json("events.json", events)
 
-            for event in self.recording.events:
-                evt_name = str(event.event)
+        return event_types, events
 
-                if evt_name in type_cache:
-                    et = type_cache[evt_name]
-                else:
-                    et = self.get_event_type_by_name(evt_name)
-                    if et is None:
-                        et = self.create_event_type(evt_name)
+    @staticmethod
+    def _load_events_from_recording(
+        recording: NeonRecording, global_event_types: list[str] = []
+    ) -> tuple[list[EventType], dict]:
+        event_type_cache = {}
+        events = {}
 
-                    if evt_name in IMMUTABLE_EVENTS:
-                        et.uid = evt_name
+        for event in recording.events:
+            event_name = str(event.event)
 
-                    type_cache[evt_name] = et
-                    types_to_update.add(et)
+            et = event_type_cache.get(event_name, None)
+            if et is None:
+                et = EventType.from_name(event_name)
+                if event_name in IMMUTABLE_EVENTS:
+                    et.uid = event_name
+                event_type_cache[event_name] = et
 
-                # Add to memory
-                if et.uid not in self.events:
-                    self.events[et.uid] = []
-                self.events[et.uid].append(event.time)
+            # Add to memory
+            if et.uid not in events:
+                events[et.uid] = []
+            events[et.uid].append(event.time)
 
-            recording_event_names = list(type_cache.keys())
-            for event_name in self.global_properties.global_event_types:
-                if event_name not in recording_event_names:
-                    self.create_event_type(event_name)
+        for event_name in global_event_types:
+            if event_name in event_type_cache:
+                continue
 
-            self.save_cached_json("events.json", self.events)
+            event_type_cache[event_name] = EventType.from_name(event_name)
 
-        else:
-            self.events = cached_events
-            for uid in self.events:
-                if uid in IMMUTABLE_EVENTS:
-                    et = self.create_event_type(uid)
-                    et.uid = uid
-                else:
-                    et = self.get_event_type(uid)
+        return list(event_type_cache.values()), events
 
-                self._setup_gui_for_event_type(et)
-                types_to_update.add(et)
+    def _load_events_from_cache(
+        self, cached_events: dict
+    ) -> tuple[list[EventType], dict]:
+        known_event_types_by_uid = {
+            et.uid: et for et in self._event_types_by_name.values()
+        }
+        event_type_cache = {}
 
+        for uid in cached_events:
+            if uid in event_type_cache:
+                continue
+
+            et = known_event_types_by_uid.get(uid, None)
+            if et is not None:
+                event_type_cache[uid] = et
+                continue
+
+            raise ValueError(f"Event type with uid {uid} not found")
+
+        return list(event_type_cache.values()), cached_events
+
+    def on_recording_loaded(self, recording: NeonRecording) -> None:  # noqa: C901
+        event_types, events = self._load_events(recording)
+        self.event_types = event_types
+        self.events = events
         logging.info(f"Loaded {sum(len(v) for v in self.events.values())} events")
 
-        timeline = self.get_timeline()
-        timeline.setUpdatesEnabled(False)
-        try:
-            for et in types_to_update:
-                self._setup_gui_for_event_type(et)
-                self._update_timeline_data(et)
-        finally:
-            timeline.setUpdatesEnabled(True)
-            timeline.sort_plots()
-
-    def get_event_type(self, uid: str) -> EventType:
-        for event_type in self._event_types:
-            if event_type.uid == uid:
-                return event_type
-
-        raise ValueError(f"Event type with uid {uid} not found")
-
-    def on_disabled(self) -> None:
-        if self.recording is None:
+        if self.headless:
             return
 
         timeline = self.get_timeline()
+        plot_sorting_was_enabled = timeline.disable_plot_sorting()
+        for et in event_types:
+            self._setup_gui_for_event_type(et)
+            self._update_timeline_data(et)
+        if plot_sorting_was_enabled:
+            timeline.enable_plot_sorting()
+        self.gui_updates_enabled = True
+
+    def on_disabled(self) -> None:
+        if self.recording is None or self.headless:
+            return
+
+        timeline = self.get_timeline()
+        plot_sorting_was_enabled = timeline.disable_plot_sorting()
         timeline.remove_timeline_plot("Events")
-        for et in self._event_types:
-            self._remove_gui_for_event_name(et.name)
+        for event_name in self._event_types_by_name:
+            self._remove_gui_for_event_name(event_name)
+        if plot_sorting_was_enabled:
+            timeline.enable_plot_sorting()
 
     def _setup_gui_for_event_type(self, event_type: EventType) -> None:
         timeline = self.get_timeline()
@@ -332,28 +365,36 @@ class EventsPlugin(neon_player.Plugin):
         primary=True,
     )
     def event_types(self) -> list[EventType]:
-        return self._event_types
+        return list(self._event_types_by_name.values())
 
     @event_types.setter
     def event_types(self, value: list[EventType]) -> None:
-        new_event_types = [
-            event_type for event_type in value if event_type not in self._event_types
-        ]
-        removed_event_types = [
-            event_type for event_type in self._event_types if event_type not in value
-        ]
+        new_event_types = []
+        old_event_types = self._event_types_by_name.copy()
+        event_type_counter = 1
+        for event_type in value:
+            if event_type.name in self._event_types_by_name:
+                del old_event_types[event_type.name]
+                continue
 
-        for new_event_type in new_event_types:
-            if new_event_type.uid == "":
-                new_event_type.uid = str(uuid.uuid4())
+            if event_type.uid == "":
+                event_type.uid = str(uuid.uuid4())
 
-            event_type_counter = 1
-            while new_event_type.name == "":
+            while event_type.name == "":
                 candidate_name = f"event-{event_type_counter}"
-                if candidate_name not in [s.name for s in self._event_types]:
-                    new_event_type.name = candidate_name
+                if candidate_name not in self._event_types_by_name:
+                    event_type.name = candidate_name
                 event_type_counter += 1
 
+            new_event_types.append(event_type)
+            self._event_types_by_name[event_type.name] = event_type
+
+        if self.headless or not self.gui_updates_enabled:
+            return
+
+        timeline = self.get_timeline()
+        plot_sorting_was_enabled = timeline.disable_plot_sorting()
+        for new_event_type in new_event_types:
             self._setup_gui_for_event_type(new_event_type)
             new_event_type.changed.connect(self.changed.emit)
             new_event_type.name_changed.connect(
@@ -362,35 +403,19 @@ class EventsPlugin(neon_player.Plugin):
                 )
             )
 
-        for removed_event_type in removed_event_types:
+        for removed_event_type in old_event_types.values():
             if removed_event_type.uid in self.events:
                 del self.events[removed_event_type.uid]
 
             self._remove_gui_for_event_name(removed_event_type.name)
-            self.save_cached_json("events.json", self.events)
+        self.save_cached_json("events.json", self.events)
 
-        self._event_types = value
+        if plot_sorting_was_enabled:
+            timeline.enable_plot_sorting()
 
     def _on_event_name_changed(self, old_name, new_name, event_type) -> None:
         self._remove_gui_for_event_name(old_name, remove_add_action=False)
         self._update_timeline_data(event_type)
-
-    def create_event_type(self, event_name: str) -> EventType:
-        event_type = EventType()
-        event_type.uid = str(uuid.uuid4())
-        event_type._name = event_name
-
-        if event_name in IMMUTABLE_EVENTS:
-            self._setup_gui_for_event_type(event_type)
-        else:
-            self.event_types = [*self._event_types, event_type]
-
-        return event_type
-
-    def get_event_type_by_name(self, name: str) -> EventType | None:
-        for event_type in self._event_types:
-            if event_type.name == name:
-                return event_type
 
     @action
     @action_params(
