@@ -82,6 +82,61 @@ class EventType(PersistentPropertiesMixin, QObject):
         return et
 
 
+def _load_events_from_recording(
+    recording: NeonRecording, global_event_types: list[str] = []
+) -> tuple[list[EventType], dict]:
+    event_type_cache = {}
+    events = {}
+
+    for event in recording.events:
+        event_name = str(event.event)
+
+        et = event_type_cache.get(event_name, None)
+        if et is None:
+            et = EventType.from_name(event_name)
+            if event_name in IMMUTABLE_EVENTS:
+                et.uid = event_name
+            event_type_cache[event_name] = et
+
+        # Add to memory
+        if et.uid not in events:
+            events[et.uid] = []
+        events[et.uid].append(event.time)
+
+    for event_name in global_event_types:
+        if event_name in event_type_cache:
+            continue
+
+        event_type_cache[event_name] = EventType.from_name(event_name)
+
+    return list(event_type_cache.values()), events
+
+
+def _load_events_from_cache(
+    cached_events: dict, known_event_types: list[EventType]
+) -> tuple[list[EventType], dict]:
+    known_event_types_by_uid = {et.uid: et for et in known_event_types}
+    for event_name in IMMUTABLE_EVENTS:
+        et = EventType.from_name(event_name)
+        et.uid = event_name
+        known_event_types_by_uid[et.uid] = et
+
+    event_type_cache = {}
+
+    for uid in cached_events:
+        if uid in event_type_cache:
+            continue
+
+        et = known_event_types_by_uid.get(uid, None)
+        if et is not None:
+            event_type_cache[uid] = et
+            continue
+
+        raise ValueError(f"Event type with uid {uid} not found")
+
+    return list(event_type_cache.values()), cached_events
+
+
 class EventsPlugin(neon_player.Plugin):
     label = "Events"
     global_properties = EventsPluginGlobalProps()
@@ -109,7 +164,7 @@ class EventsPlugin(neon_player.Plugin):
             if event_type.shortcut.lower() == key_text:
                 self.add_event(event_type)
 
-    def _load_events(self, recording: NeonRecording) -> tuple[list[EventType], dict]:
+    def _load_events(self, recording: NeonRecording) -> tuple[list[EventType], dict, str]:
         events = {}
         event_types = []
 
@@ -121,70 +176,23 @@ class EventsPlugin(neon_player.Plugin):
             cached_events = None
 
         if cached_events is not None:
-            return self._load_events_from_cache(cached_events)
+            event_types, events = _load_events_from_cache(
+                cached_events, list(self._event_types_by_name.values())
+            )
+            return event_types, events, "cache"
 
-        event_types, events = self._load_events_from_recording(
+        event_types, events = _load_events_from_recording(
             recording, self.global_properties.global_event_types
         )
-        self.save_cached_json("events.json", events)
 
-        return event_types, events
-
-    @staticmethod
-    def _load_events_from_recording(
-        recording: NeonRecording, global_event_types: list[str] = []
-    ) -> tuple[list[EventType], dict]:
-        event_type_cache = {}
-        events = {}
-
-        for event in recording.events:
-            event_name = str(event.event)
-
-            et = event_type_cache.get(event_name, None)
-            if et is None:
-                et = EventType.from_name(event_name)
-                if event_name in IMMUTABLE_EVENTS:
-                    et.uid = event_name
-                event_type_cache[event_name] = et
-
-            # Add to memory
-            if et.uid not in events:
-                events[et.uid] = []
-            events[et.uid].append(event.time)
-
-        for event_name in global_event_types:
-            if event_name in event_type_cache:
-                continue
-
-            event_type_cache[event_name] = EventType.from_name(event_name)
-
-        return list(event_type_cache.values()), events
-
-    def _load_events_from_cache(
-        self, cached_events: dict
-    ) -> tuple[list[EventType], dict]:
-        known_event_types_by_uid = {
-            et.uid: et for et in self._event_types_by_name.values()
-        }
-        event_type_cache = {}
-
-        for uid in cached_events:
-            if uid in event_type_cache:
-                continue
-
-            et = known_event_types_by_uid.get(uid, None)
-            if et is not None:
-                event_type_cache[uid] = et
-                continue
-
-            raise ValueError(f"Event type with uid {uid} not found")
-
-        return list(event_type_cache.values()), cached_events
+        return event_types, events, "recording"
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:  # noqa: C901
-        event_types, events = self._load_events(recording)
-        self.event_types = event_types
+        event_types, events, source = self._load_events(recording)
         self.events = events
+        if source == "recording":
+            self.event_types = event_types
+            self.save_cached_json("events.json", events)
         logging.info(f"Loaded {sum(len(v) for v in self.events.values())} events")
 
         if self.headless:

@@ -38,7 +38,11 @@ class Plugin(PersistentPropertiesMixin, QObject):
         self.render_layer = 1
         self._enabled = False
 
-        neon_player.instance().aboutToQuit.connect(self.on_disabled)
+        app = neon_player.instance()
+        if app is None:
+            return
+
+        app.aboutToQuit.connect(self.on_disabled)
 
     def register_action(
         self, name: str, shortcut: QtShortcutType, func: T.Callable

@@ -344,3 +344,6 @@ $RECYCLE.BIN/
 *.dist/
 
 src/pupil_labs/neon_player/ui/splash.py
+
+# Temporary test files
+tests/tmp
