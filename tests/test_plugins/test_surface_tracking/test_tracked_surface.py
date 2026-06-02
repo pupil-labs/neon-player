@@ -22,7 +22,7 @@ def mock_gaze_timeseries(time, point_x, point_y):
 
 def _prepare_test_data():
     """
-    Four fixations with two gaze samples each, only the first two are mapped to
+    Five fixations with two gaze samples each, only the first two are mapped to
     the surface (see side effect of the mocked method).
     """
 
@@ -33,15 +33,10 @@ def _prepare_test_data():
         point_y=[15, 25, 35, 45, 55, 65, 75, 85, 95, 105],
     )
     fixation_data = pd.DataFrame({
-        "recording id": ["test"] * 5,
         "fixation id": [1, 2, 3, 4, 5],
         "start timestamp [ns]": [500, 2500, 4500, 6500, 8500],
         "end timestamp [ns]": [2500, 4500, 6500, 8500, 10500],
         "duration [ms]": [2000, 2000, 2000, 2000, 2000],
-        "fixation x [px]": [20, 40, 60, 80, 100],
-        "fixation y [px]": [25, 45, 65, 85, 105],
-        "azimuth [deg]": [0, 0, 0, 0, 0],
-        "elevation [deg]": [0, 0, 0, 0, 0],
     })
 
     surface.apply_offset_and_map_gazes = MagicMock(
