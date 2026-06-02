@@ -109,8 +109,8 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
 
     def bg_export(self, destination: Path = Path()) -> T.Generator[ProgressUpdate, None, None]:
         yield from self.bg_export_video(
-            recording=self.app.recording,
-            export_window=self.app.recording_settings.export_window,
+            recording=self.recording,
+            export_window=self.app.get_export_window(),
             render_fn=self.render_for_export,
             destination=destination,
             output_video_filename="scene.mp4",

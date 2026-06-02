@@ -91,16 +91,16 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
         super().__init__()
         self._enabled_plugins = neon_player.instance().settings.default_plugins.copy()
         self._plugin_states: dict[str, dict] = {}
-        self._export_window: list[int] = []
+        self._export_window: tuple[int, int] = ()
 
     @property
     @property_params(widget=None)
-    def export_window(self) -> list[int]:
+    def export_window(self) -> tuple[int, int]:
         return self._export_window
 
     @export_window.setter
-    def export_window(self, value: list[int]) -> None:
-        self._export_window = value.copy()
+    def export_window(self, value: tuple[int, int]) -> None:
+        self._export_window = value
         self.export_window_changed.emit()
         self.changed.emit()
 
