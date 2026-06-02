@@ -286,14 +286,12 @@ class EventsPlugin(neon_player.Plugin):
         self.app.seek_to(data_point[0])
 
     def set_event_as_export_boundary(self, data_point, left: bool):
-        timeline = self.get_timeline()
-        current_export_window = timeline.get_export_window()
+        current_export_window = self.app.get_export_window()
         if left:
-            new_window = [data_point[0], current_export_window[1]]
+            new_window = (data_point[0], current_export_window[1])
         else:
-            new_window = [current_export_window[0], data_point[0]]
-        timeline.set_export_window(new_window)
-        self.app.recording_settings.export_window = new_window
+            new_window = (current_export_window[0], data_point[0])
+        self.app.set_export_window(new_window)
 
     def _update_timeline_data(self, event_type: EventType) -> None:
         timeline = self.get_timeline()
