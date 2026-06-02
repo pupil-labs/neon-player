@@ -176,10 +176,8 @@ class TimeLineDock(QWidget):
             axis.set_time_frame(recording.start_time, recording.stop_time)
 
         trim_plot = self.get_timeline_plot("Export window", create_if_missing=True)
-        self.trim_markers = [
-            TrimEndMarker(app.recording_settings.export_window[0], plot=trim_plot),
-            TrimEndMarker(app.recording_settings.export_window[1], plot=trim_plot),
-        ]
+        export_window = app.get_export_window()
+        self.trim_markers = [TrimEndMarker(ts, plot=trim_plot) for ts in export_window]
         self.duration_marker = TrimDurationMarker(*self.trim_markers)
         for tm in [*self.trim_markers, self.duration_marker]:
             trim_plot.addItem(tm)
@@ -736,12 +734,12 @@ class TimeLineDock(QWidget):
 
         self.playhead.refresh_geometry()
 
-    def get_export_window(self) -> list[int]:
-        times = [tm.time for tm in self.trim_markers]
+    def get_export_window(self) -> tuple[int, int]:
+        times = [int(tm.time) for tm in self.trim_markers]
         times.sort()
-        return times
+        return times[0], times[1]
 
-    def set_export_window(self, times: list[int]) -> None:
+    def set_export_window(self, times: tuple[int, int]) -> None:
         self.trim_markers[0].time = times[0]
         self.trim_markers[1].time = times[1]
 

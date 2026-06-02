@@ -52,6 +52,7 @@ from pupil_labs.neon_player.utilities import SlotDebouncer, clone_menu
 
 
 class NeonPlayerApp(QApplication):
+    export_window_changed = Signal(tuple[int, int])
     playback_state_changed = Signal(bool)
     position_changed = Signal(object)
     seeked = Signal(object)
@@ -381,21 +382,22 @@ class NeonPlayerApp(QApplication):
 
                 if len(self.recording_settings.export_window) != 2:
                     logging.warning("Invalid export window in settings")
-                    self.recording_settings.export_window = [
+                    self.recording_settings.export_window = (
                         self.recording.start_time,
                         self.recording.stop_time,
-                    ]
+                    )
 
             else:
                 self.recording_settings = RecordingSettings()
-                self.recording_settings.export_window = [
+                self.recording_settings.export_window = (
                     self.recording.start_time,
                     self.recording.stop_time,
-                ]
+                )
 
         except Exception:
             logging.exception("Failed to load settings")
             self.recording_settings = RecordingSettings()
+        self.recording_settings.export_window_changed.connect(self.export_window_changed.emit)
 
         logging.info(
             "Recording settings loaded", self.recording_settings.enabled_plugins
@@ -577,3 +579,21 @@ class NeonPlayerApp(QApplication):
     @property
     def is_playing(self) -> bool:
         return self.refresh_timer.isActive()
+
+    def get_export_window(self) -> tuple[int, int] | None:
+        if self.recording is None:
+            return None
+
+        return self.recording_settings.export_window
+
+    def set_export_window(self, export_window: tuple[int, int]) -> None:
+        if self.recording is None:
+            return
+
+        if not isinstance(export_window, tuple) or len(export_window) != 2:
+            raise ValueError(
+                "Export window must be a tuple with two integer timestamps (start, end)"
+            )
+
+        self.recording_settings.export_window = export_window
+        self.main_window.timeline.set_export_window(export_window)

@@ -72,7 +72,7 @@ class ExportAllPlugin(neon_player.Plugin):
             except Exception:
                 app_version = "?"
 
-            export_window = neon_player.instance().recording_settings.export_window
+            export_window = self.app.get_export_window()
             frame_indicies = [self.get_scene_idx_for_time(t) for t in export_window]
             rel_times_formatted = [
                 self.format_duration((t - self.recording.start_time) / 1e9)
