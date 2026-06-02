@@ -456,7 +456,7 @@ class NeonPlayerApp(QApplication):
         new_idx = current_idx + by
         if new_idx < 0 or new_idx >= len(self.playback_speed_options):
             return
-        
+
         new_speed = self.playback_speed_options[new_idx]
         self.set_playback_speed(new_speed)
 
