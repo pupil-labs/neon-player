@@ -8,6 +8,7 @@ from pathlib import Path
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QIcon, QKeyEvent
+from PySide6.QtWidgets import QMessageBox
 from qt_property_widgets.utilities import (
     FilePath,
     PersistentPropertiesMixin,
@@ -45,6 +46,7 @@ class EventType(PersistentPropertiesMixin, QObject):
         self._name = ""
         self._shortcut = ""
         self._uid = ""
+        self._plugin = None
 
     @property
     def name(self) -> str:
@@ -52,6 +54,17 @@ class EventType(PersistentPropertiesMixin, QObject):
 
     @name.setter
     def name(self, value: str) -> None:
+        if self._name == value:
+            return
+
+        if self._plugin is not None and value in self._plugin._event_types_by_name:
+            QMessageBox.warning(
+                None,
+                "Duplicate event type",
+                f"Event type {value} already exists. Please choose a different name.",
+            )
+            return
+
         old_name = self._name
         self._name = value
         self.name_changed.emit(old_name, value)
@@ -116,11 +129,11 @@ def _load_events_from_cache(
     cached_events: dict, known_event_types: list[EventType]
 ) -> tuple[list[EventType], dict]:
     """
-    Load event data from a cache stored in events.json. All event types should
-    either be immutable (recording.begin, recording.end) or have been previously
+    Load event data from a cache stored in events.json. All event types are expected
+    to either be immutable (recording.begin, recording.end) or have been previously
     defined and stored in the known_event_types list.
 
-    Return event types that are present in the cache as well as events themselves.
+    Returns event types that are present in the cache as well as events themselves.
     """
     known_event_types_by_uid = {et.uid: et for et in known_event_types}
     for event_name in IMMUTABLE_EVENTS:
@@ -166,7 +179,7 @@ class EventsPlugin(neon_player.Plugin):
         if key_text == "":
             return
 
-        for event_type in self._event_types:
+        for event_type in self._event_types_by_name.values():
             if event_type.shortcut.lower() == key_text:
                 self.add_event(event_type)
 
@@ -177,8 +190,7 @@ class EventsPlugin(neon_player.Plugin):
         try:
             cached_events = self.load_cached_json("events.json")
         except Exception:
-            recording_name = recording._rec_dir.name
-            logging.exception(f"Failed to load events json for {recording_name}")
+            logging.exception("Failed to load events json")
             cached_events = None
 
         if cached_events is not None:
@@ -196,9 +208,14 @@ class EventsPlugin(neon_player.Plugin):
     def on_recording_loaded(self, recording: NeonRecording) -> None:  # noqa: C901
         event_types, events, source = self._load_events(recording)
         self.events = events
+
+        # NOTE: The event types need to be updated only when loading from the
+        # recording. When loading from cache, the event types are loaded
+        # beforehand from plugin settings.
         if source == "recording":
             self.event_types = event_types
             self.save_cached_json("events.json", events)
+
         logging.info(f"Loaded {sum(len(v) for v in self.events.values())} events")
 
         if self.headless:
@@ -209,11 +226,11 @@ class EventsPlugin(neon_player.Plugin):
         timeline = self.get_timeline()
         plot_sorting_was_enabled = timeline.disable_plot_sorting()
         for et in event_types:
+            self._attach_event_type(et)
             self._setup_gui_for_event_type(et)
             self._update_timeline_data(et)
         if plot_sorting_was_enabled:
             timeline.enable_plot_sorting()
-        self.gui_updates_enabled = True
 
     def on_disabled(self) -> None:
         if self.recording is None or self.headless:
@@ -226,6 +243,17 @@ class EventsPlugin(neon_player.Plugin):
             self._remove_gui_for_event_name(event_name)
         if plot_sorting_was_enabled:
             timeline.enable_plot_sorting()
+
+    def _attach_event_type(self, event_type: EventType) -> None:
+        # Provide a reference to the plugin for checking whether the new name
+        # of the event type is already taken
+        event_type._plugin = self
+
+        # Connect the required signals
+        event_type.changed.connect(self.changed.emit)
+        event_type.name_changed.connect(
+            lambda old, new, et=event_type: self._on_event_name_changed(old, new, et)
+        )
 
     def _setup_gui_for_event_type(self, event_type: EventType) -> None:
         timeline = self.get_timeline()
@@ -247,18 +275,16 @@ class EventsPlugin(neon_player.Plugin):
             self.app.main_window.sort_action_menu("Timeline/Add Event")
             event_type.name_changed.connect(lambda old, new: action.setText(new))
 
-        def register_data_actions():
-            if event_type.name not in IMMUTABLE_EVENTS:
-                self.register_data_point_action(
-                    f"Events - {event_type.name}",
-                    f"Delete {event_type.name} instance",
-                    lambda dp, et=event_type: self.delete_event_instance(dp, et),
-                )
+        self.register_data_actions(event_type)
 
+    def register_data_actions(self, event_type: EventType) -> None:
+        if event_type.name not in IMMUTABLE_EVENTS:
             self.register_data_point_action(
                 f"Events - {event_type.name}",
-                f"Seek to this {event_type.name}",
-                self.seek_to_event_instance,
+                f"Delete {event_type.name} instance",
+                lambda data_point, et=event_type: self.delete_event_instance(
+                    f"Events - {event_type.name}", data_point, et
+                ),
             )
             self.register_data_point_action(
                 f"Events - {event_type.name}",
@@ -271,12 +297,11 @@ class EventsPlugin(neon_player.Plugin):
                 lambda dp, et=event_type: self.set_event_as_export_boundary(dp, et, left=False),
             )
 
-        register_data_actions()
-        event_type.name_changed.connect(lambda _, _2: register_data_actions())
-        event_type.name_changed.connect(
-            lambda old, new, et=event_type: self._on_event_name_changed(old, new, et)
+        self.register_data_point_action(
+            f"Events - {event_type.name}",
+            f"Seek to this {event_type.name}",
+            self.seek_to_event_instance,
         )
-        event_type.changed.connect(self.changed.emit)
 
     def _remove_gui_for_event_name(
         self,
@@ -316,6 +341,7 @@ class EventsPlugin(neon_player.Plugin):
             self._event_type_counter += 1
 
         self._event_types_by_name[new_event_type.name] = new_event_type
+        self._attach_event_type(new_event_type)
         self._setup_gui_for_event_type(new_event_type)
         self.changed.emit()
 
@@ -406,7 +432,11 @@ class EventsPlugin(neon_player.Plugin):
         self._event_types_by_name = {et.name: et for et in value}
 
     def _on_event_name_changed(self, old_name, new_name, event_type) -> None:
+        self._event_types_by_name[new_name] = event_type
+        del self._event_types_by_name[old_name]
+
         self._remove_gui_for_event_name(old_name, remove_add_action=False)
+        self.register_data_actions(event_type)
         self._update_timeline_data(event_type)
 
     @action
@@ -441,9 +471,10 @@ class EventsPlugin(neon_player.Plugin):
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()):
         start_time, stop_time = self.app.get_export_window()
+        event_types_by_uid = self._get_event_types_by_uid()
         event_names = []
         for uid in self.events:
-            name = uid if uid in IMMUTABLE_EVENTS else self.get_event_type(uid).name
+            name = uid if uid in IMMUTABLE_EVENTS else event_types_by_uid[uid].name
             event_names.append(name)
 
         events_df = pd.DataFrame({
@@ -471,3 +502,6 @@ class EventsPlugin(neon_player.Plugin):
         events_df.to_csv(destination_file, index=False)
 
         logging.info(f"Exported events to {destination_file}")
+
+    def _get_event_types_by_uid(self) -> dict[str, EventType]:
+        return {et.uid: et for et in self._event_types_by_name.values()}
