@@ -511,6 +511,16 @@ class MainWindow(QMainWindow):
                 QKeyCombination(Qt.KeyboardModifier.ShiftModifier, Qt.Key.Key_Left),
                 lambda: app.seek_by_frame(-1),
             ),
+            self.register_action(
+                "&Playback/Increase playback speed",
+                QKeyCombination(Qt.KeyboardModifier.ShiftModifier, Qt.Key.Key_Period),
+                lambda: app.switch_playback_speed(by=1),
+            ),
+            self.register_action(
+                "&Playback/Decrease playback speed",
+                QKeyCombination(Qt.KeyboardModifier.ShiftModifier, Qt.Key.Key_Comma),
+                lambda: app.switch_playback_speed(by=-1),
+            ),
         ]
 
         self.register_action("&Timeline/&Reset view", None, self.timeline.reset_view)
