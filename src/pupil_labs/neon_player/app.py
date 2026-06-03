@@ -661,12 +661,16 @@ class NeonPlayerApp(QApplication):
             painter.setOpacity(1.0)
 
     def export_all(self, export_path: Path) -> None:
+        print(f"Exporting all plugins: {[plugin.__class__.__name__ for plugin in self.plugins]}")
         for plugin in self.plugins:
             if hasattr(plugin, "export"):
+                logging.debug(f"Exporting plugin {plugin}")
                 try:
                     plugin.export(Path(export_path))
                 except Exception:
                     logging.exception(f"Exception while exporting plugin {plugin}")
+            else:
+                logging.debug(f"Plugin {plugin} does not have export method, skipping")
 
     @property
     def is_playing(self) -> bool:
@@ -676,7 +680,7 @@ class NeonPlayerApp(QApplication):
         if self.recording is None:
             return None
 
-        return self.recording_settings.export_window
+        return self.session_settings.export_window
 
     def set_export_window(self, export_window: tuple[int, int]) -> None:
         if self.recording is None:
@@ -687,5 +691,5 @@ class NeonPlayerApp(QApplication):
                 "Export window must be a tuple with two integer timestamps (start, end)"
             )
 
-        self.recording_settings.export_window = export_window
+        self.session_settings.export_window = export_window
         self.main_window.timeline.set_export_window(export_window)

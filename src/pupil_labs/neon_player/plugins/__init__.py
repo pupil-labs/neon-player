@@ -158,11 +158,6 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
     @property
     @property_params(widget=None, dont_encode=True)
-    def export_window(self) -> list[int]:
-        return self.app.session_settings.export_window
-
-    @property
-    @property_params(widget=None, dont_encode=True)
     def app(self) -> "NeonPlayerApp":
         return neon_player.instance()
 
