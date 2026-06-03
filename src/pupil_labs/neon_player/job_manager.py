@@ -185,7 +185,7 @@ class BatchBackgroundJob(BaseBackgroundJob):
         app = neon_player.instance()
         if not app.batch_mode_enabled:
             logging.warning("Batch mode is not enabled, cannot run batch action.")
-            return
+            raise RuntimeError("Batch mode is not enabled, cannot run batch action.")
 
         if recordings is None:
             recordings = app.workspace.recordings
@@ -195,7 +195,8 @@ class BatchBackgroundJob(BaseBackgroundJob):
         self.recordings = recordings.copy()
         self.size = len(self.recordings)
         self.current_idx = 0
-        self.current_job = None
+        self.current_sub_job = None
+        self._canceled = False
 
         # Copy recording and workspace settings to a temporary folder to prevent
         # interference with concurrent user's actions in the main app
@@ -207,13 +208,16 @@ class BatchBackgroundJob(BaseBackgroundJob):
         self._tmp_settings_path.mkdir(parents=True, exist_ok=True)
         self._copy_session_settings()
 
-        self._submit_next_job()
+        self._submit_next_sub_job()
 
     def cancel(self):
-        if self.current_job:
-            self.current_job.cancel()
-        self._clear_tmp_settings()
-        self.canceled.emit()
+        self._canceled = True
+        if not self.current_sub_job:
+            self._clear_tmp_settings()
+            self.canceled.emit()
+            return
+
+        self.current_sub_job.cancel()
 
     def _tmp_recording_settings_path(self, recording: NeonRecording) -> Path:
         return self._tmp_settings_path / recording._rec_dir.name / "settings.json"
@@ -238,7 +242,10 @@ class BatchBackgroundJob(BaseBackgroundJob):
     def _clear_tmp_settings(self):
         shutil.rmtree(self._tmp_settings_path)
 
-    def _submit_next_job(self):
+    def _submit_next_sub_job(self):
+        if self._canceled:
+            return
+
         current_recording = self.recordings[self.current_idx]
         progress_str = ""
         if self.size > 1:
@@ -246,7 +253,7 @@ class BatchBackgroundJob(BaseBackgroundJob):
         args = self.args_generator(current_recording) if self.args_generator else []
 
         app = neon_player.instance()
-        job = app.job_manager.run_background_action(
+        sub_job = app.job_manager.run_background_action(
             f"{self.name}{progress_str}",
             self.action_name,
             *args,
@@ -255,18 +262,22 @@ class BatchBackgroundJob(BaseBackgroundJob):
             workspace_settings_path=self._tmp_workspace_settings_path(),
             notify_on_completion=False,
         )
-        job.canceled.connect(lambda: self._on_batch_job_canceled())
-        job.finished.connect(lambda: self._on_batch_job_finished())
-        self.current_job = job
+        sub_job.canceled.connect(lambda: self._on_sub_job_canceled())
+        sub_job.finished.connect(lambda: self._on_sub_job_finished())
+        self.current_sub_job = sub_job
 
-    def _on_batch_job_canceled(self):
+    def _on_sub_job_canceled(self):
+        self._canceled = True
         self._clear_tmp_settings()
         self.canceled.emit()
 
-    def _on_batch_job_finished(self):
+    def _on_sub_job_finished(self):
+        if self._canceled:
+            return
+
         self.current_idx += 1
         if self.current_idx < len(self.recordings):
-            self._submit_next_job()
+            self._submit_next_sub_job()
             self.progress = self.current_idx / self.size
             self.progress_changed.emit(self.progress)
         else:
