@@ -23,7 +23,7 @@ class VideoExporter(neon_player.Plugin, BackgroundVideoExportMixin):
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
-    def export(self, destination: Path = Path()) -> BackgroundJob | T.Generator:
+    def export(self, destination: Path = Path()) -> BackgroundJob | None:
         app = neon_player.instance()
 
         if not app.headless:

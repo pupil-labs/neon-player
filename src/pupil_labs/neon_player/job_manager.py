@@ -192,6 +192,9 @@ class BatchBackgroundJob(BaseBackgroundJob):
         if recordings is None:
             recordings = app.workspace.recordings
 
+        if not recordings:
+            raise ValueError("At least one recording is required to run the batch job.")
+
         self.action_name = action_name
         self.args_generator = args_generator
         self.recordings = recordings.copy()

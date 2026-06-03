@@ -8,7 +8,7 @@ from qt_property_widgets.utilities import property_params, action, action_params
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.plugins.shared import run_export_across_recordings, BackgroundVideoExportMixin
-from pupil_labs.neon_player.job_manager import ProgressUpdate
+from pupil_labs.neon_player.job_manager import BackgroundJob, ProgressUpdate
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
 
@@ -94,7 +94,7 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
 
     @action
     @action_params(compact=True, icon=QIcon(str(asset_path("export.svg"))))
-    def export_raw_scene_video(self, destination: Path = Path()) -> None:
+    def export_raw_scene_video(self, destination: Path = Path()) -> BackgroundJob | None:
         app = neon_player.instance()
 
         if not app.headless:
@@ -102,11 +102,11 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
                 "Scene Video Export", "SceneRendererPlugin.bg_export", destination
             )
 
-        return self.bg_export(destination)
+        self.job_manager.run_in_foreground(self.bg_export(destination))
 
     @action
     @action_params(compact=True, icon=QIcon(str(asset_path("export.svg"))))
-    def export_all_recordings(self, destination: Path = Path(".")):
+    def export_all_recordings(self, destination: Path = Path(".")) -> None:
         run_export_across_recordings(self, destination, action_name="export_raw_scene_video")
 
     def render_for_export(self, painter: QPainter, time_in_recording: int) -> None:

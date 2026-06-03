@@ -243,7 +243,7 @@ class GazeDataPlugin(neon_player.Plugin):
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
-    def export_all_recordings(self, destination: Path = Path(".")):
+    def export_all_recordings(self, destination: Path = Path(".")) -> None:
         run_export_across_recordings(self, destination)
 
     @property

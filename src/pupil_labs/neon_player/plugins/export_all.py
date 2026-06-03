@@ -23,7 +23,6 @@ def _create_export_subfolder(destination: Path) -> Path:
 
 class ExportAllPlugin(neon_player.Plugin):
     label = "Export All"
-    export_fn = "export_all_enabled_plugins"
 
     def __init__(self):
         super().__init__()
@@ -48,14 +47,14 @@ class ExportAllPlugin(neon_player.Plugin):
 
     @neon_player.action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
-    def export_all_enabled_plugins(self, path: Path = Path(".")):
+    def export_all_enabled_plugins(self, path: Path = Path(".")) -> None:
         if self.recording is None:
             return
 
         export_path = _create_export_subfolder(path)
         self._export_all_enabled_plugins(export_path)
 
-    def _export_all_enabled_plugins(self, export_path: Path):
+    def _export_all_enabled_plugins(self, export_path: Path) -> None:
         self.app.export_all(export_path)
 
     @staticmethod
@@ -123,7 +122,7 @@ class ExportAllPlugin(neon_player.Plugin):
 
     @neon_player.action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
-    def export_all_recordings(self, destination: Path = Path(".")):
+    def export_all_recordings(self, destination: Path = Path(".")) -> None:
         run_export_across_recordings(
             plugin=self,
             destination=_create_export_subfolder(destination),
