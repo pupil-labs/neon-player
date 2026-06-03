@@ -9,6 +9,8 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import action
 from pupil_labs.neon_recording import NeonRecording
 
+from pupil_labs.neon_player.plugins.shared import run_export_across_recordings
+
 
 class BlinksPlugin(neon_player.Plugin):
     label = "Blinks"
@@ -47,3 +49,8 @@ class BlinksPlugin(neon_player.Plugin):
 
         export_file = destination / "blinks.csv"
         export_data.to_csv(export_file, index=False)
+
+    @action
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
+    def export_all_recordings(self, destination: Path = Path(".")) -> None:
+        run_export_across_recordings(self, destination)

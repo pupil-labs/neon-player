@@ -53,6 +53,7 @@ from pupil_labs.neon_player.ui.plugin_installation_dialog import (
 )
 from pupil_labs.neon_player.utilities import SlotDebouncer, clone_menu
 from pupil_labs.neon_player.workspace import Workspace, check_if_neon_recording
+from pupil_labs.neon_recording import NeonRecording
 
 
 class NeonPlayerApp(QApplication):
@@ -104,8 +105,22 @@ class NeonPlayerApp(QApplication):
         self.job_manager = JobManager()
 
         parser = argparse.ArgumentParser()
-        parser.add_argument("recording", nargs="?", default=None, help="")
-        parser.add_argument("--workspace", action="store_true")
+        parser.add_argument(
+            "recording", nargs="?", default=None,
+            help="Path to a folder with one or more recordings to load on startup"
+        )
+        parser.add_argument(
+            "--workspace", action="store_true",
+            help="Whether to load parent folder as workspace"
+        )
+        parser.add_argument(
+            "--recording-settings", type=str, default=None,
+            help="Path to recording settings JSON file to use on load"
+        )
+        parser.add_argument(
+            "--workspace-settings", type=str, default=None,
+            help="Path to workspace settings JSON file to use on load"
+        )
         parser.add_argument("--progress-ipc-name", type=str, default=None)
         parser.add_argument(
             "--job",
@@ -144,6 +159,16 @@ class NeonPlayerApp(QApplication):
         self.session_settings.changed.connect(self.toggle_plugins_by_settings)
         SlotDebouncer.debounce(self.session_settings.changed, self.save_settings)
 
+        # Use custom paths to settings files if provided
+        self._recording_settings_path = None
+        if self.args.recording_settings:
+            self._recording_settings_path = Path(self.args.recording_settings)
+
+        self._workspace_settings_path = None
+        if self.args.workspace_settings:
+            self._workspace_settings_path = Path(self.args.workspace_settings)
+
+        # Load global settings and recording history
         try:
             self.settings = GeneralSettings.from_dict(self.load_global_settings())
         except FileNotFoundError:
@@ -210,15 +235,22 @@ class NeonPlayerApp(QApplication):
     def settings_path(self) -> Path:
         return Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
 
-    @property
-    def recording_settings_path(self) -> Path | None:
-        if self.recording is None:
+    def recording_settings_path(self, recording: NeonRecording | None = None) -> Path | None:
+        if recording is None:
+            if self._recording_settings_path is not None:
+                return self._recording_settings_path
+            recording = self.recording
+
+        if recording is None:
             return None
 
-        return self.recording._rec_dir / ".neon_player" / "settings.json"
+        return recording._rec_dir / ".neon_player" / "settings.json"
 
     @property
     def workspace_settings_path(self) -> Path | None:
+        if self._workspace_settings_path is not None:
+            return self._workspace_settings_path
+
         if self.workspace.path is None:
             return None
 
@@ -244,7 +276,7 @@ class NeonPlayerApp(QApplication):
 
             if self.recording:
                 self.session_settings.save_recording_settings(
-                    self.recording_settings_path
+                    self.recording_settings_path()
                 )
 
             if self.batch_mode_enabled:
@@ -367,10 +399,10 @@ class NeonPlayerApp(QApplication):
         else:
             if sys.platform == "darwin":
                 # hide dock icon for background jobs
-                from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
+                from AppKit import NSApplication, NSApplicationActivationPolicyProhibited
 
                 NSApplication.sharedApplication().setActivationPolicy_(
-                    NSApplicationActivationPolicyAccessory
+                    NSApplicationActivationPolicyProhibited
                 )
 
         return self.exec()
@@ -463,7 +495,7 @@ class NeonPlayerApp(QApplication):
 
         self.main_window.on_recording_loaded(self.recording)
         self.session_settings.load_recording_settings(
-            self.recording_settings_path, self.recording
+            self.recording_settings_path(), self.recording
         )
 
         if self.settings.skip_gray_frames_on_load:
@@ -616,11 +648,7 @@ class NeonPlayerApp(QApplication):
             painter.setFont(font)
             painter.setOpacity(1.0)
 
-    def export_all(self, export_path: Path) -> None:  # noqa: F811
-        timestamp_str = time.strftime("%Y-%m-%d_%H-%M-%S")
-        export_path /= f"{timestamp_str}_export"
-        export_path.mkdir(parents=True, exist_ok=True)
-
+    def export_all(self, export_path: Path) -> None:
         for plugin in self.plugins:
             if hasattr(plugin, "export"):
                 try:
