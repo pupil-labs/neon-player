@@ -200,9 +200,7 @@ class EventsPlugin(neon_player.Plugin):
                 self.register_data_point_action(
                     f"Events - {event_type.name}",
                     f"Delete {event_type.name} instance",
-                    lambda data_point, et=event_type: self.delete_event_instance(
-                        f"Events - {event_type.name}", data_point, et
-                    ),
+                    lambda dp, et=event_type: self.delete_event_instance(dp, et),
                 )
 
             self.register_data_point_action(
@@ -213,12 +211,12 @@ class EventsPlugin(neon_player.Plugin):
             self.register_data_point_action(
                 f"Events - {event_type.name}",
                 f"Set this {event_type.name} as the left export window boundary",
-                lambda dp: self.set_event_as_export_boundary(dp, left=True),
+                lambda dp, et=event_type: self.set_event_as_export_boundary(dp, et, left=True),
             )
             self.register_data_point_action(
                 f"Events - {event_type.name}",
                 f"Set this {event_type.name} as the right export window boundary",
-                lambda dp: self.set_event_as_export_boundary(dp, left=False),
+                lambda dp, et=event_type: self.set_event_as_export_boundary(dp, et, left=False),
             )
 
         register_data_actions()
@@ -265,32 +263,47 @@ class EventsPlugin(neon_player.Plugin):
         self.save_cached_json("events.json", self.events)
         self._update_timeline_data(event_type)
 
-    def delete_event_instance(self, timeline_name, data_point, event_type) -> None:
+    def _find_closest_event(
+        self, event_type: EventType, target_ts: int, tolerance_ns: int = 5
+    ) -> int | None:
+        if event_type.uid not in self.events:
+            return None
+
+        events_list = self.events[event_type.uid]
+        if not events_list:
+            return None
+
+        closest_event = min(events_list, key=lambda x: abs(x - target_ts))
+        if abs(closest_event - target_ts) > tolerance_ns:
+            return None
+
+        return closest_event
+
+    def delete_event_instance(self, data_point, event_type: EventType) -> None:
         if event_type.uid not in self.events:
             return
 
-        events_list = self.events[event_type.uid]
-        target_ts = data_point[0]
-
-        if not events_list:
+        closest_event = self._find_closest_event(event_type, data_point[0])
+        if closest_event is None:
             return
 
-        closest_event = min(events_list, key=lambda x: abs(x - target_ts))
-
-        if abs(closest_event - target_ts) < 5:
-            events_list.remove(closest_event)
-            self.save_cached_json("events.json", self.events)
-            self._update_timeline_data(event_type)
+        self.events[event_type.uid].remove(closest_event)
+        self.save_cached_json("events.json", self.events)
+        self._update_timeline_data(event_type)
 
     def seek_to_event_instance(self, data_point) -> None:
         self.app.seek_to(data_point[0])
 
-    def set_event_as_export_boundary(self, data_point, left: bool):
+    def set_event_as_export_boundary(self, data_point, event_type, left: bool):
+        closest_event = self._find_closest_event(event_type, data_point[0])
+        if closest_event is None:
+            return
+
         current_export_window = self.app.get_export_window()
         if left:
-            new_window = (data_point[0], current_export_window[1])
+            new_window = (closest_event, current_export_window[1])
         else:
-            new_window = (current_export_window[0], data_point[0])
+            new_window = (current_export_window[0], closest_event)
         self.app.set_export_window(new_window)
 
     def _update_timeline_data(self, event_type: EventType) -> None:
