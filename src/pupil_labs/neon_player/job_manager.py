@@ -166,8 +166,10 @@ class BackgroundJob(BaseBackgroundJob):
                 logging.exception("Could not unpickle progress update")
 
     def cancel(self):
+        logging.debug(f"Canceling background job {self.name}")
         self.proc.terminate()
         self.proc.wait()
+        logging.debug(f"Background job {self.name} canceled")
         self.canceled.emit()
 
 
@@ -211,13 +213,17 @@ class BatchBackgroundJob(BaseBackgroundJob):
         self._submit_next_sub_job()
 
     def cancel(self):
-        self._canceled = True
-        if not self.current_sub_job:
-            self._clear_tmp_settings()
-            self.canceled.emit()
+        if not self._canceled:
+            logging.debug(f"Cancelling batch background job {self.name}")
+            self._canceled = True
+
+        if self.current_sub_job:
+            self.current_sub_job.cancel()
             return
 
-        self.current_sub_job.cancel()
+        self._clear_tmp_settings()
+        logging.debug(f"Batch background job {self.name} canceled")
+        self.canceled.emit()
 
     def _tmp_recording_settings_path(self, recording: NeonRecording) -> Path:
         return self._tmp_settings_path / recording._rec_dir.name / "settings.json"
@@ -267,9 +273,8 @@ class BatchBackgroundJob(BaseBackgroundJob):
         self.current_sub_job = sub_job
 
     def _on_sub_job_canceled(self):
-        self._canceled = True
-        self._clear_tmp_settings()
-        self.canceled.emit()
+        self.current_sub_job = None
+        self.cancel()
 
     def _on_sub_job_finished(self):
         if self._canceled:
