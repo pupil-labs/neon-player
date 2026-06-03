@@ -43,8 +43,8 @@ class VideoExporter(neon_player.Plugin, BackgroundVideoExportMixin):
 
     def bg_export(self, destination: Path = Path()) -> T.Generator:
         yield from self.bg_export_video(
-            recording=self.app.recording,
-            export_window=self.export_window,
+            recording=self.recording,
+            export_window=self.app.get_export_window(),
             render_fn=self.render_for_export,
             destination=destination,
             output_video_filename="world.mp4",

@@ -105,7 +105,7 @@ class IMUPlugin(neon_player.Plugin):
         if self.imu_data is None:
             return
 
-        start_time, stop_time = self.export_window
+        start_time, stop_time = self.app.get_export_window()
         start_mask = self.imu_data["timestamp [ns]"] >= start_time
         stop_mask = self.imu_data["timestamp [ns]"] <= stop_time
 

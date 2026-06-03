@@ -211,6 +211,16 @@ class EventsPlugin(neon_player.Plugin):
                 f"Seek to this {event_type.name}",
                 self.seek_to_event_instance,
             )
+            self.register_data_point_action(
+                f"Events - {event_type.name}",
+                f"Set this {event_type.name} as the left export window boundary",
+                lambda dp: self.set_event_as_export_boundary(dp, left=True),
+            )
+            self.register_data_point_action(
+                f"Events - {event_type.name}",
+                f"Set this {event_type.name} as the right export window boundary",
+                lambda dp: self.set_event_as_export_boundary(dp, left=False),
+            )
 
         register_data_actions()
         event_type.name_changed.connect(lambda _, _2: register_data_actions())
@@ -222,9 +232,15 @@ class EventsPlugin(neon_player.Plugin):
     ) -> None:
         timeline = self.get_timeline()
         timeline.remove_timeline_plot(f"Events - {event_name}")
-        timeline.unregister_data_point_action(
-            f"Events - {event_name}", f"Seek to this {event_name}"
-        )
+        data_point_actions = [
+            f"Seek to this {event_name}",
+            f"Set this {event_name} as the left export window boundary",
+            f"Set this {event_name} as the right export window boundary",
+        ]
+        for action_name in data_point_actions:
+            timeline.unregister_data_point_action(
+                f"Events - {event_name}", action_name
+            )
 
         if event_name in IMMUTABLE_EVENTS:
             return
@@ -269,6 +285,14 @@ class EventsPlugin(neon_player.Plugin):
 
     def seek_to_event_instance(self, data_point) -> None:
         self.app.seek_to(data_point[0])
+
+    def set_event_as_export_boundary(self, data_point, left: bool):
+        current_export_window = self.app.get_export_window()
+        if left:
+            new_window = (data_point[0], current_export_window[1])
+        else:
+            new_window = (current_export_window[0], data_point[0])
+        self.app.set_export_window(new_window)
 
     def _update_timeline_data(self, event_type: EventType) -> None:
         timeline = self.get_timeline()
@@ -389,8 +413,8 @@ class EventsPlugin(neon_player.Plugin):
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
-    def export(self, destination: Path = Path()) -> None:
-        start_time, stop_time = self.export_window
+    def export(self, destination: Path = Path()):
+        start_time, stop_time = self.app.get_export_window()
         event_names = []
         for uid in self.events:
             name = uid if uid in IMMUTABLE_EVENTS else self.get_event_type(uid).name

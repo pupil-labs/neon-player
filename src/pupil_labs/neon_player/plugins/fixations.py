@@ -162,7 +162,7 @@ class FixationsPlugin(neon_player.Plugin):
         self.unregister_action("Playback/Previous Fixation")
 
     def get_export_fixations(self) -> pd.DataFrame:
-        start_time, stop_time = self.export_window
+        start_time, stop_time = self.app.get_export_window()
         start_mask = self.recording.fixations.stop_time > start_time
         stop_mask = self.recording.fixations.start_time < stop_time
 
@@ -202,7 +202,7 @@ class FixationsPlugin(neon_player.Plugin):
         return export_data
 
     def get_export_saccades(self) -> pd.DataFrame:
-        start_time, stop_time = self.export_window
+        start_time, stop_time = self.app.get_export_window()
         start_mask = self.recording.saccades.stop_time > start_time
         stop_mask = self.recording.saccades.start_time < stop_time
 

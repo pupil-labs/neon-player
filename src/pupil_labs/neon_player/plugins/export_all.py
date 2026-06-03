@@ -85,10 +85,11 @@ class ExportAllPlugin(neon_player.Plugin):
             except Exception:
                 app_version = "?"
 
-            frame_indicies = [self.get_scene_idx_for_time(t) for t in self.export_window]
+            export_window = self.app.get_export_window()
+            frame_indicies = [self.get_scene_idx_for_time(t) for t in export_window]
             rel_times_formatted = [
                 self.format_duration((t - self.recording.start_time) / 1e9)
-                for t in self.export_window
+                for t in export_window
             ]
 
             now = datetime.now().astimezone()
@@ -98,7 +99,7 @@ class ExportAllPlugin(neon_player.Plugin):
                 "Export Time": now.strftime("%H:%M:%S"),
                 "Frame Index Range": f"{frame_indicies[0]} - {frame_indicies[1]}",
                 "Relative Time Range": f"{rel_times_formatted[0]} - {rel_times_formatted[1]}",
-                "Absolute Time Range": f"{self.export_window[0]} - {self.export_window[1]}",
+                "Absolute Time Range": f"{export_window[0]} - {export_window[1]}",
             }
             export_file = destination / "export_info.csv"
             with export_file.open("w") as out_file:

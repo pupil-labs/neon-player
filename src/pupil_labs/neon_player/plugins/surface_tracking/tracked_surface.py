@@ -174,6 +174,9 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self.corner_positions = {}
         self.jobs = []
 
+        if neon_player.instance() is None:
+            return
+
         neon_player.instance().export_window_changed.connect(
             self.heatmap_invalidated.emit
         )
@@ -496,35 +499,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             return
 
         fixation_data = fixations_plugin.get_export_fixations()
-        fixation_data["fixation detected on surface"] = False
-
-        fixation_points = fixation_data[["fixation x [px]", "fixation y [px]"]]
-        mapped_fixation_points = self.map_points_by_time(
-            fixation_points, fixation_data["start timestamp [ns]"]
-        )
-
-        fixation_data["fixation x [normalized]"] = mapped_fixation_points[:, 0]
-        fixation_data["fixation y [normalized]"] = mapped_fixation_points[:, 1]
-
-        fixations_on_surfs = []
-        for idx, fixation in enumerate(fixation_data.iterrows()):
-            start_mask = gazes.time >= fixation[1]["start timestamp [ns]"]
-            end_mask = gazes.time <= fixation[1]["end timestamp [ns]"]
-            fixation_gazes = gazes[start_mask & end_mask]
-
-            if not fixation_gazes.size:
-                fixations_on_surfs.append(False)
-                continue
-
-            mapped_gazes = self.apply_offset_and_map_gazes(fixation_gazes)
-
-            lower_pass = np.all(mapped_gazes >= 0, axis=1)
-            upper_pass = np.all(mapped_gazes <= 1.0, axis=1)
-            gazes_on_surface = lower_pass & upper_pass
-
-            fixations_on_surfs.append(bool(np.any(gazes_on_surface)))
-
-        fixation_data["fixation detected on surface"] = fixations_on_surfs
+        fixation_data = self._append_mapped_fixation_data(gazes, fixation_data)
 
         # drop unused columns
         fixation_data = fixation_data.drop(
@@ -540,6 +515,41 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         fixation_data.to_csv(
             destination / f"fixations_on_surface_{self.name}.csv", index=False
         )
+
+    def _append_mapped_fixation_data(self, gazes, fixation_data):
+        fixation_data["fixation detected on surface"] = False
+
+        fixations_on_surfs = []
+        mapped_fixation_points = np.full((len(fixation_data), 2), np.nan)
+        for idx, (_, fixation) in enumerate(fixation_data.iterrows()):
+            start_mask = gazes.time >= fixation["start timestamp [ns]"]
+            end_mask = gazes.time <= fixation["end timestamp [ns]"]
+            fixation_gazes = gazes[start_mask & end_mask]
+
+            if not fixation_gazes.size:
+                fixations_on_surfs.append(False)
+                continue
+
+            mapped_gazes = self.apply_offset_and_map_gazes(fixation_gazes)
+
+            lower_pass = np.all(mapped_gazes >= 0, axis=1)
+            upper_pass = np.all(mapped_gazes <= 1.0, axis=1)
+            gazes_on_surface = lower_pass & upper_pass
+
+            # Fixation is detected on surface if at least one gaze sample within
+            # the fixation is mapped within the surface boundaries
+            fixations_on_surfs.append(bool(np.any(gazes_on_surface)))
+
+            # Mapped fixation position is derived as the average of all mapped gaze
+            # samples within the fixation
+            if not np.all(np.isnan(mapped_gazes)):
+                mapped_fixation_points[idx, :] = np.nanmean(mapped_gazes, axis=0)
+
+        fixation_data["fixation detected on surface"] = fixations_on_surfs
+        fixation_data["fixation x [normalized]"] = mapped_fixation_points[:, 0]
+        fixation_data["fixation y [normalized]"] = mapped_fixation_points[:, 1]
+
+        return fixation_data
 
     def render(self, painter: QPainter, time_in_recording: int = -1) -> None:
         if self.location is None:

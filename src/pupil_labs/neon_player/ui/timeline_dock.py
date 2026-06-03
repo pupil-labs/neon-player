@@ -76,35 +76,22 @@ class TimeLineDock(QWidget):
 
         self.speed_control = QComboBox()
         self.speed_control.setToolTip("Playback rate")
-        self.speed_control.addItems([
-            "-2.00x",
-            "-1.75x",
-            "-1.50x",
-            "-1.25x",
-            "-1.00x",
-            "-0.75x",
-            "-0.50x",
-            "-0.25x",
-        ])
+        self.speed_control.addItems(
+            [f"{s:.3g}x" for s in app.playback_speed_options if s < 0]
+        )
         self.speed_control.insertSeparator(self.speed_control.count())
-        self.speed_control.addItems([
-            " 0.25x",
-            " 0.50x",
-            " 0.75x",
-            " 1.00x",
-            " 1.25x",
-            " 1.50x",
-            " 1.75x",
-            " 2.00x",
-        ])
+        self.speed_control.addItems(
+            [f" {s:.3g}x" for s in app.playback_speed_options if s > 0]
+        )
         font = self.speed_control.font()
         font.setFixedPitch(True)
         self.speed_control.setFont(font)
-        self.speed_control.setCurrentText(" 1.00x")
+        self.speed_control.setCurrentText(" 1x")
 
         self.speed_control.currentTextChanged.connect(
             lambda t: app.set_playback_speed(float(t[:-1]))
         )
+        app.speed_changed.connect(self.on_playback_speed_changed)
 
         self.timestamp_label = TimestampLabel()
         self.toolbar_layout.addWidget(self.timestamp_label, 1)
@@ -189,10 +176,8 @@ class TimeLineDock(QWidget):
             axis.set_time_frame(recording.start_time, recording.stop_time)
 
         trim_plot = self.get_timeline_plot("Export window", create_if_missing=True)
-        self.trim_markers = [
-            TrimEndMarker(app.session_settings.export_window[0], plot=trim_plot),
-            TrimEndMarker(app.session_settings.export_window[1], plot=trim_plot),
-        ]
+        export_window = app.get_export_window()
+        self.trim_markers = [TrimEndMarker(ts, plot=trim_plot) for ts in export_window]
         self.duration_marker = TrimDurationMarker(*self.trim_markers)
         for tm in [*self.trim_markers, self.duration_marker]:
             trim_plot.addItem(tm)
@@ -206,6 +191,10 @@ class TimeLineDock(QWidget):
     def on_playback_state_changed(self, is_playing: bool):
         icon_name = "pause.svg" if is_playing else "play.svg"
         self.play_button.setIcon(QIcon(str(neon_player.asset_path(icon_name))))
+
+    def on_playback_speed_changed(self, speed: float):
+        prefix = " " if speed > 0 else ""
+        self.speed_control.setCurrentText(f"{prefix}{speed:.3g}x")
 
     def on_position_changed(self, t: int):
         app = neon_player.instance()
@@ -745,12 +734,12 @@ class TimeLineDock(QWidget):
 
         self.playhead.refresh_geometry()
 
-    def get_export_window(self) -> list[int]:
-        times = [tm.time for tm in self.trim_markers]
+    def get_export_window(self) -> tuple[int, int]:
+        times = [int(tm.time) for tm in self.trim_markers]
         times.sort()
-        return times
+        return times[0], times[1]
 
-    def set_export_window(self, times: list[int]) -> None:
+    def set_export_window(self, times: tuple[int, int]) -> None:
         self.trim_markers[0].time = times[0]
         self.trim_markers[1].time = times[1]
 
