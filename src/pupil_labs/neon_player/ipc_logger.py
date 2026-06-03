@@ -90,7 +90,6 @@ class IPCLogger(logging.Handler):
             if record.exc_info:
                 record.exc_info = record.exc_info[0:1]
 
-            print(f"Handling log record: {record.msg}")
             data = pickle.dumps(record)
             self.log_socket.write(data)
             self.log_socket.flush()

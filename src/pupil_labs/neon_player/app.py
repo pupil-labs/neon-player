@@ -661,16 +661,12 @@ class NeonPlayerApp(QApplication):
             painter.setOpacity(1.0)
 
     def export_all(self, export_path: Path) -> None:
-        print(f"Exporting all plugins: {[plugin.__class__.__name__ for plugin in self.plugins]}")
         for plugin in self.plugins:
             if hasattr(plugin, "export"):
-                logging.debug(f"Exporting plugin {plugin}")
                 try:
                     plugin.export(Path(export_path))
                 except Exception:
                     logging.exception(f"Exception while exporting plugin {plugin}")
-            else:
-                logging.debug(f"Plugin {plugin} does not have export method, skipping")
 
     @property
     def is_playing(self) -> bool:
