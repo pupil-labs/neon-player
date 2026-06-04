@@ -1,7 +1,8 @@
 import typing as T
 
 from PySide6.QtWidgets import QProgressBar
-from qt_property_widgets.widgets import ActionForm
+from qt_property_widgets.utilities import ActionObject
+from qt_property_widgets.widgets import ActionForm, PropertyWidget
 
 from pupil_labs.neon_player.job_manager import BackgroundJob
 
@@ -41,3 +42,6 @@ class ProgressActionForm(ActionForm):
     def on_job_done(self) -> None:
         self.progress_bar.hide()
         self.action_button.setVisible(True)
+
+
+PropertyWidget.set_default_type_widget(ActionObject, ProgressActionForm)
