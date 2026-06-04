@@ -1,5 +1,4 @@
-"""
-Neon Player provides a set of built-in widgets that plugin developers can use
+"""Neon Player provides a set of built-in widgets that plugin developers can use
 to include plugin settings in the Neon Player UI. Each setting should be defined
 as a property (using the standard `@property` decorator) in the plugin class. By
 default, the widget is selected automatically based on the type hint of the value
@@ -18,17 +17,23 @@ how to implement a custom widget. For built-in widgets, optional parameters that
 control the behavior of the widget are shown in the `@property_params` decorator.
 """
 
-from enum import Enum
 import logging
+
+from enum import Enum
 from pathlib import Path
-from pupil_labs.neon_player import Plugin, action
-from PySide6.QtCore import Qt, QObject, Signal
-from PySide6.QtGui import QFont, QColor
+
+from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QLabel, QPushButton
 from qt_property_widgets.utilities import (
-    property_params, FilePath, action_params, PersistentPropertiesMixin
+    FilePath,
+    PersistentPropertiesMixin,
+    action_params,
+    property_params,
 )
-from qt_property_widgets.widgets import PropertyWidget, MultiLineTextWidget
+from qt_property_widgets.widgets import MultiLineTextWidget, PropertyWidget
+
+from pupil_labs.neon_player import Plugin, action
 
 
 class ClickMeWidget(PropertyWidget):
@@ -70,6 +75,7 @@ class ClickMeWidget(PropertyWidget):
         self._value = new_value
         self._update_label_text()
         self.value_changed.emit(self._value)
+
 
 class OptionsEnum(Enum):
     First = 1
