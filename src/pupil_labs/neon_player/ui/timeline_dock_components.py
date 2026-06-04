@@ -252,6 +252,16 @@ class SmartSizePlotItem(pg.PlotItem):
         super().removeItem(*args, **kwargs)
         self.adjust_size()
 
+    def setVisible(self, visible: bool) -> None:
+        super().setVisible(visible)
+        if visible:
+            self.adjust_size()
+        else:
+            self.setFixedHeight(0)
+            self.legend_handle.setFixedHeight(0)
+            if self.legend_handle.parentItem():
+                self.legend_handle.parentItem().setFixedHeight(0)
+
     def adjust_size(self):
         height = self.preferred_height_2d if self.has_line else self.preferred_height_1d
 

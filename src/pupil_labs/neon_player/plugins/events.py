@@ -1,12 +1,15 @@
+import contextlib
 import logging
 import uuid
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pyqtgraph as pg
 from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QIcon, QKeyEvent
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QMenu, QToolButton, QWidget
 from qt_property_widgets.utilities import (
     FilePath,
     PersistentPropertiesMixin,
@@ -81,9 +84,32 @@ class EventsPlugin(neon_player.Plugin):
     def __init__(self) -> None:
         super().__init__()
         self._event_types: list[EventType] = []
+        self.events: dict[str, list[int]] = {}
+        self.events_expanded = True
         self.get_timeline().key_pressed.connect(self._on_key_pressed)
         self.header_action = ListPropertyAppenderAction(
             "event_types", "+ Add event type"
+        )
+
+        self.register_data_point_action(
+            "00_Events",
+            "Seek to this event",
+            self.seek_to_event_instance,
+        )
+        self.register_data_point_action(
+            "00_Events",
+            "Set this event as the left export window boundary",
+            lambda dp: self.set_event_as_export_boundary(dp, left=True),
+        )
+        self.register_data_point_action(
+            "00_Events",
+            "Set this event as the right export window boundary",
+            lambda dp: self.set_event_as_export_boundary(dp, left=False),
+        )
+        self.register_data_point_action(
+            "00_Events",
+            "Delete event instance",
+            self.delete_event_from_aggregate,
         )
 
     def _on_key_pressed(self, event: QKeyEvent) -> None:
@@ -128,7 +154,8 @@ class EventsPlugin(neon_player.Plugin):
                 # Add to memory
                 if et.uid not in self.events:
                     self.events[et.uid] = []
-                self.events[et.uid].append(event.time)
+                if event.time not in self.events[et.uid]:
+                    self.events[et.uid].append(event.time)
 
             recording_event_names = list(type_cache.keys())
             for event_name in self.global_properties.global_event_types:
@@ -154,9 +181,7 @@ class EventsPlugin(neon_player.Plugin):
         timeline = self.get_timeline()
         timeline.setUpdatesEnabled(False)
         try:
-            for et in types_to_update:
-                self._setup_gui_for_event_type(et)
-                self._update_timeline_data(et)
+            self._update_all_timeline_data()
         finally:
             timeline.setUpdatesEnabled(True)
             timeline.sort_plots()
@@ -173,83 +198,260 @@ class EventsPlugin(neon_player.Plugin):
             return
 
         timeline = self.get_timeline()
-        timeline.remove_timeline_plot("Events")
+        timeline.remove_timeline_plot("00_Events")
         for et in self._event_types:
             self._remove_gui_for_event_name(et.name)
+        for plot_name in IMMUTABLE_EVENTS:
+            timeline.remove_timeline_plot(plot_name)
 
     def _setup_gui_for_event_type(self, event_type: EventType) -> None:
         timeline = self.get_timeline()
-        existing_plot = timeline.get_timeline_plot(
-            f"Events - {event_type.name}", create_if_not_exists=False
-        )
-        if existing_plot is not None:
-            return
 
-        plot_item = timeline.add_timeline_scatter(f"Events - {event_type.name}", [])
-        plot_item.getViewBox().allow_y_panning = False
+        def register_data_actions():
+            timeline.unregister_data_point_actions(event_type.name)
+            if event_type.name not in IMMUTABLE_EVENTS:
+                self.register_data_point_action(
+                    event_type.name,
+                    f"Delete {event_type.name} instance",
+                    lambda data_point, et=event_type: self.delete_event_instance(
+                        event_type.name, data_point, et
+                    ),
+                )
+
+            self.register_data_point_action(
+                event_type.name,
+                f"Seek to this {event_type.name}",
+                self.seek_to_event_instance,
+            )
+            self.register_data_point_action(
+                event_type.name,
+                f"Set this {event_type.name} as the left export window boundary",
+                lambda dp: self.set_event_as_export_boundary(dp, left=True),
+            )
+            self.register_data_point_action(
+                event_type.name,
+                f"Set this {event_type.name} as the right export window boundary",
+                lambda dp: self.set_event_as_export_boundary(dp, left=False),
+            )
+
+        existing_plot = timeline.get_timeline_plot(
+            event_type.name, create_if_missing=False
+        )
+
+        if existing_plot is not None:
+            if any(isinstance(i, pg.PlotDataItem) for i in existing_plot.items):
+                register_data_actions()
+                return
+            plot_item = existing_plot
+        else:
+            plot_item = timeline.get_timeline_plot(
+                event_type.name, create_if_missing=True
+            )
+            plot_item.getViewBox().allow_y_panning = False
+            plot_item.setYRange(-0.5, 0.5)
+
+        timeline.add_timeline_scatter(event_type.name, [], is_event=True)
 
         if event_type.name not in IMMUTABLE_EVENTS:
             action = self.register_timeline_action(
                 f"Add Event/{event_type.name}", None, lambda: self.add_event(event_type)
             )
             self.app.main_window.sort_action_menu("Timeline/Add Event")
+
+            with contextlib.suppress(RuntimeError):
+                event_type.name_changed.disconnect()
             event_type.name_changed.connect(lambda old, new: action.setText(new))
 
-        def register_data_actions():
-            if event_type.name not in IMMUTABLE_EVENTS:
-                self.register_data_point_action(
-                    f"Events - {event_type.name}",
-                    f"Delete {event_type.name} instance",
-                    lambda data_point, et=event_type: self.delete_event_instance(
-                        f"Events - {event_type.name}", data_point, et
-                    ),
-                )
-
-            self.register_data_point_action(
-                f"Events - {event_type.name}",
-                f"Seek to this {event_type.name}",
-                self.seek_to_event_instance,
-            )
-            self.register_data_point_action(
-                f"Events - {event_type.name}",
-                f"Set this {event_type.name} as the left export window boundary",
-                lambda dp: self.set_event_as_export_boundary(dp, left=True),
-            )
-            self.register_data_point_action(
-                f"Events - {event_type.name}",
-                f"Set this {event_type.name} as the right export window boundary",
-                lambda dp: self.set_event_as_export_boundary(dp, left=False),
-            )
-
         register_data_actions()
-        event_type.name_changed.connect(lambda _, _2: register_data_actions())
+        with contextlib.suppress(RuntimeError):
+            event_type.changed.disconnect(self.changed.emit)
+        event_type.changed.connect(self.changed.emit)
 
     def _remove_gui_for_event_name(
-        self,
-        event_name: str,
-        remove_add_action: bool = True
+        self, event_name: str, remove_add_action: bool = True
     ) -> None:
         timeline = self.get_timeline()
-        timeline.remove_timeline_plot(f"Events - {event_name}")
-        data_point_actions = [
-            f"Seek to this {event_name}",
-            f"Set this {event_name} as the left export window boundary",
-            f"Set this {event_name} as the right export window boundary",
-        ]
-        for action_name in data_point_actions:
-            timeline.unregister_data_point_action(
-                f"Events - {event_name}", action_name
-            )
+        timeline.remove_timeline_plot(event_name)
+        timeline.unregister_data_point_actions(event_name)
 
         if event_name in IMMUTABLE_EVENTS:
             return
 
-        timeline.unregister_data_point_action(
-            f"Events - {event_name}", f"Delete {event_name} instance"
-        )
         if remove_add_action:
             self.unregister_timeline_action(f"Add Event/{event_name}")
             self.app.main_window.remove_menu_if_empty("Timeline/Add Event")
+
+    def _populate_add_menu(self, menu: QMenu):
+        menu.clear()
+        source_menu = self.app.main_window.get_menu("Timeline/Add Event")
+        for action in source_menu.actions():
+            menu.addAction(action)
+
+    def _create_event_type_dialog(self):
+        from PySide6.QtWidgets import QInputDialog
+
+        name, ok = QInputDialog.getText(
+            None, "Create Event Type", "Enter event type name:"
+        )
+        if ok and name:
+            self.create_event_type(name)
+
+    def _setup_events_header(self):
+        timeline = self.get_timeline()
+        if timeline.get_timeline_plot("00_Events", create_if_missing=False) is not None:
+            return
+
+        header_widget = QWidget()
+        layout = QHBoxLayout(header_widget)
+        layout.setContentsMargins(5, 0, 0, 0)
+        layout.setSpacing(4)
+
+        self.btn_toggle = QToolButton()
+        self.btn_toggle.setArrowType(
+            Qt.ArrowType.DownArrow if self.events_expanded else Qt.ArrowType.RightArrow
+        )
+        self.btn_toggle.clicked.connect(self._toggle_events)
+        self.btn_toggle.setStyleSheet(
+            "QToolButton { border: none; padding: 0; color: #ccc; } QToolButton::menu-indicator { image: none; }"
+        )
+
+        lbl = QLabel("Events")
+        lbl.setStyleSheet("color: #969696; font-weight: normal; font-size: 13px;")
+
+        layout.addWidget(lbl)
+        layout.addStretch()
+        layout.addWidget(self.btn_toggle)
+
+        self.btn_toggle.setPopupMode(QToolButton.ToolButtonPopupMode.DelayedPopup)
+        menu = QMenu(self.btn_toggle)
+
+        create_action = menu.addAction("Create Event Type...")
+        create_action.triggered.connect(self._create_event_type_dialog)
+
+        menu.addSeparator()
+
+        add_menu = menu.addMenu("Add Event Instance")
+        add_menu.aboutToShow.connect(lambda: self._populate_add_menu(add_menu))
+        self.btn_toggle.setMenu(menu)
+
+        plot_item = timeline.get_timeline_plot(
+            "00_Events", True, legend_widget=header_widget, sort_name="00_events"
+        )
+        plot_item.getViewBox().allow_y_panning = False
+        plot_item.setYRange(-0.5, 0.5)
+
+        if not any(isinstance(i, pg.PlotDataItem) for i in plot_item.items):
+            timeline.add_timeline_scatter("00_Events", [], is_event=True)
+
+    def _toggle_events(self):
+        self.events_expanded = not self.events_expanded
+        timeline = self.get_timeline()
+        timeline.setUpdatesEnabled(False)
+        try:
+            self._update_all_timeline_data()
+        finally:
+            timeline.setUpdatesEnabled(True)
+            timeline.sort_plots()
+
+    def _update_all_timeline_data(self):
+        self._setup_events_header()
+        timeline = self.get_timeline()
+
+        if hasattr(self, "btn_toggle"):
+            self.btn_toggle.setArrowType(
+                Qt.ArrowType.DownArrow
+                if self.events_expanded
+                else Qt.ArrowType.RightArrow
+            )
+
+        all_events_info = []
+        for uid, times in self.events.items():
+            if uid in IMMUTABLE_EVENTS:
+                et_name = uid
+            else:
+                try:
+                    et = self.get_event_type(uid)
+                    et_name = et.name
+                except ValueError:
+                    continue
+
+            sorted_times = sorted(times)
+            total = len(sorted_times)
+            for i, t in enumerate(sorted_times):
+                all_events_info.append({
+                    "ts": t,
+                    "name": et_name,
+                    "rep": f" ({i + 1}/{total})" if total > 1 else "",
+                })
+
+        all_events_info.sort(key=lambda x: x["ts"])
+        all_events_data = (
+            np.array([[x["ts"], 0] for x in all_events_info], dtype=np.float64)
+            if all_events_info
+            else np.empty((0, 2))
+        )
+        all_events_names = [x["name"] for x in all_events_info]
+        all_events_reps = [x["rep"] for x in all_events_info]
+
+        plot_item = timeline.get_timeline_plot("00_Events", False)
+        if plot_item:
+            scatter_item = next(
+                (item for item in plot_item.items if isinstance(item, pg.PlotDataItem)),
+                None,
+            )
+            if scatter_item is None:
+                scatter_item = timeline.add_timeline_scatter(
+                    "00_Events", all_events_data, is_event=True
+                )
+            else:
+                scatter_item.setData(all_events_data)
+
+            scatter_item.custom_names = all_events_names
+            scatter_item.custom_reps = all_events_reps
+
+        for uid in list(self.events.keys()):
+            try:
+                et = self.get_event_type(uid)
+            except ValueError:
+                et = self.get_event_type_by_name(uid)
+
+            if et is None:
+                continue
+
+            et_name = et.name
+
+            if not self.events_expanded:
+                timeline.remove_timeline_plot(et_name)
+            else:
+                self._setup_gui_for_event_type(et)
+                self._update_timeline_data(et)
+
+    def delete_event_from_aggregate(self, data_point) -> None:
+        target_ts = data_point[0]
+        best_dist = float("inf")
+        best_et = None
+        best_ts = None
+
+        for uid, times in self.events.items():
+            if uid in IMMUTABLE_EVENTS:
+                continue
+            try:
+                et = self.get_event_type(uid)
+            except ValueError:
+                continue
+
+            if not times:
+                continue
+
+            closest = min(times, key=lambda x: abs(x - target_ts))
+            dist = abs(closest - target_ts)
+            if dist < best_dist:
+                best_dist = dist
+                best_et = et
+                best_ts = closest
+
+        if best_et and best_dist < 5:
+            self.delete_event_instance("00_Events", (best_ts, 0), best_et)
 
     def add_event(self, event_type: EventType, ts: int | None = None) -> None:
         if self.recording is None:
@@ -261,9 +463,18 @@ class EventsPlugin(neon_player.Plugin):
         if event_type.uid not in self.events:
             self.events[event_type.uid] = []
 
+        if ts in self.events[event_type.uid]:
+            return
+
         self.events[event_type.uid].append(ts)
         self.save_cached_json("events.json", self.events)
-        self._update_timeline_data(event_type)
+        timeline = self.get_timeline()
+        timeline.setUpdatesEnabled(False)
+        try:
+            self._update_all_timeline_data()
+        finally:
+            timeline.setUpdatesEnabled(True)
+            timeline.sort_plots()
 
     def delete_event_instance(self, timeline_name, data_point, event_type) -> None:
         if event_type.uid not in self.events:
@@ -280,7 +491,13 @@ class EventsPlugin(neon_player.Plugin):
         if abs(closest_event - target_ts) < 5:
             events_list.remove(closest_event)
             self.save_cached_json("events.json", self.events)
-            self._update_timeline_data(event_type)
+            timeline = self.get_timeline()
+            timeline.setUpdatesEnabled(False)
+            try:
+                self._update_all_timeline_data()
+            finally:
+                timeline.setUpdatesEnabled(True)
+                timeline.sort_plots()
 
     def seek_to_event_instance(self, data_point) -> None:
         self.app.seek_to(data_point[0])
@@ -296,7 +513,7 @@ class EventsPlugin(neon_player.Plugin):
     def _update_timeline_data(self, event_type: EventType) -> None:
         timeline = self.get_timeline()
         event_name = event_type.name
-        plot_item = timeline.get_timeline_plot(f"Events - {event_name}", True)
+        plot_item = timeline.get_timeline_plot(event_name, True)
 
         raw_events = self.events.get(event_type.uid, [])
         if raw_events:
@@ -304,14 +521,19 @@ class EventsPlugin(neon_player.Plugin):
         else:
             data = np.empty((0, 2))
 
-        if len(plot_item.items) == 0:
-            if len(data) > 0:
-                plot_item = timeline.add_timeline_scatter(
-                    f"Events - {event_name}",
-                    data,
-                )
+        scatter_item = next(
+            (item for item in plot_item.items if isinstance(item, pg.PlotDataItem)),
+            None,
+        )
+
+        if scatter_item is None:
+            timeline.add_timeline_scatter(
+                event_name,
+                data,
+                is_event=True,
+            )
         else:
-            plot_item.items[0].setData(data)
+            scatter_item.setData(data)
 
     @property
     @property_params(
@@ -361,8 +583,33 @@ class EventsPlugin(neon_player.Plugin):
         self._event_types = value
 
     def _on_event_name_changed(self, old_name, new_name, event_type) -> None:
-        self._remove_gui_for_event_name(old_name, remove_add_action=False)
-        self._update_timeline_data(event_type)
+        timeline = self.get_timeline()
+        plot = timeline.get_timeline_plot(old_name)
+        if plot:
+            timeline.timeline_plots[new_name] = timeline.timeline_plots.pop(old_name)
+            if old_name in timeline.timeline_legends:
+                timeline.timeline_legends[new_name] = timeline.timeline_legends.pop(
+                    old_name
+                )
+
+            if old_name in timeline.data_point_actions:
+                timeline.data_point_actions[new_name] = timeline.data_point_actions.pop(
+                    old_name
+                )
+
+            if hasattr(timeline, "hover_lines") and old_name in timeline.hover_lines:
+                timeline.hover_lines[new_name] = timeline.hover_lines.pop(old_name)
+
+            legend_container = timeline.timeline_legends[new_name].parentItem()
+            for item in legend_container.items:
+                if isinstance(item, pg.LabelItem):
+                    item.setText(new_name)
+                    break
+
+        self.app.main_window.unregister_action(f"Timeline/Add Event/{old_name}")
+        self._update_all_timeline_data()
+        timeline.sort_plots()
+        self.save_cached_json("events.json", self.events)
 
     def create_event_type(self, event_name: str) -> None:
         event_type = EventType()
