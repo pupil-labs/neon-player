@@ -643,13 +643,16 @@ class TimeLineDock(QWidget):
     def add_timeline_scatter(
         self, name: str, data: list[tuple[int, int]], item_name: str = "", **kwargs
     ) -> pg.PlotDataItem:
+        stroke_width = 3 if self.devicePixelRatio() > 1 else 1.5
         return self.add_timeline_plot(
             name,
             data,
             item_name,
             pen=None,
             symbol="d",
-            symbolBrush=pg.mkColor("white"),
+            symbolSize=8,
+            symbolBrush=None,
+            symbolPen=pg.mkPen("#969696", width=stroke_width),
             **kwargs,
         )
 
