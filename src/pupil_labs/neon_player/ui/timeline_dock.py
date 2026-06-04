@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QToolButton,
+    QToolTip,
     QVBoxLayout,
     QWidget,
 )
@@ -224,6 +225,177 @@ class TimeLineDock(QWidget):
         data_pos = self.timestamps_plot.getViewBox().mapSceneToView(pos)
         for tm in self.trim_markers:
             tm.set_highlighted(self.dragging == tm or tm.nearby(data_pos))
+
+        self._update_tooltip(pos, data_pos.x())
+
+    def _update_tooltip(self, pos: QPointF, x: float):
+        tooltip_text = ""
+        hovered_plot_name = None
+        for name, plot_item in self.timeline_plots.items():
+            if plot_item.sceneBoundingRect().contains(pos):
+                hovered_plot_name = name
+                break
+
+        if hovered_plot_name and hovered_plot_name != "Export window":
+            plot_item = self.timeline_plots[hovered_plot_name]
+            lines = []
+
+            view_box = plot_item.getViewBox()
+            pixel_width = view_box.viewPixelSize()[0]
+            x_threshold = 20 * pixel_width
+
+            for item in plot_item.items:
+                if isinstance(item, pg.PlotDataItem):
+                    self._add_plot_data_item_tooltip(
+                        item, x, x_threshold, lines, hovered_plot_name
+                    )
+                elif isinstance(item, pg.BarGraphItem):
+                    self._add_bar_graph_item_tooltip(item, x, lines, hovered_plot_name)
+
+            if lines:
+                tooltip_html = "<br>".join(lines)
+                tooltip_text = (
+                    f"<html><head><style>p, body {{ "
+                    f"margin: 0; padding: 0; line-height: 1.0; }}</style></head>"
+                    f"<body>{tooltip_html}</body></html>"
+                )
+
+        if tooltip_text:
+            pos = QCursor.pos()
+            pos.setY(pos.y() - 15)
+            QToolTip.showText(pos, tooltip_text)
+        else:
+            QToolTip.hideText()
+
+    def _add_plot_data_item_tooltip(self, item, x, x_threshold, lines, plot_name=""):
+        hovered_plot_name = plot_name
+        x_data, y_data = item.getData()
+        if x_data is not None and len(x_data) > 0 and y_data is not None:
+            idx = np.searchsorted(x_data, x)
+            if 0 < idx < len(x_data):
+                if abs(x_data[idx] - x) < abs(x_data[idx - 1] - x):
+                    closest_idx = idx
+                else:
+                    closest_idx = idx - 1
+            elif idx == 0:
+                closest_idx = 0
+            else:
+                closest_idx = len(x_data) - 1
+
+            if abs(x_data[closest_idx] - x) <= x_threshold:
+                y_val = y_data[closest_idx]
+
+                name_attr = getattr(item, "name", "")
+                name = name_attr() if callable(name_attr) else name_attr
+                if not name:
+                    name = item.opts.get("name", "")
+
+                is_event_plot = (
+                    hovered_plot_name and "Events" in hovered_plot_name
+                ) or getattr(item, "is_event", False)
+
+                if not name and is_event_plot and hovered_plot_name:
+                    name = hovered_plot_name.replace("Events - ", "").replace(
+                        "00_Events", "Events"
+                    )
+
+                custom_names = getattr(item, "custom_names", None)
+                if custom_names and closest_idx < len(custom_names):
+                    name = custom_names[closest_idx]
+
+                if is_event_plot:
+                    app = neon_player.instance()
+                    time_ns = x_data[closest_idx]
+                    if app.recording:
+                        diff_ns = time_ns - app.recording.start_time
+
+                        total_ms = int(diff_ns // 1_000_000)
+                        ms = total_ms % 1000
+                        total_seconds = total_ms // 1000
+                        seconds = total_seconds % 60
+                        total_minutes = total_seconds // 60
+                        minutes = total_minutes % 60
+                        hours = total_minutes // 60
+
+                        val_str = f"{hours:02}:{minutes:02}:{seconds:02}.{ms:03}"
+                    else:
+                        val_str = str(time_ns)
+
+                    custom_reps = getattr(item, "custom_reps", None)
+                    if custom_reps and closest_idx < len(custom_reps):
+                        rep_str = custom_reps[closest_idx]
+                    else:
+                        total = len(x_data)
+                        rep_str = f" ({closest_idx + 1}/{total})" if total > 1 else ""
+
+                    if name:
+                        lines.append(f"<b>{name}{rep_str}</b><br/>{val_str}")
+                    else:
+                        lines.append(val_str)
+                else:
+                    if isinstance(y_val, (float, np.floating)):
+                        val_str = f"{y_val:.4g}"
+                    else:
+                        val_str = f"{y_val}"
+
+                    if name:
+                        lines.append(f"<b>{name}:</b> {val_str}")
+                    else:
+                        lines.append(val_str)
+
+    def _add_bar_graph_item_tooltip(self, item, x, lines, plot_name=""):
+        opts = item.opts
+        x0 = opts.get("x0")
+        x1 = opts.get("x1")
+        if x0 is not None and x1 is not None:
+            for i in range(len(x0)):
+                if x0[i] <= x <= x1[i]:
+                    name_attr = getattr(item, "name", "")
+                    name = name_attr() if callable(name_attr) else name_attr
+                    if not name:
+                        name = opts.get("name", "Value")
+
+                    val_str = "Active"
+                    if hasattr(item, "bar_values") and item.bar_values is not None:
+                        val = item.bar_values[i]
+                        if not np.isnan(val):
+                            if isinstance(val, (float, np.floating)):
+                                val_str = f"{val:.4g}"
+                            else:
+                                val_str = str(val)
+                        else:
+                            val_str = self._format_duration(
+                                x0[i], x1[i], plot_name, name, i
+                            )
+                    else:
+                        val_str = self._format_duration(
+                            x0[i], x1[i], plot_name, name, i
+                        )
+
+                    display_name = (
+                        name if name and name != "Value" else plot_name or name
+                    )
+                    if display_name:
+                        lines.append(f"<b>{display_name}:</b> {val_str}")
+                    else:
+                        lines.append(val_str)
+                    break
+
+    def _format_duration(self, start, stop, plot_name, name, index):
+        ms = (stop - start) / 1_000_000
+        if ms >= 60_000:
+            mins = int(ms // 60_000)
+            secs = (ms % 60_000) / 1000
+            dur_str = f"{mins}m {secs:.1f}s"
+        elif ms >= 1_000:
+            secs = ms / 1000
+            dur_str = f"{secs:.1f} s"
+        else:
+            dur_str = f"{ms:.1f} ms"
+
+        is_blink_or_fix = plot_name in ["Blinks", "Fixations"]
+        is_blink_or_fix = is_blink_or_fix or name in ["Blinks", "Fixations"]
+        return f"ID: {index + 1} | {dur_str}" if is_blink_or_fix else dur_str
 
     def on_whitespace_mouse_moved(self, event):
         if event.buttons() == Qt.LeftButton:
@@ -698,8 +870,15 @@ class TimeLineDock(QWidget):
             pens, brushes = _resolve_bar_colors(color_values, color, len(starts_raw))
 
             bars = pg.BarGraphItem(
-                x0=starts_raw, x1=stops_raw, y0=-0.4, y1=0.4, pens=pens, brushes=brushes
+                x0=starts_raw,
+                x1=stops_raw,
+                y0=-0.4,
+                y1=0.4,
+                pens=pens,
+                brushes=brushes,
+                name=item_name,
             )
+            bars.bar_values = values
             plot_widget.addItem(bars)
         else:
             bars = []
