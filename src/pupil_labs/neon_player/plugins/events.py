@@ -9,7 +9,14 @@ import pyqtgraph as pg
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QIcon, QKeyEvent
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QMenu, QToolButton, QWidget
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QToolButton,
+    QWidget,
+)
 from qt_property_widgets.utilities import (
     FilePath,
     PersistentPropertiesMixin,
@@ -86,6 +93,7 @@ class EventsPlugin(neon_player.Plugin):
         self._event_types: list[EventType] = []
         self.events: dict[str, list[int]] = {}
         self.events_expanded = True
+        self.events_search = ""
         self.get_timeline().key_pressed.connect(self._on_key_pressed)
         self.header_action = ListPropertyAppenderAction(
             "event_types", "+ Add event type"
@@ -113,6 +121,16 @@ class EventsPlugin(neon_player.Plugin):
         )
 
     def _on_key_pressed(self, event: QKeyEvent) -> None:
+        if event.key() == Qt.Key_Q:
+            if not self.events_expanded:
+                self._toggle_events()
+
+            if hasattr(self, "search_input"):
+                with contextlib.suppress(RuntimeError):
+                    self.search_input.setFocus()
+                    self.search_input.selectAll()
+            return
+
         key_text = event.text().lower()
         if key_text == "":
             return
@@ -199,6 +217,7 @@ class EventsPlugin(neon_player.Plugin):
 
         timeline = self.get_timeline()
         timeline.remove_timeline_plot("00_Events")
+        timeline.remove_timeline_plot("01_Events_Search")
         for et in self._event_types:
             self._remove_gui_for_event_name(et.name)
         for plot_name in IMMUTABLE_EVENTS:
@@ -286,6 +305,28 @@ class EventsPlugin(neon_player.Plugin):
         source_menu = self.app.main_window.get_menu("Timeline/Add Event")
         for action in source_menu.actions():
             menu.addAction(action)
+
+    def _on_search_changed(self, text):
+        self.events_search = text.lower()
+        timeline = self.get_timeline()
+
+        had_focus = False
+        cursor_pos = 0
+        with contextlib.suppress(RuntimeError):
+            had_focus = self.search_input.hasFocus()
+            cursor_pos = self.search_input.cursorPosition()
+
+        timeline.setUpdatesEnabled(False)
+        try:
+            self._update_all_timeline_data()
+        finally:
+            timeline.setUpdatesEnabled(True)
+            timeline.sort_plots()
+
+        if had_focus and hasattr(self, "search_input"):
+            with contextlib.suppress(RuntimeError):
+                self.search_input.setFocus()
+                self.search_input.setCursorPosition(cursor_pos)
 
     def _create_event_type_dialog(self):
         from PySide6.QtWidgets import QInputDialog
@@ -409,6 +450,34 @@ class EventsPlugin(neon_player.Plugin):
             scatter_item.custom_names = all_events_names
             scatter_item.custom_reps = all_events_reps
 
+        if not self.events_expanded:
+            timeline.remove_timeline_plot("01_Events_Search")
+        else:
+            if not timeline.get_timeline_plot("01_Events_Search", False):
+                search_widget = QWidget()
+                search_layout = QHBoxLayout(search_widget)
+                search_layout.setContentsMargins(5, 0, 0, 0)
+
+                self.search_input = QLineEdit()
+                self.search_input.setText(self.events_search)
+                self.search_input.setPlaceholderText("Q Search")
+                self.search_input.setStyleSheet(
+                    "background: transparent; border: none; color: #888; font-size: 13px;"
+                )
+                self.search_input.textChanged.connect(self._on_search_changed)
+                search_layout.addWidget(self.search_input)
+
+                search_plot = timeline.get_timeline_plot(
+                    "01_Events_Search",
+                    True,
+                    legend_widget=search_widget,
+                    sort_name="01_events_search",
+                )
+                search_plot.getViewBox().allow_y_panning = False
+                search_plot.hideAxis("top")
+                search_plot.hideAxis("bottom")
+                search_plot.hideAxis("left")
+
         for uid in list(self.events.keys()):
             try:
                 et = self.get_event_type(uid)
@@ -419,8 +488,9 @@ class EventsPlugin(neon_player.Plugin):
                 continue
 
             et_name = et.name
+            matches_search = self.events_search in et_name.lower()
 
-            if not self.events_expanded:
+            if not self.events_expanded or not matches_search:
                 timeline.remove_timeline_plot(et_name)
             else:
                 self._setup_gui_for_event_type(et)

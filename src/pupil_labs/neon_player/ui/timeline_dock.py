@@ -762,7 +762,43 @@ class TimeLineDock(QWidget):
             self.graphics_layout.addItem(legend, row=row, col=0)
             self.graphics_layout.addItem(plot, row=row, col=1)
 
+            from pupil_labs import neon_player
+            app = neon_player.instance()
+            events_plugin = app.plugins_by_class.get("EventsPlugin")
+            
+            from PySide6.QtCore import Qt
+            
+            # Reset preferred height to its baseline
+            if getattr(plot, "timeline_row_name", "") == "00_Events":
+                plot.preferred_height_1d = 25
+            
+            # Top-align everything so they don't stretch vertically
+            self.graphics_layout.layout.setAlignment(plot, Qt.AlignmentFlag.AlignTop)
+            self.graphics_layout.layout.setAlignment(legend, Qt.AlignmentFlag.AlignTop)
+
+            if getattr(plot, "timeline_row_name", "") == "00_Events" and events_plugin and getattr(events_plugin, "events_expanded", False):
+                self.graphics_layout.layout.setRowMinimumHeight(row, 60)
+            else:
+                self.graphics_layout.layout.setRowMinimumHeight(row, 0)
+
         self.fix_scroll_size()
+
+        def force_layout_update():
+            try:
+                layout = self.graphics_layout.layout
+                for i in range(layout.count()):
+                    layout_item = layout.itemAt(i)
+                    if layout_item and layout_item.graphicsItem():
+                        item = layout_item.graphicsItem()
+                        if hasattr(item, "updateGeometry"):
+                            item.updateGeometry()
+            except Exception as e:
+                pass
+            self.graphics_layout.layout.invalidate()
+            self.graphics_layout.updateGeometry()
+
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(20, force_layout_update)
 
     def register_data_point_action(
         self, row_name: str, action_name: str, callback: T.Callable
