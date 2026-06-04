@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import typing as T
 
@@ -49,6 +50,7 @@ class TimeLineDock(QWidget):
         self.timeline_plots: dict[str, pg.PlotItem] = {}
         self.dead_plots: list = []
         self.timeline_legends: dict[str, pg.LegendItem] = {}
+        self.hover_lines: dict[str, pg.InfiniteLine] = {}
         self.plot_colors = [
             QColor("#1f77b4"),
             QColor("#ff7f0e"),
@@ -264,8 +266,18 @@ class TimeLineDock(QWidget):
             pos = QCursor.pos()
             pos.setY(pos.y() - 15)
             QToolTip.showText(pos, tooltip_text)
+
+            for line in list(self.hover_lines.values()):
+                try:
+                    line.setPos(x)
+                    line.setVisible(True)
+                except RuntimeError:
+                    pass
         else:
             QToolTip.hideText()
+            for line in list(self.hover_lines.values()):
+                with contextlib.suppress(RuntimeError):
+                    line.setVisible(False)
 
     def _add_plot_data_item_tooltip(self, item, x, x_threshold, lines, plot_name=""):
         hovered_plot_name = plot_name
@@ -587,7 +599,20 @@ class TimeLineDock(QWidget):
                 plot_item.legend_label.setText(timeline_row_name)
             self.timeline_plots[timeline_row_name] = plot_item
             
-            # Hover line will be attached in a later commit
+            # Recreate hover line since clear() destroyed it
+            hover_line = pg.InfiniteLine(
+                angle=90,
+                movable=False,
+                pen=pg.mkPen(
+                    color=QColor(255, 255, 255, 128),
+                    width=1,
+                    style=Qt.PenStyle.DashLine,
+                ),
+            )
+            hover_line.setZValue(1000)
+            hover_line.setVisible(False)
+            plot_item.addItem(hover_line)
+            self.hover_lines[timeline_row_name] = hover_line
             
             if self.graphics_layout.rows:
                 row = max(self.graphics_layout.rows.keys()) + 1
@@ -687,6 +712,20 @@ class TimeLineDock(QWidget):
         plot_item.hideAxis("bottom")
         plot_item.showGrid(x=True, y=False, alpha=0.3)
 
+        hover_line = pg.InfiniteLine(
+            angle=90,
+            movable=False,
+            pen=pg.mkPen(
+                color=QColor(255, 255, 255, 128),
+                width=1,
+                style=Qt.PenStyle.DashLine,
+            ),
+        )
+        hover_line.setZValue(1000)
+        hover_line.setVisible(False)
+        plot_item.addItem(hover_line)
+        self.hover_lines[timeline_row_name] = hover_line
+
         if app.recording:
             duration = app.recording.stop_time - app.recording.start_time
             plot_item.getViewBox().setLimits(
@@ -744,6 +783,8 @@ class TimeLineDock(QWidget):
             plot_data_item = plot_item.plot(x=[], y=[], name=plot_name, **kwargs)
 
         plot_data_item.name = plot_name
+        if kwargs.get("is_event"):
+            plot_data_item.is_event = True
         if timeline_row_name in self.timeline_legends and plot_name != "":
             legend.addItem(plot_data_item, plot_name)
 
@@ -761,13 +802,16 @@ class TimeLineDock(QWidget):
         if plot is None:
             return
 
-        self.graphics_layout.removeItem(plot)
-        del self.timeline_plots[plot_name]
-
-        if plot_name in self.timeline_legends:
-            legend = self.timeline_legends[plot_name]
-            self.graphics_layout.removeItem(legend.parentItem())
+        with contextlib.suppress(ValueError):
+            self.graphics_layout.removeItem(
+                self.timeline_legends[plot_name].parentItem()
+            )
+            self.graphics_layout.removeItem(self.timeline_plots[plot_name])
+            del self.timeline_plots[plot_name]
             del self.timeline_legends[plot_name]
+
+            if plot_name in self.hover_lines:
+                del self.hover_lines[plot_name]
 
         self.sort_plots()
 
