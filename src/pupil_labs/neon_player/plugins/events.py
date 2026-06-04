@@ -91,7 +91,7 @@ class EventType(PersistentPropertiesMixin, QObject):
     def from_name(name: str) -> "EventType":
         et = EventType()
         et.name = name
-        et.uid = str(uuid.uuid4())
+        et.uid = name if name in IMMUTABLE_EVENTS else str(uuid.uuid4())
         return et
 
 
@@ -104,14 +104,13 @@ def _load_events_from_recording(
     for event in recording.events:
         event_name = str(event.event)
 
+        # Look up or create the event type
         et = event_type_cache.get(event_name, None)
         if et is None:
             et = EventType.from_name(event_name)
-            if event_name in IMMUTABLE_EVENTS:
-                et.uid = event_name
             event_type_cache[event_name] = et
 
-        # Add to memory
+        # Add event to the dictionary
         if et.uid not in events:
             events[et.uid] = []
         events[et.uid].append(event.time)
@@ -138,7 +137,6 @@ def _load_events_from_cache(
     known_event_types_by_uid = {et.uid: et for et in known_event_types}
     for event_name in IMMUTABLE_EVENTS:
         et = EventType.from_name(event_name)
-        et.uid = event_name
         known_event_types_by_uid[et.uid] = et
 
     event_type_cache = {}
@@ -213,7 +211,10 @@ class EventsPlugin(neon_player.Plugin):
         # recording. When loading from cache, the event types are loaded
         # beforehand from plugin settings.
         if source == "recording":
-            self.event_types = event_types
+            mutable_event_types = [
+                et for et in event_types if et.name not in IMMUTABLE_EVENTS
+            ]
+            self.event_types = mutable_event_types
             self.save_cached_json("events.json", events)
 
         logging.info(f"Loaded {sum(len(v) for v in self.events.values())} events")
