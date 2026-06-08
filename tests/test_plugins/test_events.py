@@ -1,7 +1,9 @@
+from unittest.mock import MagicMock
+
 import numpy as np
 
 from pupil_labs.neon_player.plugins.events import (
-    _load_events_from_cache, _load_events_from_recording, EventType
+    _load_events_from_cache, _load_events_from_recording, EventType, EventsPlugin
 )
 from pupil_labs.neon_recording.timeseries.events import EventArray
 
@@ -79,3 +81,33 @@ def test_events__load_events_from_cache():
         assert et in event_types, f"Expected known event types to be used"
         assert et.name != "extra.event", "Only present event types should be returned"
     assert events == cached_events, "Expected events to match cached events"
+
+
+def test_events_plugin__add_event__new_type(mock_neon_recording):
+    plugin = EventsPlugin()
+    type(plugin).recording = mock_neon_recording()
+    plugin.save_cached_json = MagicMock()
+    et = EventType.from_name("test.event")
+    plugin.event_types = [et]
+    plugin.events = {}
+
+    plugin.add_event(et, ts=1)
+
+    assert et.uid in plugin.events, "Expected new event type to be added to events dict"
+    assert plugin.events[et.uid] == [1], "Expected timestamp to be added to events dict"
+    plugin.save_cached_json.assert_called_once()
+
+
+def test_events_plugin__add_event__existing_type(mock_neon_recording):
+    plugin = EventsPlugin()
+    type(plugin).recording = mock_neon_recording()
+    plugin.save_cached_json = MagicMock()
+    et = EventType.from_name("test.event")
+    plugin.event_types = [et]
+    plugin.events = {et.uid: [1, 2, 3]}
+
+    plugin.add_event(et, ts=4)
+
+    assert plugin.events[et.uid] == [1, 2, 3, 4], \
+        "Expected new timestamp to be appended to existing list"
+    plugin.save_cached_json.assert_called_once()

@@ -285,7 +285,7 @@ class EventsPlugin(neon_player.Plugin):
                 f"Add Event/{event_type.name}", None, lambda: self.add_event(event_type)
             )
             self.app.main_window.sort_action_menu("Timeline/Add Event")
-            event_type.name_changed.connect(lambda old, new: action.setText(new))
+            event_type.name_changed.connect(lambda _, new: action.setText(new))
 
         self.register_data_actions(event_type)
 
@@ -417,6 +417,9 @@ class EventsPlugin(neon_player.Plugin):
         self.app.set_export_window(new_window)
 
     def _update_timeline_data(self, event_type: EventType) -> None:
+        if self.headless:
+            return
+
         timeline = self.get_timeline()
         event_name = event_type.name
         plot_item = timeline.get_timeline_plot(f"Events - {event_name}")
