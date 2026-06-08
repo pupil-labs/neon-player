@@ -138,17 +138,20 @@ class Plugin(PersistentPropertiesMixin, QObject):
         if t == -1:
             t = self.app.current_ts
 
-        gray_frame = t < self.recording.scene.time[0]
-        if not gray_frame:
-            # Find time value without decoding video
-            closest_idx = self.get_scene_idx_for_time(t, method="backward")
-            if closest_idx >= 0:
-                closest_time = self.recording.scene.time[closest_idx]
-                gray_frame = abs(t - closest_time) / 1e9 > 1 / 15
-            else:
-                gray_frame = True
+        if t < self.recording.scene.time[0]:
+            return True
 
-        return bool(gray_frame)
+        closest_idx = self.get_scene_idx_for_time(t, method="backward")
+        if closest_idx < 0:
+            return True
+
+        # Consider gaps above 0.5 s in the scene stream as breaks to be filled
+        # with gray frames since such gaps are unlikely to happen naturally
+        closest_time = self.recording.scene.time[closest_idx]
+        scene_stream_ended = t > self.recording.scene.time[-1]
+        threshold = 1 / 30 if scene_stream_ended else 1 / 2
+
+        return abs(t - closest_time) / 1e9 > threshold
 
     @property
     @property_params(widget=None, dont_encode=True)
