@@ -154,6 +154,13 @@ def _load_events_from_cache(
     return list(event_type_cache.values()), cached_events
 
 
+def _filter_event_types(event_types: list[EventType], mutable: bool) -> list[EventType]:
+    if mutable:
+        return [et for et in event_types if et.name not in IMMUTABLE_EVENTS]
+    else:
+        return [et for et in event_types if et.name in IMMUTABLE_EVENTS]
+
+
 class EventsPlugin(neon_player.Plugin):
     label = "Events"
     global_properties = EventsPluginGlobalProps()
@@ -207,15 +214,19 @@ class EventsPlugin(neon_player.Plugin):
         event_types, events, source = self._load_events(recording)
         self.events = events
 
-        # NOTE: The event types need to be updated only when loading from the
-        # recording. When loading from cache, the event types are loaded
-        # beforehand from plugin settings.
         if source == "recording":
-            mutable_event_types = [
-                et for et in event_types if et.name not in IMMUTABLE_EVENTS
-            ]
+            # When loading from recording, only mutable event types need to be saved,
+            # but the UI needs to be set up for all event types
+            mutable_event_types = _filter_event_types(event_types, mutable=True)
+            event_types_to_update_ui_for = event_types
             self.event_types = mutable_event_types
             self.save_cached_json("events.json", events)
+        elif source == "cache":
+            # When loading from cache, all event types are expected to have been loaded
+            # from plugin settings, so self.event_types is already correct, but the UI
+            # still needs to be set up for stored and immutable event types
+            immutable_event_types = _filter_event_types(event_types, mutable=False)
+            event_types_to_update_ui_for = self.event_types + immutable_event_types
 
         logging.info(f"Loaded {sum(len(v) for v in self.events.values())} events")
 
@@ -226,7 +237,7 @@ class EventsPlugin(neon_player.Plugin):
         # Disable plot sorting to improve performance for recording with many events
         timeline = self.get_timeline()
         plot_sorting_was_enabled = timeline.disable_plot_sorting()
-        for et in event_types:
+        for et in event_types_to_update_ui_for:
             self._attach_event_type(et)
             self._setup_gui_for_event_type(et)
             self._update_timeline_data(et)
@@ -283,25 +294,23 @@ class EventsPlugin(neon_player.Plugin):
             self.register_data_point_action(
                 f"Events - {event_type.name}",
                 f"Delete {event_type.name} instance",
-                lambda data_point, et=event_type: self.delete_event_instance(
-                    f"Events - {event_type.name}", data_point, et
-                ),
-            )
-            self.register_data_point_action(
-                f"Events - {event_type.name}",
-                f"Set this {event_type.name} as the left export window boundary",
-                lambda dp, et=event_type: self.set_event_as_export_boundary(dp, et, left=True),
-            )
-            self.register_data_point_action(
-                f"Events - {event_type.name}",
-                f"Set this {event_type.name} as the right export window boundary",
-                lambda dp, et=event_type: self.set_event_as_export_boundary(dp, et, left=False),
+                lambda dp, et=event_type: self.delete_event_instance(dp, et),
             )
 
         self.register_data_point_action(
             f"Events - {event_type.name}",
             f"Seek to this {event_type.name}",
             self.seek_to_event_instance,
+        )
+        self.register_data_point_action(
+            f"Events - {event_type.name}",
+            f"Set this {event_type.name} as the left export window boundary",
+            lambda dp, et=event_type: self.set_event_as_export_boundary(dp, et, left=True),
+        )
+        self.register_data_point_action(
+            f"Events - {event_type.name}",
+            f"Set this {event_type.name} as the right export window boundary",
+            lambda dp, et=event_type: self.set_event_as_export_boundary(dp, et, left=False),
         )
 
     def _remove_gui_for_event_name(
