@@ -15,11 +15,12 @@ from qt_property_widgets.utilities import (
     action_params,
     property_params,
 )
+from qt_property_widgets.widgets import ValueListWidget
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
 from pupil_labs.neon_player.plugins import Plugin
-from pupil_labs.neon_player.ui import HeaderAction
+from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 
 IMMUTABLE_EVENTS = ["recording.begin", "recording.end"]
 
@@ -94,6 +95,30 @@ class EventType(PersistentPropertiesMixin, QObject):
         et.name = name
         et.uid = name if name in IMMUTABLE_EVENTS else str(uuid.uuid4())
         return et
+
+
+class EventTypeListWidget(ValueListWidget):
+    @staticmethod
+    def from_property_impl(prop: property) -> "EventTypeListWidget":
+        hints = T.get_type_hints(prop.fget)
+        return_type = hints["return"]
+        item_type = T.get_args(return_type)[0]
+
+        source_params = prop.fget.parameters if hasattr(prop.fget, "parameters") else {}
+
+        return EventTypeListWidget(item_type, source_params)
+
+    @staticmethod
+    def from_type(cls: type) -> "EventTypeListWidget":
+        return EventTypeListWidget(cls)
+
+    def on_add_button_clicked(self):
+        plugin = EventsPlugin.instance()
+        if plugin is None:
+            return
+
+        new_event_type = plugin.add_event_type()
+        self.add_item(new_event_type)
 
 
 def _load_events_from_recording(
@@ -176,8 +201,8 @@ class EventsPlugin(neon_player.Plugin):
             return
 
         self.get_timeline().key_pressed.connect(self._on_key_pressed)
-        self.header_action = HeaderAction(
-            self.add_event_type, "+ Add event type"
+        self.header_action = ListPropertyAppenderAction(
+            "event_types", "+ Add event type"
         )
 
     @staticmethod
@@ -356,6 +381,8 @@ class EventsPlugin(neon_player.Plugin):
         self._setup_gui_for_event_type(new_event_type)
         self.changed.emit()
 
+        return new_event_type
+
     def add_event(self, event_type: EventType, ts: int | None = None) -> None:
         if self.recording is None:
             return
@@ -430,7 +457,7 @@ class EventsPlugin(neon_player.Plugin):
 
     @property
     @property_params(
-        add_button_text="Create new event type",
+        widget=EventTypeListWidget,
         item_params={"label_field": "name"},
         prevent_add=True,
         primary=True,
