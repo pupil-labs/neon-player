@@ -117,7 +117,8 @@ class EventTypeListWidget(ValueListWidget):
         if plugin is None:
             return
 
-        new_event_type = plugin.add_event_type()
+        new_event_type = plugin.create_event_type()
+        plugin.add_event_type(new_event_type)
         self.add_item(new_event_type)
 
     def remove_item(self, item_widget: ValueListItemWidget):
@@ -216,7 +217,6 @@ class EventsPlugin(neon_player.Plugin):
     def __init__(self) -> None:
         super().__init__()
         self._event_types_by_name: dict[str, EventType] = {}
-        self._event_type_counter = 1
         self._events: dict[str, list[int]] = {}
 
         if self.headless:
@@ -282,38 +282,47 @@ class EventsPlugin(neon_player.Plugin):
 
         logging.info(f"Loaded {sum(len(v) for v in self._events.values())} events")
 
-        if self.headless:
-            return
-
-        # Create timeline plots for each event type that is present among the events
-        # Disable plot sorting to improve performance for recording with many events
-        timeline = self.get_timeline()
-        plot_sorting_was_enabled = timeline.disable_plot_sorting()
-        for et in event_types_to_update_ui_for:
-            self._attach_event_type(et)
-            self._setup_gui_for_event_type(et)
-            self._update_timeline_data(et)
-        if plot_sorting_was_enabled:
-            timeline.enable_plot_sorting()
+        self._update_gui_for_event_types(event_types_to_add=event_types_to_update_ui_for)
 
     def on_disabled(self) -> None:
         if self.recording is None or self.headless:
             return
 
+        self._events = {}
+        self._event_types_by_name = {}
+
+        event_types = list(self._event_types_by_name.values())
+        self._update_gui_for_event_types(event_types_to_remove=event_types)
+
+    def _update_gui_for_event_types(
+        self,
+        event_types_to_add: list[EventType] = [],
+        event_types_to_remove: list[EventType] = []
+    ) -> None:
+        if self.headless:
+            return
+
+        if not event_types_to_add and not event_types_to_remove:
+            return
+
+        # Disable plot sorting to improve performance for recording with many events
         timeline = self.get_timeline()
         plot_sorting_was_enabled = timeline.disable_plot_sorting()
-        timeline.remove_timeline_plot("Events")
-        for event_name in self._event_types_by_name:
-            self._remove_gui_for_event_name(event_name)
+
+        for et in event_types_to_add:
+            et.changed.connect(self.changed.emit)
+            et.name_changed.connect(
+                lambda old, new, et=et: self._on_event_name_changed(old, new, et)
+            )
+            self._setup_gui_for_event_type(et)
+            self._update_timeline_data(et)
+
+        for et in event_types_to_remove:
+            self._remove_gui_for_event_name(et.name)
+
+        # Enable plot sorting, sort rows if any were added or removed
         if plot_sorting_was_enabled:
             timeline.enable_plot_sorting()
-
-    def _attach_event_type(self, event_type: EventType) -> None:
-        # Connect the required signals
-        event_type.changed.connect(self.changed.emit)
-        event_type.name_changed.connect(
-            lambda old, new, et=event_type: self._on_event_name_changed(old, new, et)
-        )
 
     def _setup_gui_for_event_type(self, event_type: EventType) -> None:
         timeline = self.get_timeline()
@@ -329,11 +338,10 @@ class EventsPlugin(neon_player.Plugin):
         plot_item.getViewBox().allow_y_panning = False
 
         if event_type.name not in IMMUTABLE_EVENTS:
-            action = self.register_timeline_action(
+            self.register_timeline_action(
                 f"Add Event/{event_type.name}", None, lambda: self.add_event(event_type)
             )
             self.app.main_window.sort_action_menu("Timeline/Add Event")
-            event_type.name_changed.connect(lambda _, new: action.setText(new))
 
         self.register_data_actions(event_type)
 
@@ -361,11 +369,7 @@ class EventsPlugin(neon_player.Plugin):
             lambda dp, et=event_type: self.set_event_as_export_boundary(dp, et, left=False),
         )
 
-    def _remove_gui_for_event_name(
-        self,
-        event_name: str,
-        remove_add_action: bool = True
-    ) -> None:
+    def _remove_gui_for_event_name(self, event_name: str) -> None:
         timeline = self.get_timeline()
         timeline.remove_timeline_plot(f"Events - {event_name}")
         data_point_actions = [
@@ -384,38 +388,32 @@ class EventsPlugin(neon_player.Plugin):
         timeline.unregister_data_point_action(
             f"Events - {event_name}", f"Delete {event_name} instance"
         )
-        if remove_add_action:
-            self.unregister_timeline_action(f"Add Event/{event_name}")
-            self.app.main_window.remove_menu_if_empty("Timeline/Add Event")
+        self.unregister_timeline_action(f"Add Event/{event_name}")
+        self.app.main_window.remove_menu_if_empty("Timeline/Add Event")
 
-    def add_event_type(self):
+    def create_event_type(self) -> EventType:
         new_event_type = EventType()
         new_event_type.uid = str(uuid.uuid4())
 
+        event_type_counter = 1
         while new_event_type.name == "":
-            candidate_name = f"event-{self._event_type_counter}"
+            candidate_name = f"event-{event_type_counter}"
             if candidate_name not in self._event_types_by_name:
                 new_event_type.name = candidate_name
-            self._event_type_counter += 1
-
-        self._event_types_by_name[new_event_type.name] = new_event_type
-
-        if not self.headless:
-            self._attach_event_type(new_event_type)
-            self._setup_gui_for_event_type(new_event_type)
-            self.changed.emit()
+            event_type_counter += 1
 
         return new_event_type
+
+    def add_event_type(self, event_type: EventType):
+        self._event_types_by_name[event_type.name] = event_type
+        self._update_gui_for_event_types(event_types_to_add=[event_type])
+        self.changed.emit()
 
     def delete_event_type(self, event_type: EventType) -> None:
         del self._events[event_type.uid]
         self.save_cached_json("events.json", self._events)
-
-        if self.headless:
-            return
-
         del self._event_types_by_name[event_type.name]
-        self._remove_gui_for_event_name(event_type.name)
+        self._update_gui_for_event_types(event_types_to_remove=[event_type])
         self.changed.emit()
 
     def add_event(self, event_type: EventType, ts: int | None = None) -> None:
@@ -519,9 +517,15 @@ class EventsPlugin(neon_player.Plugin):
         self._event_types_by_name[new_name] = event_type
         del self._event_types_by_name[old_name]
 
-        self._remove_gui_for_event_name(old_name, remove_add_action=False)
-        self.register_data_actions(event_type)
+        timeline = self.get_timeline()
+        plot_sorting_was_enabled = timeline.disable_plot_sorting()
+
+        self._remove_gui_for_event_name(old_name)
+        self._setup_gui_for_event_type(event_type)
         self._update_timeline_data(event_type)
+
+        if plot_sorting_was_enabled:
+            timeline.enable_plot_sorting()
 
     @action
     @action_params(
