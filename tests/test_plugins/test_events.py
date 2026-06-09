@@ -63,8 +63,8 @@ def test_events__load_events_from_cache():
     event_types = []
     for idx, event_name in enumerate(event_names):
         et = EventType()
-        et.name = event_name
-        et.uid = event_name if "recording" in event_name else f"uid{idx}"
+        et._name = event_name
+        et._uid = event_name if "recording" in event_name else f"uid{idx}"
         event_types.append(et)
 
     cached_events = {

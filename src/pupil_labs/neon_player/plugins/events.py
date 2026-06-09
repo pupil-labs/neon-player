@@ -92,8 +92,8 @@ class EventType(PersistentPropertiesMixin, QObject):
     @staticmethod
     def from_name(name: str) -> "EventType":
         et = EventType()
-        et.name = name
-        et.uid = name if name in IMMUTABLE_EVENTS else str(uuid.uuid4())
+        et._name = name
+        et._uid = name if name in IMMUTABLE_EVENTS else str(uuid.uuid4())
         return et
 
 
