@@ -111,3 +111,59 @@ def test_events_plugin__add_event__existing_type(mock_neon_recording):
     assert plugin.events[et.uid] == [1, 2, 3, 4], \
         "Expected new timestamp to be appended to existing list"
     plugin.save_cached_json.assert_called_once()
+
+
+def _prepare_export_tests(mock_neon_recording):
+    plugin = EventsPlugin()
+    mock_events = mock_event_timeseries({
+        "recording.begin": [0],
+        "event.from.rec": [100, 400, 700],
+        "event.same.ts": [100],
+        "recording.end": [1000],
+    })
+    et_rec = EventType.from_name("event.from.rec")
+    et_player = EventType.from_name("event.from.player")
+    et_same_ts = EventType.from_name("event.same.ts")
+    plugin.event_types = [et_rec, et_player, et_same_ts]
+    plugin.events = {
+        "recording.begin": [0],
+        et_rec.uid: [100, 400, 700],
+        et_player.uid: [200, 500, 800],
+        et_same_ts.uid: [100],
+        "recording.end": [1000],
+    }
+    mock_recording = mock_neon_recording(events=mock_events, info={"recording_id": "test.recording"})
+    return plugin, mock_recording
+
+
+def test_events_plugin__prepare_events_export__whole_time_range(mock_neon_recording):
+    plugin, mock_recording = _prepare_export_tests(mock_neon_recording)
+    events_df = plugin._prepare_events_export(mock_recording, export_window=(0, 1000))
+    assert len(events_df) == 9, "Expected all events to be included in export"
+
+
+def test_events_plugin__prepare_events_export__custom_time_range(mock_neon_recording):
+    plugin, mock_recording = _prepare_export_tests(mock_neon_recording)
+    events_df = plugin._prepare_events_export(mock_recording, export_window=(200, 750))
+    assert len(events_df) == 4, "Expected only events within the custom time range to be included in export"
+    for event_to_include in ["event.from.rec", "event.from.player"]:
+        assert len(events_df[events_df["name"] == event_to_include]) == 2, \
+            f"Expected two {event_to_include} events in export"
+
+
+def test_events_plugin__prepare_events_export__timestamps_are_sorted(mock_neon_recording):
+    plugin, mock_recording = _prepare_export_tests(mock_neon_recording)
+    events_df = plugin._prepare_events_export(mock_recording, export_window=(150, 450))
+    assert events_df["name"].tolist() == ["event.from.player", "event.from.rec"], \
+        "Expected events to be sorted by timestamp in export"
+
+
+def test_events_plugin__prepare_events_export__source(mock_neon_recording):
+    plugin, mock_recording = _prepare_export_tests(mock_neon_recording)
+    events_df = plugin._prepare_events_export(mock_recording, export_window=(0, 1000))
+    for event_name, source in zip(
+        ["event.from.rec", "event.from.player", "event.same.ts"],
+        ["recording", "player", "recording"]
+    ):
+        assert all(events_df[events_df["name"] == event_name]["type"] == source), \
+            f"Expected all {event_name} events to be labeled as {source} in export"

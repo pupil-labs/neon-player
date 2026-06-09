@@ -483,7 +483,16 @@ class EventsPlugin(neon_player.Plugin):
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()):
-        start_time, stop_time = self.app.get_export_window()
+        export_window = self.app.get_export_window()
+        events_df = self._prepare_events_export(self.recording, export_window)
+
+        destination_file = destination / "events.csv"
+        events_df.to_csv(destination_file, index=False)
+
+        logging.info(f"Exported events to {destination_file}")
+
+    def _prepare_events_export(self, recording: NeonRecording, export_window: tuple[int, int]) -> pd.DataFrame:
+        start_time, stop_time = export_window
         event_types_by_uid = self._get_event_types_by_uid()
         event_names = []
         for uid in self.events:
@@ -491,14 +500,14 @@ class EventsPlugin(neon_player.Plugin):
             event_names.append(name)
 
         events_df = pd.DataFrame({
-            "recording id": self.recording.info["recording_id"],
+            "recording id": recording.info["recording_id"],
             "timestamp [ns]": list(self.events.values()),
             "name": event_names,
         })
 
         events_df = events_df.explode("timestamp [ns]").reset_index(drop=True).dropna()
         events_df["timestamp [ns]"] = events_df["timestamp [ns]"].astype(
-            self.recording.events.time.dtype
+            recording.events.time.dtype
         )
         events_df = events_df.sort_values("timestamp [ns]")
         start_mask = events_df["timestamp [ns]"] >= start_time
@@ -507,14 +516,11 @@ class EventsPlugin(neon_player.Plugin):
 
         events_df["type"] = "player"
         for index, row in events_df.iterrows():
-            matching = self.recording.events.sample([row["timestamp [ns]"]])
+            mask = recording.events.time == row["timestamp [ns]"]
+            matching = recording.events[mask]
             if any(row["name"] == matching.event):
                 events_df.loc[index, "type"] = "recording"
-
-        destination_file = destination / "events.csv"
-        events_df.to_csv(destination_file, index=False)
-
-        logging.info(f"Exported events to {destination_file}")
+        return events_df
 
     def _get_event_types_by_uid(self) -> dict[str, EventType]:
         return {et.uid: et for et in self._event_types_by_name.values()}
