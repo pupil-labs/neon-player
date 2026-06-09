@@ -47,7 +47,6 @@ class EventType(PersistentPropertiesMixin, QObject):
         self._name = ""
         self._shortcut = ""
         self._uid = ""
-        self._plugin = None
 
     @property
     def name(self) -> str:
@@ -58,7 +57,8 @@ class EventType(PersistentPropertiesMixin, QObject):
         if self._name == value:
             return
 
-        if self._plugin is not None and value in self._plugin._event_types_by_name:
+        plugin = EventsPlugin.instance()
+        if plugin is not None and value in plugin._event_types_by_name:
             QMessageBox.warning(
                 None,
                 "Duplicate event type",
@@ -180,6 +180,10 @@ class EventsPlugin(neon_player.Plugin):
             self.add_event_type, "+ Add event type"
         )
 
+    @staticmethod
+    def instance() -> T.Union["EventsPlugin", None]:
+        return Plugin.get_instance_by_name("EventsPlugin")
+
     def _on_key_pressed(self, event: QKeyEvent) -> None:
         key_text = event.text().lower()
         if key_text == "":
@@ -258,10 +262,6 @@ class EventsPlugin(neon_player.Plugin):
             timeline.enable_plot_sorting()
 
     def _attach_event_type(self, event_type: EventType) -> None:
-        # Provide a reference to the plugin for checking whether the new name
-        # of the event type is already taken
-        event_type._plugin = self
-
         # Connect the required signals
         event_type.changed.connect(self.changed.emit)
         event_type.name_changed.connect(

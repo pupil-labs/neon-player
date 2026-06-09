@@ -7,8 +7,6 @@ from pupil_labs.neon_player.plugins.events import (
 )
 from pupil_labs.neon_recording.timeseries.events import EventArray
 
-from tests.conftest import mock_neon_recording
-
 
 def mock_event_timeseries(events_dict):
     all_events = []
