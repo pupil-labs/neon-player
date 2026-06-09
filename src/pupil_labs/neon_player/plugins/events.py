@@ -203,6 +203,26 @@ def _load_events_from_cache(
     return list(event_type_cache.values()), cached_events
 
 
+def _load_events_from_dataframe(
+    events_df: pd.DataFrame, existing_event_types: dict[str, EventType]
+) -> tuple[list[EventType], dict]:
+    event_type_cache = {}
+    events = {}
+
+    for name, group in events_df.groupby("name"):
+        if name in IMMUTABLE_EVENTS:
+            continue
+
+        event_type = event_type_cache.get(name, None)
+        if event_type is None:
+            event_type = existing_event_types.get(name, EventType.from_name(name))
+            event_type_cache[event_type.uid] = event_type
+
+        events[event_type.uid] = group["timestamp [ns]"].tolist()
+
+    return list(event_type_cache.values()), events
+
+
 def _filter_event_types(event_types: list[EventType], mutable: bool) -> list[EventType]:
     if mutable:
         return [et for et in event_types if et.name not in IMMUTABLE_EVENTS]
@@ -531,25 +551,30 @@ class EventsPlugin(neon_player.Plugin):
     )
     def import_csv(self, source: FilePath):
         events_df = pd.read_csv(source)
-        modified_types = set()
+        event_types, events = _load_events_from_dataframe(
+            events_df, self._event_types_by_name
+        )
 
-        for name, group in events_df.groupby("name"):
-            if name in IMMUTABLE_EVENTS:
-                continue
+        types_to_add = []
+        types_to_update = []
+        merged_types = {et.name: et for et in self.event_types}
+        for et in event_types:
+            if et.name in self._event_types_by_name:
+                types_to_update.append(et)
+            else:
+                merged_types[et.name] = et
+                types_to_add.append(et)
+        self.event_types = list(merged_types.values())
 
-            event_type = self.get_event_type_by_name(name)
-            if event_type is None:
-                event_type = self.create_event_type(name)
-
-            if event_type.uid not in self._events:
-                self._events[event_type.uid] = []
-
-            self._events[event_type.uid].extend(group["timestamp [ns]"].tolist())
-            modified_types.add(event_type)
+        for event_id, timestamps in events.items():
+            if event_id not in self._events:
+                self._events[event_id] = []
+            self._events[event_id].extend(timestamps)
 
         self.save_cached_json("events.json", self._events)
 
-        for et in modified_types:
+        self._update_gui_for_event_types(event_types_to_add=types_to_add)
+        for et in types_to_update:
             self._update_timeline_data(et)
 
     @action
