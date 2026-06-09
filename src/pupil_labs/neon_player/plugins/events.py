@@ -288,9 +288,6 @@ class EventsPlugin(neon_player.Plugin):
         if self.recording is None or self.headless:
             return
 
-        self._events = {}
-        self._event_types_by_name = {}
-
         event_types = list(self._event_types_by_name.values())
         self._update_gui_for_event_types(event_types_to_remove=event_types)
 
