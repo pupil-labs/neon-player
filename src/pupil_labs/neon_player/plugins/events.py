@@ -18,6 +18,7 @@ from qt_property_widgets.utilities import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
+from pupil_labs.neon_player.plugins import Plugin
 from pupil_labs.neon_player.ui import HeaderAction
 
 IMMUTABLE_EVENTS = ["recording.begin", "recording.end"]
@@ -169,7 +170,7 @@ class EventsPlugin(neon_player.Plugin):
         super().__init__()
         self._event_types_by_name: dict[str, EventType] = {}
         self._event_type_counter = 1
-        self.events: dict[str, list[int]] = {}
+        self._events: dict[str, list[int]] = {}
 
         if self.headless:
             return
@@ -212,7 +213,7 @@ class EventsPlugin(neon_player.Plugin):
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:  # noqa: C901
         event_types, events, source = self._load_events(recording)
-        self.events = events
+        self._events = events
 
         if source == "recording":
             # When loading from recording, only mutable event types need to be saved,
@@ -228,7 +229,7 @@ class EventsPlugin(neon_player.Plugin):
             immutable_event_types = _filter_event_types(event_types, mutable=False)
             event_types_to_update_ui_for = self.event_types + immutable_event_types
 
-        logging.info(f"Loaded {sum(len(v) for v in self.events.values())} events")
+        logging.info(f"Loaded {sum(len(v) for v in self._events.values())} events")
 
         if self.headless:
             return
@@ -362,20 +363,20 @@ class EventsPlugin(neon_player.Plugin):
         if ts is None:
             ts = self.app.current_ts
 
-        if event_type.uid not in self.events:
-            self.events[event_type.uid] = []
+        if event_type.uid not in self._events:
+            self._events[event_type.uid] = []
 
-        self.events[event_type.uid].append(ts)
-        self.save_cached_json("events.json", self.events)
+        self._events[event_type.uid].append(ts)
+        self.save_cached_json("events.json", self._events)
         self._update_timeline_data(event_type)
 
     def _find_closest_event(
         self, event_type: EventType, target_ts: int, tolerance_ns: int = 5
     ) -> int | None:
-        if event_type.uid not in self.events:
+        if event_type.uid not in self._events:
             return None
 
-        events_list = self.events[event_type.uid]
+        events_list = self._events[event_type.uid]
         if not events_list:
             return None
 
@@ -388,15 +389,12 @@ class EventsPlugin(neon_player.Plugin):
     def delete_event_instance(
         self, data_point: tuple[int, T.SupportsFloat], event_type: EventType
     ) -> None:
-        if event_type.uid not in self.events:
-            return
-
         closest_event = self._find_closest_event(event_type, data_point[0])
         if closest_event is None:
             return
 
-        self.events[event_type.uid].remove(closest_event)
-        self.save_cached_json("events.json", self.events)
+        self._events[event_type.uid].remove(closest_event)
+        self.save_cached_json("events.json", self._events)
         self._update_timeline_data(event_type)
 
     def seek_to_event_instance(self, data_point: tuple[int, T.SupportsFloat]) -> None:
@@ -444,6 +442,17 @@ class EventsPlugin(neon_player.Plugin):
     def event_types(self, value: list[EventType]) -> None:
         self._event_types_by_name = {et.name: et for et in value}
 
+    @property
+    @property_params(widget=None, dont_encode=True)
+    def events(self) -> dict[str, list[int]]:
+        event_id_name_mapping = {et.uid: et.name for et in self.event_types}
+        events_by_name = {}
+        for event_id, timestamps in self._events.items():
+            # Use IDs as fallback for immutable events that are not included in event_types
+            event_name = event_id_name_mapping.get(event_id, event_id)
+            events_by_name[event_name] = timestamps
+        return events_by_name
+
     def _on_event_name_changed(self, old_name, new_name, event_type) -> None:
         self._event_types_by_name[new_name] = event_type
         del self._event_types_by_name[old_name]
@@ -469,13 +478,13 @@ class EventsPlugin(neon_player.Plugin):
             if event_type is None:
                 event_type = self.create_event_type(name)
 
-            if event_type.uid not in self.events:
-                self.events[event_type.uid] = []
+            if event_type.uid not in self._events:
+                self._events[event_type.uid] = []
 
-            self.events[event_type.uid].extend(group["timestamp [ns]"].tolist())
+            self._events[event_type.uid].extend(group["timestamp [ns]"].tolist())
             modified_types.add(event_type)
 
-        self.save_cached_json("events.json", self.events)
+        self.save_cached_json("events.json", self._events)
 
         for et in modified_types:
             self._update_timeline_data(et)
@@ -495,13 +504,13 @@ class EventsPlugin(neon_player.Plugin):
         start_time, stop_time = export_window
         event_types_by_uid = self._get_event_types_by_uid()
         event_names = []
-        for uid in self.events:
+        for uid in self._events:
             name = uid if uid in IMMUTABLE_EVENTS else event_types_by_uid[uid].name
             event_names.append(name)
 
         events_df = pd.DataFrame({
             "recording id": recording.info["recording_id"],
-            "timestamp [ns]": list(self.events.values()),
+            "timestamp [ns]": list(self._events.values()),
             "name": event_names,
         })
 
