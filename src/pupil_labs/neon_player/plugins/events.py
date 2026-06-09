@@ -15,7 +15,7 @@ from qt_property_widgets.utilities import (
     action_params,
     property_params,
 )
-from qt_property_widgets.widgets import ValueListWidget
+from qt_property_widgets.widgets import ValueListWidget, ValueListItemWidget
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
@@ -62,8 +62,8 @@ class EventType(PersistentPropertiesMixin, QObject):
         if plugin is not None and value in plugin._event_types_by_name:
             QMessageBox.warning(
                 None,
-                "Duplicate event type",
-                f"Event type {value} already exists. Please choose a different name.",
+                "Duplicate event name",
+                f"Event '{value}' already exists. Please choose a different name.",
             )
             return
 
@@ -120,6 +120,28 @@ class EventTypeListWidget(ValueListWidget):
         new_event_type = plugin.add_event_type()
         self.add_item(new_event_type)
 
+    def remove_item(self, item_widget: ValueListItemWidget):
+        plugin = EventsPlugin.instance()
+        if plugin is None:
+            return
+
+        event_type = item_widget.item_widget.value
+        events = plugin._events.get(event_type.uid, [])
+        if events:
+            suffix = "" if len(events) == 1 else "s"
+            reply = QMessageBox.question(
+                None,
+                "Confirm event type deletion",
+                f"Deleting event type '{event_type.name}' will also delete its {len(events)}"
+                f" instance{suffix}. Do you want to proceed?",
+                buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                defaultButton=QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        plugin.delete_event_type(event_type)
+        super().remove_item(item_widget)
 
 def _load_events_from_recording(
     recording: NeonRecording, global_event_types: list[str] = []
@@ -377,11 +399,24 @@ class EventsPlugin(neon_player.Plugin):
             self._event_type_counter += 1
 
         self._event_types_by_name[new_event_type.name] = new_event_type
-        self._attach_event_type(new_event_type)
-        self._setup_gui_for_event_type(new_event_type)
-        self.changed.emit()
+
+        if not self.headless:
+            self._attach_event_type(new_event_type)
+            self._setup_gui_for_event_type(new_event_type)
+            self.changed.emit()
 
         return new_event_type
+
+    def delete_event_type(self, event_type: EventType) -> None:
+        del self._events[event_type.uid]
+        self.save_cached_json("events.json", self._events)
+
+        if self.headless:
+            return
+
+        del self._event_types_by_name[event_type.name]
+        self._remove_gui_for_event_name(event_type.name)
+        self.changed.emit()
 
     def add_event(self, event_type: EventType, ts: int | None = None) -> None:
         if self.recording is None:
