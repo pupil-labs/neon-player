@@ -390,6 +390,7 @@ class EventsPlugin(neon_player.Plugin):
                 self._add_event(event_type)
 
     def _load_events(self, recording: NeonRecording) -> tuple[list[EventType], dict, str]:
+        logging.debug(f"Loading events for recording {recording._rec_dir.name}")
         events: dict[str, list[int]] = {}
         event_types: list[EventType] = []
 
