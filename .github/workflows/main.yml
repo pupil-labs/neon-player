@@ -25,11 +25,11 @@ jobs:
       - name: Run checks
         run: make check
 
-  tests-and-type-check:
+  tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: "3.12"
       fail-fast: false
     defaults:
       run:
@@ -50,6 +50,29 @@ jobs:
 
       - name: Run tests
         run: uv run python -m pytest tests --cov --cov-config=pyproject.toml --cov-report=html
+
+  type-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: "3.12"
+      fail-fast: false
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          lfs: "true"
+
+      - name: Install required system dependencies
+        run: sudo apt-get install -y freeglut3-dev libpulse-dev
+
+      - name: Set up the environment
+        uses: ./.github/actions/setup-python-env
+        with:
+          python-version: ${{ matrix.python-version }}
 
       - name: Check typing
         run: uv run mypy
