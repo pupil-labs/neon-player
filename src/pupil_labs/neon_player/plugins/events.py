@@ -246,7 +246,7 @@ class EventsPlugin(neon_player.Plugin):
         self._event_types_by_name: dict[str, EventType] = {}
         self._events: dict[str, list[int]] = {}
 
-        if self.app is None or self.app.headless:
+        if self.headless:
             return
 
         self.get_timeline().key_pressed.connect(self._on_key_pressed)
@@ -315,7 +315,7 @@ class EventsPlugin(neon_player.Plugin):
         self._update_gui_for_event_types(event_types_to_add=event_types_to_update_ui_for)
 
     def on_disabled(self) -> None:
-        if self.app is None or self.app.headless or self.recording is None:
+        if self.headless or self.recording is None:
             return
 
         event_types = list(self._event_types_by_name.values())
@@ -326,7 +326,7 @@ class EventsPlugin(neon_player.Plugin):
         event_types_to_add: list[EventType] = [],
         event_types_to_remove: list[EventType] = []
     ) -> None:
-        if self.app is None or self.app.headless:
+        if self.headless:
             return
 
         if not event_types_to_add and not event_types_to_remove:
@@ -352,6 +352,9 @@ class EventsPlugin(neon_player.Plugin):
             timeline.enable_plot_sorting()
 
     def _setup_gui_for_event_type(self, event_type: EventType) -> None:
+        if self.headless:
+            return
+
         timeline = self.get_timeline()
         existing_plot = timeline.get_timeline_plot(
             f"Events - {event_type.name}", create_if_not_exists=False
@@ -397,6 +400,9 @@ class EventsPlugin(neon_player.Plugin):
         )
 
     def _remove_gui_for_event_name(self, event_name: str) -> None:
+        if self.headless:
+            return
+
         timeline = self.get_timeline()
         timeline.remove_timeline_plot(f"Events - {event_name}")
         data_point_actions = [

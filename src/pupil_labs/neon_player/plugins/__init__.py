@@ -169,6 +169,11 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
     @property
     @property_params(widget=None, dont_encode=True)
+    def headless(self) -> bool:
+        return self.app is None or self.app.headless
+
+    @property
+    @property_params(widget=None, dont_encode=True)
     def job_manager(self) -> "JobManager":
         return neon_player.instance().job_manager
 
