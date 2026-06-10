@@ -444,11 +444,10 @@ class EventsPlugin(neon_player.Plugin):
         self.changed.emit()
 
     def delete_event_type(self, event_type: EventType) -> None:
-        if event_type.uid not in self._events:
-            return
+        if event_type.uid in self._events:
+            del self._events[event_type.uid]
+            self.save_cached_json("events.json", self._events)
 
-        del self._events[event_type.uid]
-        self.save_cached_json("events.json", self._events)
         del self._event_types_by_name[event_type.name]
         self._update_gui_for_event_types(event_types_to_remove=[event_type])
         self.changed.emit()
@@ -554,6 +553,9 @@ class EventsPlugin(neon_player.Plugin):
         self._event_types_by_name[new_name] = event_type
         del self._event_types_by_name[old_name]
 
+        if self.headless:
+            return
+
         timeline = self.get_timeline()
         plot_sorting_was_enabled = timeline.disable_plot_sorting()
 
@@ -571,6 +573,9 @@ class EventsPlugin(neon_player.Plugin):
     )
     def import_csv(self, source: FilePath):
         events_df = pd.read_csv(source)
+        self._import_events_from_dataframe(events_df)
+
+    def _import_events_from_dataframe(self, events_df: pd.DataFrame) -> None:
         event_types, events = _load_events_from_dataframe(
             events_df, self._event_types_by_name
         )

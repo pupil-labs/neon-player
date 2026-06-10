@@ -1,9 +1,14 @@
-from unittest.mock import MagicMock
-
 import numpy as np
+import pandas as pd
+
+from unittest.mock import MagicMock, patch
 
 from pupil_labs.neon_player.plugins.events import (
-    _load_events_from_cache, _load_events_from_recording, EventType, EventsPlugin
+    _load_events_from_cache,
+    _load_events_from_recording,
+    _load_events_from_dataframe,
+    EventType,
+    EventsPlugin
 )
 from pupil_labs.neon_recording.timeseries.events import EventArray
 
@@ -83,6 +88,28 @@ def test_events__load_events_from_cache():
     assert events == cached_events, "Expected events to match cached events"
 
 
+def test_events__load_events_from_dataframe():
+    events_df = pd.DataFrame({
+        "name": ["recording.begin", "trial.begin", "trial.end", "recording.end"],
+        "timestamp [ns]": [0, 100, 200, 1000],
+    })
+    et_begin = EventType.from_name("trial.begin")
+    event_types, events = _load_events_from_dataframe(events_df, {"trial.begin": et_begin})
+    print(events)
+
+    assert len(event_types) == 2, "Expected only mutable event types to be returned"
+    assert len(events) == 2, "Expected events dict to only contain event of mutable type"
+    for event_name, ts in zip(["trial.begin", "trial.end"], [100, 200]):
+        et = [et for et in event_types if et.name == event_name]
+        assert len(et) == 1, f"Expected exactly one event type for {event_name}, got {len(et)}"
+        et = et[0]
+
+        if event_name == "trial.begin":
+            assert et is et_begin, "Expected existing event type to be used for trial.begin"
+
+        assert events[et.uid] == [ts], f"Wrong timestamp for {event_name}"
+
+
 def test_events_plugin__on_recording_loaded__from_recording(mock_neon_recording):
     et = EventType.from_name("test.event")
 
@@ -111,6 +138,104 @@ def test_events_plugin__on_recording_loaded__from_cache(mock_neon_recording):
     assert plugin.event_types == [], "Expected event types not to be modified"
     assert plugin._events == {et.uid: [100, 200, 300]}, "Expected events to be loaded from cache"
     plugin.save_cached_json.assert_not_called()
+
+
+@patch("pupil_labs.neon_player.plugins.events._load_events_from_dataframe",
+    return_value=(
+        [EventType.from_name("new.event")],
+        {"uid0": [100, 200, 300]},
+    )
+)
+def test_events_plugin__import_csv__adds_new_event_types(mock_load_events_from_dataframe):
+    plugin = EventsPlugin()
+    plugin.save_cached_json = MagicMock()
+
+    # Load function returns mock output so using an empty dataframe
+    plugin._import_events_from_dataframe(pd.DataFrame())
+
+    assert len(plugin.event_types) == 1, "Expected new event type to be added from CSV import"
+    assert plugin.event_types[0].name == "new.event", "Expected event type name to match CSV data"
+    assert plugin._events == {"uid0": [100, 200, 300]}, "Expected events to be loaded from CSV data"
+    plugin.save_cached_json.assert_called_once()
+
+
+def test_events_plugin__import_csv__reuses_existing_event_types():
+    plugin = EventsPlugin()
+    existing_et = EventType.from_name("existing.event")
+    plugin.event_types = [existing_et]
+    plugin._events = {existing_et.uid: [0]}
+    plugin.save_cached_json = MagicMock()
+
+    with patch(
+        "pupil_labs.neon_player.plugins.events._load_events_from_dataframe",
+        return_value=(
+            [existing_et],
+            {existing_et.uid: [100, 200, 300]},
+        )
+    ):
+        # Load function returns mock output so using an empty dataframe for simplicity
+        plugin._import_events_from_dataframe(pd.DataFrame())
+
+    assert len(plugin.event_types) == 1, "Expected existing event type to be reused from CSV import"
+    assert plugin.event_types[0] is existing_et, "Expected existing event type to be reused"
+    assert plugin._events == {existing_et.uid: [0, 100, 200, 300]}, \
+        "Expected events to be appended to the existing ones"
+    plugin.save_cached_json.assert_called_once()
+
+
+def test_events_plugin__create_event_type():
+    plugin = EventsPlugin()
+    et = EventType.from_name("event-1")
+    plugin.event_types = [et]
+    new_et = plugin.create_event_type()
+
+    assert new_et.name == "event-2", "Expected event type to have a unique name"
+
+
+def test_events_plugin__add_event_type():
+    plugin = EventsPlugin()
+    et = EventType.from_name("test.event")
+
+    plugin.add_event_type(et)
+
+    assert et in plugin.event_types, "Expected new event type to be added to event_types list"
+
+
+def test_events_plugin__delete_event_type__no_events():
+    plugin = EventsPlugin()
+    et = EventType.from_name("test.event")
+    plugin.event_types = [et]
+    plugin.delete_event_type(et)
+
+    assert et not in plugin.event_types, "Expected event type to be removed from event_types list"
+
+
+def test_events_plugin__on_event_name_changed():
+    plugin = EventsPlugin()
+    et = EventType.from_name("test.event")
+    plugin.event_types = [et]
+
+    et._name = "renamed.event"
+
+    # Simulate the name_changed signal being emitted
+    plugin._on_event_name_changed("test.event", "renamed.event", et)
+
+    assert "test.event" not in plugin._event_types_by_name
+    assert "renamed.event" in plugin._event_types_by_name
+
+
+def test_events_plugin__delete_event_type__with_events():
+    plugin = EventsPlugin()
+    et = EventType.from_name("test.event")
+    plugin.event_types = [et]
+    plugin._events = {et.uid: [100, 200, 300]}
+    plugin.save_cached_json = MagicMock()
+
+    plugin.delete_event_type(et)
+
+    assert et not in plugin.event_types, "Expected event type to be removed from event_types list"
+    assert et.uid not in plugin._events, "Expected events for deleted type to be removed from events dict"
+    plugin.save_cached_json.assert_called_once()
 
 
 def test_events_plugin__add_event__new_type(mock_neon_recording):
