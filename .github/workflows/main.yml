@@ -13,8 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out
-        uses: actions/checkout@v4
-      - uses: actions/cache@v4
+        uses: actions/checkout@v6
+      - uses: actions/cache@v5
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -36,7 +36,7 @@ jobs:
         shell: bash
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: "true"
 
@@ -62,9 +62,7 @@ jobs:
         shell: bash
     steps:
       - name: Check out
-        uses: actions/checkout@v4
-        with:
-          lfs: "true"
+        uses: actions/checkout@v6
 
       - name: Install required system dependencies
         run: sudo apt-get install -y freeglut3-dev libpulse-dev
