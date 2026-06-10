@@ -1,3 +1,4 @@
+from asyncio import events
 import logging
 import numpy as np
 import pandas as pd
@@ -138,13 +139,19 @@ class EventTypeListWidget(ValueListWidget):
             return
 
         event_type = item_widget.item_widget.value
-        events = plugin._events.get(event_type.uid, [])
-        if events:
-            suffix = "" if len(events) == 1 else "s"
+        events_to_delete, affected_recordings = plugin._count_events_across_workspace(event_type)
+        if events_to_delete > 0:
+            suffix = "" if events_to_delete == 1 else "s"
+            if len(affected_recordings) > 1:
+                recordings_note = f" across {len(affected_recordings)} recordings"
+            elif len(affected_recordings) == 1:
+                affected_name = affected_recordings[0]
+                is_current = plugin.recording is not None and plugin.recording._rec_dir.name == affected_name
+                recordings_note = " in the current recording" if is_current else f" in recording {affected_name}"
             confirmed = plugin.user_confirm(
                 "Confirm event type deletion",
-                f"Deleting event type '{event_type.name}' will also delete its {len(events)}"
-                f" instance{suffix}. Do you want to proceed?",
+                f"Deleting event type '{event_type.name}' will also delete its {events_to_delete}"
+                f" instance{suffix}{recordings_note}. Do you want to proceed?",
             )
             if not confirmed:
                 return
@@ -294,6 +301,78 @@ class EventsPlugin(neon_player.Plugin):
         )
 
         return event_types, events, "recording"
+
+    def _scan_events_in_workspace(self):
+        self._load_workspace_event_index()
+        if len(self._workspace_recording_names) == len(self.workspace.recordings):
+            # TODO: there are better ways to check if all recordings were scanned
+            # Update the index for the current recording in case new event types were added
+            # and proceed to the GUI update without running a redundant scan
+            self._update_workspace_event_index()
+            self._on_workspace_event_scan_finished()
+            return
+
+        batch_job = self.job_manager.run_background_batch_action(
+            "Scan events in workspace",
+            "EventsPlugin._update_workspace_event_index"
+        )
+        batch_job.finished.connect(self._on_workspace_event_scan_finished)
+
+    def _load_workspace_event_index(self) -> None:
+        data = self.load_cached_json("workspace_events_index.json", workspace=True)
+        if data is None:
+            return
+
+        self._workspace_event_index = data["event_index"]
+        self._workspace_recording_names = data["recording_names"]
+
+    def _save_workspace_event_index(self) -> None:
+        data = {
+            "event_index": self._workspace_event_index,
+            "recording_names": self._workspace_recording_names
+        }
+        self.save_cached_json("workspace_events_index.json", data, workspace=True)
+
+    def _update_workspace_event_index(self, load: bool = True) -> None:
+        if load:
+            self._load_workspace_event_index()
+
+        recording_name = self.recording._rec_dir.name
+        if recording_name not in self._workspace_recording_names:
+            self._workspace_recording_names.append(recording_name)
+
+        for event_name, timestamps in self.events.items():
+            if event_name in IMMUTABLE_EVENTS:
+                continue
+
+            if event_name not in self._workspace_event_index:
+                self._workspace_event_index[event_name] = {}
+            self._workspace_event_index[event_name][recording_name] = len(timestamps)
+
+        self._save_workspace_event_index()
+
+    def _on_workspace_event_scan_finished(self):
+        self._load_workspace_event_index()
+
+        types_to_add = []
+        for event_name in self._workspace_event_index:
+            if event_name in self._event_types_by_name:
+                continue
+
+            event_type = EventType.from_name(event_name)
+            types_to_add.append(event_type)
+
+        if types_to_add:
+            self.event_types = self.event_types + types_to_add
+            self._update_gui_for_event_types(event_types_to_add=types_to_add)
+
+    def _count_events_across_workspace(self, event_type: EventType) -> tuple[int, list[str]]:
+        if not self.app.batch_mode_enabled:
+            events = self._events.get(event_type.uid, [])
+            return len(events), [self.recording._rec_dir.name] if events else []
+
+        affected_recordings = self._workspace_event_index.get(event_type.name, [])
+        return sum(affected_recordings.values()), list(affected_recordings.keys())
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:  # noqa: C901
         event_types, events, source = self._load_events(recording)
