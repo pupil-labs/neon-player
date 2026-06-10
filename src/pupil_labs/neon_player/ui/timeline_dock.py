@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import typing as T
 
@@ -11,12 +12,14 @@ from PySide6.QtCore import QPoint, QPointF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QCursor, QIcon, QKeyEvent
 from PySide6.QtWidgets import (
     QComboBox,
+    QGraphicsProxyWidget,
     QGraphicsSceneMouseEvent,
     QHBoxLayout,
     QMenu,
     QScrollArea,
     QSizePolicy,
     QToolButton,
+    QToolTip,
     QVBoxLayout,
     QWidget,
 )
@@ -45,7 +48,9 @@ class TimeLineDock(QWidget):
         app = neon_player.instance()
 
         self.timeline_plots: dict[str, pg.PlotItem] = {}
+        self.dead_plots: list = []
         self.timeline_legends: dict[str, pg.LegendItem] = {}
+        self.hover_lines: dict[str, pg.InfiniteLine] = {}
         self.plot_colors = [
             QColor("#1f77b4"),
             QColor("#ff7f0e"),
@@ -76,13 +81,13 @@ class TimeLineDock(QWidget):
 
         self.speed_control = QComboBox()
         self.speed_control.setToolTip("Playback rate")
-        self.speed_control.addItems(
-            [f"{s:.3g}x" for s in app.playback_speed_options if s < 0]
-        )
+        self.speed_control.addItems([
+            f"{s:.3g}x" for s in app.playback_speed_options if s < 0
+        ])
         self.speed_control.insertSeparator(self.speed_control.count())
-        self.speed_control.addItems(
-            [f" {s:.3g}x" for s in app.playback_speed_options if s > 0]
-        )
+        self.speed_control.addItems([
+            f" {s:.3g}x" for s in app.playback_speed_options if s > 0
+        ])
         font = self.speed_control.font()
         font.setFixedPitch(True)
         self.speed_control.setFont(font)
@@ -137,9 +142,7 @@ class TimeLineDock(QWidget):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
 
-        self.playhead = PlayHead(
-            self.timestamps_plot, parent=self.graphics_view
-        )
+        self.playhead = PlayHead(self.timestamps_plot, parent=self.graphics_view)
         self.playhead.hide()
 
         app.playback_state_changed.connect(self.on_playback_state_changed)
@@ -224,6 +227,187 @@ class TimeLineDock(QWidget):
         data_pos = self.timestamps_plot.getViewBox().mapSceneToView(pos)
         for tm in self.trim_markers:
             tm.set_highlighted(self.dragging == tm or tm.nearby(data_pos))
+
+        self._update_tooltip(pos, data_pos.x())
+
+    def _update_tooltip(self, pos: QPointF, x: float):
+        tooltip_text = ""
+        hovered_plot_name = None
+        for name, plot_item in self.timeline_plots.items():
+            if plot_item.sceneBoundingRect().contains(pos):
+                hovered_plot_name = name
+                break
+
+        if hovered_plot_name and hovered_plot_name != "Export window":
+            plot_item = self.timeline_plots[hovered_plot_name]
+            lines = []
+
+            view_box = plot_item.getViewBox()
+            pixel_width = view_box.viewPixelSize()[0]
+            x_threshold = 20 * pixel_width
+
+            for item in plot_item.items:
+                if isinstance(item, pg.PlotDataItem):
+                    self._add_plot_data_item_tooltip(
+                        item, x, x_threshold, lines, hovered_plot_name
+                    )
+                elif isinstance(item, pg.BarGraphItem):
+                    self._add_bar_graph_item_tooltip(item, x, lines, hovered_plot_name)
+
+            if lines:
+                tooltip_html = "<br>".join(lines)
+                tooltip_text = (
+                    f"<html><head><style>p, body {{ "
+                    f"margin: 0; padding: 0; line-height: 1.0; }}</style></head>"
+                    f"<body>{tooltip_html}</body></html>"
+                )
+
+        if tooltip_text:
+            pos = QCursor.pos()
+            pos.setY(pos.y() - 15)
+            QToolTip.showText(pos, tooltip_text)
+
+            for line in list(self.hover_lines.values()):
+                try:
+                    line.setPos(x)
+                    line.setVisible(True)
+                except RuntimeError:
+                    pass
+        else:
+            QToolTip.hideText()
+            for line in list(self.hover_lines.values()):
+                with contextlib.suppress(RuntimeError):
+                    line.setVisible(False)
+
+    def _add_plot_data_item_tooltip(self, item, x, x_threshold, lines, plot_name=""):
+        hovered_plot_name = plot_name
+        x_data, y_data = item.getData()
+        if x_data is not None and len(x_data) > 0 and y_data is not None:
+            idx = np.searchsorted(x_data, x)
+            if 0 < idx < len(x_data):
+                if abs(x_data[idx] - x) < abs(x_data[idx - 1] - x):
+                    closest_idx = idx
+                else:
+                    closest_idx = idx - 1
+            elif idx == 0:
+                closest_idx = 0
+            else:
+                closest_idx = len(x_data) - 1
+
+            if abs(x_data[closest_idx] - x) <= x_threshold:
+                y_val = y_data[closest_idx]
+
+                name_attr = getattr(item, "name", "")
+                name = name_attr() if callable(name_attr) else name_attr
+                if not name:
+                    name = item.opts.get("name", "")
+
+                is_event_plot = (
+                    hovered_plot_name and "Events" in hovered_plot_name
+                ) or getattr(item, "is_event", False)
+
+                if not name and is_event_plot and hovered_plot_name:
+                    name = hovered_plot_name.replace("Events - ", "").replace(
+                        "00_Events", "Events"
+                    )
+
+                custom_names = getattr(item, "custom_names", None)
+                if custom_names and closest_idx < len(custom_names):
+                    name = custom_names[closest_idx]
+
+                if is_event_plot:
+                    app = neon_player.instance()
+                    time_ns = x_data[closest_idx]
+                    if app.recording:
+                        diff_ns = time_ns - app.recording.start_time
+
+                        total_ms = int(diff_ns // 1_000_000)
+                        ms = total_ms % 1000
+                        total_seconds = total_ms // 1000
+                        seconds = total_seconds % 60
+                        total_minutes = total_seconds // 60
+                        minutes = total_minutes % 60
+                        hours = total_minutes // 60
+
+                        val_str = f"{hours:02}:{minutes:02}:{seconds:02}.{ms:03}"
+                    else:
+                        val_str = str(time_ns)
+
+                    custom_reps = getattr(item, "custom_reps", None)
+                    if custom_reps and closest_idx < len(custom_reps):
+                        rep_str = custom_reps[closest_idx]
+                    else:
+                        total = len(x_data)
+                        rep_str = f" ({closest_idx + 1}/{total})" if total > 1 else ""
+
+                    if name:
+                        lines.append(f"<b>{name}{rep_str}</b><br/>{val_str}")
+                    else:
+                        lines.append(val_str)
+                else:
+                    if isinstance(y_val, (float, np.floating)):
+                        val_str = f"{y_val:.4g}"
+                    else:
+                        val_str = f"{y_val}"
+
+                    if name:
+                        lines.append(f"<b>{name}:</b> {val_str}")
+                    else:
+                        lines.append(val_str)
+
+    def _add_bar_graph_item_tooltip(self, item, x, lines, plot_name=""):
+        opts = item.opts
+        x0 = opts.get("x0")
+        x1 = opts.get("x1")
+        if x0 is not None and x1 is not None:
+            for i in range(len(x0)):
+                if x0[i] <= x <= x1[i]:
+                    name_attr = getattr(item, "name", "")
+                    name = name_attr() if callable(name_attr) else name_attr
+                    if not name:
+                        name = opts.get("name", "Value")
+
+                    val_str = "Active"
+                    if hasattr(item, "bar_values") and item.bar_values is not None:
+                        val = item.bar_values[i]
+                        if not np.isnan(val):
+                            if isinstance(val, (float, np.floating)):
+                                val_str = f"{val:.4g}"
+                            else:
+                                val_str = str(val)
+                        else:
+                            val_str = self._format_duration(
+                                x0[i], x1[i], plot_name, name, i
+                            )
+                    else:
+                        val_str = self._format_duration(
+                            x0[i], x1[i], plot_name, name, i
+                        )
+
+                    display_name = (
+                        name if name and name != "Value" else plot_name or name
+                    )
+                    if display_name:
+                        lines.append(f"<b>{display_name}:</b> {val_str}")
+                    else:
+                        lines.append(val_str)
+                    break
+
+    def _format_duration(self, start, stop, plot_name, name, index):
+        ms = (stop - start) / 1_000_000
+        if ms >= 60_000:
+            mins = int(ms // 60_000)
+            secs = (ms % 60_000) / 1000
+            dur_str = f"{mins}m {secs:.1f}s"
+        elif ms >= 1_000:
+            secs = ms / 1000
+            dur_str = f"{secs:.1f} s"
+        else:
+            dur_str = f"{ms:.1f} ms"
+
+        is_blink_or_fix = plot_name in ["Blinks", "Fixations"]
+        is_blink_or_fix = is_blink_or_fix or name in ["Blinks", "Fixations"]
+        return f"ID: {index + 1} | {dur_str}" if is_blink_or_fix else dur_str
 
     def on_whitespace_mouse_moved(self, event):
         if event.buttons() == Qt.LeftButton:
@@ -396,7 +580,12 @@ class TimeLineDock(QWidget):
                 break
 
     def get_timeline_plot(
-        self, timeline_row_name: str, create_if_missing: bool = False, **kwargs
+        self,
+        timeline_row_name: str,
+        create_if_missing: bool = False,
+        legend_widget=None,
+        sort_name=None,
+        **kwargs,
     ) -> pg.PlotItem | None:
         if timeline_row_name in self.timeline_plots:
             return self.timeline_plots[timeline_row_name]
@@ -404,7 +593,39 @@ class TimeLineDock(QWidget):
         if not create_if_missing:
             return None
 
-        logging.debug(f"Adding plot '{timeline_row_name}' to timeline")
+        if hasattr(self, "dead_plots") and self.dead_plots:
+            plot_item = self.dead_plots.pop()
+            if isinstance(plot_item.legend_label, pg.LabelItem):
+                plot_item.legend_label.setText(timeline_row_name)
+            self.timeline_plots[timeline_row_name] = plot_item
+            
+            # Recreate hover line since clear() destroyed it
+            hover_line = pg.InfiniteLine(
+                angle=90,
+                movable=False,
+                pen=pg.mkPen(
+                    color=QColor(255, 255, 255, 128),
+                    width=1,
+                    style=Qt.PenStyle.DashLine,
+                ),
+            )
+            hover_line.setZValue(1000)
+            hover_line.setVisible(False)
+            plot_item.addItem(hover_line)
+            self.hover_lines[timeline_row_name] = hover_line
+            
+            if self.graphics_layout.rows:
+                row = max(self.graphics_layout.rows.keys()) + 1
+            else:
+                row = 0
+            self.graphics_layout.addItem(plot_item.legend_container, row=row, col=0)
+            self.graphics_layout.addItem(plot_item, row=row, col=1)
+            
+            plot_item.setVisible(True)
+            return plot_item
+
+        if not timeline_row_name.startswith("Test Event"):
+            logging.debug(f"Adding plot '{timeline_row_name}' to timeline")
 
         row = self.graphics_layout.nextRow()
         is_timestamps_row = timeline_row_name == "Export window"
@@ -440,22 +661,41 @@ class TimeLineDock(QWidget):
         legend_container = pg.GraphicsLayout()
         legend_container.setSpacing(0)
         legend_container.setContentsMargins(0, 0, 0, 0)
-        legend_label = pg.LabelItem(timeline_row_name, justify="left")
 
-        legend_container.addItem(legend_label)
+        if legend_widget is not None:
+            proxy = QGraphicsProxyWidget()
+            proxy.setWidget(legend_widget)
+            proxy.sort_name = sort_name or timeline_row_name
+            legend_container.addItem(proxy)
+            legend_label = None
+        else:
+            legend_label = pg.LabelItem(timeline_row_name, justify="left")
+            legend_container.addItem(legend_label)
+
         legend_container.addItem(legend, row=1, col=0)
         legend_container.setSizePolicy(
             QSizePolicy.Policy.Ignored,
-            QSizePolicy.Policy.Fixed,
+            QSizePolicy.Policy.Expanding,
         )
         plot_item = SmartSizePlotItem(
             legend=legend, axisItems={"top": time_axis}, viewBox=vb
         )
+        plot_item.legend_label = legend_label
+        plot_item.legend_container = legend_container
+
+        if self.graphics_layout.rows:
+            row = max(self.graphics_layout.rows.keys()) + 1
+        else:
+            row = 0
+
+        self.graphics_layout.addItem(legend_container, row=row, col=0)
+        self.graphics_layout.addItem(plot_item, row=row, col=1)
 
         if is_timestamps_row:
             plot_item.preferred_height_1d = 50
             plot_item.adjust_size()
-            legend_label.anchor((0.5, 0), (0.5, 0), (0, 20))
+            if legend_label:
+                legend_label.anchor((0.5, 0), (0.5, 0), (0, 20))
 
         legend.layout.setSpacing(0)
         self.timeline_legends[timeline_row_name] = legend
@@ -471,6 +711,20 @@ class TimeLineDock(QWidget):
         plot_item.hideAxis("right")
         plot_item.hideAxis("bottom")
         plot_item.showGrid(x=True, y=False, alpha=0.3)
+
+        hover_line = pg.InfiniteLine(
+            angle=90,
+            movable=False,
+            pen=pg.mkPen(
+                color=QColor(255, 255, 255, 128),
+                width=1,
+                style=Qt.PenStyle.DashLine,
+            ),
+        )
+        hover_line.setZValue(1000)
+        hover_line.setVisible(False)
+        plot_item.addItem(hover_line)
+        self.hover_lines[timeline_row_name] = hover_line
 
         if app.recording:
             duration = app.recording.stop_time - app.recording.start_time
@@ -513,7 +767,7 @@ class TimeLineDock(QWidget):
             return
 
         if color is None:
-            plot_index = len(plot_item.items)
+            plot_index = sum(1 for i in plot_item.items if isinstance(i, (pg.PlotDataItem, pg.BarGraphItem, pg.ScatterPlotItem)))
             color = self.plot_colors[plot_index % len(self.plot_colors)]
 
         if "pen" not in kwargs:
@@ -525,9 +779,14 @@ class TimeLineDock(QWidget):
             plot_data_item = plot_item.plot(
                 data[:, 0], data[:, 1], name=plot_name, **kwargs
             )
-            plot_data_item.name = plot_name
-            if timeline_row_name in self.timeline_legends and plot_name != "":
-                legend.addItem(plot_data_item, plot_name)
+        else:
+            plot_data_item = plot_item.plot(x=[], y=[], name=plot_name, **kwargs)
+
+        plot_data_item.name = plot_name
+        if kwargs.get("is_event"):
+            plot_data_item.is_event = True
+        if timeline_row_name in self.timeline_legends and plot_name != "":
+            legend.addItem(plot_data_item, plot_name)
 
         self.sort_plots()
 
@@ -543,13 +802,16 @@ class TimeLineDock(QWidget):
         if plot is None:
             return
 
-        self.graphics_layout.removeItem(plot)
-        del self.timeline_plots[plot_name]
-
-        if plot_name in self.timeline_legends:
-            legend = self.timeline_legends[plot_name]
-            self.graphics_layout.removeItem(legend.parentItem())
+        with contextlib.suppress(ValueError):
+            self.graphics_layout.removeItem(
+                self.timeline_legends[plot_name].parentItem()
+            )
+            self.graphics_layout.removeItem(self.timeline_plots[plot_name])
+            del self.timeline_plots[plot_name]
             del self.timeline_legends[plot_name]
+
+            if plot_name in self.hover_lines:
+                del self.hover_lines[plot_name]
 
         self.sort_plots()
 
@@ -595,15 +857,19 @@ class TimeLineDock(QWidget):
         return self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
 
     def add_timeline_scatter(
-        self, name: str, data: list[tuple[int, int]], item_name: str = ""
+        self, name: str, data: list[tuple[int, int]], item_name: str = "", **kwargs
     ) -> pg.PlotDataItem:
+        stroke_width = 3 if self.devicePixelRatio() > 1 else 1.5
         return self.add_timeline_plot(
             name,
             data,
             item_name,
             pen=None,
             symbol="d",
-            symbolBrush=pg.mkColor("white"),
+            symbolSize=8,
+            symbolBrush=None,
+            symbolPen=pg.mkPen("#969696", width=stroke_width),
+            **kwargs,
         )
 
     def add_timeline_broken_bar(
@@ -648,8 +914,15 @@ class TimeLineDock(QWidget):
             pens, brushes = _resolve_bar_colors(color_values, color, len(starts_raw))
 
             bars = pg.BarGraphItem(
-                x0=starts_raw, x1=stops_raw, y0=-0.4, y1=0.4, pens=pens, brushes=brushes
+                x0=starts_raw,
+                x1=stops_raw,
+                y0=-0.4,
+                y1=0.4,
+                pens=pens,
+                brushes=brushes,
+                name=item_name,
             )
+            bars.bar_values = values
             plot_widget.addItem(bars)
         else:
             bars = []
@@ -665,12 +938,16 @@ class TimeLineDock(QWidget):
         return plot_widget
 
     def sort_plots(self) -> None:
+        if not self.graphics_view.updatesEnabled():
+            return
         items_to_move = {}
-        for move_row in range(self.graphics_layout.currentRow, 1, -1):
+        move_rows = [r for r in self.graphics_layout.rows.keys() if r >= 1]
+
+        for move_row in move_rows:
             legend = self.graphics_layout.getItem(move_row, 0)
             plot = self.graphics_layout.getItem(move_row, 1)
 
-            if plot is None:
+            if plot is None or legend is None:
                 continue
 
             if plot.has_line:
@@ -680,25 +957,71 @@ class TimeLineDock(QWidget):
             else:
                 prefix = "20"
 
-            sort_key = f"{prefix}-{legend.rows[0][0].text.lower()}"
+            label_item = legend.rows[0][0]
+            if hasattr(label_item, "text") and isinstance(label_item.text, str):
+                text = label_item.text
+            elif hasattr(label_item, "text") and callable(label_item.text):
+                text = label_item.text()
+            else:
+                text = getattr(label_item, "sort_name", "z_unknown")
+
+            sort_key = f"{prefix}-{text.lower()}-{move_row}"
             items_to_move[sort_key] = (legend, plot)
 
             self.graphics_layout.removeItem(legend)
             self.graphics_layout.removeItem(plot)
 
-            del self.graphics_layout.rows[move_row]
+            if move_row in self.graphics_layout.rows:
+                del self.graphics_layout.rows[move_row]
 
-        self.graphics_layout.currentRow = 1
+        self.graphics_layout.currentRow = 0
 
         sorted_keys = sorted(items_to_move.keys())
 
         for key in sorted_keys:
             legend, plot = items_to_move[key]
-            row = self.graphics_layout.nextRow()
+            self.graphics_layout.nextRow()
+            row = self.graphics_layout.currentRow
             self.graphics_layout.addItem(legend, row=row, col=0)
             self.graphics_layout.addItem(plot, row=row, col=1)
 
+            from pupil_labs import neon_player
+            app = neon_player.instance()
+            events_plugin = app.plugins_by_class.get("EventsPlugin")
+            
+            from PySide6.QtCore import Qt
+            
+            # Reset preferred height to its baseline
+            if getattr(plot, "timeline_row_name", "") == "00_Events":
+                plot.preferred_height_1d = 25
+            
+            # Top-align everything so they don't stretch vertically
+            self.graphics_layout.layout.setAlignment(plot, Qt.AlignmentFlag.AlignTop)
+            self.graphics_layout.layout.setAlignment(legend, Qt.AlignmentFlag.AlignTop)
+
+            if getattr(plot, "timeline_row_name", "") == "00_Events" and events_plugin and getattr(events_plugin, "events_expanded", False):
+                self.graphics_layout.layout.setRowMinimumHeight(row, 60)
+            else:
+                self.graphics_layout.layout.setRowMinimumHeight(row, 0)
+
         self.fix_scroll_size()
+
+        def force_layout_update():
+            try:
+                layout = self.graphics_layout.layout
+                for i in range(layout.count()):
+                    layout_item = layout.itemAt(i)
+                    if layout_item and layout_item.graphicsItem():
+                        item = layout_item.graphicsItem()
+                        if hasattr(item, "updateGeometry"):
+                            item.updateGeometry()
+            except Exception as e:
+                pass
+            self.graphics_layout.layout.invalidate()
+            self.graphics_layout.updateGeometry()
+
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(20, force_layout_update)
 
     def register_data_point_action(
         self, row_name: str, action_name: str, callback: T.Callable
@@ -708,9 +1031,7 @@ class TimeLineDock(QWidget):
 
         self.data_point_actions[row_name][action_name] = callback
 
-    def unregister_data_point_action(
-        self, row_name: str, action_name: str
-    ) -> None:
+    def unregister_data_point_action(self, row_name: str, action_name: str) -> None:
         if row_name not in self.data_point_actions:
             return
 
@@ -718,6 +1039,10 @@ class TimeLineDock(QWidget):
             return
 
         del self.data_point_actions[row_name][action_name]
+
+    def unregister_data_point_actions(self, row_name: str) -> None:
+        if row_name in self.data_point_actions:
+            del self.data_point_actions[row_name]
 
     def reset_view(self):
         app = neon_player.instance()
