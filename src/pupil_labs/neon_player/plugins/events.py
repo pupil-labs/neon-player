@@ -218,6 +218,7 @@ def _load_events_from_dataframe(
 
     for name, group in events_df.groupby("name"):
         if name in IMMUTABLE_EVENTS:
+            logging.warning(f"Skipping immutable event '{name}' from imported CSV")
             continue
 
         event_type = event_type_cache.get(name, None)
@@ -300,7 +301,7 @@ class EventsPlugin(neon_player.Plugin):
             # When loading from recording, only mutable event types need to be saved,
             # but the UI needs to be set up for all event types
             mutable_event_types = _filter_event_types(event_types, mutable=True)
-            event_types_to_update_ui_for = event_types
+            event_types_to_setup_ui_for = event_types
             self.event_types = mutable_event_types
             self.save_cached_json("events.json", events)
         elif source == "cache":
@@ -308,11 +309,11 @@ class EventsPlugin(neon_player.Plugin):
             # from plugin settings, so self.event_types is already correct, but the UI
             # still needs to be set up for stored and immutable event types
             immutable_event_types = _filter_event_types(event_types, mutable=False)
-            event_types_to_update_ui_for = self.event_types + immutable_event_types
+            event_types_to_setup_ui_for = self.event_types + immutable_event_types
 
         logging.info(f"Loaded {sum(len(v) for v in self._events.values())} events")
 
-        self._update_gui_for_event_types(event_types_to_add=event_types_to_update_ui_for)
+        self._update_gui_for_event_types(event_types_to_add=event_types_to_setup_ui_for)
 
     def on_disabled(self) -> None:
         if self.headless or self.recording is None:
@@ -609,16 +610,11 @@ class EventsPlugin(neon_player.Plugin):
 
     def _prepare_events_export(self, recording: NeonRecording, export_window: tuple[int, int]) -> pd.DataFrame:
         start_time, stop_time = export_window
-        event_types_by_uid = self._get_event_types_by_uid()
-        event_names = []
-        for uid in self._events:
-            name = uid if uid in IMMUTABLE_EVENTS else event_types_by_uid[uid].name
-            event_names.append(name)
-
+        events = self.events
         events_df = pd.DataFrame({
             "recording id": recording.info["recording_id"],
-            "timestamp [ns]": list(self._events.values()),
-            "name": event_names,
+            "timestamp [ns]": list(events.values()),
+            "name": list(events.keys()),
         })
 
         events_df = events_df.explode("timestamp [ns]").reset_index(drop=True).dropna()
@@ -637,6 +633,3 @@ class EventsPlugin(neon_player.Plugin):
             if any(row["name"] == matching.event):
                 events_df.loc[index, "type"] = "recording"
         return events_df
-
-    def _get_event_types_by_uid(self) -> dict[str, EventType]:
-        return {et.uid: et for et in self._event_types_by_name.values()}
