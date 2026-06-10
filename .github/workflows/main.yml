@@ -39,6 +39,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           lfs: "true"
+
+      - name: Install OpenGL
+        run: sudo apt-get install -y freeglut3-dev
+
       - name: Set up the environment
         uses: ./.github/actions/setup-python-env
         with:
