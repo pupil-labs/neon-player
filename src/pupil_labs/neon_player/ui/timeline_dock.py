@@ -629,7 +629,6 @@ class TimeLineDock(QWidget):
         return plot_widget
 
     def sort_plots(self) -> None:
-        logging.debug("Sorting timeline plots")
         items_to_move = {}
         for move_row in range(self.graphics_layout.currentRow, 1, -1):
             legend = self.graphics_layout.getItem(move_row, 0)

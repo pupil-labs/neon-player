@@ -100,13 +100,9 @@ class EventType(PersistentPropertiesMixin, QObject):
 class EventTypeListWidget(ValueListWidget):
     @staticmethod
     def from_property_impl(prop: property) -> "EventTypeListWidget":
-        hints = T.get_type_hints(prop.fget)
-        return_type = hints["return"]
-        item_type = T.get_args(return_type)[0]
-
         source_params = prop.fget.parameters if hasattr(prop.fget, "parameters") else {}
 
-        return EventTypeListWidget(item_type, source_params)
+        return EventTypeListWidget(EventType, source_params)
 
     @staticmethod
     def from_type(cls: type) -> "EventTypeListWidget":
@@ -144,9 +140,16 @@ class EventTypeListWidget(ValueListWidget):
         plugin.delete_event_type(event_type)
         super().remove_item(item_widget)
 
+
 def _load_events_from_recording(
     recording: NeonRecording, global_event_types: list[str] = []
 ) -> tuple[list[EventType], dict]:
+    """
+    Loads events from the recording and additionally creates event types that
+    are defined in global settings.
+
+    Returns all created event types and the events as {uid: list of timestamps}.
+    """
     event_type_cache = {}
     events = {}
 
@@ -206,6 +209,10 @@ def _load_events_from_cache(
 def _load_events_from_dataframe(
     events_df: pd.DataFrame, existing_event_types: dict[str, EventType]
 ) -> tuple[list[EventType], dict]:
+    """
+    Loads events from the provided dataframe, returning all occurring event types
+    and the events as {uid: list of timestamps}.
+    """
     event_type_cache = {}
     events = {}
 
@@ -239,7 +246,7 @@ class EventsPlugin(neon_player.Plugin):
         self._event_types_by_name: dict[str, EventType] = {}
         self._events: dict[str, list[int]] = {}
 
-        if self.headless:
+        if self.app is None or self.app.headless:
             return
 
         self.get_timeline().key_pressed.connect(self._on_key_pressed)
@@ -249,6 +256,9 @@ class EventsPlugin(neon_player.Plugin):
 
     @staticmethod
     def instance() -> T.Union["EventsPlugin", None]:
+        if neon_player.instance() is None:
+            return None
+
         return Plugin.get_instance_by_name("EventsPlugin")
 
     def _on_key_pressed(self, event: QKeyEvent) -> None:
@@ -305,7 +315,7 @@ class EventsPlugin(neon_player.Plugin):
         self._update_gui_for_event_types(event_types_to_add=event_types_to_update_ui_for)
 
     def on_disabled(self) -> None:
-        if self.recording is None or self.headless:
+        if self.app is None or self.app.headless or self.recording is None:
             return
 
         event_types = list(self._event_types_by_name.values())
@@ -316,7 +326,7 @@ class EventsPlugin(neon_player.Plugin):
         event_types_to_add: list[EventType] = [],
         event_types_to_remove: list[EventType] = []
     ) -> None:
-        if self.headless:
+        if self.app is None or self.app.headless:
             return
 
         if not event_types_to_add and not event_types_to_remove:
@@ -427,6 +437,9 @@ class EventsPlugin(neon_player.Plugin):
         self.changed.emit()
 
     def delete_event_type(self, event_type: EventType) -> None:
+        if event_type.uid not in self._events:
+            return
+
         del self._events[event_type.uid]
         self.save_cached_json("events.json", self._events)
         del self._event_types_by_name[event_type.name]

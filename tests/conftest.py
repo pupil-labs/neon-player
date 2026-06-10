@@ -9,7 +9,7 @@ from pupil_labs.neon_recording.timeseries.events import EventTimeseries
 @pytest.fixture(autouse=False)
 def mock_neon_recording(tmp_path):
     def inner(**kwargs):
-        # Use test folder to initialize mock NeonRecording
+        # Use a temporary folder to initialize mock NeonRecording
         rec = NeonRecording(tmp_path)
 
         # Mock properties of the recording as needed
