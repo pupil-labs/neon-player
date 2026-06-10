@@ -28,8 +28,6 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     strategy:
-      matrix:
-        python-version: "3.12"
       fail-fast: false
     defaults:
       run:
@@ -46,7 +44,7 @@ jobs:
       - name: Set up the environment
         uses: ./.github/actions/setup-python-env
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
 
       - name: Run tests
         run: uv run python -m pytest tests --cov --cov-config=pyproject.toml --cov-report=html
@@ -54,8 +52,6 @@ jobs:
   type-check:
     runs-on: ubuntu-latest
     strategy:
-      matrix:
-        python-version: "3.12"
       fail-fast: false
     defaults:
       run:
@@ -70,7 +66,7 @@ jobs:
       - name: Set up the environment
         uses: ./.github/actions/setup-python-env
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
 
       - name: Check typing
         run: uv run mypy
