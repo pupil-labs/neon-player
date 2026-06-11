@@ -1,9 +1,10 @@
 import importlib.metadata
 import logging
-import re
 import subprocess
 import sys
 from pathlib import Path
+
+from packaging.requirements import Requirement
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import ProgressUpdate
@@ -44,11 +45,21 @@ def check_dependencies_for_plugin(plugin_path: Path) -> tuple[str, list[str]] | 
         deps = parse_pep723_dependencies(script)
         if deps:
             for dep_string in deps.dependencies:
-                all_deps_to_install.add(dep_string)
-                match = re.match(r"^[a-zA-Z0-9-_]+", dep_string)
-                if match:
-                    all_dep_names.add(match.group(0).lower().replace("_", "-"))
+                try:
+                    req = Requirement(dep_string)
+                    if req.marker and not req.marker.evaluate({"sys_platform": sys.platform}):
+                        continue
+                    all_deps_to_install.add(dep_string)
+                    all_dep_names.add(req.name.lower().replace("_", "-"))
+                except Exception as req_err:
+                    raise ValueError(
+                        f"Plugin {plugin_path.name} has a malformed PEP 723 "
+                        f"dependency: {dep_string!r}. "
+                        f"Reason: {req_err}"
+                    ) from req_err
 
+    except ValueError:
+        raise
     except Exception:
         logging.exception(f"Could not parse dependencies for {plugin_path.name}")
 
@@ -61,12 +72,21 @@ def check_dependencies_for_plugin(plugin_path: Path) -> tuple[str, list[str]] | 
     if not missing_dep_names:
         return  # All dependencies are satisfied
 
-    deps_to_install_filtered = sorted([
-        full_dep
-        for full_dep in all_deps_to_install
-        if re.match(r"^[a-zA-Z0-9-_]+", full_dep).group(0).lower().replace("_", "-")
-        in missing_dep_names
-    ])
+    deps_to_install_filtered = []
+
+    for full_dep in all_deps_to_install:
+        try:
+            req_name = Requirement(full_dep).name.lower().replace("_", "-")
+            if req_name in missing_dep_names:
+                deps_to_install_filtered.append(full_dep)
+        except Exception as req_err:
+            raise ValueError(
+                f"Plugin {plugin_path.name} has a malformed PEP 723 "
+                f"dependency: {full_dep!r}. "
+                f"Reason: {req_err}"
+            ) from req_err
+
+    deps_to_install_filtered = sorted(deps_to_install_filtered)
 
     logging.info(f"Found missing plugin dependencies: {deps_to_install_filtered}")
 
