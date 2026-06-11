@@ -153,6 +153,8 @@ class NeonPlayerApp(QApplication):
             self._initializing = False
             os.chdir(Path.home())
 
+        self.aboutToQuit.connect(self.unload)
+
     def run_jobs(self, job):
         plugin_name, action_name = job[0].split(".")
         job_args = job[1:]
@@ -191,8 +193,8 @@ class NeonPlayerApp(QApplication):
         logging.info(f"Loading recording history from {history_path}")
         return json.loads(history_path.read_text())
 
-    def save_settings(self) -> None:
-        if self._initializing:
+    def save_settings(self, force: bool = False) -> None:
+        if self._initializing and not force:
             return
 
         try:
@@ -351,6 +353,7 @@ class NeonPlayerApp(QApplication):
 
     def unload(self) -> None:
         self.set_playback_state(False)
+        self.save_settings(force=True)
         class_names = list(self.plugins_by_class.keys())
         for plugin_class_name in class_names:
             self.toggle_plugin(plugin_class_name, False)
