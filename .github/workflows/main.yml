@@ -26,9 +26,15 @@ jobs:
         run: make check
 
   tests:
-    runs-on: ubuntu-latest
+    name: tests (${{ matrix.platform }})
+    runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
+      matrix:
+        platform:
+          - windows-latest
+          - macOS-14
+          - ubuntu-22.04
     defaults:
       run:
         shell: bash
