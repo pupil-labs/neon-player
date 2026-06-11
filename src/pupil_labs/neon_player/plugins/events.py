@@ -301,6 +301,32 @@ class WorkspaceEventIndex:
         if save:
             self.save()
 
+    def add_event(self, event_name: str, recording_name: str) -> None:
+        if event_name not in self.events:
+            self.events[event_name] = {}
+
+        if recording_name not in self.events[event_name]:
+            self.events[event_name][recording_name] = 0
+
+        self.events[event_name][recording_name] += 1
+        self.save()
+
+    def delete_event(self, event_name: str, recording_name: str) -> None:
+        if event_name not in self.events or recording_name not in self.events[event_name]:
+            return
+
+        self.events[event_name][recording_name] -= 1
+
+        # Clean up the entries if:
+        #  - all events of this type were deleted from the current recording
+        #  - this event type was deleted across all recordings
+        if self.events[event_name][recording_name] <= 0:
+            del self.events[event_name][recording_name]
+        if not self.events[event_name]:
+            del self.events[event_name]
+
+        self.save()
+
     def delete_event_type(self, event_type: EventType) -> None:
         if event_type.name in self.events:
             del self.events[event_type.name]
@@ -387,12 +413,12 @@ class EventsPlugin(neon_player.Plugin):
         ]
         batch_job = self.job_manager.run_background_batch_action(
             "Scan events in workspace",
-            "EventsPlugin._update_workspace_event_index",
+            "EventsPlugin._bg_update_workspace_event_index",
             recordings=recordings_to_scan
         )
         batch_job.finished.connect(self._on_workspace_event_scan_finished)
 
-    def _update_workspace_event_index(self) -> None:
+    def _bg_update_workspace_event_index(self) -> None:
         self._workspace_index.update(load=True)
 
     def _on_workspace_event_scan_finished(self):
@@ -574,9 +600,6 @@ class EventsPlugin(neon_player.Plugin):
             )
 
         self._event_types_by_name[event_name] = event_type
-        if self.app.batch_mode_enabled:
-            self._workspace_index[event_name] = {self.recording._rec_dir.name: 0}
-            self._save_workspace_event_index()
 
         self._update_gui_for_event_types(event_types_to_add=[event_type])
         self.changed.emit()
