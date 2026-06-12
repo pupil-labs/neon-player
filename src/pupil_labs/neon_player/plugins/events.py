@@ -539,7 +539,7 @@ class EventsPlugin(neon_player.Plugin):
     def add_events(self, events: dict[str, list[int]]) -> None:
         """
         Add events from the provided dictionary to the existing ones. The expected
-        format of the dictionary is {event name: list of timestamps}.
+        format of the dictionary is {event name: list of timestamps to add}.
         """
         event_types_to_add = []
         event_types_to_update = []
@@ -558,6 +558,34 @@ class EventsPlugin(neon_player.Plugin):
 
         self.save_cached_json("events.json", self._events)
         self._update_gui_for_event_types(event_types_to_add=event_types_to_add)
+        for event_type in event_types_to_update:
+            self._update_timeline_data(event_type)
+
+    def delete_events(self, events: dict[str, list[int]]) -> None:
+        """
+        Delete events specified in the provided dictionary from the existing ones.
+        The expected format of the dictionary is {event name: list of timestamps to remove}.
+        """
+        event_types_to_remove = []
+        event_types_to_update = []
+        for event_name, timestamps in events.items():
+            if event_name not in self._event_types_by_name:
+                logging.warning(f"Skipping unknown event '{event_name}' from deletion")
+                continue
+
+            event_type = self._event_types_by_name[event_name]
+            existing_timestamps = set(self._events[event_type.uid])
+            timestamps_to_remove = set(timestamps)
+            remaining_timestamps = existing_timestamps - timestamps_to_remove
+            if not remaining_timestamps:
+                del self._events[event_type.uid]
+                event_types_to_remove.append(event_type)
+            else:
+                self._events[event_type.uid] = list(remaining_timestamps)
+                event_types_to_update.append(event_type)
+
+        self.save_cached_json("events.json", self._events)
+        self._update_gui_for_event_types(event_types_to_remove=event_types_to_remove)
         for event_type in event_types_to_update:
             self._update_timeline_data(event_type)
 
