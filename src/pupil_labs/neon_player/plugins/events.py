@@ -743,6 +743,15 @@ class EventsPlugin(neon_player.Plugin):
     def event_types(self, value: list[EventType]) -> None:
         self._event_types_by_name = {et.name: et for et in value}
 
+    def event_types_for_scope(self, scope: str) -> list[EventType]:
+        if scope == "workspace":
+            return list(self._event_types_by_name.values())
+
+        if scope != "recording":
+            raise ValueError(f"Unsupported scope: {scope}")
+
+        return [et for et in self._event_types_by_name.values() if et.uid in self._events]
+
     @property
     @property_params(widget=None, dont_encode=True)
     def events(self) -> dict[str, list[int]]:
