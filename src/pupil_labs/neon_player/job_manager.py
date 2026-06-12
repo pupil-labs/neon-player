@@ -238,7 +238,8 @@ class BatchBackgroundJob(BaseBackgroundJob):
         app = neon_player.instance()
 
         logging.debug(f"Copying session settings to {self._tmp_settings_path}")
-        shutil.copy(app.workspace_settings_path, self._tmp_workspace_settings_path())
+        if app.workspace_settings_path and app.workspace_settings_path.exists():
+            shutil.copy(app.workspace_settings_path, self._tmp_workspace_settings_path())
         for rec in self.recordings:
             original_path = app.recording_settings_path(rec)
             if original_path is None or not original_path.exists():
@@ -398,7 +399,22 @@ class JobManager(QObject):
         args_generator: T.Callable[[NeonRecording], T.Any] | None = None,
         recordings: list[NeonRecording] | None = None
     ) -> BatchBackgroundJob:
-        neon_player.instance().save_settings()
+        app = neon_player.instance()
+        app.save_settings()
+
+        recordings = recordings or app.workspace.recordings
+        if len(recordings) == 0:
+            raise ValueError("No recordings found to run the batch job on.")
+        elif len(recordings) == 1:
+            args = args_generator(recordings[0]) if args_generator else []
+            return self.run_background_action(
+                name,
+                action_name,
+                *args,
+                recording=recordings[0],
+                recording_settings_path=app.recording_settings_path(recordings[0]),
+                workspace_settings_path=app.workspace_settings_path,
+            )
 
         job = BatchBackgroundJob(
             name,
