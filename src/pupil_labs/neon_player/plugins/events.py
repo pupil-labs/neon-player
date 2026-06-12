@@ -256,7 +256,7 @@ class EventsPlugin(neon_player.Plugin):
 
         for event_type in self._event_types_by_name.values():
             if event_type.shortcut.lower() == key_text:
-                self.add_event(event_type)
+                self._add_event(event_type)
 
     def _load_events(self, recording: NeonRecording) -> tuple[list[EventType], dict, str]:
         events = {}
