@@ -90,24 +90,18 @@ def test_events__load_events_from_cache():
 
 def test_events__load_events_from_dataframe():
     events_df = pd.DataFrame({
-        "name": ["recording.begin", "trial.begin", "trial.end", "recording.end"],
-        "timestamp [ns]": [0, 100, 200, 1000],
+        "name": [
+            "recording.begin", "trial.begin", "trial.end",
+            "trial.begin", "trial.end", "recording.end"
+        ],
+        "timestamp [ns]": [0, 100, 200, 500, 600, 1000],
     })
     et_begin = EventType.from_name("trial.begin")
-    event_types, events = _load_events_from_dataframe(events_df, {"trial.begin": et_begin})
-    print(events)
+    events = _load_events_from_dataframe(events_df)
 
-    assert len(event_types) == 2, "Expected only mutable event types to be returned"
     assert len(events) == 2, "Expected events dict to only contain event of mutable type"
-    for event_name, ts in zip(["trial.begin", "trial.end"], [100, 200]):
-        et = [et for et in event_types if et.name == event_name]
-        assert len(et) == 1, f"Expected exactly one event type for {event_name}, got {len(et)}"
-        et = et[0]
-
-        if event_name == "trial.begin":
-            assert et is et_begin, "Expected existing event type to be used for trial.begin"
-
-        assert events[et.uid] == [ts], f"Wrong timestamp for {event_name}"
+    for event_name, ts in zip(["trial.begin", "trial.end"], [[100, 500], [200, 600]]):
+        assert events[event_name] == ts, f"Wrong timestamp for {event_name}"
 
 
 def test_events_plugin__on_recording_loaded__from_recording(mock_neon_recording):
@@ -140,43 +134,30 @@ def test_events_plugin__on_recording_loaded__from_cache(mock_neon_recording):
     plugin.save_cached_json.assert_not_called()
 
 
-@patch("pupil_labs.neon_player.plugins.events._load_events_from_dataframe",
-    return_value=(
-        [EventType.from_name("new.event")],
-        {"uid0": [100, 200, 300]},
-    )
-)
-def test_events_plugin__import_csv__adds_new_event_types(mock_load_events_from_dataframe):
+def test_events_plugin__add_events__adds_new_event_types():
     plugin = EventsPlugin()
     plugin.save_cached_json = MagicMock()
 
     # Load function returns mock output so using an empty dataframe
-    plugin._import_events_from_dataframe(pd.DataFrame())
+    plugin.add_events({"new.event": [100, 200, 300]})
 
-    assert len(plugin.event_types) == 1, "Expected new event type to be added from CSV import"
-    assert plugin.event_types[0].name == "new.event", "Expected event type name to match CSV data"
-    assert plugin._events == {"uid0": [100, 200, 300]}, "Expected events to be loaded from CSV data"
+    assert len(plugin.event_types) == 1, "Expected new event type to be added"
+    et = plugin.event_types[0]
+    assert et.name == "new.event", "Expected event type name to match the data"
+    assert plugin._events == {et.uid: [100, 200, 300]}, "Expected events to be stored"
     plugin.save_cached_json.assert_called_once()
 
 
-def test_events_plugin__import_csv__reuses_existing_event_types():
+def test_events_plugin__add_events__reuses_existing_event_types():
     plugin = EventsPlugin()
     existing_et = EventType.from_name("existing.event")
     plugin.event_types = [existing_et]
     plugin._events = {existing_et.uid: [0]}
     plugin.save_cached_json = MagicMock()
 
-    with patch(
-        "pupil_labs.neon_player.plugins.events._load_events_from_dataframe",
-        return_value=(
-            [existing_et],
-            {existing_et.uid: [100, 200, 300]},
-        )
-    ):
-        # Load function returns mock output so using an empty dataframe for simplicity
-        plugin._import_events_from_dataframe(pd.DataFrame())
+    plugin.add_events({"existing.event": [100, 200, 300]})
 
-    assert len(plugin.event_types) == 1, "Expected existing event type to be reused from CSV import"
+    assert len(plugin.event_types) == 1, "Expected no new event type to be added"
     assert plugin.event_types[0] is existing_et, "Expected existing event type to be reused"
     assert plugin._events == {existing_et.uid: [0, 100, 200, 300]}, \
         "Expected events to be appended to the existing ones"
@@ -246,7 +227,7 @@ def test_events_plugin__add_event__new_type(mock_neon_recording):
     plugin.event_types = [et]
     plugin._events = {}
 
-    plugin.add_event(et, ts=1)
+    plugin._add_event(et, ts=1)
 
     assert et.uid in plugin._events, "Expected new event type to be added to events dict"
     assert plugin._events[et.uid] == [1], "Expected timestamp to be added to events dict"
@@ -261,7 +242,7 @@ def test_events_plugin__add_event__existing_type(mock_neon_recording):
     plugin.event_types = [et]
     plugin._events = {et.uid: [1, 2, 3]}
 
-    plugin.add_event(et, ts=4)
+    plugin._add_event(et, ts=4)
 
     assert plugin._events[et.uid] == [1, 2, 3, 4], \
         "Expected new timestamp to be appended to existing list"

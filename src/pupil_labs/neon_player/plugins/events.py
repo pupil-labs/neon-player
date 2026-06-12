@@ -206,29 +206,16 @@ def _load_events_from_cache(
     return list(event_type_cache.values()), cached_events
 
 
-def _load_events_from_dataframe(
-    events_df: pd.DataFrame, existing_event_types: dict[str, EventType]
-) -> tuple[list[EventType], dict]:
-    """
-    Loads events from the provided dataframe, returning all occurring event types
-    and the events as {uid: list of timestamps}.
-    """
-    event_type_cache = {}
+def _load_events_from_dataframe(events_df: pd.DataFrame) -> dict[str, list[int]]:
     events = {}
-
     for name, group in events_df.groupby("name"):
         if name in IMMUTABLE_EVENTS:
             logging.warning(f"Skipping immutable event '{name}' from imported CSV")
             continue
 
-        event_type = event_type_cache.get(name, None)
-        if event_type is None:
-            event_type = existing_event_types.get(name, EventType.from_name(name))
-            event_type_cache[event_type.uid] = event_type
+        events[name] = group["timestamp [ns]"].tolist()
 
-        events[event_type.uid] = group["timestamp [ns]"].tolist()
-
-    return list(event_type_cache.values()), events
+    return events
 
 
 def _filter_event_types(event_types: list[EventType], mutable: bool) -> list[EventType]:
@@ -370,7 +357,7 @@ class EventsPlugin(neon_player.Plugin):
 
         if event_type.name not in IMMUTABLE_EVENTS:
             self.register_timeline_action(
-                f"Add Event/{event_type.name}", None, lambda: self.add_event(event_type)
+                f"Add Event/{event_type.name}", None, lambda: self._add_event(event_type)
             )
             self.app.main_window.sort_action_menu("Timeline/Add Event")
 
@@ -452,19 +439,14 @@ class EventsPlugin(neon_player.Plugin):
         self._update_gui_for_event_types(event_types_to_remove=[event_type])
         self.changed.emit()
 
-    def add_event(self, event_type: EventType, ts: int | None = None) -> None:
+    def _add_event(self, event_type: EventType, ts: int | None = None) -> None:
         if self.recording is None:
             return
 
         if ts is None:
             ts = self.app.current_ts
 
-        if event_type.uid not in self._events:
-            self._events[event_type.uid] = []
-
-        self._events[event_type.uid].append(ts)
-        self.save_cached_json("events.json", self._events)
-        self._update_timeline_data(event_type)
+        self.add_events({event_type.name: [ts]})
 
     def _find_closest_event(
         self, event_type: EventType, target_ts: int, tolerance_ns: int = 5
@@ -541,6 +523,11 @@ class EventsPlugin(neon_player.Plugin):
     @property
     @property_params(widget=None, dont_encode=True)
     def events(self) -> dict[str, list[int]]:
+        """
+        Read-only property that returns the events as a dictionary with event names
+        as keys and lists of all timestamps for each event as values. For modifying
+        events from other plugins, use add_events() and delete_events() methods.
+        """
         event_id_name_mapping = {et.uid: et.name for et in self.event_types}
         events_by_name = {}
         for event_id, timestamps in self._events.items():
@@ -548,6 +535,31 @@ class EventsPlugin(neon_player.Plugin):
             event_name = event_id_name_mapping.get(event_id, event_id)
             events_by_name[event_name] = timestamps
         return events_by_name
+
+    def add_events(self, events: dict[str, list[int]]) -> None:
+        """
+        Add events from the provided dictionary to the existing ones. The expected
+        format of the dictionary is {event name: list of timestamps}.
+        """
+        event_types_to_add = []
+        event_types_to_update = []
+        for event_name, timestamps in events.items():
+            event_type = self._event_types_by_name.get(event_name, None)
+            if event_type is None:
+                event_type = EventType.from_name(event_name)
+                self._event_types_by_name[event_name] = event_type
+                event_types_to_add.append(event_type)
+            else:
+                event_types_to_update.append(event_type)
+
+            if event_type.uid not in self._events:
+                self._events[event_type.uid] = []
+            self._events[event_type.uid].extend(timestamps)
+
+        self.save_cached_json("events.json", self._events)
+        self._update_gui_for_event_types(event_types_to_add=event_types_to_add)
+        for event_type in event_types_to_update:
+            self._update_timeline_data(event_type)
 
     def _on_event_name_changed(self, old_name, new_name, event_type) -> None:
         self._event_types_by_name[new_name] = event_type
@@ -573,34 +585,8 @@ class EventsPlugin(neon_player.Plugin):
     )
     def import_csv(self, source: FilePath):
         events_df = pd.read_csv(source)
-        self._import_events_from_dataframe(events_df)
-
-    def _import_events_from_dataframe(self, events_df: pd.DataFrame) -> None:
-        event_types, events = _load_events_from_dataframe(
-            events_df, self._event_types_by_name
-        )
-
-        types_to_add = []
-        types_to_update = []
-        merged_types = {et.name: et for et in self.event_types}
-        for et in event_types:
-            if et.name in self._event_types_by_name:
-                types_to_update.append(et)
-            else:
-                merged_types[et.name] = et
-                types_to_add.append(et)
-        self.event_types = list(merged_types.values())
-
-        for event_id, timestamps in events.items():
-            if event_id not in self._events:
-                self._events[event_id] = []
-            self._events[event_id].extend(timestamps)
-
-        self.save_cached_json("events.json", self._events)
-
-        self._update_gui_for_event_types(event_types_to_add=types_to_add)
-        for et in types_to_update:
-            self._update_timeline_data(et)
+        events = _load_events_from_dataframe(events_df)
+        self.add_events(events)
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
