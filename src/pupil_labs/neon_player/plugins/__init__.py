@@ -5,6 +5,7 @@ from pathlib import Path
 from numpyencoder import NumpyEncoder
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPainter
+from PySide6.QtWidgets import QMessageBox
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 
 from pupil_labs import neon_player
@@ -100,6 +101,10 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
     def get_timeline(self) -> TimeLineDock:
         return self.app.main_window.timeline
+
+    def user_confirm(self, title: str, message: str, **kwargs: T.Any) -> bool:
+        reply = QMessageBox.question(None, title, message, **kwargs)
+        return reply == QMessageBox.StandardButton.Yes
 
     def get_cache_path(self) -> Path:
         if self.recording is None:

@@ -86,7 +86,7 @@ class EventType(PersistentPropertiesMixin, QObject):
         return self._uid
 
     @uid.setter
-    def uid(self, value: str):
+    def uid(self, value: str) -> None:
         self._uid = value
 
     @staticmethod
@@ -100,15 +100,17 @@ class EventType(PersistentPropertiesMixin, QObject):
 class EventTypeListWidget(ValueListWidget):
     @staticmethod
     def from_property_impl(prop: property) -> "EventTypeListWidget":
-        source_params = prop.fget.parameters if hasattr(prop.fget, "parameters") else {}
+        source_params: dict[str, T.Any] = {}
+        if hasattr(prop, "fget") and prop.fget is not None:
+            source_params = prop.fget.parameters if hasattr(prop.fget, "parameters") else {}
 
         return EventTypeListWidget(EventType, source_params)
 
     @staticmethod
     def from_type(cls: type) -> "EventTypeListWidget":
-        return EventTypeListWidget(cls)
+        return EventTypeListWidget(cls, {})
 
-    def on_add_button_clicked(self):
+    def on_add_button_clicked(self) -> None:
         plugin = EventsPlugin.instance()
         if plugin is None:
             return
@@ -117,7 +119,7 @@ class EventTypeListWidget(ValueListWidget):
         plugin.add_event_type(new_event_type)
         self.add_item(new_event_type)
 
-    def remove_item(self, item_widget: ValueListItemWidget):
+    def remove_item(self, item_widget: ValueListItemWidget) -> None:
         plugin = EventsPlugin.instance()
         if plugin is None:
             return
@@ -126,15 +128,12 @@ class EventTypeListWidget(ValueListWidget):
         events = plugin._events.get(event_type.uid, [])
         if events:
             suffix = "" if len(events) == 1 else "s"
-            reply = QMessageBox.question(
-                None,
+            confirmed = plugin.user_confirm(
                 "Confirm event type deletion",
                 f"Deleting event type '{event_type.name}' will also delete its {len(events)}"
                 f" instance{suffix}. Do you want to proceed?",
-                buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                defaultButton=QMessageBox.StandardButton.No,
             )
-            if reply != QMessageBox.StandardButton.Yes:
+            if not confirmed:
                 return
 
         plugin.delete_event_type(event_type)
@@ -143,15 +142,15 @@ class EventTypeListWidget(ValueListWidget):
 
 def _load_events_from_recording(
     recording: NeonRecording, global_event_types: list[str] = []
-) -> tuple[list[EventType], dict]:
+) -> tuple[list[EventType], dict[str, list[int]]]:
     """
     Loads events from the recording and additionally creates event types that
     are defined in global settings.
 
     Returns all created event types and the events as {uid: list of timestamps}.
     """
-    event_type_cache = {}
-    events = {}
+    event_type_cache: dict[str, EventType] = {}
+    events: dict[str, list[int]] = {}
 
     for event in recording.events:
         event_name = str(event.event)
