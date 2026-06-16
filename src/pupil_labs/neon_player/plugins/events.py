@@ -124,6 +124,9 @@ class EventTypeListWidget(ValueListWidget):
         if plugin is None:
             return
 
+        if item_widget.item_widget is None:
+            return
+
         event_type = item_widget.item_widget.value
         events = plugin._events.get(event_type.uid, [])
         if events:
@@ -164,7 +167,7 @@ def _load_events_from_recording(
         # Add event to the dictionary
         if et.uid not in events:
             events[et.uid] = []
-        events[et.uid].append(event.time)
+        events[et.uid].append(int(event.time))
 
     for event_name in global_event_types:
         if event_name in event_type_cache:
@@ -195,12 +198,10 @@ def _load_events_from_cache(
         if uid in event_type_cache:
             continue
 
-        et = known_event_types_by_uid.get(uid, None)
-        if et is not None:
-            event_type_cache[uid] = et
-            continue
+        if uid not in known_event_types_by_uid:
+            raise ValueError(f"Event type with uid {uid} not found")
 
-        raise ValueError(f"Event type with uid {uid} not found")
+        event_type_cache[uid] = known_event_types_by_uid[uid]
 
     return list(event_type_cache.values()), cached_events
 
@@ -208,11 +209,12 @@ def _load_events_from_cache(
 def _load_events_from_dataframe(events_df: pd.DataFrame) -> dict[str, list[int]]:
     events = {}
     for name, group in events_df.groupby("name"):
+        name = str(name)
         if name in IMMUTABLE_EVENTS:
             logging.warning(f"Skipping immutable event '{name}' from imported CSV")
             continue
 
-        events[name] = group["timestamp [ns]"].tolist()
+        events[name] = group["timestamp [ns]"].astype(int).tolist()
 
     return events
 
@@ -246,7 +248,11 @@ class EventsPlugin(neon_player.Plugin):
         if neon_player.instance() is None:
             return None
 
-        return Plugin.get_instance_by_name("EventsPlugin")
+        plugin = Plugin.get_instance_by_name("EventsPlugin")
+        if plugin is not None and not isinstance(plugin, EventsPlugin):
+            raise RuntimeError("Invalid instance of EventsPlugin found")
+
+        return plugin
 
     def _on_key_pressed(self, event: QKeyEvent) -> None:
         key_text = event.text().lower()
@@ -258,8 +264,8 @@ class EventsPlugin(neon_player.Plugin):
                 self._add_event(event_type)
 
     def _load_events(self, recording: NeonRecording) -> tuple[list[EventType], dict, str]:
-        events = {}
-        event_types = []
+        events: dict[str, list[int]] = {}
+        event_types: list[EventType] = []
 
         try:
             cached_events = self.load_cached_json("events.json")
@@ -424,7 +430,7 @@ class EventsPlugin(neon_player.Plugin):
 
         return new_event_type
 
-    def add_event_type(self, event_type: EventType):
+    def add_event_type(self, event_type: EventType) -> None:
         self._event_types_by_name[event_type.name] = event_type
         self._update_gui_for_event_types(event_types_to_add=[event_type])
         self.changed.emit()
@@ -588,7 +594,9 @@ class EventsPlugin(neon_player.Plugin):
         for event_type in event_types_to_update:
             self._update_timeline_data(event_type)
 
-    def _on_event_name_changed(self, old_name, new_name, event_type) -> None:
+    def _on_event_name_changed(
+        self, old_name: str, new_name: str, event_type: EventType
+    ) -> None:
         self._event_types_by_name[new_name] = event_type
         del self._event_types_by_name[old_name]
 
@@ -610,14 +618,14 @@ class EventsPlugin(neon_player.Plugin):
         compact=True,
         icon=QIcon.fromTheme("window-new"),
     )
-    def import_csv(self, source: FilePath):
+    def import_csv(self, source: FilePath) -> None:
         events_df = pd.read_csv(source)
         events = _load_events_from_dataframe(events_df)
         self.add_events(events)
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
-    def export(self, destination: Path = Path()):
+    def export(self, destination: Path = Path()) -> None:
         export_window = self.app.get_export_window()
         events_df = self._prepare_events_export(self.recording, export_window)
 
@@ -626,7 +634,9 @@ class EventsPlugin(neon_player.Plugin):
 
         logging.info(f"Exported events to {destination_file}")
 
-    def _prepare_events_export(self, recording: NeonRecording, export_window: tuple[int, int]) -> pd.DataFrame:
+    def _prepare_events_export(
+        self, recording: NeonRecording, export_window: tuple[int, int]
+    ) -> pd.DataFrame:
         start_time, stop_time = export_window
         events = self.events
         events_df = pd.DataFrame({
