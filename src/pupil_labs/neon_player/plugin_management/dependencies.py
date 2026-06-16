@@ -2,6 +2,7 @@ import importlib.metadata
 import logging
 import subprocess
 import sys
+import typing as T
 
 from packaging.requirements import InvalidRequirement, Requirement
 from pathlib import Path
@@ -89,14 +90,14 @@ def _check_dependencies_for_plugin_script(script: str, plugin_name: str) -> list
     return deps_to_install
 
 
-def install_dependencies(dependencies: list[str]):
+def install_dependencies(dependencies: list[str]) -> T.Generator[ProgressUpdate, None, None]:
     """Install dependencies into the shared site-packages directory using uv."""
     if not dependencies:
         logging.info("No new dependencies to install.")
         return
 
     if neon_player.is_frozen():
-        uv_cmd = Path(sys.argv[0]).parent / "uv"
+        uv_cmd = str(Path(sys.argv[0]).parent / "uv")
     else:
         uv_cmd = "uv"
 
