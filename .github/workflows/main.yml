@@ -13,8 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out
-        uses: actions/checkout@v4
-      - uses: actions/cache@v4
+        uses: actions/checkout@v6
+      - uses: actions/cache@v5
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -25,27 +25,52 @@ jobs:
       - name: Run checks
         run: make check
 
-  tests-and-type-check:
+  tests:
+    name: tests (${{ matrix.platform }})
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - windows-latest
+          - macOS-14
+          - ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@v6
+        with:
+          lfs: "true"
+
+      - name: Install required system dependencies (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: sudo apt-get install -y freeglut3-dev libpulse-dev
+
+      - name: Set up the environment
+        uses: ./.github/actions/setup-python-env
+        with:
+          python-version: "3.12"
+
+      - name: Run tests
+        run: uv run python -m pytest tests --cov --cov-config=pyproject.toml --cov-report=html
+
+  type-check:
     runs-on: ubuntu-latest
     strategy:
-      matrix:
-        python-version: ["3.11", "3.12", "3.13"]
       fail-fast: false
     defaults:
       run:
         shell: bash
     steps:
       - name: Check out
-        uses: actions/checkout@v4
-        with:
-          lfs: "true"
+        uses: actions/checkout@v6
+
       - name: Set up the environment
         uses: ./.github/actions/setup-python-env
         with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Run tests
-        run: uv run python -m pytest tests --cov --cov-config=pyproject.toml --cov-report=html
+          python-version: "3.12"
 
       - name: Check typing
         run: uv run mypy
