@@ -46,6 +46,7 @@ jobs:
         with:
           lfs: "true"
 
+      # Installing all Qt Linux dependencies, see: https://doc.qt.io/qt-6/linux-requirements.html
       - name: Install required system dependencies (Ubuntu)
         if: matrix.platform == 'ubuntu-22.04'
         run: |

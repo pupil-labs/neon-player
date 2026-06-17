@@ -28,6 +28,11 @@ def mock_neon_recording(tmp_path):
 
 
 class MockNeonPlayerApp(QApplication):
+    """
+    Mock NeonPlayerApp to be used in tests that rely on the presence of an application
+    instance. Properties are replaced with ordinary fields that can be set directly
+    before executing the respective test.
+    """
     export_window_changed = Signal(tuple[int, int])
 
     def __init__(self, *args):

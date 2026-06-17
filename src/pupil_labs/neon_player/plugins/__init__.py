@@ -102,8 +102,8 @@ class Plugin(PersistentPropertiesMixin, QObject):
     def get_timeline(self) -> TimeLineDock:
         return self.app.main_window.timeline
 
-    def user_confirm(self, title: str, message: str, **kwargs: T.Any) -> bool:
-        reply = QMessageBox.question(None, title, message, **kwargs)
+    def user_confirm(self, title: str, message: str) -> bool:
+        reply = QMessageBox.question(None, title, message)
         return reply == QMessageBox.StandardButton.Yes
 
     def get_cache_path(self) -> Path:
