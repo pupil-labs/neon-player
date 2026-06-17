@@ -46,7 +46,9 @@ jobs:
 
       - name: Install required system dependencies (Ubuntu)
         if: matrix.platform == 'ubuntu-22.04'
-        run: sudo apt-get update && sudo apt-get install -y --fix-missing freeglut3-dev libpulse-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --fix-missing freeglut3-dev libpulse-dev libxkbcommon-x11-0
 
       - name: Set up the environment
         uses: ./.github/actions/setup-python-env
