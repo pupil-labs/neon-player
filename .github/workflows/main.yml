@@ -35,6 +35,8 @@ jobs:
           - windows-latest
           - macOS-14
           - ubuntu-22.04
+    env:
+      DISPLAY: :99.0
     defaults:
       run:
         shell: bash
@@ -48,7 +50,12 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --fix-missing freeglut3-dev libpulse-dev libxkbcommon-x11-0
+          sudo apt-get install -y --fix-missing freeglut3-dev libpulse-dev libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xfixes0 x11-utils xvfb
+
+      # See: https://pytest-qt.readthedocs.io/en/latest/troubleshooting.html#github-actions-azure-pipelines-travis-ci-and-gitlab-ci-cd
+      - name: Set up xvfb for pytest-qt (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: /sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
 
       - name: Set up the environment
         uses: ./.github/actions/setup-python-env
