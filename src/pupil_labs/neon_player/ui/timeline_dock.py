@@ -37,6 +37,51 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
 from pupil_labs.neon_player.utilities import clone_menu
 
 
+def get_clicked_plot_item(items: list[T.Any]) -> SmartSizePlotItem | None:
+    for item in items:
+        if isinstance(item, SmartSizePlotItem):
+            return item
+    return None
+
+
+def get_clicked_data_point(
+    plot_item: SmartSizePlotItem | None, event: MouseClickEvent
+) -> tuple[int, float] | None:
+    if plot_item is None:
+        return None
+
+    for item in plot_item.items:
+        if not isinstance(item, pg.PlotDataItem):
+            continue
+
+        if not hasattr(item, "scatter") or not isinstance(item.scatter, pg.ScatterPlotItem):
+            continue
+
+        scatter = item.scatter
+        clicked_data_pos = scatter.mapFromScene(event.scenePos())
+        candidate_points = scatter.pointsAt(clicked_data_pos)
+        if not candidate_points:
+            continue
+
+        # ScatterPlotItem.pointsAt() return all points that overlap with the
+        # provided position, pick the closest point if multiple candidates
+        closest_point = candidate_points[0]
+        if len(candidate_points) > 1:
+            clicked_ts = clicked_data_pos.x()
+            candidate_ts = np.array([p.pos().x() for p in candidate_points])
+            closest_point_index = np.argmin(np.abs(candidate_ts - clicked_ts))
+            closest_point = candidate_points[closest_point_index]
+
+        # ScatterPlotItem stores timestamps as floats internally, thereby losing
+        # precision. Original timestamps can be restored from the parent PlotDataItem
+        original_ts, original_y = item.getData()
+        selected_ts = closest_point.pos().x()
+        ts_index = np.argmin(np.abs(original_ts.astype(float) - selected_ts))
+        return original_ts[ts_index], original_y[ts_index]
+
+    return None
+
+
 class TimeLineDock(QWidget):
     key_pressed = Signal(QKeyEvent)
 
@@ -337,63 +382,18 @@ class TimeLineDock(QWidget):
     def check_for_data_item_click(self, event: MouseClickEvent):
         if event.isAccepted():
             return
+
         nearby_items = self.graphics_layout.scene().itemsNearEvent(event)
-        clicked_plot_item = None
-        clicked_data_point = None
-        for item in nearby_items:
-            if isinstance(item, pg.PlotItem):
-                clicked_plot_item = item
-                break
-            if isinstance(item, pg.ViewBox) and isinstance(
-                item.parentItem(), pg.PlotItem
-            ):
-                clicked_plot_item = item.parentItem()
-                break
-
-        if clicked_plot_item:
-            for item in clicked_plot_item.items:
-                target_item = item
-                if (
-                    isinstance(item, pg.PlotDataItem)
-                    and hasattr(item, "scatter")
-                    and isinstance(item.scatter, pg.ScatterPlotItem)
-                ):
-                    target_item = item.scatter
-
-                if isinstance(target_item, pg.ScatterPlotItem):
-                    p = target_item.mapFromScene(event.scenePos())
-                    points_at = target_item.pointsAt(p)
-                    if len(points_at) > 0:
-                        spot_item = points_at[0].pos()
-                        clicked_data_point = (spot_item.x(), spot_item.y())
-                        break
-
-                    min_dist = 10  # pixels
-                    closest_spot = None
-
-                    for point in target_item.points():
-                        point_scene_pos = target_item.mapToScene(point.pos())
-                        diff = point_scene_pos - event.scenePos()
-                        dist = (diff.x() ** 2 + diff.y() ** 2) ** 0.5
-
-                        if dist < min_dist:
-                            min_dist = dist
-                            closest_spot = point
-
-                    if closest_spot:
-                        spot_pos = closest_spot.pos()
-                        clicked_data_point = (spot_pos.x(), spot_pos.y())
-                        break
-
+        clicked_plot_item = get_clicked_plot_item(nearby_items)
+        clicked_data_point = get_clicked_data_point(clicked_plot_item, event)
         if clicked_plot_item is None or clicked_data_point is None:
             self.show_context_menu(QCursor.pos())
             event.accept()
             return
 
-        for k, v in self.timeline_plots.items():
-            if v == clicked_plot_item:
-                self.on_data_point_clicked(k, clicked_data_point, event)
-                break
+        row_name = clicked_plot_item.row_name
+        print(row_name, *clicked_data_point)
+        self.on_data_point_clicked(row_name, clicked_data_point, event)
 
     def get_timeline_plot(
         self, timeline_row_name: str, create_if_missing: bool = False, **kwargs
@@ -449,7 +449,10 @@ class TimeLineDock(QWidget):
             QSizePolicy.Policy.Fixed,
         )
         plot_item = SmartSizePlotItem(
-            legend=legend, axisItems={"top": time_axis}, viewBox=vb
+            legend=legend,
+            row_name=timeline_row_name,
+            axisItems={"top": time_axis},
+            viewBox=vb
         )
 
         if is_timestamps_row:
@@ -499,7 +502,7 @@ class TimeLineDock(QWidget):
     def add_timeline_plot(
         self,
         timeline_row_name: str,
-        data: list[tuple[int, int]],
+        data: list[tuple[int, float]],
         plot_name: str = "",
         color: QColor | None = None,
         **kwargs,
@@ -520,14 +523,12 @@ class TimeLineDock(QWidget):
             kwargs["pen"] = pg.mkPen(color=color, width=2, cap="flat")
 
         legend = self.timeline_legends[timeline_row_name]
-        data = np.asarray(data)
-        if len(data) > 0:
-            plot_data_item = plot_item.plot(
-                data[:, 0], data[:, 1], name=plot_name, **kwargs
-            )
-            plot_data_item.name = plot_name
-            if timeline_row_name in self.timeline_legends and plot_name != "":
-                legend.addItem(plot_data_item, plot_name)
+        x = np.array([point[0] for point in data], dtype=np.int64)
+        y = np.array([point[1] for point in data], dtype=np.float64)
+        plot_data_item = plot_item.plot(x, y, name=plot_name, **kwargs)
+        plot_data_item.name = plot_name
+        if plot_name != "":
+            legend.addItem(plot_data_item, plot_name)
 
         self.sort_plots()
 
@@ -591,12 +592,12 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, int]],
         plot_name: str = "",
         **kwargs,
-    ) -> pg.PlotDataItem:
+    ) -> pg.PlotDataItem | None:
         return self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
 
     def add_timeline_scatter(
         self, name: str, data: list[tuple[int, int]], item_name: str = ""
-    ) -> pg.PlotDataItem:
+    ) -> pg.PlotDataItem | None:
         return self.add_timeline_plot(
             name,
             data,

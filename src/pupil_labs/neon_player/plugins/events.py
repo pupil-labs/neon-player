@@ -309,22 +309,13 @@ class EventsPlugin(neon_player.Plugin):
     def _update_timeline_data(self, event_type: EventType) -> None:
         timeline = self.get_timeline()
         event_name = event_type.name
-        plot_item = timeline.get_timeline_plot(f"Events - {event_name}", True)
+        plot_item = timeline.get_timeline_plot(f"Events - {event_name}")
+        if not plot_item.items:
+            return
 
-        raw_events = self.events.get(event_type.uid, [])
-        if raw_events:
-            data = np.array([[t, 0] for t in raw_events], dtype=np.float64)
-        else:
-            data = np.empty((0, 2))
-
-        if len(plot_item.items) == 0:
-            if len(data) > 0:
-                plot_item = timeline.add_timeline_scatter(
-                    f"Events - {event_name}",
-                    data,
-                )
-        else:
-            plot_item.items[0].setData(data)
+        x = np.array(self.events.get(event_type.uid, []))
+        y = np.zeros_like(x)
+        plot_item.items[0].setData(x, y)
 
     @property
     @property_params(
