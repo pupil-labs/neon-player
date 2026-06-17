@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+import pytest
 from unittest.mock import MagicMock, patch
 
 from pupil_labs.neon_player.plugins.events import (
@@ -134,12 +135,90 @@ def test_events_plugin__on_recording_loaded__from_cache(mock_neon_recording):
     plugin.save_cached_json.assert_not_called()
 
 
-def test_events_plugin__add_events__adds_new_event_types():
+def test_events_plugin__create_event_type():
+    plugin = EventsPlugin()
+    et = EventType.from_name("event-1")
+    plugin.event_types = [et]
+    new_et = plugin.create_event_type()
+
+    assert new_et.name == "event-2", "Expected event type to have a unique name"
+
+
+def test_events_plugin__add_event_type(qtbot):
+    plugin = EventsPlugin()
+    et = EventType.from_name("test.event")
+
+    with qtbot.waitSignal(plugin.changed):
+        plugin.add_event_type(et)
+
+    assert et in plugin.event_types, "Expected new event type to be added to event_types list"
+
+
+def test_events_plugin__add_event_type__type_already_exists():
+    plugin = EventsPlugin()
+    et = EventType.from_name("recording.begin")
+    plugin.event_types = [et]
+
+    with pytest.raises(ValueError, match="already exists"):
+        plugin.add_event_type(et)
+
+
+def test_events_plugin__delete_event_type__no_events(qtbot):
+    plugin = EventsPlugin()
+    et = EventType.from_name("test.event")
+    plugin.event_types = [et]
+
+    with qtbot.waitSignal(plugin.changed):
+        plugin.delete_event_type(et)
+
+    assert et not in plugin.event_types, "Expected event type to be removed from event_types list"
+
+
+def test_events_plugin__delete_event_type__with_events(qtbot):
+    plugin = EventsPlugin()
+    et = EventType.from_name("test.event")
+    plugin.event_types = [et]
+    plugin._events = {et.uid: [100, 200, 300]}
+    plugin.save_cached_json = MagicMock()
+
+    with qtbot.waitSignal(plugin.changed):
+        plugin.delete_event_type(et)
+
+    assert et not in plugin.event_types, "Expected event type to be removed from event_types list"
+    assert et.uid not in plugin._events, "Expected events for deleted type to be removed from events dict"
+    plugin.save_cached_json.assert_called_once()
+
+
+def test_events_plugin__delete_event_type__immutable_type():
+    plugin = EventsPlugin()
+    et = EventType.from_name("recording.begin")
+    plugin.event_types = [et]
+
+    with pytest.raises(ValueError, match="cannot be deleted"):
+        plugin.delete_event_type(et)
+
+
+def test_events_plugin__on_event_name_changed():
+    plugin = EventsPlugin()
+    et = EventType.from_name("test.event")
+    plugin.event_types = [et]
+
+    et._name = "renamed.event"
+
+    # Simulate the name_changed signal being emitted
+    plugin._on_event_name_changed("test.event", "renamed.event", et)
+
+    assert "test.event" not in plugin._event_types_by_name
+    assert "renamed.event" in plugin._event_types_by_name
+
+
+def test_events_plugin__add_events__adds_new_event_types(qtbot):
     plugin = EventsPlugin()
     plugin.save_cached_json = MagicMock()
 
     # Load function returns mock output so using an empty dataframe
-    plugin.add_events({"new.event": [100, 200, 300]})
+    with qtbot.waitSignal(plugin.changed):
+        plugin.add_events({"new.event": [100, 200, 300]})
 
     assert len(plugin.event_types) == 1, "Expected new event type to be added"
     et = plugin.event_types[0]
@@ -164,92 +243,26 @@ def test_events_plugin__add_events__reuses_existing_event_types():
     plugin.save_cached_json.assert_called_once()
 
 
-def test_events_plugin__create_event_type():
+def test_events_plugin__add_events__raises_on_immutable_type():
     plugin = EventsPlugin()
-    et = EventType.from_name("event-1")
-    plugin.event_types = [et]
-    new_et = plugin.create_event_type()
-
-    assert new_et.name == "event-2", "Expected event type to have a unique name"
-
-
-def test_events_plugin__add_event_type():
-    plugin = EventsPlugin()
-    et = EventType.from_name("test.event")
-
-    plugin.add_event_type(et)
-
-    assert et in plugin.event_types, "Expected new event type to be added to event_types list"
-
-
-def test_events_plugin__delete_event_type__no_events():
-    plugin = EventsPlugin()
-    et = EventType.from_name("test.event")
-    plugin.event_types = [et]
-    plugin.delete_event_type(et)
-
-    assert et not in plugin.event_types, "Expected event type to be removed from event_types list"
-
-
-def test_events_plugin__on_event_name_changed():
-    plugin = EventsPlugin()
-    et = EventType.from_name("test.event")
+    et = EventType.from_name("recording.begin")
     plugin.event_types = [et]
 
-    et._name = "renamed.event"
-
-    # Simulate the name_changed signal being emitted
-    plugin._on_event_name_changed("test.event", "renamed.event", et)
-
-    assert "test.event" not in plugin._event_types_by_name
-    assert "renamed.event" in plugin._event_types_by_name
+    with pytest.raises(ValueError, match="cannot be added"):
+        plugin.add_events({"recording.begin": [100, 200]})
 
 
-def test_events_plugin__delete_event_type__with_events():
+def test_events_plugin__delete_events__raises_on_immutable_type():
     plugin = EventsPlugin()
-    et = EventType.from_name("test.event")
+    et = EventType.from_name("recording.begin")
     plugin.event_types = [et]
-    plugin._events = {et.uid: [100, 200, 300]}
-    plugin.save_cached_json = MagicMock()
+    plugin._events = {"recording.begin": [0]}
 
-    plugin.delete_event_type(et)
-
-    assert et not in plugin.event_types, "Expected event type to be removed from event_types list"
-    assert et.uid not in plugin._events, "Expected events for deleted type to be removed from events dict"
-    plugin.save_cached_json.assert_called_once()
+    with pytest.raises(ValueError, match="cannot be deleted"):
+        plugin.delete_events({"recording.begin": [0]})
 
 
-def test_events_plugin__add_event__new_type(mock_neon_recording):
-    plugin = EventsPlugin()
-    type(plugin).recording = mock_neon_recording()
-    plugin.save_cached_json = MagicMock()
-    et = EventType.from_name("test.event")
-    plugin.event_types = [et]
-    plugin._events = {}
-
-    plugin._add_event(et, ts=1)
-
-    assert et.uid in plugin._events, "Expected new event type to be added to events dict"
-    assert plugin._events[et.uid] == [1], "Expected timestamp to be added to events dict"
-    plugin.save_cached_json.assert_called_once()
-
-
-def test_events_plugin__add_event__existing_type(mock_neon_recording):
-    plugin = EventsPlugin()
-    type(plugin).recording = mock_neon_recording()
-    plugin.save_cached_json = MagicMock()
-    et = EventType.from_name("test.event")
-    plugin.event_types = [et]
-    plugin._events = {et.uid: [1, 2, 3]}
-
-    plugin._add_event(et, ts=4)
-
-    assert plugin._events[et.uid] == [1, 2, 3, 4], \
-        "Expected new timestamp to be appended to existing list"
-    plugin.save_cached_json.assert_called_once()
-
-
-def _prepare_export_tests(mock_neon_recording):
+def _prepare_test_data(mock_neon_recording):
     plugin = EventsPlugin()
     mock_events = mock_event_timeseries({
         "recording.begin": [0],
@@ -272,21 +285,39 @@ def _prepare_export_tests(mock_neon_recording):
     return plugin, mock_recording
 
 
+def test_events_plugin__find_closest_event(mock_neon_recording):
+    plugin, _ = _prepare_test_data(mock_neon_recording)
+    et = plugin._event_types_by_name["event.from.rec"]
+    assert plugin._find_closest_event(et, 100) == 100
+
+
+def test_events_plugin__find_closest_event__missing_type(mock_neon_recording):
+    plugin, _ = _prepare_test_data(mock_neon_recording)
+    et = EventType.from_name("non.existent.event")
+    assert plugin._find_closest_event(et, 100) is None
+
+
+def test_events_plugin__find_closest_event__tolerance(mock_neon_recording):
+    plugin, _ = _prepare_test_data(mock_neon_recording)
+    et = plugin._event_types_by_name["event.from.rec"]
+    assert plugin._find_closest_event(et, 110, tolerance_ns=15) == 100
+
+
 def test_events_plugin__events__uses_names_not_ids(mock_neon_recording):
-    plugin, _ = _prepare_export_tests(mock_neon_recording)
+    plugin, _ = _prepare_test_data(mock_neon_recording)
     event_names = ["recording.begin", "event.from.rec", "event.from.player", "event.same.ts", "recording.end"]
     for event_name in event_names:
         assert event_name in plugin.events, f"Expected {event_name} to be present in events property"
 
 
 def test_events_plugin__prepare_events_export__whole_time_range(mock_neon_recording):
-    plugin, mock_recording = _prepare_export_tests(mock_neon_recording)
+    plugin, mock_recording = _prepare_test_data(mock_neon_recording)
     events_df = plugin._prepare_events_export(mock_recording, export_window=(0, 1000))
     assert len(events_df) == 9, "Expected all events to be included in export"
 
 
 def test_events_plugin__prepare_events_export__custom_time_range(mock_neon_recording):
-    plugin, mock_recording = _prepare_export_tests(mock_neon_recording)
+    plugin, mock_recording = _prepare_test_data(mock_neon_recording)
     events_df = plugin._prepare_events_export(mock_recording, export_window=(200, 750))
     assert len(events_df) == 4, "Expected only events within the custom time range to be included in export"
     for event_to_include in ["event.from.rec", "event.from.player"]:
@@ -295,14 +326,14 @@ def test_events_plugin__prepare_events_export__custom_time_range(mock_neon_recor
 
 
 def test_events_plugin__prepare_events_export__timestamps_are_sorted(mock_neon_recording):
-    plugin, mock_recording = _prepare_export_tests(mock_neon_recording)
+    plugin, mock_recording = _prepare_test_data(mock_neon_recording)
     events_df = plugin._prepare_events_export(mock_recording, export_window=(150, 450))
     assert events_df["name"].tolist() == ["event.from.player", "event.from.rec"], \
         "Expected events to be sorted by timestamp in export"
 
 
 def test_events_plugin__prepare_events_export__source(mock_neon_recording):
-    plugin, mock_recording = _prepare_export_tests(mock_neon_recording)
+    plugin, mock_recording = _prepare_test_data(mock_neon_recording)
     events_df = plugin._prepare_events_export(mock_recording, export_window=(0, 1000))
     for event_name, source in zip(
         ["event.from.rec", "event.from.player", "event.same.ts"],

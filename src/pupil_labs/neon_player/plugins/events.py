@@ -431,18 +431,29 @@ class EventsPlugin(neon_player.Plugin):
         return new_event_type
 
     def add_event_type(self, event_type: EventType) -> None:
+        if event_type.name in self._event_types_by_name:
+            raise ValueError(
+                f"Event type {event_type.name} already exists."
+            )
+
         self._event_types_by_name[event_type.name] = event_type
         self._update_gui_for_event_types(event_types_to_add=[event_type])
         self.changed.emit()
 
     def delete_event_type(self, event_type: EventType) -> None:
+        if event_type.name in IMMUTABLE_EVENTS:
+            raise ValueError(
+                f"Event type {event_type.name} cannot be deleted."
+            )
+
         if event_type.uid in self._events:
             del self._events[event_type.uid]
             self.save_cached_json("events.json", self._events)
 
-        del self._event_types_by_name[event_type.name]
-        self._update_gui_for_event_types(event_types_to_remove=[event_type])
-        self.changed.emit()
+        if event_type.name in self._event_types_by_name:
+            del self._event_types_by_name[event_type.name]
+            self._update_gui_for_event_types(event_types_to_remove=[event_type])
+            self.changed.emit()
 
     def _add_event(self, event_type: EventType, ts: int | None = None) -> None:
         if self.recording is None:
@@ -472,6 +483,11 @@ class EventsPlugin(neon_player.Plugin):
     def delete_event_instance(
         self, data_point: tuple[int, T.SupportsFloat], event_type: EventType
     ) -> None:
+        if event_type.name in IMMUTABLE_EVENTS:
+            raise ValueError(
+                f"Instances of {event_type.name} event cannot be deleted."
+            )
+
         closest_event = self._find_closest_event(event_type, data_point[0])
         if closest_event is None:
             return
@@ -555,6 +571,11 @@ class EventsPlugin(neon_player.Plugin):
                 self._event_types_by_name[event_name] = event_type
                 event_types_to_add.append(event_type)
             else:
+                if event_type.name in IMMUTABLE_EVENTS:
+                    raise ValueError(
+                        f"Event type {event_type.name} is immutable, new instances "
+                        f"of this event cannot be added."
+                    )
                 event_types_to_update.append(event_type)
 
             if event_type.uid not in self._events:
@@ -563,6 +584,8 @@ class EventsPlugin(neon_player.Plugin):
 
         self.save_cached_json("events.json", self._events)
         self._update_gui_for_event_types(event_types_to_add=event_types_to_add)
+        if event_types_to_add:
+            self.changed.emit()
         for event_type in event_types_to_update:
             self._update_timeline_data(event_type)
 
@@ -578,6 +601,12 @@ class EventsPlugin(neon_player.Plugin):
                 logging.warning(f"Skipping unknown event '{event_name}' from deletion")
                 continue
 
+            if event_name in IMMUTABLE_EVENTS:
+                raise ValueError(
+                    f"Event type {event_name} is immutable, instances "
+                    f"of this event cannot be deleted."
+                )
+
             event_type = self._event_types_by_name[event_name]
             existing_timestamps = set(self._events[event_type.uid])
             timestamps_to_remove = set(timestamps)
@@ -591,6 +620,8 @@ class EventsPlugin(neon_player.Plugin):
 
         self.save_cached_json("events.json", self._events)
         self._update_gui_for_event_types(event_types_to_remove=event_types_to_remove)
+        if event_types_to_remove:
+            self.changed.emit()
         for event_type in event_types_to_update:
             self._update_timeline_data(event_type)
 

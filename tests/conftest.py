@@ -1,5 +1,7 @@
 import pytest
 
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import QApplication
 from unittest.mock import PropertyMock
 
 from pupil_labs.neon_recording import NeonRecording
@@ -23,3 +25,17 @@ def mock_neon_recording(tmp_path):
         return rec
 
     return inner
+
+
+class MockNeonPlayerApp(QApplication):
+    export_window_changed = Signal(tuple[int, int])
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.headless = True
+        self.plugins_by_class = {}
+
+
+@pytest.fixture(scope="session")
+def qapp_cls():
+    return MockNeonPlayerApp
