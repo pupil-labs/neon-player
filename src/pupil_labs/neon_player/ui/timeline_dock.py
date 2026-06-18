@@ -344,7 +344,7 @@ class TimeLineDock(QWidget):
         nearby_items = self.graphics_layout.scene().itemsNearEvent(event)
         clicked_plot_item = get_clicked_plot_item(nearby_items)
         clicked_data_point = get_clicked_data_point(clicked_plot_item, event)
-        if clicked_plot_item is None or clicked_data_point is None:
+        if clicked_data_point is None:
             self.show_context_menu(QCursor.pos())
             event.accept()
             return
@@ -546,14 +546,14 @@ class TimeLineDock(QWidget):
     def add_timeline_line(
         self,
         timeline_row_name: str,
-        data: list[tuple[int, int]],
+        data: list[tuple[int, float]],
         plot_name: str = "",
         **kwargs,
     ) -> pg.PlotDataItem | None:
         return self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
 
     def add_timeline_scatter(
-        self, name: str, data: list[tuple[int, int]], item_name: str = ""
+        self, name: str, data: list[tuple[int, float]], item_name: str = ""
     ) -> pg.PlotDataItem | None:
         return self.add_timeline_plot(
             name,

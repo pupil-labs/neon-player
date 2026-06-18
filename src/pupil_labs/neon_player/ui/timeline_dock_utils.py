@@ -31,7 +31,7 @@ def get_clicked_data_point(
         scatter = item.scatter
         clicked_data_pos = scatter.mapFromScene(event.scenePos())
         candidate_points = scatter.pointsAt(clicked_data_pos)
-        if not candidate_points:
+        if not candidate_points.size:
             continue
 
         # ScatterPlotItem.pointsAt() return all points that overlap with the
