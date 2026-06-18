@@ -279,7 +279,9 @@ class EventsPlugin(neon_player.Plugin):
 
         return closest_event
 
-    def delete_event_instance(self, data_point, event_type: EventType) -> None:
+    def delete_event_instance(
+        self, data_point: tuple[int, float], event_type: EventType
+    ) -> None:
         if event_type.uid not in self.events:
             return
 
@@ -291,10 +293,12 @@ class EventsPlugin(neon_player.Plugin):
         self.save_cached_json("events.json", self.events)
         self._update_timeline_data(event_type)
 
-    def seek_to_event_instance(self, data_point) -> None:
+    def seek_to_event_instance(self, data_point: tuple[int, float]) -> None:
         self.app.seek_to(data_point[0])
 
-    def set_event_as_export_boundary(self, data_point, event_type, left: bool):
+    def set_event_as_export_boundary(
+        self, data_point: tuple[int, float], event_type: EventType, left: bool
+    ) -> None:
         closest_event = self._find_closest_event(event_type, data_point[0])
         if closest_event is None:
             return
@@ -310,7 +314,7 @@ class EventsPlugin(neon_player.Plugin):
         timeline = self.get_timeline()
         event_name = event_type.name
         plot_item = timeline.get_timeline_plot(f"Events - {event_name}")
-        if not plot_item.items:
+        if plot_item is None or not plot_item.items:
             return
 
         x = np.array(self.events.get(event_type.uid, []))

@@ -531,7 +531,7 @@ class TimeLineDock(QWidget):
         if len(plot.items) == 0:
             self.remove_timeline_plot(plot_name)
 
-    def on_data_point_clicked(self, timeline_name, data_point):
+    def on_data_point_clicked(self, timeline_name: str, data_point: tuple[int, float]):
         if timeline_name not in self.data_point_actions:
             return
 

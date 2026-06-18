@@ -37,7 +37,7 @@ def get_clicked_data_point(
         # ScatterPlotItem.pointsAt() return all points that overlap with the
         # provided position, pick the closest point if multiple candidates
         closest_point = candidate_points[0]
-        if len(candidate_points) > 1:
+        if candidate_points.size > 1:
             clicked_ts = clicked_data_pos.x()
             candidate_ts = np.array([p.pos().x() for p in candidate_points])
             closest_point_index = np.argmin(np.abs(candidate_ts - clicked_ts))
