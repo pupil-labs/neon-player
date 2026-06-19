@@ -35,6 +35,8 @@ jobs:
           - windows-latest
           - macOS-14
           - ubuntu-22.04
+    env:
+      DISPLAY: :99.0
     defaults:
       run:
         shell: bash
@@ -44,9 +46,45 @@ jobs:
         with:
           lfs: "true"
 
+      # Installing all Qt Linux dependencies, see: https://doc.qt.io/qt-6/linux-requirements.html
       - name: Install required system dependencies (Ubuntu)
         if: matrix.platform == 'ubuntu-22.04'
-        run: sudo apt-get install -y freeglut3-dev libpulse-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --fix-missing \
+            freeglut3-dev \
+            libpulse-dev \
+            libfontconfig1-dev \
+            libfreetype-dev \
+            libgtk-3-dev \
+            libx11-dev \
+            libx11-xcb-dev \
+            libxcb-cursor-dev \
+            libxcb-glx0-dev \
+            libxcb-icccm4-dev \
+            libxcb-image0-dev \
+            libxcb-keysyms1-dev \
+            libxcb-randr0-dev \
+            libxcb-render-util0-dev \
+            libxcb-shape0-dev \
+            libxcb-shm0-dev \
+            libxcb-sync-dev \
+            libxcb-util-dev \
+            libxcb-xfixes0-dev \
+            libxcb-xkb-dev \
+            libxcb1-dev \
+            libxext-dev \
+            libxfixes-dev \
+            libxi-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libxrender-dev \
+            xvfb
+
+      # See: https://pytest-qt.readthedocs.io/en/latest/troubleshooting.html#github-actions-azure-pipelines-travis-ci-and-gitlab-ci-cd
+      - name: Set up xvfb for pytest-qt (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: /sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
 
       - name: Set up the environment
         uses: ./.github/actions/setup-python-env

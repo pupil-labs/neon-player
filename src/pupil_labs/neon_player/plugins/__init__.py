@@ -5,6 +5,7 @@ from pathlib import Path
 from numpyencoder import NumpyEncoder
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPainter
+from PySide6.QtWidgets import QMessageBox
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 
 from pupil_labs import neon_player
@@ -38,7 +39,11 @@ class Plugin(PersistentPropertiesMixin, QObject):
         self.render_layer = 1
         self._enabled = False
 
-        neon_player.instance().aboutToQuit.connect(self.on_disabled)
+        app = neon_player.instance()
+        if app is None:
+            return
+
+        app.aboutToQuit.connect(self.on_disabled)
 
     def register_action(
         self, name: str, shortcut: QtShortcutType, func: T.Callable
@@ -96,6 +101,10 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
     def get_timeline(self) -> TimeLineDock:
         return self.app.main_window.timeline
+
+    def user_confirm(self, title: str, message: str) -> bool:
+        reply = QMessageBox.question(None, title, message)
+        return reply == QMessageBox.StandardButton.Yes
 
     def get_cache_path(self) -> Path:
         if self.recording is None:
@@ -165,6 +174,11 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
     @property
     @property_params(widget=None, dont_encode=True)
+    def headless(self) -> bool:
+        return self.app is None or self.app.headless
+
+    @property
+    @property_params(widget=None, dont_encode=True)
     def job_manager(self) -> "JobManager":
         return neon_player.instance().job_manager
 
@@ -177,7 +191,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
         raise ValueError(f"Plugin class {name} not found")
 
     @staticmethod
-    def get_instance_by_name(name: str) -> "Plugin":
+    def get_instance_by_name(name: str) -> T.Union["Plugin", None]:
         return neon_player.instance().plugins_by_class.get(name)
 
     @classmethod
