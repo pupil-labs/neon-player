@@ -59,6 +59,15 @@ class EventType(PersistentPropertiesMixin, QObject):
             return
 
         plugin = EventsPlugin.instance()
+        if plugin is not None and value in IMMUTABLE_EVENTS:
+            QMessageBox.warning(
+                None,
+                "Invalid event name",
+                f"Event cannot be renamed to '{value}' as this name is reserved. "
+                f"Please choose a different name.",
+            )
+            return
+
         if plugin is not None and value in plugin._event_types_by_name:
             QMessageBox.warning(
                 None,
