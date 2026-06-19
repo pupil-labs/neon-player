@@ -613,14 +613,17 @@ class EventsPlugin(neon_player.Plugin):
             existing_timestamps = set(self._events[event_type.uid])
             timestamps_to_remove = set(timestamps)
             remaining_timestamps = existing_timestamps - timestamps_to_remove
-            if not remaining_timestamps:
-                del self._events[event_type.uid]
-                if remove_empty_types:
-                    del self._event_types_by_name[event_name]
-                    event_types_to_remove.append(event_type)
-            else:
+            if remaining_timestamps:
                 self._events[event_type.uid] = list(remaining_timestamps)
-            event_types_to_update.append(event_type)
+                event_types_to_update.append(event_type)
+                continue
+
+            del self._events[event_type.uid]
+            if remove_empty_types:
+                del self._event_types_by_name[event_name]
+                event_types_to_remove.append(event_type)
+            else:
+                event_types_to_update.append(event_type)
 
         self.save_cached_json("events.json", self._events)
         if remove_empty_types and event_types_to_remove:
