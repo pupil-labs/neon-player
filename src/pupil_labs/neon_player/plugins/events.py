@@ -1,9 +1,10 @@
 import logging
-import uuid
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
+import typing as T
+import uuid
+
+from pathlib import Path
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QIcon, QKeyEvent
@@ -186,6 +187,8 @@ class EventsPlugin(neon_player.Plugin):
             return
 
         plot_item = timeline.add_timeline_scatter(f"Events - {event_type.name}", [])
+        if plot_item is None:
+            return
         plot_item.getViewBox().allow_y_panning = False
 
         if event_type.name not in IMMUTABLE_EVENTS:
@@ -279,7 +282,9 @@ class EventsPlugin(neon_player.Plugin):
 
         return closest_event
 
-    def delete_event_instance(self, data_point, event_type: EventType) -> None:
+    def delete_event_instance(
+        self, data_point: tuple[int, T.SupportsFloat], event_type: EventType
+    ) -> None:
         if event_type.uid not in self.events:
             return
 
@@ -291,10 +296,12 @@ class EventsPlugin(neon_player.Plugin):
         self.save_cached_json("events.json", self.events)
         self._update_timeline_data(event_type)
 
-    def seek_to_event_instance(self, data_point) -> None:
+    def seek_to_event_instance(self, data_point: tuple[int, T.SupportsFloat]) -> None:
         self.app.seek_to(data_point[0])
 
-    def set_event_as_export_boundary(self, data_point, event_type, left: bool):
+    def set_event_as_export_boundary(
+        self, data_point: tuple[int, T.SupportsFloat], event_type: EventType, left: bool
+    ) -> None:
         closest_event = self._find_closest_event(event_type, data_point[0])
         if closest_event is None:
             return
@@ -309,22 +316,13 @@ class EventsPlugin(neon_player.Plugin):
     def _update_timeline_data(self, event_type: EventType) -> None:
         timeline = self.get_timeline()
         event_name = event_type.name
-        plot_item = timeline.get_timeline_plot(f"Events - {event_name}", True)
+        plot_item = timeline.get_timeline_plot(f"Events - {event_name}")
+        if plot_item is None or not plot_item.items:
+            return
 
-        raw_events = self.events.get(event_type.uid, [])
-        if raw_events:
-            data = np.array([[t, 0] for t in raw_events], dtype=np.float64)
-        else:
-            data = np.empty((0, 2))
-
-        if len(plot_item.items) == 0:
-            if len(data) > 0:
-                plot_item = timeline.add_timeline_scatter(
-                    f"Events - {event_name}",
-                    data,
-                )
-        else:
-            plot_item.items[0].setData(data)
+        x = np.array(self.events.get(event_type.uid, []))
+        y = np.zeros_like(x)
+        plot_item.items[0].setData(x, y)
 
     @property
     @property_params(
@@ -377,7 +375,7 @@ class EventsPlugin(neon_player.Plugin):
         self._remove_gui_for_event_name(old_name, remove_add_action=False)
         self._update_timeline_data(event_type)
 
-    def create_event_type(self, event_name: str) -> None:
+    def create_event_type(self, event_name: str) -> EventType:
         event_type = EventType()
         event_type.uid = str(uuid.uuid4())
         event_type._name = event_name
