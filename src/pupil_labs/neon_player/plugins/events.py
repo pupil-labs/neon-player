@@ -521,7 +521,7 @@ class EventsPlugin(neon_player.Plugin):
         if plot_item is None or not plot_item.items:
             return
 
-        x = np.array(self.events.get(event_type.uid, []))
+        x = np.array(self._events.get(event_type.uid, []))
         y = np.zeros_like(x)
         plot_item.items[0].setData(x, y)
 
@@ -626,7 +626,7 @@ class EventsPlugin(neon_player.Plugin):
                 event_types_to_update.append(event_type)
 
         self.save_cached_json("events.json", self._events)
-        if remove_empty_types and event_types_to_remove:
+        if event_types_to_remove:
             self._update_gui_for_event_types(event_types_to_remove=event_types_to_remove)
             self.changed.emit()
         for event_type in event_types_to_update:
