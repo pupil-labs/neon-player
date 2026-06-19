@@ -23,6 +23,7 @@ dependencies = [
     "numpy<2.4.0",
     "numpyencoder>=0.3.2",
     "opencv-python>=4.11.0.86",
+    "packaging>=26.1",
     "pandas>=2.2.3",
     "protobuf<6",
     "pupil-apriltags>=1.0.4.post11",
@@ -54,17 +55,16 @@ neon-player = "pupil_labs.neon_player.main:main"
 [tool.uv]
 dev-dependencies = [
     "pytest>=8.2",
+    "pytest-qt>=4.5.0",
     "pre-commit>=2.20.0",
     "mypy>=0.991",
     "deptry>=0.20.0",
     "tox-uv>=1.11.3",
     "pytest-cov>=4.0.0",
-
     # stubs
+    "pandas-stubs>=3.0.3.260530",
     # "opencv-stubs",
     # "types-protobuf",
-    # "pandas-stubs",
-
     # docs
     "markdown-callouts>=0.4",
     "markdown-exec>=1.8",

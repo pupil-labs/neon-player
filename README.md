@@ -30,7 +30,7 @@ python -m pupil_labs.neon_player [path/to/my/recording]
 - If your plugin has multiple files, put them in a folder with a `__init__.py` file that either defines your `Plugin` class or imports a module which does. Do not create an instance of your plugin - just define the class which inherits from `pupil_labs.neon_player.Plugin`.
 - If your plugin needs python dependencies, list them as [inline script metadata (aka PEP 723)](https://packaging.python.org/en/latest/specifications/inline-script-metadata/#inline-script-metadata). Neon Player will detect these and install them to `$HOME/Pupil Labs/Neon Player/plugins/site-packages` automatically.
 
-To expose a plugin setting to the GUI, define a property with getter/setter functions and appropriate type hints. You can control some options of the parameter GUI widget using th `@property_params` decorator. For example, by defining a `min` and `max` for `int` or `float` properties, the UI will present a slider.
+To expose a plugin setting to the GUI, define a property with getter/setter functions and appropriate type hints. You can control some options of the parameter GUI widget using th `@property_params` decorator. For example, by defining a `min` and `max` for `int` or `float` properties, the UI will present a slider. For an overview of available built-in widgets and their parameters, see [this demo plugin](examples/plugins/demo_widgets.py).
 
 You can also expose a function to the GUI by using the `@action` decorator. It will appear as a button, with each of its arguments as an input field
 

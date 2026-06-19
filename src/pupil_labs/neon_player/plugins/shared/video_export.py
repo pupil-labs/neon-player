@@ -55,8 +55,9 @@ class BackgroundVideoExportMixin:
             (combined_timestamps >= start_time) & (combined_timestamps <= stop_time)
         ]
 
-        # Find any gaps in the timestamps that are greater than 1/fps of a second
-        gaps = np.where(np.diff(combined_timestamps) > 1e9 // fps)[0]
+        # Find any gaps in the timestamps that are greater than 0.5 seconds,
+        # assuming that such gaps are too large to happen naturally
+        gaps = np.where(np.diff(combined_timestamps) > 0.5 * 1e9)[0]
 
         # Fill the gaps with timestamps at fps frequency
         for gap in reversed(gaps):

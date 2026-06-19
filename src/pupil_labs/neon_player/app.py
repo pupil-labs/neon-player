@@ -202,6 +202,8 @@ class NeonPlayerApp(QApplication):
             self._initializing = False
             os.chdir(Path.home())
 
+        self.aboutToQuit.connect(self.unload)
+
     def run_jobs(self, job):
         plugin_name, action_name = job[0].split(".")
         job_args = job[1:]
@@ -267,8 +269,8 @@ class NeonPlayerApp(QApplication):
         logging.info(f"Loading recording history from {self.history_path}")
         return json.loads(self.history_path.read_text())
 
-    def save_settings(self) -> None:
-        if self._initializing:
+    def save_settings(self, force: bool = False) -> None:
+        if self._initializing and not force:
             return
 
         try:
@@ -433,11 +435,14 @@ class NeonPlayerApp(QApplication):
 
     def unload_recording(self) -> None:
         self.set_playback_state(False)
-        self.save_settings()
-
+        self.save_settings(force=True)
         class_names = list(self.plugins_by_class.keys())
+
+        timeline = self.main_window.timeline
+        timeline.disable_plot_sorting()
         for plugin_class_name in class_names:
             self.toggle_plugin(plugin_class_name, False)
+        timeline.enable_plot_sorting()
 
         self.recording = None
         self.recording_unloaded.emit()
@@ -515,10 +520,14 @@ class NeonPlayerApp(QApplication):
         logging.info(f"Loaded `{self.recording._rec_dir}`")
 
     def toggle_plugins_by_settings(self) -> None:
+        timeline = self.main_window.timeline
+        timeline.disable_plot_sorting()
+
         for cls_name, enabled in self.session_settings.enabled_plugins.items():
             state = self.session_settings.plugin_states.get(cls_name, {})
             self.toggle_plugin(cls_name, enabled, state)
 
+        timeline.enable_plot_sorting()
         self._initializing = False
 
         if self.args.job:
