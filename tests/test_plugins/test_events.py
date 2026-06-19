@@ -252,6 +252,37 @@ def test_events_plugin__add_events__raises_on_immutable_type():
         plugin.add_events({"recording.begin": [100, 200]})
 
 
+def test_events_plugin__delete_events__deletes_events():
+    plugin = EventsPlugin()
+    et = EventType.from_name("test.event")
+    plugin.event_types = [et]
+    plugin._events = {et.uid: [100, 200, 300, 400]}
+    plugin.save_cached_json = MagicMock()
+
+    plugin.delete_events({"test.event": [200, 300]})
+
+    assert sorted(plugin._events[et.uid]) == [100, 400], \
+        "Expected specified events to be deleted"
+    plugin.save_cached_json.assert_called_once()
+
+
+def test_events_plugin__delete_events__removes_event_type_if_no_events_left(qtbot):
+    plugin = EventsPlugin()
+    et = EventType.from_name("test.event")
+    plugin.event_types = [et]
+    plugin._events = {et.uid: [100, 200]}
+    plugin.save_cached_json = MagicMock()
+
+    with qtbot.waitSignal(plugin.changed):
+        plugin.delete_events({"test.event": [100, 200]}, remove_empty_types=True)
+
+    assert et.name not in plugin._event_types_by_name, \
+        "Expected event type to be removed from event_types_by_name dict"
+    assert et.uid not in plugin._events, \
+        "Expected events for deleted type to be removed from events dict"
+    plugin.save_cached_json.assert_called_once()
+
+
 def test_events_plugin__delete_events__raises_on_immutable_type():
     plugin = EventsPlugin()
     et = EventType.from_name("recording.begin")

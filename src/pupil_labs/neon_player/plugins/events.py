@@ -350,7 +350,7 @@ class EventsPlugin(neon_player.Plugin):
 
         timeline = self.get_timeline()
         existing_plot = timeline.get_timeline_plot(
-            f"Events - {event_type.name}", create_if_not_exists=False
+            f"Events - {event_type.name}", create_if_missing=False
         )
         if existing_plot is not None:
             return
@@ -587,11 +587,16 @@ class EventsPlugin(neon_player.Plugin):
         for event_type in event_types_to_update:
             self._update_timeline_data(event_type)
 
-    def delete_events(self, events: dict[str, list[int]]) -> None:
+    def delete_events(
+        self, events: dict[str, list[int]], remove_empty_types: bool = False
+    ) -> None:
         """
         Delete events specified in the provided dictionary from the existing ones.
         The expected format of the dictionary is {event name: list of timestamps to remove}.
+        Event types, for which all events are removed, are not deleted by default,
+        but can optionally be removed if `remove_empty_types` is set to True.
         """
+        event_types_to_remove = []
         event_types_to_update = []
         for event_name, timestamps in events.items():
             if event_name not in self._event_types_by_name:
@@ -610,11 +615,17 @@ class EventsPlugin(neon_player.Plugin):
             remaining_timestamps = existing_timestamps - timestamps_to_remove
             if not remaining_timestamps:
                 del self._events[event_type.uid]
+                if remove_empty_types:
+                    del self._event_types_by_name[event_name]
+                    event_types_to_remove.append(event_type)
             else:
                 self._events[event_type.uid] = list(remaining_timestamps)
             event_types_to_update.append(event_type)
 
         self.save_cached_json("events.json", self._events)
+        if remove_empty_types and event_types_to_remove:
+            self._update_gui_for_event_types(event_types_to_remove=event_types_to_remove)
+            self.changed.emit()
         for event_type in event_types_to_update:
             self._update_timeline_data(event_type)
 
