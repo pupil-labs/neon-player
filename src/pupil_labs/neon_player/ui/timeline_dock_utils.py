@@ -17,7 +17,7 @@ def get_clicked_plot_item(items: list[T.Any]) -> SmartSizePlotItem | None:
 
 def get_clicked_data_point(
     plot_item: SmartSizePlotItem | None, event: MouseClickEvent
-) -> tuple[int, float] | None:
+) -> tuple[int, T.SupportsFloat] | None:
     if plot_item is None:
         return None
 
@@ -48,6 +48,6 @@ def get_clicked_data_point(
         original_ts, original_y = item.getData()
         selected_ts = closest_point.pos().x()
         ts_index = np.argmin(np.abs(original_ts.astype(float) - selected_ts))
-        return original_ts[ts_index], original_y[ts_index]
+        return original_ts[ts_index], T.cast(T.SupportsFloat, original_y[ts_index])
 
     return None

@@ -1,9 +1,10 @@
 import logging
-import uuid
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
+import typing as T
+import uuid
+
+from pathlib import Path
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QIcon, QKeyEvent
@@ -186,6 +187,8 @@ class EventsPlugin(neon_player.Plugin):
             return
 
         plot_item = timeline.add_timeline_scatter(f"Events - {event_type.name}", [])
+        if plot_item is None:
+            return
         plot_item.getViewBox().allow_y_panning = False
 
         if event_type.name not in IMMUTABLE_EVENTS:
@@ -280,7 +283,7 @@ class EventsPlugin(neon_player.Plugin):
         return closest_event
 
     def delete_event_instance(
-        self, data_point: tuple[int, float], event_type: EventType
+        self, data_point: tuple[int, T.SupportsFloat], event_type: EventType
     ) -> None:
         if event_type.uid not in self.events:
             return
@@ -293,11 +296,11 @@ class EventsPlugin(neon_player.Plugin):
         self.save_cached_json("events.json", self.events)
         self._update_timeline_data(event_type)
 
-    def seek_to_event_instance(self, data_point: tuple[int, float]) -> None:
+    def seek_to_event_instance(self, data_point: tuple[int, T.SupportsFloat]) -> None:
         self.app.seek_to(data_point[0])
 
     def set_event_as_export_boundary(
-        self, data_point: tuple[int, float], event_type: EventType, left: bool
+        self, data_point: tuple[int, T.SupportsFloat], event_type: EventType, left: bool
     ) -> None:
         closest_event = self._find_closest_event(event_type, data_point[0])
         if closest_event is None:
@@ -372,7 +375,7 @@ class EventsPlugin(neon_player.Plugin):
         self._remove_gui_for_event_name(old_name, remove_add_action=False)
         self._update_timeline_data(event_type)
 
-    def create_event_type(self, event_name: str) -> None:
+    def create_event_type(self, event_name: str) -> EventType:
         event_type = EventType()
         event_type.uid = str(uuid.uuid4())
         event_type._name = event_name

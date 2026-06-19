@@ -459,7 +459,7 @@ class TimeLineDock(QWidget):
     def add_timeline_plot(
         self,
         timeline_row_name: str,
-        data: list[tuple[int, float]],
+        data: list[tuple[int, T.SupportsFloat]],
         plot_name: str = "",
         color: QColor | None = None,
         **kwargs,
@@ -546,14 +546,14 @@ class TimeLineDock(QWidget):
     def add_timeline_line(
         self,
         timeline_row_name: str,
-        data: list[tuple[int, float]],
+        data: list[tuple[int, T.SupportsFloat]],
         plot_name: str = "",
         **kwargs,
     ) -> pg.PlotDataItem | None:
         return self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
 
     def add_timeline_scatter(
-        self, name: str, data: list[tuple[int, float]], item_name: str = ""
+        self, name: str, data: list[tuple[int, T.SupportsFloat]], item_name: str = ""
     ) -> pg.PlotDataItem | None:
         return self.add_timeline_plot(
             name,
@@ -567,7 +567,7 @@ class TimeLineDock(QWidget):
     def add_timeline_broken_bar(
         self,
         timeline_row_name: str,
-        data: list[tuple[float, float, float]] | list[tuple[float, float]],
+        data: list[tuple[int, int, T.SupportsFloat]] | list[tuple[int, int]],
         item_name: str = "",
         color: str = "white",
     ) -> None:
@@ -589,8 +589,8 @@ class TimeLineDock(QWidget):
         if len(data) > 0:
             columns = list(zip(*data, strict=False))
             starts_raw, stops_raw = (
-                np.array(columns[0], dtype=np.float64),
-                np.array(columns[1], dtype=np.float64),
+                np.array(columns[0], dtype=np.int64),
+                np.array(columns[1], dtype=np.int64),
             )
 
             valid_mask = stops_raw >= starts_raw
