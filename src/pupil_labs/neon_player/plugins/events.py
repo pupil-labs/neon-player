@@ -48,6 +48,7 @@ class EventType(PersistentPropertiesMixin, QObject):
         self._name = ""
         self._shortcut = ""
         self._uid = ""
+        self._source = "recording"
 
     @property
     def name(self) -> str:
@@ -90,8 +91,24 @@ class EventType(PersistentPropertiesMixin, QObject):
         self._shortcut = value
 
     @property
+    @property_params(widget=None, dont_encode=True)
+    def source(self) -> str:
+        return self._source
+
+    @source.setter
+    def source(self, value: str) -> None:
+        if value not in ["recording", "workspace"]:
+            raise ValueError(f"Invalid event type source: {value}")
+        self._source = value
+
+    @property
     @property_params(widget=None)
     def uid(self) -> str:
+        """
+        This field should always have the same value as `name`. It is kept for compatibility
+        with the original implementation of the plugin that used UIDs as the primary identifier
+        for event types.
+        """
         return self._uid
 
     @uid.setter
@@ -217,6 +234,7 @@ def _load_events_from_cache(
         known_event_types_by_uid[et.uid] = et
 
     event_type_cache = {}
+    events = {}
     for uid in cached_events:
         if uid in event_type_cache:
             continue
@@ -224,9 +242,11 @@ def _load_events_from_cache(
         if uid not in known_event_types_by_uid:
             raise ValueError(f"Event type with uid {uid} not found")
 
-        event_type_cache[uid] = known_event_types_by_uid[uid]
+        et = known_event_types_by_uid[uid]
+        event_type_cache[uid] = et
+        events[et.name] = cached_events[uid]
 
-    return list(event_type_cache.values()), cached_events
+    return list(event_type_cache.values()), events
 
 
 def _load_events_from_dataframe(events_df: pd.DataFrame) -> dict[str, list[int]]:
@@ -240,13 +260,6 @@ def _load_events_from_dataframe(events_df: pd.DataFrame) -> dict[str, list[int]]
         events[name] = group["timestamp [ns]"].astype(int).tolist()
 
     return events
-
-
-def _filter_event_types(event_types: list[EventType], mutable: bool) -> list[EventType]:
-    if mutable:
-        return [et for et in event_types if et.name not in IMMUTABLE_EVENTS]
-    else:
-        return [et for et in event_types if et.name in IMMUTABLE_EVENTS]
 
 
 class WorkspaceEventIndex:
@@ -380,15 +393,6 @@ class EventsPlugin(neon_player.Plugin):
 
         return plugin
 
-    def _on_key_pressed(self, event: QKeyEvent) -> None:
-        key_text = event.text().lower()
-        if key_text == "":
-            return
-
-        for event_type in self._event_types_by_name.values():
-            if event_type.shortcut.lower() == key_text:
-                self._add_event(event_type)
-
     def _load_events(self, recording: NeonRecording) -> tuple[list[EventType], dict, str]:
         logging.debug(f"Loading events for recording {recording._rec_dir.name}")
         events: dict[str, list[int]] = {}
@@ -411,29 +415,6 @@ class EventsPlugin(neon_player.Plugin):
         )
 
         return event_types, events, "recording"
-
-    def _replace_uid_with_name_in_events(self):
-        events_changed = False
-        event_types_changed = False
-        for event_type in self._event_types_by_name.values():
-            if event_type.name == event_type.uid:
-                continue
-
-            old_uid = event_type.uid
-            event_type.uid = event_type.name
-            event_types_changed = True
-
-            if old_uid not in self.events:
-                continue
-
-            self.events[event_type.name] = self.events.pop(old_uid)
-            events_changed = True
-
-        if events_changed:
-            self.save_cached_json("events.json", self.events)
-
-        if event_types_changed or events_changed:
-            logging.debug("Replaced event type UIDs with names in events and event types")
 
     def _scan_events_in_workspace(self):
         # Update the index for the current recording to account for any changes
@@ -478,33 +459,43 @@ class EventsPlugin(neon_player.Plugin):
             self.event_types = self.event_types + types_to_add
             self._update_gui_for_event_types(event_types_to_add=types_to_add)
 
-    def on_recording_loaded(self, recording: NeonRecording) -> None:  # noqa: C901
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
         event_types, events, source = self._load_events(recording)
         self.events = events
 
         if source == "recording":
             # When loading from recording, only mutable event types need to be saved,
             # but the UI needs to be set up for all event types
-            mutable_event_types = _filter_event_types(event_types, mutable=True)
+            mutable_event_types = filter(lambda et: et.name not in IMMUTABLE_EVENTS, event_types)
             event_types_to_setup_ui_for = event_types
-            self.event_types = mutable_event_types
+            self.event_types = list(mutable_event_types)
             self.save_cached_json("events.json", events)
         elif source == "cache":
             # When loading from cache, all event types are expected to have been loaded
             # from plugin settings, so self.event_types is already correct, but the UI
             # still needs to be set up for stored and immutable event types
-            immutable_event_types = _filter_event_types(event_types, mutable=False)
-            event_types_to_setup_ui_for = self.event_types + immutable_event_types
+            immutable_event_types = filter(lambda et: et.name in IMMUTABLE_EVENTS, event_types)
+            event_types_to_setup_ui_for = self.event_types + list(immutable_event_types)
+
+            # Force the UIDs of all event types to match their names. This way, it becomes
+            # easier to match events with the same name across recordings
+            event_types_renamed = False
+            for et in self._event_types_by_name.values():
+                if et.name != et.uid:
+                    et.uid = et.name
+                    event_types_renamed = True
+            if event_types_renamed:
+                self.save_cached_json("events.json", events)
 
         logging.info(f"Loaded {sum(len(v) for v in self.events.values())} events")
 
-        # NOTE: original cache format was using event type UIDs as keys, replacing them
-        # with names to make matching events across recordings easier
-        self._replace_uid_with_name_in_events()
+        if self.headless:
+            return
 
         need_to_scan_workspace = self.app.batch_mode_enabled and self.workspace.size > 1
-        if not self.headless and need_to_scan_workspace:
+        if need_to_scan_workspace:
             self._scan_events_in_workspace()
+
         self._update_gui_for_event_types(event_types_to_add=event_types_to_setup_ui_for)
 
     def on_disabled(self) -> None:
@@ -591,6 +582,15 @@ class EventsPlugin(neon_player.Plugin):
             f"Set this {event_type.name} as the right export window boundary",
             lambda dp, et=event_type: self.set_event_as_export_boundary(dp, et, left=False),
         )
+
+    def _on_key_pressed(self, event: QKeyEvent) -> None:
+        key_text = event.text().lower()
+        if key_text == "":
+            return
+
+        for event_type in self._event_types_by_name.values():
+            if event_type.shortcut.lower() == key_text:
+                self._add_event(event_type)
 
     def _remove_gui_for_event_name(self, event_name: str) -> None:
         if self.headless:
@@ -773,7 +773,7 @@ class EventsPlugin(neon_player.Plugin):
         if scope != "recording":
             raise ValueError(f"Unsupported scope: {scope}")
 
-        return [et for et in self._event_types_by_name.values() if et.name in self.events]
+        return [et for et in self._event_types_by_name.values() if et.source == "recording"]
 
     def add_events(self, events: dict[str, list[int]]) -> None:
         """
@@ -786,6 +786,7 @@ class EventsPlugin(neon_player.Plugin):
             event_type = self._event_types_by_name.get(event_name, None)
             if event_type is None:
                 event_type = EventType.from_name(event_name)
+                event_type.source = "recording"
                 self._event_types_by_name[event_name] = event_type
                 event_types_to_add.append(event_type)
             else:

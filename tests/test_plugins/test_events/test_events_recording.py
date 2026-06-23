@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from pupil_labs.neon_player.plugins.events import (
     _load_events_from_cache,
@@ -60,7 +60,7 @@ def test_events__load_events_from_recording(mock_neon_recording):
             f"Timestamps for {event_name} do not match input data"
 
 
-def test_events__load_events_from_cache():
+def test_events__load_events_from_cache__old_format():
     # Should not contain recording.begin / recording.end as these types are
     # not stored in the settings file
     event_names = [
@@ -73,6 +73,8 @@ def test_events__load_events_from_cache():
         et._uid = event_name if "recording" in event_name else f"uid{idx}"
         event_types.append(et)
 
+    # Old cache file uses event type UIDs as keys, they should be replaced
+    # with event names
     cached_events = {
         "recording.begin": [0],
         "uid0": [100, 400, 700],  # trial.begin
@@ -86,7 +88,38 @@ def test_events__load_events_from_cache():
     for et in event_types:
         assert et in event_types, f"Expected known event types to be used"
         assert et.name != "extra.event", "Only present event types should be returned"
-    assert events == cached_events, "Expected events to match cached events"
+    for et in event_types:
+        assert events[et.name] == cached_events[et.uid], \
+            f"Timestamps for {et.name} do not match cached data, or event was incorrectly mapped"
+
+
+def test_events__load_events_from_cache__new_format():
+    # Should not contain recording.begin / recording.end as these types are
+    # not stored in the settings file
+    event_names = [
+        "trial.begin", "trial.end", "extra.event"
+    ]
+    event_types = []
+    for idx, event_name in enumerate(event_names):
+        et = EventType()
+        et._name = event_name
+        et._uid = event_name
+        event_types.append(et)
+
+    cached_events = {
+        "recording.begin": [0],
+        "trial.begin": [100, 400, 700],
+        "trial.end": [200, 500, 800],
+        "recording.end": [1000],
+    }
+
+    event_types, events = _load_events_from_cache(cached_events, event_types)
+
+    assert len(event_types) == 4
+    for et in event_types:
+        assert et in event_types, f"Expected known event types to be used"
+        assert et.name != "extra.event", "Only present event types should be returned"
+    assert events == cached_events, "Expected events to match cached data"
 
 
 def test_events__load_events_from_dataframe():
@@ -110,38 +143,58 @@ def test_events_plugin__on_recording_loaded__from_recording(mock_neon_recording)
 
     plugin = EventsPlugin()
     plugin._load_events = MagicMock(
-        return_value=([et], {et.uid: [100, 200, 300]}, "recording")
+        return_value=([et], {"test.event": [100, 200, 300]}, "recording")
     )
     plugin.save_cached_json = MagicMock()
     plugin.on_recording_loaded(mock_neon_recording())
 
     assert plugin.event_types == [et], "Expected event types to be loaded from recording"
-    assert plugin._events == {et.uid: [100, 200, 300]}, "Expected events to be loaded from recording"
+    assert plugin.events == {"test.event": [100, 200, 300]}, "Expected events to be loaded from recording"
     plugin.save_cached_json.assert_called_once()
 
 
-def test_events_plugin__on_recording_loaded__from_cache(mock_neon_recording):
+def test_events_plugin__on_recording_loaded__from_cache__old_format(mock_neon_recording):
     et = EventType.from_name("test.event")
+    et._uid = "uid0"
 
     plugin = EventsPlugin()
+    plugin._event_types_by_name = {"test.event": et}
     plugin._load_events = MagicMock(
-        return_value=([et], {et.uid: [100, 200, 300]}, "cache")
+        return_value=([et], {"test.event": [100, 200, 300]}, "cache")
     )
     plugin.save_cached_json = MagicMock()
     plugin.on_recording_loaded(mock_neon_recording())
 
-    assert plugin.event_types == [], "Expected event types not to be modified"
-    assert plugin._events == {et.uid: [100, 200, 300]}, "Expected events to be loaded from cache"
+    assert plugin.event_types[0].uid == "test.event", "Expected event ID to match its name"
+    assert plugin.events == {"test.event": [100, 200, 300]}, "Expected events to be loaded from cache"
+    # NOTE: The save_cached_json method should be called to update the cache with the new event type names
+    plugin.save_cached_json.assert_called_once()
+
+
+def test_events_plugin__on_recording_loaded__from_cache__new_format(mock_neon_recording):
+    et = EventType.from_name("test.event")
+
+    plugin = EventsPlugin()
+    plugin._event_types_by_name = {"test.event": et}
+    plugin._load_events = MagicMock(
+        return_value=([et], {"test.event": [100, 200, 300]}, "cache")
+    )
+    plugin.save_cached_json = MagicMock()
+    plugin.on_recording_loaded(mock_neon_recording())
+
+    assert plugin.event_types == [et], "Expected event types not to be modified"
+    assert plugin.events == {"test.event": [100, 200, 300]}, "Expected events to be loaded from cache"
+    # No need to call save_cached_json since the cache format is already correct
     plugin.save_cached_json.assert_not_called()
 
 
-def test_events_plugin__create_event_type():
+def test_events_plugin__get_unique_event_name():
     plugin = EventsPlugin()
     et = EventType.from_name("event-1")
     plugin.event_types = [et]
-    new_et = plugin.create_event_type()
+    new_event_name = plugin._get_unique_event_name()
 
-    assert new_et.name == "event-2", "Expected event type to have a unique name"
+    assert new_event_name == "event-2", "Expected new event name to follow the pattern"
 
 
 def test_events_plugin__add_event_type(qtbot):
@@ -305,11 +358,11 @@ def _prepare_test_data(mock_neon_recording):
     et_player = EventType.from_name("event.from.player")
     et_same_ts = EventType.from_name("event.same.ts")
     plugin.event_types = [et_rec, et_player, et_same_ts]
-    plugin._events = {
+    plugin.events = {
         "recording.begin": [0],
-        et_rec.uid: [100, 400, 700],
-        et_player.uid: [200, 500, 800],
-        et_same_ts.uid: [100],
+        "event.from.rec": [100, 400, 700],
+        "event.from.player": [200, 500, 800],
+        "event.same.ts": [100],
         "recording.end": [1000],
     }
     mock_recording = mock_neon_recording(events=mock_events, info={"recording_id": "test.recording"})
