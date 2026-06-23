@@ -63,6 +63,7 @@ dev-dependencies = [
     "pytest-cov>=4.0.0",
     # stubs
     "pandas-stubs>=3.0.3.260530",
+    "scipy-stubs>=1.17.1.5",
     # "opencv-stubs",
     # "types-protobuf",
     # docs
