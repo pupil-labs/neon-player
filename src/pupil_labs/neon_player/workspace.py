@@ -79,7 +79,7 @@ class Workspace(QObject):
         return self._recordings
 
     @property
-    def num_recordings(self) -> int:
+    def size(self) -> int:
         return len(self._recordings)
 
     @property
@@ -120,7 +120,7 @@ class Workspace(QObject):
         self.path = path
 
         logging.info(
-            f"Found {self.num_recordings} recordings in the provided folder"
+            f"Found {self.size} recordings in the provided folder"
         )
         self.initialized = True
         self.recording_list_loaded.emit(self.recording_metadata)

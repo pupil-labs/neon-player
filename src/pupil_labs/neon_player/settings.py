@@ -26,9 +26,10 @@ def plugin_label_lookup(cls_name: str) -> str:
     return f"{cls_name} (missing?)"
 
 
-def get_property_scopes(plugin_cls: type) -> dict[str, list[str]]:
+def get_property_scopes(plugin_cls: type) -> tuple[dict[str, list[str]], list[str]]:
     properties = get_properties(plugin_cls)
     scopes = {}
+    custom_scope_properties = []
 
     for prop_name, prop in properties.items():
         if not prop.fget:
@@ -40,19 +41,19 @@ def get_property_scopes(plugin_cls: type) -> dict[str, list[str]]:
             continue
 
         scope = params.get("scope", "workspace")
-        if isinstance(scope, str):
-            scope = [scope]
+        if scope == "custom":
+            custom_scope_properties.append(prop_name)
 
         scopes[prop_name] = scope
 
-    return scopes
+    return scopes, custom_scope_properties
 
 
 def merge_plugin_states(
     saved_states: dict[str, dict],
     new_states: dict[str, dict],
     scopes: dict[str, dict] | None = None,
-    overwrite_condition: T.Callable[[list[str]], bool] | None = None,
+    overwrite_scope: str | None = None,
 ) -> dict[str, dict]:
     """
     Merge plugin states, optionally overwriting only properties that match
@@ -67,7 +68,7 @@ def merge_plugin_states(
     will be merged.
     :return: Merged plugin states.
     """
-    condition_present = overwrite_condition is not None
+    condition_present = overwrite_scope is not None
 
     merged = saved_states.copy()
     for plugin_name, props in new_states.items():
@@ -76,14 +77,34 @@ def merge_plugin_states(
 
         plugin_scopes = scopes.get(plugin_name, {}) if scopes else {}
         for prop_name, prop_value in props.items():
-            prop_scopes = plugin_scopes.get(prop_name, [])
-
-            if condition_present and not overwrite_condition(prop_scopes):
+            prop_scope = plugin_scopes.get(prop_name, "workspace")
+            if condition_present and overwrite_scope != prop_scope:
                 continue
 
             merged[plugin_name][prop_name] = prop_value
 
     return merged
+
+
+def get_custom_plugin_state(
+    p: neon_player.Plugin,
+    custom_scope_properties: list[str],
+    target_scope: str
+) -> dict[str, list[str]]:
+    state = {}
+    for prop_name in custom_scope_properties:
+        getter_name = f"{prop_name}_for_scope"
+        if not hasattr(p, getter_name):
+            raise ValueError(
+                f"Plugin {p.__class__.__name__} should implement a method "
+                f"'{getter_name}(scope: str)' for property '{prop_name}' "
+                f"to be used with custom scope."
+            )
+
+        getter = getattr(p, getter_name)
+        state[prop_name] = getter(target_scope)
+
+    return state
 
 
 class GeneralSettings(PersistentPropertiesMixin, QObject):
@@ -158,6 +179,7 @@ class SessionSettings(PersistentPropertiesMixin):
         self._plugin_states: dict[str, dict] = {}
         self._export_window: tuple[int, int] = ()
         self.property_scopes: dict[str, dict] = {}
+        self.custom_scope_properties: dict[str, list[str]] = {}
 
     @property
     @property_params(widget=None, scope="recording")
@@ -194,20 +216,32 @@ class SessionSettings(PersistentPropertiesMixin):
             for class_name, p in app.plugins_by_class.items()
         }
 
-        overwrite_condition = None
-        if app.batch_mode_enabled:
-            target_scope = (
-                "workspace" if attached_to_workspace else "recording"
-            )
-            overwrite_condition = lambda scopes: target_scope in scopes
-
         # Overwrite only properties that are relevant for the current
         # scope (recording or workspace) when batch mode is enabled
+        target_scope = "workspace" if attached_to_workspace else "recording"
+        overwrite_scope = target_scope if app.batch_mode_enabled else None
+
         plugin_states = merge_plugin_states(
             self._plugin_states,
             current_states,
             scopes=self.property_scopes,
-            overwrite_condition=overwrite_condition
+            overwrite_scope=overwrite_scope
+        )
+
+        # Overwrite properties that have different values depending on
+        # the scope (scope == "custom")
+        custom_states = {}
+        for class_name, p in app.plugins_by_class.items():
+            custom_scope_properties = self.custom_scope_properties.get(class_name, [])
+            custom_states[class_name] = get_custom_plugin_state(
+                p, custom_scope_properties, target_scope
+            )
+
+        plugin_states = merge_plugin_states(
+            plugin_states,
+            custom_states,
+            scopes=self.property_scopes,
+            overwrite_scope="custom"
         )
 
         self._plugin_states = {k: v for k, v in plugin_states.items() if v}
@@ -241,9 +275,11 @@ class PluginSettingsDispatcher(QObject):
         self._batch_mode_enabled: bool = False
 
         self.property_scopes: dict[str, dict] = {}
+        self.custom_scope_properties: dict[str, list[str]] = {}
         for plugin_cls in Plugin.known_classes:
-            scopes = get_property_scopes(plugin_cls)
+            scopes, custom_scope_properties = get_property_scopes(plugin_cls)
             self.property_scopes[plugin_cls.__name__] = scopes
+            self.custom_scope_properties[plugin_cls.__name__] = custom_scope_properties
 
     def load_recording_settings(
         self, settings_path: Path, recording: NeonRecording
@@ -279,6 +315,7 @@ class PluginSettingsDispatcher(QObject):
             ]
 
         self.recording_settings.property_scopes = self.property_scopes
+        self.recording_settings.custom_scope_properties = self.custom_scope_properties
         logging.info("Recording settings loaded")
 
     def load_workspace_settings(self, settings_path: Path) -> None:
@@ -297,6 +334,7 @@ class PluginSettingsDispatcher(QObject):
             self.workspace_settings = SessionSettings()
 
         self.workspace_settings.property_scopes = self.property_scopes
+        self.workspace_settings.custom_scope_properties = self.custom_scope_properties
         logging.info("Workspace settings loaded")
 
     @staticmethod
@@ -362,7 +400,7 @@ class PluginSettingsDispatcher(QObject):
             workspace_states,
             recording_states,
             scopes=self.property_scopes,
-            overwrite_condition=lambda scopes: "recording" in scopes
+            overwrite_scope="recording"
         )
 
         return combined_states
