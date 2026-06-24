@@ -19,6 +19,7 @@ from qt_property_widgets.widgets import ValueListWidget, ValueListItemWidget
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
+from pupil_labs.neon_player.plugins.shared import run_export_across_recordings
 from pupil_labs.neon_player.plugins import Plugin
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 
@@ -540,6 +541,7 @@ class EventsPlugin(neon_player.Plugin):
         item_params={"label_field": "name"},
         prevent_add=True,
         primary=True,
+        scope="recording",
     )
     def event_types(self) -> list[EventType]:
         return list(self._event_types_by_name.values())
@@ -707,4 +709,10 @@ class EventsPlugin(neon_player.Plugin):
             matching = recording.events[mask]
             if any(row["name"] == matching.event):
                 events_df.loc[index, "type"] = "recording"
+
         return events_df
+
+    @action
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
+    def export_all_recordings(self, destination: Path = Path(".")) -> None:
+        run_export_across_recordings(self, destination)
