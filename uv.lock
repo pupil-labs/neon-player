@@ -1340,7 +1340,7 @@ requires-dist = [
     { name = "pupil-apriltags", specifier = ">=1.0.4.post11" },
     { name = "pupil-labs-marker-mapper", specifier = ">=1.0.0" },
     { name = "pupil-labs-neon-recording", specifier = ">=2.1.4" },
-    { name = "pupil-labs-video", specifier = ">=1.0.11" },
+    { name = "pupil-labs-video", specifier = ">=1.0.13" },
     { name = "pyobjc", marker = "sys_platform == 'darwin'" },
     { name = "pyqtgraph", specifier = ">=0.13.7" },
     { name = "pyside6", specifier = ">=6.10.2" },
