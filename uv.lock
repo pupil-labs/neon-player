@@ -1394,16 +1394,16 @@ wheels = [
 
 [[package]]
 name = "pupil-labs-video"
-version = "1.0.11"
+version = "1.0.13"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "av" },
     { name = "numpy" },
     { name = "universal-pathlib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f5/ba/e09a8b0647a97a0d60e687c7aacf9e80bb59d90c753cfe40fe4676f42867/pupil_labs_video-1.0.11.tar.gz", hash = "sha256:71616c5c983e769a8a540748c81c674c75643b6d799c043c29173eb8d3107a9f", size = 323592, upload-time = "2026-04-14T13:57:38.623Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8b/5e/059dfef3a1a8cf22c01faa84cfaa9d895a195544749d0d8684a02e9f401b/pupil_labs_video-1.0.13.tar.gz", hash = "sha256:7fee344732baea2758325bc964f2cdc6ebd1a9a7c5feaedfac65b25b2280f305", size = 323692, upload-time = "2026-06-24T08:01:54.276Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/57/b7/b92692589fe3a2a2cf7be34e71d2cfe061a7a7423ddd7abfee3bfebd6700/pupil_labs_video-1.0.11-py3-none-any.whl", hash = "sha256:362e60aee62ec9d02ee9c9321b2cdc13b1a85307d044bbbb6e43ddb8b5c19e91", size = 21601, upload-time = "2026-04-14T13:57:37.118Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/64/2226ba7c935b79a4052cdff4680d5d66bb90db1cdf7c81068179da10ddb8/pupil_labs_video-1.0.13-py3-none-any.whl", hash = "sha256:4e94fc1b30b6eba43eb8f858a07e18705e5d9e1609f374aaa1cdd779ec31e80d", size = 21705, upload-time = "2026-06-24T08:01:52.709Z" },
 ]
 
 [[package]]
