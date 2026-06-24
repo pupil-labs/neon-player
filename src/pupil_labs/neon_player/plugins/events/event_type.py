@@ -53,9 +53,10 @@ class EventType(PersistentPropertiesMixin, QObject):
     @property_params(widget=None)
     def uid(self) -> str:
         """
-        This field should always have the same value as `name`. It is kept for compatibility
-        with the original implementation of the plugin that used UIDs as the primary identifier
-        for event types.
+        This field is deprecated and should always have the same value as `name`.
+
+        It is kept for compatibility with the original implementation of the plugin
+        that used UIDs as the primary identifier for event types.
         """
         return self._uid
 

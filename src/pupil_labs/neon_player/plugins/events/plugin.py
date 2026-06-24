@@ -114,6 +114,9 @@ class EventsPlugin(neon_player.Plugin):
         self.events: dict[str, list[int]] = {}
         self._workspace_index: WorkspaceEventIndex = WorkspaceEventIndex()
 
+        self.cache_file = "events.json"
+        self.index_file = "workspace-events.json"
+
         if self.headless:
             return
 
@@ -139,9 +142,9 @@ class EventsPlugin(neon_player.Plugin):
         event_types: list[EventType] = []
 
         try:
-            cached_events = self.load_cached_json("events.json")
+            cached_events = self.load_cached_json(self.cache_file)
         except Exception:
-            logging.exception("Failed to load events json")
+            logging.exception("Failed to load events from cache")
             cached_events = None
 
         if cached_events is not None:
@@ -156,10 +159,26 @@ class EventsPlugin(neon_player.Plugin):
 
         return event_types, events, "recording"
 
+    def _load_workspace_index(self) -> None:
+        data = self.load_cached_json(self.index_file, workspace=True)
+        self._workspace_index.load(data)
+
+    def _save_workspace_index(self) -> None:
+        data = self._workspace_index.to_dict()
+        self.save_cached_json(self.index_file, data, workspace=True)
+
+    def _update_workspace_index(self, load: bool = True, save: bool = True) -> None:
+        if load:
+            self._load_workspace_index()
+        recording_name = self.recording._rec_dir.name
+        self._workspace_index.update(recording_name, self.events)
+        if save:
+            self._save_workspace_index()
+
     def _scan_events_in_workspace(self):
         # Update the index for the current recording to account for any changes
         # outside of the workspace mode
-        self._workspace_index.update(load=True)
+        self._update_workspace_index()
 
         # If all recordings have already been scanned, update the UI immediately,
         # otherwise launch a batch background job
@@ -176,23 +195,24 @@ class EventsPlugin(neon_player.Plugin):
         ]
         batch_job = self.job_manager.run_background_batch_action(
             "Scan events in workspace",
-            "EventsPlugin._bg_update_workspace_event_index",
+            "EventsPlugin._update_workspace_index",
             recordings=recordings_to_scan
         )
         batch_job.finished.connect(self._on_workspace_event_scan_finished)
 
-    def _bg_update_workspace_event_index(self) -> None:
-        self._workspace_index.update(load=True)
-
     def _on_workspace_event_scan_finished(self):
-        self._workspace_index.load()
+        self._load_workspace_index()
 
         types_to_add = []
-        for event_name in self._workspace_index.events:
+        for event_name, recording_counts in self._workspace_index.events.items():
             if event_name in self._event_types_by_name:
+                event_count = recording_counts.get(self.recording._rec_dir.name, 0)
+                event_type = self._event_types_by_name[event_name]
+                event_type.source = "recording" if event_count else "workspace"
                 continue
 
             event_type = EventType.from_name(event_name)
+            event_type.source = "workspace"
             types_to_add.append(event_type)
 
         if types_to_add:
@@ -209,7 +229,7 @@ class EventsPlugin(neon_player.Plugin):
             mutable_event_types = filter(lambda et: et.name not in IMMUTABLE_EVENTS, event_types)
             event_types_to_setup_ui_for = event_types
             self.event_types = list(mutable_event_types)
-            self.save_cached_json("events.json", events)
+            self.save_cached_json(self.cache_file, events)
         elif source == "cache":
             # When loading from cache, all event types are expected to have been loaded
             # from plugin settings, so self.event_types is already correct, but the UI
@@ -225,7 +245,7 @@ class EventsPlugin(neon_player.Plugin):
                     et.uid = et.name
                     event_types_renamed = True
             if event_types_renamed:
-                self.save_cached_json("events.json", events)
+                self.save_cached_json(self.cache_file, events)
 
         logging.info(f"Loaded {sum(len(v) for v in self.events.values())} events")
 
@@ -388,7 +408,7 @@ class EventsPlugin(neon_player.Plugin):
 
         if event_type.name in self.events:
             del self.events[event_type.name]
-            self.save_cached_json("events.json", self.events)
+            self.save_cached_json(self.cache_file, self.events)
 
         del self._event_types_by_name[event_type.name]
         if self.app.batch_mode_enabled and not self.headless:
@@ -497,7 +517,7 @@ class EventsPlugin(neon_player.Plugin):
         item_params={"label_field": "name"},
         prevent_add=True,
         primary=True,
-        scope="recording",
+        scope="custom",
     )
     def event_types(self) -> list[EventType]:
         return list(self._event_types_by_name.values())
@@ -507,13 +527,18 @@ class EventsPlugin(neon_player.Plugin):
         self._event_types_by_name = {et.name: et for et in value}
 
     def event_types_for_scope(self, scope: str) -> list[EventType]:
+        if scope not in ["recording", "workspace"]:
+            raise ValueError(f"Unsupported scope: {scope}")
+
         if scope == "workspace":
             return list(self._event_types_by_name.values())
 
-        if scope != "recording":
-            raise ValueError(f"Unsupported scope: {scope}")
-
         return [et for et in self._event_types_by_name.values() if et.source == "recording"]
+
+    def event_types_from_state(
+        self, recording_types: list[EventType], workspace_types: list[EventType]
+    ) -> None:
+        pass
 
     def add_events(self, events: dict[str, list[int]]) -> None:
         """
@@ -541,7 +566,7 @@ class EventsPlugin(neon_player.Plugin):
                 self.events[event_type.name] = []
             self.events[event_type.name].extend(timestamps)
 
-        self.save_cached_json("events.json", self.events)
+        self.save_cached_json(self.cache_file, self.events)
         self._update_gui_for_event_types(event_types_to_add=event_types_to_add)
         if event_types_to_add:
             self.changed.emit()
@@ -586,7 +611,7 @@ class EventsPlugin(neon_player.Plugin):
             else:
                 event_types_to_update.append(event_type)
 
-        self.save_cached_json("events.json", self.events)
+        self.save_cached_json(self.cache_file, self.events)
         if event_types_to_remove:
             self._update_gui_for_event_types(event_types_to_remove=event_types_to_remove)
             self.changed.emit()

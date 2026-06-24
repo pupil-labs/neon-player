@@ -1,15 +1,13 @@
 import typing as T
 
-from PySide6.QtCore import QObject, Signal
+from pupil_labs.neon_player.plugins.events.event_type import IMMUTABLE_EVENTS
 
 
-class WorkspaceEventIndex(QObject):
+class WorkspaceEventIndex():
     """
     Maintains an index of all events and the number of their occurrences
-    across all recordings in the workspace to ensure correct renaming and deletion.
+    across all recordings in the workspace to support renaming and deletion.
     """
-    changed = Signal()
-
     def __init__(self) -> None:
         # {event_name: {recording_name: event_count}}
         self.events: dict[str, dict[str, int]] = {}
@@ -24,37 +22,44 @@ class WorkspaceEventIndex(QObject):
         self.events = data.get("events", {})
         self.recording_names = set(data.get("recording_names", []))
 
-    def save(self) -> dict[str, T.Any]:
+    def to_dict(self) -> dict[str, T.Any]:
         data = {
             "events": self.events,
             "recording_names": list(self.recording_names)
         }
         return data
 
-    def update(self) -> None:
-        recording_name = self.plugin.recording._rec_dir.name
-        if recording_name not in self.recording_names:
-            self.recording_names.add(recording_name)
+    def update(self, recording_name: str, recording_events: dict[str, list[int]]) -> None:
+        """
+        Batch index update that goes through all events in the index and all
+        recording events.
+        """
+        # First, check if existing index entries for this recording are up-to-date
+        for event_name, recording_counts in self.events.items():
+            event_in_recording = event_name in recording_events
+            recording_in_index = recording_name in recording_counts
 
-        events_to_process = self.plugin.events
-        for event_name, timestamps in events_to_process.items():
-            # if event_name in IMMUTABLE_EVENTS:
-            #     continue
+            if recording_in_index and not event_in_recording:
+                del recording_counts[recording_name]
 
-            if event_name not in self.events:
-                self.events[event_name] = {}
+            if event_in_recording:
+                timestamps = recording_events[event_name]
+                self.events[event_name][recording_name] = len(timestamps)
 
-            # Clean up the entries if:
-            #  - all events of this type were deleted from the current recording
-            #  - this event type was deleted across all recordings
-            if not timestamps and recording_name in self.events[event_name]:
-                del self.events[event_name][recording_name]
-                if not self.events[event_name]:
-                    del self.events[event_name]
+        # Process other events from the recording that are not yet in the index
+        for event_name, timestamps in recording_events.items():
+            if event_name in IMMUTABLE_EVENTS:
                 continue
 
-            if timestamps:
-                self.events[event_name][recording_name] = len(timestamps)
+            if event_name in self.events:
+                continue
+
+            self.events[event_name] = {}
+            self.events[event_name][recording_name] = len(timestamps)
+
+        # Mark recording as processed in the index
+        if recording_name not in self.recording_names:
+            self.recording_names.add(recording_name)
 
     def add_event(self, event_name: str, recording_name: str) -> None:
         if event_name not in self.events:
@@ -62,8 +67,6 @@ class WorkspaceEventIndex(QObject):
 
         if recording_name not in self.events[event_name]:
             self.events[event_name][recording_name] = 0
-
-        self.changed.emit()
 
     def delete_event(self, event_name: str, recording_name: str) -> None:
         if event_name not in self.events or recording_name not in self.events[event_name]:
@@ -75,7 +78,6 @@ class WorkspaceEventIndex(QObject):
             del self.events[event_name][recording_name]
         if not self.events[event_name]:
             del self.events[event_name]
-        self.changed.emit()
 
     def rename_event(self, old_name: str, new_name: str, recording_name: str) -> None:
         if old_name not in self.events:
@@ -88,9 +90,6 @@ class WorkspaceEventIndex(QObject):
         if not self.events[old_name]:
             del self.events[old_name]
 
-        self.changed.emit()
-
     def delete_event_type(self, event_name: str) -> None:
         if event_name in self.events:
             del self.events[event_name]
-            self.changed.emit()
