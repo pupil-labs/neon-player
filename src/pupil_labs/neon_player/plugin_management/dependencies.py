@@ -5,6 +5,7 @@ import sys
 import typing as T
 
 from packaging.requirements import InvalidRequirement, Requirement
+from packaging.utils import canonicalize_name
 from pathlib import Path
 
 from pupil_labs import neon_player
@@ -24,7 +25,7 @@ def get_installed_packages() -> dict[str, str]:
     shared site-packages."""
     try:
         return {
-            dist.metadata["name"]: dist.metadata["version"]
+            canonicalize_name(dist.metadata["name"]): dist.metadata["version"]
             for dist in importlib.metadata.distributions()
         }
     except Exception as e:
@@ -37,10 +38,11 @@ def get_installed_packages() -> dict[str, str]:
 def is_dependency_installed(dependency: str, installed_packages: dict[str, str]) -> bool:
     """Check if a dependency is already installed in the shared site-packages."""
     req = Requirement(dependency)
-    if req.name not in installed_packages:
+    req_name = canonicalize_name(req.name)
+    if req_name not in installed_packages:
         return False
 
-    installed_version = installed_packages[req.name]
+    installed_version = installed_packages[req_name]
     return req.specifier.contains(installed_version)
 
 
