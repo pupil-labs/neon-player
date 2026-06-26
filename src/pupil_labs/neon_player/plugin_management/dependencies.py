@@ -1,6 +1,5 @@
 import importlib.metadata
 import logging
-import re
 import subprocess
 import sys
 import typing as T

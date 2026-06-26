@@ -30,7 +30,6 @@ def test_get_installed_packages__names_are_normalized(mock_distributions):
 
 
 def test_is_dependency_installed__installed():
-    # Canonical form stored in the dict (as get_installed_packages() now does)
     installed_packages = {"numpy": "2.0"}
     assert is_dependency_installed("numpy", installed_packages)
 
@@ -57,7 +56,6 @@ def test_is_dependency_installed__installed_version_does_not_satisfy_specifier()
     "Some_Package",
 ])
 def test_is_dependency_installed__name_is_normalized(dependency_name):
-    """Dependency declared with underscore, metadata stored with hyphen."""
     installed_packages = {"some-package": "1.0"}
     assert is_dependency_installed(dependency_name, installed_packages)
 
