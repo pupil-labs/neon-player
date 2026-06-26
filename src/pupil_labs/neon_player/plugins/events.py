@@ -2,7 +2,6 @@ import logging
 import numpy as np
 import pandas as pd
 import typing as T
-import uuid
 
 from pathlib import Path
 from pupil_labs.neon_recording import NeonRecording
@@ -49,6 +48,10 @@ class EventType(PersistentPropertiesMixin, QObject):
         self._name = ""
         self._shortcut = ""
         self._uid = ""
+
+    def __repr__(self) -> str:
+        shortcut_str = f", shortcut={self._shortcut}" if self._shortcut else ""
+        return f"EventType({self._name}{shortcut_str})"
 
     @property
     def name(self) -> str:
@@ -103,7 +106,7 @@ class EventType(PersistentPropertiesMixin, QObject):
     def from_name(name: str) -> "EventType":
         et = EventType()
         et._name = name
-        et._uid = name if name in IMMUTABLE_EVENTS else str(uuid.uuid4())
+        et._uid = name
         return et
 
 
@@ -153,67 +156,14 @@ class EventTypeListWidget(ValueListWidget):
         super().remove_item(item_widget)
 
 
-def _load_events_from_recording(
-    recording: NeonRecording, global_event_types: list[str] = []
-) -> tuple[list[EventType], dict[str, list[int]]]:
-    """
-    Loads events from the recording and additionally creates event types that
-    are defined in global settings.
-
-    Returns all created event types and the events as {uid: list of timestamps}.
-    """
-    event_type_cache: dict[str, EventType] = {}
+def _load_events_from_recording(recording: NeonRecording):
     events: dict[str, list[int]] = {}
 
-    for event in recording.events:
-        event_name = str(event.event)
+    for event_name in np.unique(recording.events.event):
+        timestamps = recording.events[recording.events.event == event_name].time
+        events[str(event_name)] = [int(t) for t in timestamps]
 
-        # Look up or create the event type
-        et = event_type_cache.get(event_name, None)
-        if et is None:
-            et = EventType.from_name(event_name)
-            event_type_cache[event_name] = et
-
-        # Add event to the dictionary
-        if et.uid not in events:
-            events[et.uid] = []
-        events[et.uid].append(int(event.time))
-
-    for event_name in global_event_types:
-        if event_name in event_type_cache:
-            continue
-
-        event_type_cache[event_name] = EventType.from_name(event_name)
-
-    return list(event_type_cache.values()), events
-
-
-def _load_events_from_cache(
-    cached_events: dict, known_event_types: list[EventType]
-) -> tuple[list[EventType], dict]:
-    """
-    Load event data from a cache stored in events.json. All event types are expected
-    to either be immutable (recording.begin, recording.end) or have been previously
-    defined and stored in the known_event_types list.
-
-    Returns event types that are present in the cache as well as events themselves.
-    """
-    known_event_types_by_uid = {et.uid: et for et in known_event_types}
-    for event_name in IMMUTABLE_EVENTS:
-        et = EventType.from_name(event_name)
-        known_event_types_by_uid[et.uid] = et
-
-    event_type_cache = {}
-    for uid in cached_events:
-        if uid in event_type_cache:
-            continue
-
-        if uid not in known_event_types_by_uid:
-            raise ValueError(f"Event type with uid {uid} not found")
-
-        event_type_cache[uid] = known_event_types_by_uid[uid]
-
-    return list(event_type_cache.values()), cached_events
+    return events
 
 
 def _load_events_from_dataframe(events_df: pd.DataFrame) -> dict[str, list[int]]:
@@ -273,48 +223,33 @@ class EventsPlugin(neon_player.Plugin):
             if event_type.shortcut.lower() == key_text:
                 self._add_event(event_type)
 
-    def _load_events(self, recording: NeonRecording) -> tuple[list[EventType], dict, str]:
-        events: dict[str, list[int]] = {}
-        event_types: list[EventType] = []
-
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
         try:
-            cached_events = self.load_cached_json("events.json")
+            events = self.load_cached_json("events.json")
         except Exception:
             logging.exception("Failed to load events json")
-            cached_events = None
+            events = None
 
-        if cached_events is not None:
-            event_types, events = _load_events_from_cache(
-                cached_events, list(self._event_types_by_name.values())
-            )
-            return event_types, events, "cache"
-
-        event_types, events = _load_events_from_recording(
-            recording, self.global_properties.global_event_types
-        )
-
-        return event_types, events, "recording"
-
-    def on_recording_loaded(self, recording: NeonRecording) -> None:  # noqa: C901
-        event_types, events, source = self._load_events(recording)
+        if events is None:
+            events = _load_events_from_recording(recording)
         self._events = events
 
-        if source == "recording":
-            # When loading from recording, only mutable event types need to be saved,
-            # but the UI needs to be set up for all event types
-            mutable_event_types = _filter_event_types(event_types, mutable=True)
-            event_types_to_setup_ui_for = event_types
-            self.event_types = mutable_event_types
-            self.save_cached_json("events.json", events)
-        elif source == "cache":
-            # When loading from cache, all event types are expected to have been loaded
-            # from plugin settings, so self.event_types is already correct, but the UI
-            # still needs to be set up for stored and immutable event types
-            immutable_event_types = _filter_event_types(event_types, mutable=False)
-            event_types_to_setup_ui_for = self.event_types + immutable_event_types
+        # NOTE: event types are loaded from plugin settings before this method is called,
+        # so existing event types need to be preserved while adding missing ones
+        event_types_to_setup_ui_for = self.event_types
+        for event_name in events:
+            if event_name in self._event_types_by_name or event_name in IMMUTABLE_EVENTS:
+                continue
+
+            new_event_type = EventType.from_name(event_name)
+            self._event_types_by_name[event_name] = new_event_type
+            event_types_to_setup_ui_for.append(new_event_type)
+
+        # Immutable event types are not stored in plugin settings but require UI
+        for event_name in IMMUTABLE_EVENTS:
+            event_types_to_setup_ui_for.append(EventType.from_name(event_name))
 
         logging.info(f"Loaded {sum(len(v) for v in self._events.values())} events")
-
         self._update_gui_for_event_types(event_types_to_add=event_types_to_setup_ui_for)
 
     def on_disabled(self) -> None:
@@ -428,17 +363,13 @@ class EventsPlugin(neon_player.Plugin):
         self.app.main_window.remove_menu_if_empty("Timeline/Add Event")
 
     def create_event_type(self) -> EventType:
-        new_event_type = EventType()
-        new_event_type.uid = str(uuid.uuid4())
-
         event_type_counter = 1
-        while new_event_type.name == "":
+        candidate_name = ""
+        while candidate_name == "":
             candidate_name = f"event-{event_type_counter}"
             if candidate_name not in self._event_types_by_name:
-                new_event_type.name = candidate_name
+                return EventType.from_name(candidate_name)
             event_type_counter += 1
-
-        return new_event_type
 
     def add_event_type(self, event_type: EventType) -> None:
         if event_type.name in self._event_types_by_name:
@@ -541,7 +472,7 @@ class EventsPlugin(neon_player.Plugin):
         item_params={"label_field": "name"},
         prevent_add=True,
         primary=True,
-        scope="recording",
+        scope=["recording", "workspace"],
     )
     def event_types(self) -> list[EventType]:
         return list(self._event_types_by_name.values())
