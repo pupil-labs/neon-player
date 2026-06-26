@@ -1,11 +1,12 @@
 import importlib.metadata
 import logging
+import re
 import subprocess
 import sys
 import typing as T
 
 from packaging.requirements import InvalidRequirement, Requirement
-from packaging.utils import canonicalize_name
+from packaging.utils import canonicalize_name, NormalizedName
 from pathlib import Path
 
 from pupil_labs import neon_player
@@ -20,9 +21,13 @@ SITE_PACKAGES_DIR = PLUGINS_PACKAGES_DIR / "site-packages"
 SITE_PACKAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def get_installed_packages() -> dict[str, str]:
-    """Get a dictionary of installed package names and their versions in the
-    shared site-packages."""
+def get_installed_packages() -> dict[NormalizedName, str]:
+    """
+    Get a dictionary of installed package names and their versions in the shared site-packages.
+
+    Dependency names are normalized according to:
+    https://packaging.python.org/en/latest/specifications/name-normalization/#name-normalization.
+    """
     try:
         return {
             canonicalize_name(dist.metadata["name"]): dist.metadata["version"]
@@ -35,7 +40,7 @@ def get_installed_packages() -> dict[str, str]:
         return {}
 
 
-def is_dependency_installed(dependency: str, installed_packages: dict[str, str]) -> bool:
+def is_dependency_installed(dependency: str, installed_packages: dict[NormalizedName, str]) -> bool:
     """Check if a dependency is already installed in the shared site-packages."""
     req = Requirement(dependency)
     req_name = canonicalize_name(req.name)

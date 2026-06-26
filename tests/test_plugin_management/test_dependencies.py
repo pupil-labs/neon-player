@@ -1,12 +1,12 @@
-from pathlib import Path
-from unittest.mock import patch
-
 import pytest
+
+from packaging.utils import canonicalize_name
+from unittest.mock import patch
 
 from pupil_labs.neon_player.plugin_management.dependencies import (
     _check_dependencies_for_plugin_script,
-    is_dependency_installed,
     get_installed_packages,
+    is_dependency_installed
 )
 
 
@@ -21,6 +21,12 @@ def _plugin_script(deps: list[str]) -> str:
 # ///
 import os
 """
+
+
+@patch("importlib.metadata.distributions", return_value=["huggingface_hub", "tf_keras"])
+def test_get_installed_packages__names_are_normalized(mock_distributions):
+    for package in get_installed_packages():
+        assert package == canonicalize_name(package)
 
 
 def test_is_dependency_installed__installed():
@@ -44,37 +50,16 @@ def test_is_dependency_installed__installed_version_does_not_satisfy_specifier()
     assert not is_dependency_installed("numpy<2.0", installed_packages)
 
 
-# --- Regression tests: snake_case / hyphen name normalization ---
-
-
-def test_is_dependency_installed__snake_dep_hyphen_installed():
+@pytest.mark.parametrize("dependency_name", [
+    "some-package",
+    "some_package",
+    "some.package",
+    "Some_Package",
+])
+def test_is_dependency_installed__name_is_normalized(dependency_name):
     """Dependency declared with underscore, metadata stored with hyphen."""
     installed_packages = {"some-package": "1.0"}
-    assert is_dependency_installed("some_package", installed_packages)
-
-
-def test_is_dependency_installed__hyphen_dep_snake_installed():
-    """Dependency declared with hyphen, metadata stored with underscore."""
-    installed_packages = {"some_package": "1.0"}
-    assert is_dependency_installed("some-package", installed_packages)
-
-
-def test_is_dependency_installed__both_canonical():
-    """Both sides already canonical (all-lowercase, hyphens); no regression."""
-    installed_packages = {"some-package": "1.0"}
-    assert is_dependency_installed("some-package", installed_packages)
-
-
-def test_is_dependency_installed__snake_dep_snake_installed():
-    """Both sides use underscores; should still match after canonicalization."""
-    installed_packages = {"some_package": "1.0"}
-    assert is_dependency_installed("some_package", installed_packages)
-
-
-def test_is_dependency_installed__mixed_case_dep():
-    """Dependency name with mixed case; canonical form is lowercase."""
-    installed_packages = {"some-package": "1.0"}
-    assert is_dependency_installed("Some_Package", installed_packages)
+    assert is_dependency_installed(dependency_name, installed_packages)
 
 
 def test_check_dependencies_for_plugin_script__all_deps_installed():
@@ -97,34 +82,14 @@ def test_check_dependencies_for_plugin_script__missing_dep():
         assert "some-missing-lib" in result[0]
 
 
-# --- Regression: snake_case deps in full plugin script flow ---
-
-
 def test_check_dependencies_for_plugin_script__snake_dep_detected_as_installed():
-    """Regression: a dep declared with underscore must not trigger re-install
-    when the package is already present under its hyphenated canonical name."""
     script = _plugin_script(["some_package>=1.0"])
     with patch(
         "pupil_labs.neon_player.plugin_management.dependencies.get_installed_packages",
-        return_value={"some-package": "1.0"},  # canonical form, as stored by pip/uv
+        return_value={"some-package": "1.0"},
     ):
         result = _check_dependencies_for_plugin_script(script, "test_plugin")
         assert result == [], (
             "snake_case dep should be recognized as installed when the "
             "package is present under its canonical (hyphenated) name"
-        )
-
-
-def test_check_dependencies_for_plugin_script__hyphen_dep_detected_as_installed():
-    """Regression: a dep declared with hyphen must not trigger re-install
-    when the package is already present under its underscored metadata name."""
-    script = _plugin_script(["some-package>=1.0"])
-    with patch(
-        "pupil_labs.neon_player.plugin_management.dependencies.get_installed_packages",
-        return_value={"some_package": "1.0"},
-    ):
-        result = _check_dependencies_for_plugin_script(script, "test_plugin")
-        assert result == [], (
-            "hyphenated dep should be recognized as installed when the "
-            "package metadata uses underscores"
         )
