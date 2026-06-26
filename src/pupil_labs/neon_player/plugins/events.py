@@ -153,7 +153,8 @@ class EventTypeListWidget(ValueListWidget):
                 return
 
         plugin.delete_event_type(event_type)
-        super().remove_item(item_widget)
+        self.container_layout.removeWidget(item_widget)
+        item_widget.deleteLater()
 
 
 def _load_events_from_recording(recording: NeonRecording):
@@ -237,6 +238,7 @@ class EventsPlugin(neon_player.Plugin):
         # NOTE: event types are loaded from plugin settings before this method is called,
         # so existing event types need to be preserved while adding missing ones
         event_types_to_setup_ui_for = self.event_types
+        event_types_changed = False
         for event_name in events:
             if event_name in self._event_types_by_name or event_name in IMMUTABLE_EVENTS:
                 continue
@@ -244,6 +246,9 @@ class EventsPlugin(neon_player.Plugin):
             new_event_type = EventType.from_name(event_name)
             self._event_types_by_name[event_name] = new_event_type
             event_types_to_setup_ui_for.append(new_event_type)
+            event_types_changed = True
+        if event_types_changed:
+            self.changed.emit()
 
         # Immutable event types are not stored in plugin settings but require UI
         for event_name in IMMUTABLE_EVENTS:
@@ -364,12 +369,11 @@ class EventsPlugin(neon_player.Plugin):
 
     def create_event_type(self) -> EventType:
         event_type_counter = 1
-        candidate_name = ""
-        while candidate_name == "":
-            candidate_name = f"event-{event_type_counter}"
-            if candidate_name not in self._event_types_by_name:
-                return EventType.from_name(candidate_name)
+        candidate_name = f"event-{event_type_counter}"
+        while candidate_name in self._event_types_by_name:
             event_type_counter += 1
+            candidate_name = f"event-{event_type_counter}"
+        return EventType.from_name(candidate_name)
 
     def add_event_type(self, event_type: EventType) -> None:
         if event_type.name in self._event_types_by_name:
@@ -387,14 +391,42 @@ class EventsPlugin(neon_player.Plugin):
                 f"Event type {event_type.name} cannot be deleted."
             )
 
-        if event_type.uid in self._events:
-            del self._events[event_type.uid]
-            self.save_cached_json("events.json", self._events)
+        if event_type.name not in self._event_types_by_name:
+            return
 
-        if event_type.name in self._event_types_by_name:
-            del self._event_types_by_name[event_type.name]
-            self._update_gui_for_event_types(event_types_to_remove=[event_type])
-            self.changed.emit()
+        batch_mode_enabled = getattr(self.app, "batch_mode_enabled", False)
+        consider_workspace = batch_mode_enabled and self.workspace.size > 1
+        if not consider_workspace:
+            self._delete_events_by_name(event_type.name)
+            self._delete_event_type(event_type)
+            return
+
+        batch_job = self.job_manager.run_background_batch_action(
+            f"Delete event type [{event_type.name}]",
+            "EventsPlugin._delete_events_by_name",
+            lambda _: [event_type.name]
+        )
+        batch_job.finished.connect(lambda: self._delete_event_type(event_type))
+
+    def _delete_event_type(self, event_type: EventType) -> None:
+        del self._event_types_by_name[event_type.name]
+        self._update_gui_for_event_types(event_types_to_remove=[event_type])
+        self.changed.emit()
+
+    def _delete_events_by_name(self, event_name: str) -> None:
+        """
+        Background job to delete an event type in sibling recordings of the workspace.
+        The event type will be deleted from the current recording in the main process, so
+        the background job only needs to delete events of this type if they exist.
+        """
+        if event_name in IMMUTABLE_EVENTS:
+            return
+
+        if event_name not in self.events:
+            return
+
+        del self._events[event_name]
+        self.save_cached_json("events.json", self._events)
 
     def _add_event(self, event_type: EventType, ts: int | None = None) -> None:
         if self.recording is None:
