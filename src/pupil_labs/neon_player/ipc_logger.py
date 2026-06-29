@@ -18,12 +18,15 @@ class IPCLogger(logging.Handler):
         logger = logging.getLogger()
         logger.setLevel(logging.DEBUG)
 
+        # Main process starts the server
         self.server: QLocalServer | None = None
+        self._client_sockets: list[QLocalSocket] = []
+        self._client_streams: dict[QLocalSocket, QDataStream] = {}
+        self._expected_payload_size: dict[QLocalSocket, int | None] = {}
+
+        # Child processes connect to the server
         self.log_socket: QLocalSocket | None = None
         self.log_stream: QDataStream | None = None
-        self._client_sockets: list[QLocalSocket] = []
-        self._data_streams: dict[QLocalSocket, QDataStream] = {}
-        self._expected_payload_size: dict[QLocalSocket, int | None] = {}
 
         if not self._connect_to_log_socket():
             self._start_server()
@@ -79,11 +82,11 @@ class IPCLogger(logging.Handler):
         socket.readyRead.connect(lambda: self._on_ready_ready(socket))
 
         self._client_sockets.append(socket)
+        self._client_streams[socket] = QDataStream(socket)
         self._expected_payload_size[socket] = None
-        self._data_streams[socket] = QDataStream(socket)
 
     def _on_ready_ready(self, socket: QLocalSocket) -> None:
-        instream = self._data_streams[socket]
+        instream = self._client_streams[socket]
         while socket.bytesAvailable() >= 4:
             # Read the length of the data
             if self._expected_payload_size.get(socket) is None:
