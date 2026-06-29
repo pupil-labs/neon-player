@@ -33,6 +33,7 @@ dependencies = [
     "pyobjc; sys_platform == 'darwin'",
     "pyqtgraph>=0.13.7",
     "pyside6>=6.10.2",
+    "pyxdf>=1.17.5",
     "qt-property-widgets",
     "scipy>=1.15.2",
     "setuptools>=78.1.0",
@@ -79,6 +80,7 @@ dev-dependencies = [
     "mkdocstrings[python]>=0.25",
     # YORE: EOL 3.10: Remove line.
     "tomli>=2.0; python_version < '3.11'",
+    "scipy-stubs>=1.17.1.5",
 ]
 
 [tool.uv.sources]
