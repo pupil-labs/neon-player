@@ -82,13 +82,24 @@ class EventType(PersistentPropertiesMixin, QObject):
             )
             return
 
+        if plugin is not None and plugin._batch_rename_job is not None:
+            QMessageBox.warning(
+                None,
+                "Event rename in progress",
+                "Please wait for the current event rename operation to complete "
+                "before renaming the event again.",
+            )
+            return
+
         old_name = self._name
         self._name = value
         self._uid = value
 
-        # NOTE: if multiple name changes are made in quick succession, we need to
-        # original name before the first change passed as `old_name`, so we just
-        # update the pending debouncer args if it exists
+        # NOTE: if multiple name changes are made in quick succession, we need to,
+        # on the one hand, debounce the signal to avoid launching multiple bg jobs,
+        # but on the other hand, pass original name before the first change as
+        # `old_name` to ensure correct modification, so we re-use the value from t
+        # he pending debouncer if it exists
         debouncer = SignalDebouncer.get_pending_debouncer(self.name_changed)
         original_name = debouncer.args[0] if debouncer is not None else old_name
         SignalDebouncer.debounce(self.name_changed, 1.5, original_name, value)
@@ -630,11 +641,15 @@ class EventsPlugin(neon_player.Plugin):
             logging.warning(f"Event type '{old_name}' not found for renaming")
             return
 
+        if self._batch_rename_job is not None:
+            return
+
         # NOTE: While renaming the events, we need both the old and new names to be
         # present for events to load correctly. Once the renaming is complete, the
         # old name can be removed from the event types.
         self._event_types_by_name[new_name] = event_type
         self._event_types_by_name[old_name] = EventType.from_name(old_name)
+        self._rename_all_events_by_name(old_name, new_name)
         if not self.headless:
             timeline = self.get_timeline()
             plot_sorting_was_enabled = timeline.disable_plot_sorting()
@@ -649,9 +664,6 @@ class EventsPlugin(neon_player.Plugin):
         if not self._consider_workspace:
             self._rename_all_events_by_name(old_name, new_name)
             self._finalize_event_rename(old_name)
-            return
-
-        if self._batch_rename_job is not None:
             return
 
         self._batch_rename_job = self.job_manager.run_background_batch_action(
