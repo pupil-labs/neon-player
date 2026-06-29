@@ -3,6 +3,7 @@ import logging.handlers
 import pickle
 from pathlib import Path
 
+from PySide6.QtCore import QDataStream
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 
 from pupil_labs import neon_player
@@ -19,6 +20,7 @@ class IPCLogger(logging.Handler):
 
         self.server = None
         self._client_sockets = []
+        self._expected_payload_size = {}
 
         if not self._connect_to_log_socket():
             self._start_server()
@@ -72,11 +74,30 @@ class IPCLogger(logging.Handler):
         socket.readyRead.connect(lambda: self._on_ready_ready(socket))
 
         self._client_sockets.append(socket)
+        self._expected_payload_size[socket] = None
 
     def _on_ready_ready(self, socket: QLocalSocket) -> None:
-        log_record = pickle.loads(socket.readAll().data())  # noqa: S301
-        log_record.msg = f"[BG] {log_record.msg}"
-        logging.getLogger().handle(log_record)
+        instream = QDataStream(socket)
+        while socket.bytesAvailable() >= 4:
+            # Read the length of the data
+            if self._expected_payload_size.get(socket) is None:
+                self._expected_payload_size[socket] = instream.readUInt32()
+
+            # Wait until all data is available
+            if socket.bytesAvailable() < self._expected_payload_size[socket]:
+                return
+
+            # Read and unpickle the data
+            data = instream.readRawData(self._expected_payload_size[socket])
+            self._expected_payload_size[socket] = None
+            try:
+                log_record = pickle.loads(data)  # noqa: S301
+                log_record.msg = f"[BG] {log_record.msg}"
+                logging.getLogger().handle(log_record)
+            except Exception:
+                logging.exception(
+                    "Could not unpickle the log message from the background process"
+                )
 
     def _connect_to_log_socket(self) -> None:
         self.log_socket = QLocalSocket()
@@ -90,6 +111,8 @@ class IPCLogger(logging.Handler):
             if record.exc_info:
                 record.exc_info = record.exc_info[0:1]
 
+            outstream = QDataStream(self.log_socket)
             data = pickle.dumps(record)
-            self.log_socket.write(data)
+            outstream.writeUInt32(len(data))
+            outstream.writeRawData(data)
             self.log_socket.flush()
