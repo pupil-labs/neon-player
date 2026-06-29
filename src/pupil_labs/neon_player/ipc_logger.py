@@ -19,14 +19,18 @@ class IPCLogger(logging.Handler):
         logger.setLevel(logging.DEBUG)
 
         self.server: QLocalServer | None = None
+        self.log_socket: QLocalSocket | None = None
+        self.log_stream: QDataStream | None = None
         self._client_sockets: list[QLocalSocket] = []
+        self._data_streams: dict[QLocalSocket, QDataStream] = {}
         self._expected_payload_size: dict[QLocalSocket, int | None] = {}
 
         if not self._connect_to_log_socket():
             self._start_server()
-            self._connect_to_log_socket()
 
         else:
+            assert self.log_socket is not None
+            self.log_stream = QDataStream(self.log_socket)
             logging.getLogger().addHandler(self)
 
     def _start_server(self) -> None:
@@ -76,9 +80,10 @@ class IPCLogger(logging.Handler):
 
         self._client_sockets.append(socket)
         self._expected_payload_size[socket] = None
+        self._data_streams[socket] = QDataStream(socket)
 
     def _on_ready_ready(self, socket: QLocalSocket) -> None:
-        instream = QDataStream(socket)
+        instream = self._data_streams[socket]
         while socket.bytesAvailable() >= 4:
             # Read the length of the data
             if self._expected_payload_size.get(socket) is None:
@@ -106,14 +111,17 @@ class IPCLogger(logging.Handler):
 
         return self.log_socket.waitForConnected(500)
 
-    def handle(self, record: logging.LogRecord) -> None:
-        if self.server is None:
-            # Tracebacks can't be serialized, so if there's exception, strip the tb
-            if record.exc_info:
-                record.exc_info = record.exc_info[0:1]
+    def handle(self, record: logging.LogRecord) -> None:  # type: ignore[override]
+        # Send logs to the IPC server only from child processes
+        if self.server is not None:
+            return
 
-            outstream = QDataStream(self.log_socket)
-            data = pickle.dumps(record)
-            outstream.writeUInt32(len(data))
-            outstream.writeRawData(data)
-            self.log_socket.flush()
+        # Tracebacks can't be serialized, so if there's exception, strip the tb
+        if record.exc_info:
+            record.exc_info = record.exc_info[0:1]
+
+        assert self.log_socket is not None and self.log_stream is not None
+        data = pickle.dumps(record)
+        self.log_stream.writeUInt32(len(data))
+        self.log_stream.writeRawData(data)
+        self.log_socket.flush()
