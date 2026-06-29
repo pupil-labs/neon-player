@@ -18,9 +18,9 @@ class IPCLogger(logging.Handler):
         logger = logging.getLogger()
         logger.setLevel(logging.DEBUG)
 
-        self.server = None
-        self._client_sockets = []
-        self._expected_payload_size = {}
+        self.server: QLocalServer | None = None
+        self._client_sockets: list[QLocalSocket] = []
+        self._expected_payload_size: dict[QLocalSocket, int | None] = {}
 
         if not self._connect_to_log_socket():
             self._start_server()
@@ -69,6 +69,7 @@ class IPCLogger(logging.Handler):
         self.server.newConnection.connect(self._handle_new_connection)
 
     def _handle_new_connection(self) -> None:
+        assert self.server is not None
         socket = self.server.nextPendingConnection()
         socket.setReadBufferSize(0)
         socket.readyRead.connect(lambda: self._on_ready_ready(socket))
@@ -99,7 +100,7 @@ class IPCLogger(logging.Handler):
                     "Could not unpickle the log message from the background process"
                 )
 
-    def _connect_to_log_socket(self) -> None:
+    def _connect_to_log_socket(self) -> bool:
         self.log_socket = QLocalSocket()
         self.log_socket.connectToServer(IPC_APP_NAME)
 
