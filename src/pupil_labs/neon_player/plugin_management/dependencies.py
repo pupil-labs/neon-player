@@ -5,6 +5,7 @@ import sys
 import typing as T
 
 from packaging.requirements import InvalidRequirement, Requirement
+from packaging.utils import canonicalize_name, NormalizedName
 from pathlib import Path
 
 from pupil_labs import neon_player
@@ -19,12 +20,16 @@ SITE_PACKAGES_DIR = PLUGINS_PACKAGES_DIR / "site-packages"
 SITE_PACKAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def get_installed_packages() -> dict[str, str]:
-    """Get a dictionary of installed package names and their versions in the
-    shared site-packages."""
+def get_installed_packages() -> dict[NormalizedName, str]:
+    """
+    Get a dictionary of installed package names and their versions in the shared site-packages.
+
+    Dependency names are normalized according to:
+    https://packaging.python.org/en/latest/specifications/name-normalization/#name-normalization.
+    """
     try:
         return {
-            dist.metadata["name"]: dist.metadata["version"]
+            canonicalize_name(dist.metadata["name"]): dist.metadata["version"]
             for dist in importlib.metadata.distributions()
         }
     except Exception as e:
@@ -34,13 +39,14 @@ def get_installed_packages() -> dict[str, str]:
         return {}
 
 
-def is_dependency_installed(dependency: str, installed_packages: dict[str, str]) -> bool:
+def is_dependency_installed(dependency: str, installed_packages: dict[NormalizedName, str]) -> bool:
     """Check if a dependency is already installed in the shared site-packages."""
     req = Requirement(dependency)
-    if req.name not in installed_packages:
+    req_name = canonicalize_name(req.name)
+    if req_name not in installed_packages:
         return False
 
-    installed_version = installed_packages[req.name]
+    installed_version = installed_packages[req_name]
     return req.specifier.contains(installed_version)
 
 
