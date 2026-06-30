@@ -79,13 +79,13 @@ class IPCLogger(logging.Handler):
         assert self.server is not None
         socket = self.server.nextPendingConnection()
         socket.setReadBufferSize(0)
-        socket.readyRead.connect(lambda: self._on_ready_ready(socket))
+        socket.readyRead.connect(lambda: self._on_ready_read(socket))
 
         self._client_sockets.append(socket)
         self._client_streams[socket] = QDataStream(socket)
         self._expected_payload_size[socket] = None
 
-    def _on_ready_ready(self, socket: QLocalSocket) -> None:
+    def _on_ready_read(self, socket: QLocalSocket) -> None:
         instream = self._client_streams[socket]
         while socket.bytesAvailable() >= 4:
             # Read the length of the data
