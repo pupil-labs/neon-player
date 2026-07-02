@@ -392,12 +392,12 @@ class FixationVisualization(PersistentPropertiesMixin, QObject):
 
     def to_dict(
         self,
-        include_class_name: bool = True,
+        include_class_name: bool = False,
         condition: T.Callable[[dict], bool] | None = None,
         recursive: bool = False
     ) -> dict:
         return super().to_dict(
-            include_class_name=include_class_name,
+            include_class_name=True,
             condition=condition,
             recursive=recursive
         )
