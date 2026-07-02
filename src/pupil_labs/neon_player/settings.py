@@ -1,7 +1,5 @@
-import json
-
 from PySide6.QtCore import QObject, Signal
-from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params, ComplexEncoder
+from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, Plugin
