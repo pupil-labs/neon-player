@@ -1,5 +1,7 @@
+import json
+
 from PySide6.QtCore import QObject, Signal
-from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
+from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params, ComplexEncoder
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, Plugin
@@ -125,6 +127,11 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
             current_states = {
                 class_name: p.to_dict() for class_name, p in app.plugins_by_class.items()
             }
+
+            # XXX: Decompose custom objects into primitives to drop all references that
+            # prevent garbage collection of plugins when switching recordings
+            current_states_dump = json.dumps(current_states, cls=ComplexEncoder)
+            current_states = json.loads(current_states_dump)
 
             plugin_states = {**self._plugin_states, **current_states}
 
