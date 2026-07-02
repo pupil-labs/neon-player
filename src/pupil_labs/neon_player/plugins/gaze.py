@@ -99,9 +99,9 @@ class GazeDataPlugin(neon_player.Plugin):
             self.worn_data = None
             logging.warning("Failed to load worn data")
 
-    def unload(self) -> None:
+    def on_disabled(self) -> None:
         if self.worn_data:
-            self.get_timeline().remove_timeline_broken_bar("Worn")
+            self.get_timeline().remove_timeline_plot("Worn")
             self.worn_data = None
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
