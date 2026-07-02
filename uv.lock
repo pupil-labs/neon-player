@@ -1435,7 +1435,7 @@ requires-dist = [
     { name = "pyobjc", marker = "sys_platform == 'darwin'" },
     { name = "pyqtgraph", specifier = ">=0.13.7" },
     { name = "pyside6", specifier = ">=6.10.2" },
-    { name = "qt-property-widgets", git = "https://github.com/domstoppable/qt-property-widgets" },
+    { name = "qt-property-widgets", git = "https://github.com/domstoppable/qt-property-widgets?rev=1ad3aa9a92b6359bf282a6ce2fa90f26d6101bb7" },
     { name = "scipy", specifier = ">=1.15.2" },
     { name = "setuptools", specifier = ">=78.1.0" },
     { name = "tqdm", specifier = ">=4.67.1" },
@@ -4526,8 +4526,8 @@ wheels = [
 
 [[package]]
 name = "qt-property-widgets"
-version = "0.0.0.post65.dev0+1dacccb"
-source = { git = "https://github.com/domstoppable/qt-property-widgets#1dacccbd05422d260f7e45d6b80926c1dda62149" }
+version = "0.0.0.post72.dev0+1ad3aa9"
+source = { git = "https://github.com/domstoppable/qt-property-widgets?rev=1ad3aa9a92b6359bf282a6ce2fa90f26d6101bb7#1ad3aa9a92b6359bf282a6ce2fa90f26d6101bb7" }
 dependencies = [
     { name = "pyside6" },
 ]

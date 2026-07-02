@@ -124,14 +124,13 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
     def plugin_states(self) -> dict[str, dict]:
         app = neon_player.instance()
         if app.recording_settings == self:
+            # NOTE: to_dict is applied recursively to decompose custom objects into
+            # primitives, thereby dropping all references that prevent garbage
+            # collection of plugins when switching recordings
             current_states = {
-                class_name: p.to_dict() for class_name, p in app.plugins_by_class.items()
+                class_name: p.to_dict(recursive=True)
+                for class_name, p in app.plugins_by_class.items()
             }
-
-            # XXX: Decompose custom objects into primitives to drop all references that
-            # prevent garbage collection of plugins when switching recordings
-            current_states_dump = json.dumps(current_states, cls=ComplexEncoder)
-            current_states = json.loads(current_states_dump)
 
             plugin_states = {**self._plugin_states, **current_states}
 
