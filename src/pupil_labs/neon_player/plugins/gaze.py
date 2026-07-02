@@ -24,6 +24,7 @@ from pupil_labs.neon_player.utilities import (
     unproject_points,
 )
 from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.neon_recording.timeseries import WornTimeseries
 
 
 class Aggregation(enum.Enum):
@@ -66,6 +67,7 @@ class GazeDataPlugin(neon_player.Plugin):
         self.render_layer = 10
         self._offset_x = 0.0
         self._offset_y = 0.0
+        self.worn_data: WornTimeseries | None = None
 
         self._visualizations: list[GazeVisualization] = [
             CircleViz(),
