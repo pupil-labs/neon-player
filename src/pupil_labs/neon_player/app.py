@@ -59,6 +59,7 @@ class NeonPlayerApp(QApplication):
     speed_changed = Signal(float)
     recording_loaded = Signal(object)
     recording_unloaded = Signal()
+    plugin_loaded = Signal(object)
 
     def __init__(self, argv: list[str]) -> None:
         self._initializing = True
@@ -300,6 +301,7 @@ class NeonPlayerApp(QApplication):
 
                 if self.recording:
                     plugin.on_recording_loaded(self.recording)
+                self.plugin_loaded.emit(plugin)
             except Exception:
                 logging.exception(f"Failed to enable plugin {kls}")
                 return None
@@ -308,6 +310,7 @@ class NeonPlayerApp(QApplication):
             plugin = self.plugins_by_class[kls.__name__]
 
             plugin.on_disabled()
+            plugin.deleteLater()
             del self.plugins_by_class[kls.__name__]
             self.main_window.settings_panel.remove_plugin_settings(kls.__name__)
 
