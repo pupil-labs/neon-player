@@ -48,7 +48,7 @@ class XDFMultimodalPlugin(Plugin):
 
     @property
     @property_params(label="File Path (.xdf)")
-    def file_path(self) -> FilePath | None:
+    def file_path(self) -> FilePath:
         # Returning None keeps FilePathWidget visually empty.
         return FilePath(self._xdf_path) if self._xdf_path != Path("") else None
 
@@ -236,7 +236,6 @@ class XDFMultimodalPlugin(Plugin):
             self._stream_ts = None
             self._xdf_markers = []
             self._channel_names = []
-            self._channels = {}
 
             self._available_stream_names = [str(s["info"]["name"][0]) for s in streams]
             if self._data_stream_name not in self._available_stream_names:
