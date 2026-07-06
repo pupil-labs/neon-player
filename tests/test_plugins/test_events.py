@@ -372,3 +372,25 @@ def test_events_plugin__prepare_events_export__source(mock_neon_recording):
     ):
         assert all(events_df[events_df["name"] == event_name]["type"] == source), \
             f"Expected all {event_name} events to be labeled as {source} in export"
+
+
+def test_events_plugin__to_dict__recursive(mock_neon_recording):
+    plugin, _ = _prepare_test_data(mock_neon_recording)
+    plugin_dict = plugin.to_dict(recursive=True)
+    plugin_rec = EventsPlugin.from_dict(plugin_dict)
+
+    for et_dict in plugin_dict["event_types"]:
+        assert isinstance(et_dict, dict), \
+            "Expected event types to be serialized as dicts in recursive mode"
+
+        event_name = et_dict["name"]
+        assert event_name in plugin._event_types_by_name, \
+            "Expected event name in serialized dict to match plugin event types"
+        assert event_name in plugin_rec._event_types_by_name, \
+            "Expected deserialized plugin to contain the same event types as the original"
+
+        et_rec = plugin_rec._event_types_by_name[event_name]
+        assert et_dict["uid"] == et_rec.uid, \
+            "Expected deserialized event type uid to match the original event type"
+        assert et_dict["shortcut"] == et_rec.shortcut, \
+            "Expected deserialized event type shortcut to match the original event type"
