@@ -365,8 +365,6 @@ class NeonPlayerApp(QApplication):
             self.toggle_plugin(plugin_class_name, False)
         timeline.enable_plot_sorting()
 
-        if self.recording:
-            self.recording.close()
         self.recording = None
         self.recording_unloaded.emit()
 

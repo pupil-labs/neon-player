@@ -1430,7 +1430,7 @@ requires-dist = [
     { name = "protobuf", specifier = "<6" },
     { name = "pupil-apriltags", specifier = ">=1.0.4.post11" },
     { name = "pupil-labs-marker-mapper", specifier = ">=1.0.0" },
-    { name = "pupil-labs-neon-recording", git = "https://github.com/pupil-labs/pl-neon-recording?rev=220f677a5a922c181c21450b3bc69a72377afadc" },
+    { name = "pupil-labs-neon-recording", specifier = ">=2.1.4" },
     { name = "pupil-labs-video", specifier = ">=1.0.13" },
     { name = "pyobjc", marker = "sys_platform == 'darwin'" },
     { name = "pyqtgraph", specifier = ">=0.13.7" },
@@ -1469,8 +1469,8 @@ dev = [
 
 [[package]]
 name = "pupil-labs-neon-recording"
-version = "2.1.4.post2.dev0+220f677"
-source = { git = "https://github.com/pupil-labs/pl-neon-recording?rev=220f677a5a922c181c21450b3bc69a72377afadc#220f677a5a922c181c21450b3bc69a72377afadc" }
+version = "2.1.4"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
     { name = "packaging" },
@@ -1478,6 +1478,10 @@ dependencies = [
     { name = "protobuf" },
     { name = "pupil-labs-video" },
     { name = "universal-pathlib" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e4/54/76737ab8c779aea34756b8e39fd9cdc5a6faae815648b708741bb4b061d9/pupil_labs_neon_recording-2.1.4.tar.gz", hash = "sha256:4418a2a1e31bfd5794562d31c1c0056f56f9ffa66a647a6388e28ec8cc48a87e", size = 1360909, upload-time = "2026-04-15T13:58:50.913Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ab/ff/e25f4f5b9ece453a1537048bace2a05bf0b7b9dd9591c7b1f4b6c0947d70/pupil_labs_neon_recording-2.1.4-py3-none-any.whl", hash = "sha256:c53e928a624a412be0c694e4b09883e8009fe5049fac9faedd8d60840f046153", size = 28201, upload-time = "2026-04-15T13:58:49.558Z" },
 ]
 
 [[package]]
