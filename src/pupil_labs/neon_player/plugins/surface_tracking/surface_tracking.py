@@ -493,7 +493,8 @@ class SurfaceTrackingPlugin(Plugin):
 
     def _load_surface_locations_cache(self, surface_uid: str) -> None:
         surface = self.get_surface(surface_uid)
-        surf_path = self.get_cache_path() / f"{surface_uid}_surface.pkl"
+        cache_path = self.get_cache_path(workspace=self.batch_mode_enabled)
+        surf_path = cache_path / f"{surface_uid}_surface.pkl"
         if surf_path.exists():
             with surf_path.open("rb") as f:
                 surface.tracker_surface = pickle.load(f)  # noqa: S301
@@ -718,7 +719,6 @@ class SurfaceTrackingPlugin(Plugin):
         prevent_add=True,
         item_params={"label_field": "name"},
         primary=True,
-        scope="recording",
     )
     def surfaces(self) -> list["TrackedSurface"]:
         return self._surfaces
@@ -775,7 +775,9 @@ class SurfaceTrackingPlugin(Plugin):
                 self._load_surface_locations_cache(surface.uid)
 
             elif not self.app.headless:
-                surface.defining_frame_index = int(frame_idx)
+                if not surface.defining_recording_id:
+                    surface.defining_recording_id = self.recording.id
+                    surface.defining_frame_index = int(frame_idx)
                 self._start_bg_surface_locator(surface)
 
         for surface in removed_surfaces:
@@ -875,27 +877,53 @@ class SurfaceTrackingPlugin(Plugin):
         with self.marker_cache_file.open("wb") as f:
             np.save(f, np.array(markers_by_frame, dtype=object))
 
+    def _setup_tracker_surface(self, uid: str, surf_path: Path) -> Surface | None:
+        # Option 1: load surface from disk if it already exists
+        tracker_surf = None
+        if surf_path.exists():
+            try:
+                with surf_path.open("rb") as f:
+                    tracker_surf = pickle.load(f)  # noqa: S301
+            except Exception as e:
+                logging.error(f"Failed to load tracker surface from {surf_path}: {e}")
+
+        if tracker_surf is not None:
+            return tracker_surf
+
+        surface = self.get_surface(uid)
+        if surface is None:
+            logging.error(f"Surface with UID {uid} not found")
+            return None
+
+        # Option 2: create surface from apriltag detections, only if the surface
+        # was defined in the current recording
+        if surface.defining_recording_id != self.recording.id:
+            logging.error(
+                f"Surface {surface.name} was defined in a different recording, "
+                f"expected surface file to be available in cache but it was not found."
+            )
+            return None
+
+        starting_frame_idx = surface.defining_frame_index
+        if starting_frame_idx >= len(self.markers_by_frame):
+            logging.error("Marker detection not yet complete")
+            return None
+
+        markers = self.markers_by_frame[starting_frame_idx]
+        return Surface.from_apriltag_detections(uid, markers, self.camera)
+
     def bg_detect_surface_locations(
         self,
         uid: str,
     ) -> T.Generator[ProgressUpdate, None, None]:
-        starting_frame_idx = self.get_surface(uid).defining_frame_index
+        cache_path = self.get_cache_path(workspace=self.batch_mode_enabled)
+        cache_path.mkdir(parents=True, exist_ok=True)
+        surf_cache_path = cache_path / f"{uid}_surface.pkl"
 
-        if starting_frame_idx >= len(self.markers_by_frame):
-            logging.error("Marker detection not yet complete")
+        tracker_surf = self._setup_tracker_surface(uid, surf_cache_path)
+        if tracker_surf is None:
+            logging.error(f"Failed to set up tracker surface for UID {uid}")
             return
-
-        markers = self.markers_by_frame[starting_frame_idx]
-
-        # load surface from disk
-        surf_path = self.get_cache_path() / f"{uid}_surface.pkl"
-        if surf_path.exists():
-            with surf_path.open("rb") as f:
-                tracker_surf = pickle.load(f)  # noqa: S301
-
-        else:
-            markers = self.markers_by_frame[starting_frame_idx]
-            tracker_surf = Surface.from_apriltag_detections(uid, markers, self.camera)
 
         locations = []
         for frame_idx, markers in enumerate(self.markers_by_frame):
@@ -909,8 +937,7 @@ class SurfaceTrackingPlugin(Plugin):
         with locations_path.open("wb") as f:
             np.save(f, np.array(locations, dtype=object))
 
-        surf_path = self.get_cache_path() / f"{uid}_surface.pkl"
-        with surf_path.open("wb") as f:
+        with surf_cache_path.open("wb") as f:
             pickle.dump(tracker_surf, f)
 
         visibility = np.array([1 if val else 0 for val in locations])

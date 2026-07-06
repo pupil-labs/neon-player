@@ -163,6 +163,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._heatmap_alpha = 0.75
         self._heatmap = None
         self._heatmap_color = ColorMap.Jet
+        self._defining_recording_id = ""
         self._defining_frame_index = -1
 
         self.tracker_surface = None
@@ -242,6 +243,15 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def remove_marker(self, marker_uid: str) -> None:
         self.tracker_surface.remove_marker(marker_uid)
         self.locations_invalidated.emit()
+
+    @property
+    @property_params(widget=None)
+    def defining_recording_id(self) -> str:
+        return self._defining_recording_id
+
+    @defining_recording_id.setter
+    def defining_recording_id(self, value: str) -> None:
+        self._defining_recording_id = value
 
     @property
     @property_params(widget=None)
