@@ -83,7 +83,7 @@ dev-dependencies = [
 ]
 
 [tool.uv.sources]
-qt-property-widgets = { git = "https://github.com/domstoppable/qt-property-widgets", rev = "1ad3aa9a92b6359bf282a6ce2fa90f26d6101bb7" }
+qt-property-widgets = { git = "https://github.com/domstoppable/qt-property-widgets" }
 
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]
