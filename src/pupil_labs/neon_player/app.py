@@ -59,7 +59,6 @@ class NeonPlayerApp(QApplication):
     speed_changed = Signal(float)
     recording_loaded = Signal(object)
     recording_unloaded = Signal()
-    plugin_loaded = Signal(object)
 
     def __init__(self, argv: list[str]) -> None:
         self._initializing = True
@@ -109,7 +108,7 @@ class NeonPlayerApp(QApplication):
             default=None,
         )
 
-        self.args = parser.parse_args()
+        self.args = parser.parse_args(argv)
 
         self.progress_ipc_name = self.args.progress_ipc_name
 
@@ -301,7 +300,6 @@ class NeonPlayerApp(QApplication):
 
                 if self.recording:
                     plugin.on_recording_loaded(self.recording)
-                self.plugin_loaded.emit(plugin)
             except Exception:
                 logging.exception(f"Failed to enable plugin {kls}")
                 return None
