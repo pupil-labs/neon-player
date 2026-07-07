@@ -25,6 +25,7 @@ from pupil_labs.neon_player.utilities import (
     unproject_points,
 )
 from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.neon_recording.timeseries import WornTimeseries
 
 
 class Aggregation(enum.Enum):
@@ -67,6 +68,7 @@ class GazeDataPlugin(neon_player.Plugin):
         self.render_layer = 10
         self._offset_x = 0.0
         self._offset_y = 0.0
+        self.worn_data: WornTimeseries | None = None
 
         self._visualizations: list[GazeVisualization] = [
             CircleViz(),
@@ -100,9 +102,9 @@ class GazeDataPlugin(neon_player.Plugin):
             self.worn_data = None
             logging.warning("Failed to load worn data")
 
-    def unload(self) -> None:
+    def on_disabled(self) -> None:
         if self.worn_data:
-            self.get_timeline().remove_timeline_broken_bar("Worn")
+            self.get_timeline().remove_timeline_plot("Worn")
             self.worn_data = None
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
@@ -313,8 +315,21 @@ class GazeVisualization(PersistentPropertiesMixin, QObject):
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.recording = recording
 
-    def to_dict(self, include_class_name: bool = True) -> dict:
-        return super().to_dict(include_class_name=include_class_name)
+    def to_dict(
+        self,
+        include_class_name: bool = False,
+        condition: T.Callable[[dict], bool] | None = None,
+        recursive: bool = False
+    ) -> dict:
+        state = super().to_dict(
+            include_class_name=include_class_name,
+            condition=condition,
+            recursive=recursive
+        )
+
+        # NOTE: Gaze visualizations require the class name to be loaded correctly
+        state["__class__"] = self.__class__.__name__
+        return state
 
     @property
     def use_offset(self) -> bool:

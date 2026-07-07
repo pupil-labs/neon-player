@@ -4526,8 +4526,8 @@ wheels = [
 
 [[package]]
 name = "qt-property-widgets"
-version = "0.0.0.post65.dev0+1dacccb"
-source = { git = "https://github.com/domstoppable/qt-property-widgets#1dacccbd05422d260f7e45d6b80926c1dda62149" }
+version = "0.0.0.post73.dev0+952c170"
+source = { git = "https://github.com/domstoppable/qt-property-widgets#952c170fa2cff67206e17ee7d4c75b4f3ed93b87" }
 dependencies = [
     { name = "pyside6" },
 ]

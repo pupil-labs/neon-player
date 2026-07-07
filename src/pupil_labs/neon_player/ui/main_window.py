@@ -704,6 +704,7 @@ class MainWindow(QMainWindow):
         for action in menu.actions():
             if action.text().replace("&", "") == action_name.replace("&", ""):
                 menu.removeAction(action)
+                action.deleteLater()
                 break
 
     def add_dock(

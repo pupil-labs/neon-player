@@ -383,6 +383,7 @@ class NeonPlayerApp(QApplication):
             plugin = self.plugins_by_class[kls.__name__]
 
             plugin.on_disabled()
+            plugin.deleteLater()
             del self.plugins_by_class[kls.__name__]
             self.main_window.settings_panel.remove_plugin_settings(kls.__name__)
 

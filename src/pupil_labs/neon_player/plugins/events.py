@@ -243,6 +243,7 @@ class EventsPlugin(neon_player.Plugin):
     def __init__(self) -> None:
         super().__init__()
         self._event_types_by_name: dict[str, EventType] = {}
+        self._immutable_event_types: list[EventType] = []
         self._events: dict[str, list[int]] = {}
 
         if self.headless:
@@ -303,6 +304,7 @@ class EventsPlugin(neon_player.Plugin):
             # When loading from recording, only mutable event types need to be saved,
             # but the UI needs to be set up for all event types
             mutable_event_types = _filter_event_types(event_types, mutable=True)
+            self._immutable_event_types = _filter_event_types(event_types, mutable=False)
             event_types_to_setup_ui_for = event_types
             self.event_types = mutable_event_types
             self.save_cached_json("events.json", events)
@@ -310,8 +312,8 @@ class EventsPlugin(neon_player.Plugin):
             # When loading from cache, all event types are expected to have been loaded
             # from plugin settings, so self.event_types is already correct, but the UI
             # still needs to be set up for stored and immutable event types
-            immutable_event_types = _filter_event_types(event_types, mutable=False)
-            event_types_to_setup_ui_for = self.event_types + immutable_event_types
+            self._immutable_event_types = _filter_event_types(event_types, mutable=False)
+            event_types_to_setup_ui_for = self.event_types + self._immutable_event_types
 
         logging.info(f"Loaded {sum(len(v) for v in self._events.values())} events")
 
@@ -321,7 +323,7 @@ class EventsPlugin(neon_player.Plugin):
         if self.headless or self.recording is None:
             return
 
-        event_types = list(self._event_types_by_name.values())
+        event_types = list(self._event_types_by_name.values()) + self._immutable_event_types
         self._update_gui_for_event_types(event_types_to_remove=event_types)
 
     def _update_gui_for_event_types(
@@ -348,6 +350,7 @@ class EventsPlugin(neon_player.Plugin):
             self._update_timeline_data(et)
 
         for et in event_types_to_remove:
+            et.name_changed.disconnect()
             self._remove_gui_for_event_name(et.name)
 
         # Enable plot sorting, sort rows if any were added or removed

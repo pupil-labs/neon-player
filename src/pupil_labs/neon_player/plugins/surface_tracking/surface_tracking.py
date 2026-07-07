@@ -158,6 +158,8 @@ class SurfaceTrackingPlugin(Plugin):
             marker_widget.hide()
 
         for surface in self._surfaces:
+            surface.marker_edit_changed.disconnect()
+            surface.locations_invalidated.disconnect()
             surface.cleanup_widgets()
 
         self._surfaces.clear()
@@ -771,6 +773,9 @@ class SurfaceTrackingPlugin(Plugin):
             if surface.edit:
                 for marker_widget in self.marker_edit_widgets.values():
                     marker_widget.hide()
+
+            surface.marker_edit_changed.disconnect()
+            surface.locations_invalidated.disconnect()
 
             surface.cleanup_widgets()
 
