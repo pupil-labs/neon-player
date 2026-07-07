@@ -130,6 +130,11 @@ class SurfaceImportDialog(QDialog):
 
 class SurfaceTrackingPlugin(Plugin):
     label = "Surface Tracking"
+    job_dependencies = {
+        "bg_detect_markers": [],
+        "bg_detect_surface_locations": ["markers"],
+        "bg_build_heatmap": ["surface_locations", "markers"],
+    }
 
     def __init__(self) -> None:
         super().__init__()
@@ -141,6 +146,7 @@ class SurfaceTrackingPlugin(Plugin):
         self._export_overlays = False
 
         self.markers_by_frame: list[list] = []
+        self._markers_loaded = False
         self.surface_locations: dict[str, list] = {}
 
         self._surfaces: list[TrackedSurface] = []
@@ -223,6 +229,13 @@ class SurfaceTrackingPlugin(Plugin):
         self.marker_cache_file = self.get_cache_path() / "markers.npy"
         self.attempt_marker_cache_load()
 
+    def _get_own_job_name(self) -> str | None:
+        plugin_name, job_name = self.app.args.job[0].split(".", 1)
+        if plugin_name != self.__class__.__name__:
+            return None
+
+        return job_name
+
     def attempt_marker_cache_load(self) -> None:
         if self.marker_cache_file is None:
             return
@@ -232,6 +245,10 @@ class SurfaceTrackingPlugin(Plugin):
             return
 
         if self.app.headless:
+            own_job_name = self._get_own_job_name()
+            if "markers" in self.job_dependencies.get(own_job_name, []):
+                self.job_manager.run_in_foreground(self.bg_detect_markers)
+
             if self.marker_cache_file.exists():
                 self._load_marker_cache()
 
@@ -457,6 +474,7 @@ class SurfaceTrackingPlugin(Plugin):
             return
 
         self.markers_by_frame = np.load(self.marker_cache_file, allow_pickle=True)
+        self._markers_loaded = True
         self.trigger_scene_update()
         for frame_markers in self.markers_by_frame:
             for marker in frame_markers:
@@ -490,6 +508,30 @@ class SurfaceTrackingPlugin(Plugin):
                 if n > 0
             ],
         )
+
+    def attempt_load_surface_locations(self, surface: TrackedSurface) -> None:
+        locations_path = self.get_cache_path() / f"{surface.uid}_locations.npy"
+        if locations_path.exists():
+            self._load_surface_locations_cache(surface.uid)
+            return
+
+        if not surface.defining_recording_id:
+            frame_idx = self.get_scene_idx_for_time()
+            surface.defining_recording_id = self.recording.id
+            surface.defining_frame_index = int(frame_idx)
+
+        if not self.app.headless:
+            self._start_bg_surface_locator(surface)
+
+        # Skip computation of surface locations before marker detection is complete
+        # (surface definition from settings is loaded before markers for a given recording)
+        if not self._markers_loaded:
+            return
+
+        job_name = self._get_own_job_name()
+        if "surface_locations" in self.job_dependencies.get(job_name, []):
+            self.job_manager.run_in_foreground(self.bg_detect_surface_locations(surface.uid))
+            self._load_surface_locations_cache(surface.uid)
 
     def _load_surface_locations_cache(self, surface_uid: str) -> None:
         surface = self.get_surface(surface_uid)
@@ -561,7 +603,8 @@ class SurfaceTrackingPlugin(Plugin):
             )
 
     def attempt_load_surface_heatmap(self, surface_uid):
-        cache_file = self.get_cache_path() / f"{surface_uid}_heatmap.png"
+        cache_path = self.get_cache_path(workspace=self.batch_mode_enabled)
+        cache_file = cache_path / f"{surface_uid}_heatmap.png"
         if cache_file.exists():
             self._load_surface_heatmap(surface_uid)
             return
@@ -569,13 +612,15 @@ class SurfaceTrackingPlugin(Plugin):
         if self.app.headless:
             if cache_file.exists():
                 self._load_surface_heatmap(surface_uid)
+            return
 
-        else:
-            surface = self.get_surface(surface_uid)
-            # prevent heatmap job from starting up if other jobs are pending
-            if len(surface.jobs) > 0:
-                return
+        surface = self.get_surface(surface_uid)
+        # prevent heatmap job from starting up if other jobs are pending
+        if len(surface.jobs) > 0:
+            return
 
+        # In single-recording mode, recalculate only own heatmap
+        if not self.batch_mode_enabled:
             heatmap_job = self.job_manager.run_background_action(
                 f"Build Surface Heatmap [{surface.name}]",
                 "SurfaceTrackingPlugin.bg_build_heatmap",
@@ -586,10 +631,25 @@ class SurfaceTrackingPlugin(Plugin):
                 lambda: self._load_surface_heatmap(surface_uid)
             )
 
+        # In multi-recording mode, calculate a heatmap for each recording and aggregate
+        heatmap_job = self.job_manager.run_background_batch_action(
+            f"Build Surface Heatmap [{surface.name}]",
+            "SurfaceTrackingPlugin.bg_build_heatmap",
+            lambda _: [surface_uid],
+        )
+        surface.add_bg_job(heatmap_job)
+        heatmap_job.finished.connect(
+            lambda: self._build_aggregate_heatmap(surface_uid)
+        )
+
     def bg_build_heatmap(
         self, surface_uid: str
     ) -> T.Generator[ProgressUpdate, None, None]:
         surface = self.get_surface(surface_uid)
+
+        # NOTE: when computing the heatmap for sibling recordings in the workspace,
+        # surface locations may not be available yet - we compute them if necessary
+        self.attempt_load_surface_locations(surface)
 
         start_time, stop_time = self.app.get_export_window()
         start_mask = self.recording.scene.time >= start_time
@@ -657,8 +717,14 @@ class SurfaceTrackingPlugin(Plugin):
         hist *= (255.0 / hist_max) if hist_max else 0.0
         hist = hist.astype(np.uint8)
 
-        cache_file = self.get_cache_path() / f"{surface.uid}_heatmap.png"
-        cv2.imwrite(str(cache_file), hist)
+        # NOTE: save the result to recording cache even if in multi-recording mode,
+        # aggregation is implemented in _build_aggregate_heatmap and re-uses these
+        # results for each recording
+        cache_path = self.get_cache_path()
+        data_cache_file = cache_path / f"{surface.uid}_heatmap_data.npy"
+        img_cache_file = cache_path / f"{surface.uid}_heatmap.png"
+        np.save(str(data_cache_file), hist)
+        cv2.imwrite(str(img_cache_file), hist)
 
         # gaze on cache for timeline
         gaze_ons = np.concatenate([[0], gaze_ons])
@@ -673,15 +739,48 @@ class SurfaceTrackingPlugin(Plugin):
         with open(gaze_upon_file, "wb") as f:
             pickle.dump(gaze_upon_cache_data, f)
 
+    def _build_aggregate_heatmap(self, surface_uid: str) -> None:
+        surface = self.get_surface(surface_uid)
+        logging.info(f"Building aggregate heatmap for surface {surface.name}")
+        logging.info(f"Using data from {self.workspace.size} recordings")
+
+        hist_aggregated = None
+        for recording in self.workspace.recordings:
+            cache_path = self.get_cache_path(recording=recording)
+            data_cache_file = cache_path / f"{surface_uid}_heatmap_data.npy"
+            if not data_cache_file.exists():
+                logging.error(
+                    f"Heatmap data file not found for recording {recording.name}"
+                    f"and surface {surface.name}. Stopping the aggregation."
+                )
+                return
+
+            hist = np.load(data_cache_file)
+            if hist_aggregated is None:
+                hist_aggregated = np.zeros_like(hist, np.float64)
+            hist_aggregated += hist.astype(np.float64)
+
+        hist_max = hist_aggregated.max()
+        hist_aggregated *= (255.0 / hist_max) if hist_max else 0.0
+        hist_aggregated = hist_aggregated.astype(np.uint8)
+
+        cache_path = self.get_cache_path(workspace=True)
+        cache_file = cache_path / f"{surface_uid}_heatmap.png"
+        cv2.imwrite(str(cache_file), hist_aggregated)
+
+        self._load_surface_heatmap(surface_uid)
+
     def _load_surface_heatmap(self, surface_uid: str) -> None:
         surface = self.get_surface(surface_uid)
-        cache_file = self.get_cache_path() / f"{surface_uid}_heatmap.png"
+        cache_path = self.get_cache_path(workspace=self.batch_mode_enabled)
+        cache_file = cache_path / f"{surface_uid}_heatmap.png"
         surface._heatmap = cv2.imread(str(cache_file))
         self.trigger_scene_update()
         self.add_surface_gaze_timeline(surface)
 
     def recalculate_heatmap(self, surface_uid: str) -> None:
-        cache_file = self.get_cache_path() / f"{surface_uid}_heatmap.png"
+        cache_path = self.get_cache_path(workspace=self.batch_mode_enabled)
+        cache_file = cache_path / f"{surface_uid}_heatmap.png"
         if cache_file.exists():
             cache_file.unlink()
 
@@ -770,15 +869,7 @@ class SurfaceTrackingPlugin(Plugin):
                 lambda s=surface: self.on_locations_invalidated(s)
             )
 
-            locations_path = self.get_cache_path() / f"{surface.uid}_locations.npy"
-            if locations_path.exists():
-                self._load_surface_locations_cache(surface.uid)
-
-            elif not self.app.headless:
-                if not surface.defining_recording_id:
-                    surface.defining_recording_id = self.recording.id
-                    surface.defining_frame_index = int(frame_idx)
-                self._start_bg_surface_locator(surface)
+            self.attempt_load_surface_locations(surface)
 
         for surface in removed_surfaces:
             if surface.edit:
