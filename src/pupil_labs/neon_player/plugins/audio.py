@@ -143,7 +143,9 @@ class AudioPlugin(neon_player.Plugin):
         if not self.cache_file.exists():
             return
 
+        self.recording_has_audio = True
         self.player.setSource(QUrl.fromLocalFile(str(self.cache_file)))
+        self.on_speed_changed(self.app.playback_speed)
         self.on_playback_state_changed(self.app.is_playing)
 
         # load the audio data into a numpy array
@@ -155,7 +157,6 @@ class AudioPlugin(neon_player.Plugin):
         data = np.column_stack((timestamps, audio_data))
         timeline = self.get_timeline()
         timeline.add_timeline_line("Audio", data)
-        self.recording_has_audio = True
 
     def extract_audio(self) -> T.Generator[ProgressUpdate, None, None]:
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)

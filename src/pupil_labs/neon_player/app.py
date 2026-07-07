@@ -108,7 +108,7 @@ class NeonPlayerApp(QApplication):
             default=None,
         )
 
-        self.args = parser.parse_args(argv)
+        self.args = parser.parse_args()
 
         self.progress_ipc_name = self.args.progress_ipc_name
 
