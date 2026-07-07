@@ -394,3 +394,9 @@ def test_events_plugin__to_dict__recursive(mock_neon_recording):
             "Expected deserialized event type uid to match the original event type"
         assert et_dict["shortcut"] == et_rec.shortcut, \
             "Expected deserialized event type shortcut to match the original event type"
+
+
+def test_events_plugin__global_properties__to_dict__includes_class_name():
+    plugin = EventsPlugin()
+    plugin_dict = plugin.global_properties.to_dict()
+    assert plugin_dict["__class__"] == "EventsPluginGlobalProps"

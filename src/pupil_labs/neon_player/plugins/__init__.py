@@ -25,6 +25,23 @@ class GlobalPluginProperties(PersistentPropertiesMixin):
         GlobalPluginProperties._known_types.append(cls)
         return super().__init_subclass__()
 
+    def to_dict(
+        self,
+        include_class_name: bool = False,
+        condition: T.Callable[[dict], bool] | None = None,
+        recursive: bool = False
+    ) -> dict:
+        state = super().to_dict(
+            include_class_name=include_class_name,
+            condition=condition,
+            recursive=recursive
+        )
+
+        # NOTE: Class name is required to correctly select the properties class
+        # when creating global settings form
+        state["__class__"] = self.__class__.__name__
+        return state
+
 
 class Plugin(PersistentPropertiesMixin, QObject):
     changed = Signal()
