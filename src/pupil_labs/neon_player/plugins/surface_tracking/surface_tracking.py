@@ -1140,13 +1140,8 @@ class SurfaceTrackingPlugin(Plugin):
             logging.error(f"Surface definition file {src_def_file} not found")
             return
 
-        new_def_file = (
-            self.recording._rec_dir
-            / ".neon_player"
-            / "cache"
-            / "SurfaceTrackingPlugin"
-            / src_def_file.name
-        )
+        cache_path = self.get_cache_path(workspace=self.batch_mode_enabled)
+        new_def_file = cache_path / src_def_file.name
         shutil.copy(src_def_file, new_def_file)
 
         surfaces = self._surfaces.copy()
