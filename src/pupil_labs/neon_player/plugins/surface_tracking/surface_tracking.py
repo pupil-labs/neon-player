@@ -247,7 +247,7 @@ class SurfaceTrackingPlugin(Plugin):
         if self.app.headless:
             own_job_name = self._get_own_job_name()
             if "markers" in self.job_dependencies.get(own_job_name, []):
-                self.job_manager.run_in_foreground(self.bg_detect_markers)
+                self.job_manager.run_in_foreground(self.bg_detect_markers())
 
             if self.marker_cache_file.exists():
                 self._load_marker_cache()
@@ -610,8 +610,6 @@ class SurfaceTrackingPlugin(Plugin):
             return
 
         if self.app.headless:
-            if cache_file.exists():
-                self._load_surface_heatmap(surface_uid)
             return
 
         surface = self.get_surface(surface_uid)
@@ -718,13 +716,9 @@ class SurfaceTrackingPlugin(Plugin):
         hist = hist.astype(np.uint8)
 
         # NOTE: save the result to recording cache even if in multi-recording mode,
-        # aggregation is implemented in _build_aggregate_heatmap and re-uses these
-        # results for each recording
-        cache_path = self.get_cache_path()
-        data_cache_file = cache_path / f"{surface.uid}_heatmap_data.npy"
-        img_cache_file = cache_path / f"{surface.uid}_heatmap.png"
-        np.save(str(data_cache_file), hist)
-        cv2.imwrite(str(img_cache_file), hist)
+        # aggregation is implemented in _build_aggregate_heatmap
+        cache_file = self.get_cache_path() / f"{surface.uid}_heatmap.png"
+        cv2.imwrite(str(cache_file), hist)
 
         # gaze on cache for timeline
         gaze_ons = np.concatenate([[0], gaze_ons])
@@ -747,15 +741,15 @@ class SurfaceTrackingPlugin(Plugin):
         hist_aggregated = None
         for recording in self.workspace.recordings:
             cache_path = self.get_cache_path(recording=recording)
-            data_cache_file = cache_path / f"{surface_uid}_heatmap_data.npy"
-            if not data_cache_file.exists():
+            cache_file = cache_path / f"{surface_uid}_heatmap.png"
+            if not cache_file.exists():
                 logging.error(
-                    f"Heatmap data file not found for recording {recording.name}"
+                    f"Heatmap file not found for recording {recording._rec_dir.name}"
                     f"and surface {surface.name}. Stopping the aggregation."
                 )
                 return
 
-            hist = np.load(data_cache_file)
+            hist = cv2.imread(str(cache_file))
             if hist_aggregated is None:
                 hist_aggregated = np.zeros_like(hist, np.float64)
             hist_aggregated += hist.astype(np.float64)
@@ -783,6 +777,13 @@ class SurfaceTrackingPlugin(Plugin):
         cache_file = cache_path / f"{surface_uid}_heatmap.png"
         if cache_file.exists():
             cache_file.unlink()
+
+        if self.batch_mode_enabled:
+            for recording in self.workspace.recordings:
+                cache_path = self.get_cache_path(recording=recording)
+                cache_file = cache_path / f"{surface_uid}_heatmap.png"
+                if cache_file.exists():
+                    cache_file.unlink()
 
         self.get_surface(surface_uid)._heatmap = None
         self.trigger_scene_update()
@@ -888,10 +889,22 @@ class SurfaceTrackingPlugin(Plugin):
                 "surface_visibility.pkl",
                 "gazes.pkl"
             ]
+            workspace_surface_files = ["surface.pkl", "heatmap.png"]
+            workspace_cache_path = self.get_cache_path(workspace=True)
             for surface_file in surface_files:
                 file_path = self.get_cache_path() / f"{surface.uid}_{surface_file}"
                 if file_path.exists():
                     file_path.unlink()
+
+                if not self.batch_mode_enabled:
+                    continue
+
+                if surface_file not in workspace_surface_files:
+                    continue
+
+                workspace_file_path = workspace_cache_path / f"{surface.uid}_{surface_file}"
+                if workspace_file_path.exists():
+                    workspace_file_path.unlink()
 
             self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
             self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
@@ -914,11 +927,17 @@ class SurfaceTrackingPlugin(Plugin):
                 w.hide()
 
     def on_locations_invalidated(self, surface: "TrackedSurface") -> None:
-        locations_path = self.get_cache_path() / f"{surface.uid}_locations.npy"
-        if locations_path.exists():
-           locations_path.unlink()
+        recordings_to_consider = [self.recording]
+        if self.batch_mode_enabled:
+            recordings_to_consider = self.workspace.recordings
 
-        surf_path = self.get_cache_path() / f"{surface.uid}_surface.pkl"
+        for recording in recordings_to_consider:
+            locations_path = self.get_cache_path(recording=recording) / f"{surface.uid}_locations.npy"
+            if locations_path.exists():
+                locations_path.unlink()
+
+        cache_path = self.get_cache_path(workspace=self.batch_mode_enabled)
+        surf_path = cache_path / f"{surface.uid}_surface.pkl"
         with surf_path.open("wb") as f:
             pickle.dump(surface.tracker_surface, f)
 
@@ -992,6 +1011,8 @@ class SurfaceTrackingPlugin(Plugin):
             logging.error(
                 f"Surface {surface.name} was defined in a different recording, "
                 f"expected surface file to be available in cache but it was not found."
+                f"This error indicates a problem with cache, please try to delete and "
+                f"re-create the surface."
             )
             return None
 
@@ -1009,9 +1030,9 @@ class SurfaceTrackingPlugin(Plugin):
     ) -> T.Generator[ProgressUpdate, None, None]:
         cache_path = self.get_cache_path(workspace=self.batch_mode_enabled)
         cache_path.mkdir(parents=True, exist_ok=True)
-        surf_cache_path = cache_path / f"{uid}_surface.pkl"
+        surf_cache_file = cache_path / f"{uid}_surface.pkl"
 
-        tracker_surf = self._setup_tracker_surface(uid, surf_cache_path)
+        tracker_surf = self._setup_tracker_surface(uid, surf_cache_file)
         if tracker_surf is None:
             logging.error(f"Failed to set up tracker surface for UID {uid}")
             return
@@ -1028,7 +1049,7 @@ class SurfaceTrackingPlugin(Plugin):
         with locations_path.open("wb") as f:
             np.save(f, np.array(locations, dtype=object))
 
-        with surf_cache_path.open("wb") as f:
+        with surf_cache_file.open("wb") as f:
             pickle.dump(tracker_surf, f)
 
         visibility = np.array([1 if val else 0 for val in locations])
