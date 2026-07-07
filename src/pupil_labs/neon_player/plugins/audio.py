@@ -3,7 +3,7 @@ import fractions
 import numpy as np
 import typing as T
 
-from PySide6.QtCore import QSize, Qt, QTimer, QUrl
+from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
@@ -42,8 +42,8 @@ class AudioPlugin(neon_player.Plugin):
 
     def __init__(self) -> None:
         super().__init__()
-        self.audio_output = QAudioOutput()
-        self.player = QMediaPlayer()
+        self.audio_output = QAudioOutput(self)
+        self.player = QMediaPlayer(self)
         self.player.setAudioOutput(self.audio_output)
         self.player.mediaStatusChanged.connect(self.on_media_status_changed)
         self.recording_has_audio = False
@@ -55,16 +55,18 @@ class AudioPlugin(neon_player.Plugin):
 
         self.cache_file = self.get_cache_path() / "audio.wav"
 
-        self.volume_button = VolumeButton(self.audio_output)
+        self.volume_button = VolumeButton()
         self.volume_button.setIconSize(QSize(32, 32))
         self.volume_button.setFixedSize(QSize(36, 36))
+        self.volume_button.volume_changed.connect(self.on_volume_changed)
         self.get_timeline().toolbar_layout.insertWidget(1, self.volume_button)
 
     def on_disabled(self) -> None:
         self.player.stop()
         self.player.setSource(QUrl())
-        self.get_timeline().toolbar_layout.removeWidget(self.volume_button)
         self.get_timeline().remove_timeline_plot("Audio")
+        self.get_timeline().toolbar_layout.removeWidget(self.volume_button)
+        self.volume_button.deleteLater()
 
     def on_media_status_changed(self, status: QMediaPlayer.MediaStatus) -> None:
         if status == QMediaPlayer.MediaStatus.LoadedMedia:
@@ -104,6 +106,9 @@ class AudioPlugin(neon_player.Plugin):
         # and now has a positive speed
         self.sync_and_start_playback()
 
+    def on_volume_changed(self, volume: float) -> None:
+        self.audio_output.setVolume(volume)
+
     def on_user_seeked(self, position: int) -> None:
         self.sync_position()
 
@@ -138,7 +143,9 @@ class AudioPlugin(neon_player.Plugin):
         if not self.cache_file.exists():
             return
 
+        self.recording_has_audio = True
         self.player.setSource(QUrl.fromLocalFile(str(self.cache_file)))
+        self.on_speed_changed(self.app.playback_speed)
         self.on_playback_state_changed(self.app.is_playing)
 
         # load the audio data into a numpy array
@@ -150,7 +157,6 @@ class AudioPlugin(neon_player.Plugin):
         data = np.column_stack((timestamps, audio_data))
         timeline = self.get_timeline()
         timeline.add_timeline_line("Audio", data)
-        self.recording_has_audio = True
 
     def extract_audio(self) -> T.Generator[ProgressUpdate, None, None]:
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
@@ -206,12 +212,14 @@ class AudioPlugin(neon_player.Plugin):
 
 
 class VolumeButton(QPushButton):
-    def __init__(self, audio_output: QAudioOutput) -> None:
+    volume_changed = Signal(float)
+
+    def __init__(self) -> None:
         super().__init__()
-        self.audio_output = audio_output
 
         self.setIcon(QPixmap(neon_player.asset_path("volume-3.svg")))
         self.popup: QFrame | None = None
+        self._volume = 1.0
         self.clicked.connect(self.toggle_popup)
 
     def toggle_popup(self) -> None:
@@ -226,7 +234,7 @@ class VolumeButton(QPushButton):
 
         slider = QSlider(Qt.Orientation.Vertical)
         slider.sliderMoved.connect(self.on_slider_moved)
-        slider.setValue(int(self.audio_output.volume() * 100))
+        slider.setValue(int(self._volume * 100))
         slider.setMinimumHeight(140)
         slider.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         layout.addWidget(slider, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -241,5 +249,6 @@ class VolumeButton(QPushButton):
         QTimer.singleShot(1, set_position)
 
     def on_slider_moved(self, value: int) -> None:
-        self.audio_output.setVolume(value / 100)
         self.setIcon(QPixmap(neon_player.asset_path(f"volume-{value//25}.svg")))
+        self._volume = value / 100
+        self.volume_changed.emit(self._volume)

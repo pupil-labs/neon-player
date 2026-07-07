@@ -462,7 +462,7 @@ class TimeLineDock(QWidget):
     def add_timeline_plot(
         self,
         timeline_row_name: str,
-        data: list[tuple[int, T.SupportsFloat]],
+        data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
         plot_name: str = "",
         color: QColor | None = None,
         **kwargs: T.Any,
@@ -483,9 +483,7 @@ class TimeLineDock(QWidget):
             kwargs["pen"] = pg.mkPen(color=color, width=2, cap="flat")
 
         legend = self.timeline_legends[timeline_row_name]
-        x = np.array([point[0] for point in data], dtype=np.int64)
-        y = np.array([point[1] for point in data], dtype=np.float64)
-        plot_data_item = plot_item.plot(x, y, name=plot_name, **kwargs)
+        plot_data_item = plot_item.plot(data, name=plot_name, **kwargs)
         plot_data_item.name = plot_name
         if plot_name != "":
             legend.addItem(plot_data_item, plot_name)
@@ -553,14 +551,14 @@ class TimeLineDock(QWidget):
     def add_timeline_line(
         self,
         timeline_row_name: str,
-        data: list[tuple[int, T.SupportsFloat]],
+        data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
         plot_name: str = "",
         **kwargs: T.Any,
     ) -> pg.PlotDataItem | None:
         return self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
 
     def add_timeline_scatter(
-        self, name: str, data: list[tuple[int, T.SupportsFloat]], item_name: str = ""
+        self, name: str, data: list[tuple[int, T.SupportsFloat]] | np.ndarray, item_name: str = ""
     ) -> pg.PlotDataItem | None:
         return self.add_timeline_plot(
             name,
@@ -574,7 +572,7 @@ class TimeLineDock(QWidget):
     def add_timeline_broken_bar(
         self,
         timeline_row_name: str,
-        data: list[tuple[int, int, T.SupportsFloat]] | list[tuple[int, int]],
+        data: list[tuple[int, int, T.SupportsFloat]] | list[tuple[int, int]] | np.ndarray,
         item_name: str = "",
         color: str = "white",
     ) -> pg.PlotDataItem | None:

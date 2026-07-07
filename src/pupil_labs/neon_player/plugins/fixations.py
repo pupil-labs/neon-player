@@ -390,8 +390,21 @@ class FixationVisualization(PersistentPropertiesMixin, QObject):
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.recording = recording
 
-    def to_dict(self, include_class_name: bool = True) -> dict:
-        return super().to_dict(include_class_name=include_class_name)
+    def to_dict(
+        self,
+        include_class_name: bool = False,
+        condition: T.Callable[[dict], bool] | None = None,
+        recursive: bool = False
+    ) -> dict:
+        state = super().to_dict(
+            include_class_name=include_class_name,
+            condition=condition,
+            recursive=recursive
+        )
+
+        # NOTE: Fixation visualizations require the class name to be loaded correctly
+        state["__class__"] = self.__class__.__name__
+        return state
 
     @property
     def use_offset(self) -> bool:

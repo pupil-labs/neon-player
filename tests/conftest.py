@@ -39,6 +39,7 @@ class MockNeonPlayerApp(QApplication):
         super().__init__(*args)
         self.headless = True
         self.plugins_by_class = {}
+        self.recording = None
 
 
 @pytest.fixture(scope="session")
