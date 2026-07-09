@@ -231,6 +231,9 @@ class SurfaceTrackingPlugin(Plugin):
         self.attempt_marker_cache_load()
 
     def _get_own_job_name(self) -> str | None:
+        if not self.app.args.job:
+            return None
+
         plugin_name, job_name = self.app.args.job[0].split(".", 1)
         if plugin_name != self.__class__.__name__:
             return None
