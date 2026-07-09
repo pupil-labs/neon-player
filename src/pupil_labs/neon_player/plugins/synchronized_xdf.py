@@ -1,53 +1,40 @@
-# /// script
-# requires-python = ">=3.12"
-# dependencies = [
-#     "pyxdf",
-#     "numpy",
-#     "pandas",
-#     "scipy",
-# ]
-# ///
-
-import logging
 import json
-from pathlib import Path
-from typing import Optional
+import logging
+import numpy as np
+import pandas as pd
+import pyxdf
 
-# 1. Import safe built-ins and Neon Player/PySide dependencies
-from pupil_labs import neon_player
-from pupil_labs.neon_player import Plugin, action
-from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtCore import Qt, Signal, QPointF
-from PySide6.QtGui import QColor, QPainter, QPen, QFont, QIcon
+from pathlib import Path
+from PySide6.QtCore import Signal
+from PySide6.QtGui import QIcon
 from qt_property_widgets.utilities import (
-    PersistentPropertiesMixin,
     FilePath,
     property_params,
     action_params,
 )
 from qt_property_widgets.widgets import DynamicComboWidget
-
-# 2. Import required and optional external dependencies
-import numpy as np
-import pyxdf
-import pandas as pd
 from scipy.signal import butter, filtfilt
+from typing import Optional
 
-class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
+from pupil_labs import neon_player
+from pupil_labs.neon_player import Plugin, action
+from pupil_labs.neon_recording import NeonRecording
+
+
+class XDFMultimodalPlugin(Plugin):
     label = "XDF Multimodal"
     streams_changed = Signal()
     sync_events_changed = Signal()
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._xdf_path: Path = Path("")
         self._available_stream_names: list[str] = []
-        self._available_marker_stream_names: list[str] = []
         self._available_sync_events: list[str] = []
         self._data_stream_name: str = ""
         self._marker_stream_name: str = ""
         self._selected_sync_event: str = ""
-        
+
         self._stream_data: Optional[np.ndarray] = None
         self._stream_ts: Optional[np.ndarray] = None
         self._stream_fs: float = 250.0
@@ -55,7 +42,7 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
         self._xdf_markers: list[dict] = []
         self._channel_names: list[str] = []   # ordered channel names from XDF
         self._channels: dict[str, bool] = {}  # channel name -> enabled
-        
+
         self._offset_s: float = 0.0
         self._is_aligned: bool = False
 
@@ -66,7 +53,7 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
         return FilePath(self._xdf_path) if self._xdf_path != Path("") else None
 
     @file_path.setter
-    def file_path(self, value) -> None:
+    def file_path(self, value: FilePath | None) -> None:
         p = Path(str(value)) if value else Path("")
 
         # Allow clearing the field programmatically.
@@ -105,7 +92,7 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
     @property_params(
         label="Marker Stream",
         widget=DynamicComboWidget,
-        options_source="_available_marker_stream_names",
+        options_source="_available_stream_names",
         options_changed_signal="streams_changed",
     )
     def marker_stream(self) -> str:
@@ -171,7 +158,6 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
             self.load_xdf()
         else:
             self._available_stream_names = []
-            self._available_marker_stream_names = []
             self._available_sync_events = []
             self.streams_changed.emit()
             self.sync_events_changed.emit()
@@ -200,15 +186,17 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
             self.changed.emit()
 
     def _clear_timeline_tracks(self) -> None:
-        timeline = self.get_timeline()
-        if not timeline:
+        if self.headless:
             return
 
+        timeline = self.get_timeline()
+        was_sorting_enabled = timeline.disable_plot_sorting()
+
         for row_name in (*self._channel_names, "Data Stream", "XDF Markers"):
-            try:
-                timeline.remove_timeline_plot(row_name)
-            except Exception:
-                pass
+            timeline.remove_timeline_plot(row_name)
+
+        if was_sorting_enabled:
+            timeline.enable_plot_sorting()
 
     def _to_numeric_matrix(self, time_series) -> Optional[np.ndarray]:
         """Best-effort conversion from XDF time_series to a 2D numeric array."""
@@ -232,7 +220,7 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
 
         return data
 
-    def load_xdf(self):
+    def load_xdf(self) -> None:
         try:
             logging.info(f"Loading XDF file: {self._xdf_path}")
             streams, header = pyxdf.load_xdf(str(self._xdf_path))
@@ -248,30 +236,11 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
             self._stream_ts = None
             self._xdf_markers = []
             self._channel_names = []
-            self._channels = {}
 
-            stream_names: list[str] = []
-            marker_stream_names: list[str] = []
-            for stream in streams:
-                info = stream.get("info", {})
-                stream_name = str(info.get("name", [""])[0])
-                if not stream_name:
-                    continue
-                stream_names.append(stream_name)
-
-                stream_type = str(info.get("type", [""])[0]).strip().lower()
-                if stream_type in ("markers", "event"):
-                    marker_stream_names.append(stream_name)
-
-            # Fallback: if no stream exposes type=Markers metadata, keep old behavior.
-            if not marker_stream_names:
-                marker_stream_names = list(stream_names)
-
-            self._available_stream_names = stream_names
-            self._available_marker_stream_names = marker_stream_names
+            self._available_stream_names = [str(s["info"]["name"][0]) for s in streams]
             if self._data_stream_name not in self._available_stream_names:
                 self._data_stream_name = ""
-            if self._marker_stream_name not in self._available_marker_stream_names:
+            if self._marker_stream_name not in self._available_stream_names:
                 self._marker_stream_name = ""
             self.streams_changed.emit()
 
@@ -281,7 +250,7 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
                     data_stream = stream
                 if self._marker_stream_name and name == self._marker_stream_name:
                     marker_stream = stream
-            
+
             if data_stream:
                 numeric_data = self._to_numeric_matrix(data_stream.get("time_series"))
                 if numeric_data is None:
@@ -309,7 +278,7 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
                             self._stream_fs = 0.0
                     else:
                         self._stream_fs = 0.0
-                
+
                 # Extract channel names properly
                 channel_names = []
                 try:
@@ -324,7 +293,7 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
                     pass
                 if (not channel_names) and self._stream_data is not None:
                     channel_names = [f"Ch{i}" for i in range(self._stream_data.shape[1])]
-                
+
                 # Populate channels dict (preserve previous enabled state)
                 self._channel_names = channel_names
                 new_channels: dict[str, bool] = {}
@@ -334,7 +303,7 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
                         new_channels[name] = idx == 0
                     else:
                         new_channels[name] = self._channels.get(name, False)
-                
+
                 self.channels = new_channels
                 if self._stream_data is not None:
                     logging.info(
@@ -343,7 +312,7 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
                         self._stream_data.shape[1],
                         channel_names,
                     )
-            
+
             if marker_stream:
                 self._xdf_markers = []
                 for ts, marker in zip(marker_stream["time_stamps"], marker_stream["time_series"], strict=False):
@@ -351,7 +320,7 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
                     m_name = self._parse_event_name(m_text)
                     self._xdf_markers.append({"timestamp": ts, "name": m_name, "raw": m_text})
                 logging.info(f"Found {len(self._xdf_markers)} markers in XDF")
-            
+
             self.align_with_recording()
             self.changed.emit()
         except Exception as e:
@@ -370,7 +339,7 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
             except: pass
         return text
 
-    def _get_neon_ev_info(self, ev):
+    def _get_neon_ev_info(self, ev) -> tuple[str, Optional[float]]:
         if isinstance(ev, dict):
             raw_name = str(ev.get("event", ev.get("name", ev.get("text", str(ev)))))
             ts_ns = ev.get("time", ev.get("timestamp", ev.get("timestamp_ns", None)))
@@ -381,7 +350,7 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
         ts_ns = getattr(ev, "time", getattr(ev, "timestamp", getattr(ev, "timestamp_ns", None)))
         return name, ts_ns
 
-    def align_with_recording(self):
+    def align_with_recording(self) -> None:
         if not self.recording or not self._xdf_markers:
             self._set_common_sync_events([])
             self._is_aligned = False
@@ -443,7 +412,7 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
         # Find Recording Bounds from events as primary source
         self._rec_begin_ns = self.recording.start_time
         self._rec_end_ns = self._rec_begin_ns + getattr(self.recording, "duration_ns", 0)
-        
+
         for n_ev in neon_events:
             n_name, n_ts = self._get_neon_ev_info(n_ev)
             if n_ts is None: continue
@@ -471,14 +440,14 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
         self._set_common_sync_events(common_names)
 
         target_sync = self._selected_sync_event.strip().lower()
-        
+
         # If no common sync event is selected, don't try to align.
         if not target_sync:
             logging.warning("No common sync event selected. Skipping alignment.")
             self._is_aligned = False
             self.update_timeline()
             return
-        
+
         for n_ev in neon_events:
             n_name, n_ts = self._get_neon_ev_info(n_ev)
             if n_ts is None: continue
@@ -504,13 +473,13 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
                     logging.info(f"Aligned using common marker '{n_name}'. Offset: {self._offset_s:.4f}s")
                     self.update_timeline()
                     return
-        
+
         self._is_aligned = False
         self.update_timeline()
 
     def update_timeline(self):
         timeline = self.get_timeline()
-        if not timeline or not self.recording: 
+        if not timeline or not self.recording:
             return
 
         # Clear all previously drawn rows before potentially drawing new content.
@@ -519,27 +488,27 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
         if self._stream_data is not None and self._is_aligned:
             # 1. Convert XDF timestamps to Neon clock (nanoseconds)
             neon_ts = ((self._stream_ts - self._offset_s) * 1e9).astype(np.int64)
-            
+
             # 2. Filter data to fit within the recording bounds
             mask = (neon_ts >= self._rec_begin_ns) & (neon_ts <= self._rec_end_ns)
-            
+
             if not np.any(mask):
                 logging.warning("No data found within recording bounds.")
                 return
 
             plot_ts = neon_ts[mask]
             plot_data = self._stream_data[mask]
-            
+
             selected_names = [n for n in self._channel_names if self._channels.get(n, False)]
 
             if selected_names:
                 indices = [self._channel_names.index(n) for n in selected_names]
                 names = selected_names
-                
+
                 # Extract and clean data
                 data = plot_data[:, indices].astype(np.float32)
                 data = np.nan_to_num(data, nan=0.0)
-                
+
                 # Optional EEG-style filter for streams where that makes sense.
                 if self._apply_bandpass and butter is not None and filtfilt is not None and self._stream_fs > 0:
                     try:
@@ -558,7 +527,7 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
 
                 # 4. Normalize (Center the data around 0)
                 data = data - np.nanmean(data, axis=0)
-                
+
                 # Ensure data is 2D: (Samples, Channels)
                 if data.ndim == 1:
                     data = data.reshape(-1, 1)
@@ -569,7 +538,7 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
                     for i, name in enumerate(names):
                         channel_data = data[:, i]
                         plot_data_matrix = np.column_stack((plot_ts, channel_data))
-                        
+
                         plot_item = timeline.add_timeline_plot(
                             timeline_row_name=name,
                             data=plot_data_matrix,
@@ -578,11 +547,11 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
                         if plot_item is not None:
                             plot_item.preferred_height_2d = 60
                             plot_item.adjust_size()
-                    
+
                     # 7. Let the graph auto-range to fit the raw data naturally!
                     if plot_item is not None:
                         plot_item.getViewBox().enableAutoRange(y=True)
-                        
+
                 except Exception as e:
                     logging.error(f"Failed to add EEG plot: {e}")
 
@@ -591,7 +560,7 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
                 start_ns = int(plot_ts[0])
                 end_ns = int(plot_ts[-1])
                 timeline.add_timeline_broken_bar("Data Stream", [(start_ns, end_ns)], "", "#00FFFF")
-                
+
                 if self._xdf_markers:
                     # Filter and plot markers that fall within the recording
                     marker_segs = []
@@ -599,17 +568,14 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
                         m_ts_ns = int((m["timestamp"] - self._offset_s) * 1e9)
                         if self._rec_begin_ns <= m_ts_ns <= self._rec_end_ns:
                             # 100ms duration for visibility
-                            marker_segs.append((m_ts_ns, m_ts_ns + 100_000_000)) 
-                    
+                            marker_segs.append((m_ts_ns, m_ts_ns + 100_000_000))
+
                     if marker_segs:
                         timeline.add_timeline_broken_bar("XDF Markers", marker_segs, "", "#FFCC00")
             except Exception as e:
                 logging.error(f"Failed to update tracks: {e}")
-        
-        self.changed.emit()
 
-    def render(self, painter: QPainter, time_in_recording: int) -> None:
-        pass
+        self.changed.emit()
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
@@ -642,7 +608,9 @@ class XDFMultimodalPlugin(Plugin, PersistentPropertiesMixin):
     @action
     @action_params(compact=True, icon=QIcon.fromTheme("help-about"))
     def debug_events(self) -> None:
-        if not self.recording: return
+        if not self.recording:
+            return
+
         logging.info("--- NEON EVENTS ---")
         evs = getattr(self.recording, "events", [])
         for e in evs:
