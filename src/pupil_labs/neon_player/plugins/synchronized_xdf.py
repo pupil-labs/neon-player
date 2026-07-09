@@ -242,6 +242,7 @@ class XDFMultimodalPlugin(Plugin):
 
             stream_names: list[str] = []
             marker_stream_names: list[str] = []
+            non_marker_stream_names: list[str] = []
             for stream in streams:
                 info = stream.get("info", {})
                 stream_name = str(info.get("name", [""])[0])
@@ -252,12 +253,16 @@ class XDFMultimodalPlugin(Plugin):
                 stream_type = str(info.get("type", [""])[0]).strip().lower()
                 if stream_type in ("markers", "event"):
                     marker_stream_names.append(stream_name)
+                else:
+                    non_marker_stream_names.append(stream_name)
 
             # Fallback: if no stream exposes type=Markers metadata, keep old behavior.
             if not marker_stream_names:
                 marker_stream_names = list(stream_names)
 
-            self._available_stream_names = stream_names
+            # Prefer non-marker streams for data selection, but keep a fallback when
+            # type metadata is missing or all streams are marker-typed.
+            self._available_stream_names = non_marker_stream_names or list(stream_names)
             self._available_marker_stream_names = marker_stream_names
             if self._data_stream_name not in self._available_stream_names:
                 self._data_stream_name = ""
