@@ -30,6 +30,7 @@ class XDFMultimodalPlugin(Plugin):
         super().__init__()
         self._xdf_path: Path = Path("")
         self._available_stream_names: list[str] = []
+        self._available_marker_stream_names: list[str] = []
         self._available_sync_events: list[str] = []
         self._data_stream_name: str = ""
         self._marker_stream_name: str = ""
@@ -92,7 +93,7 @@ class XDFMultimodalPlugin(Plugin):
     @property_params(
         label="Marker Stream",
         widget=DynamicComboWidget,
-        options_source="_available_stream_names",
+        options_source="_available_marker_stream_names",
         options_changed_signal="streams_changed",
     )
     def marker_stream(self) -> str:
@@ -158,6 +159,7 @@ class XDFMultimodalPlugin(Plugin):
             self.load_xdf()
         else:
             self._available_stream_names = []
+            self._available_marker_stream_names = []
             self._available_sync_events = []
             self.streams_changed.emit()
             self.sync_events_changed.emit()
