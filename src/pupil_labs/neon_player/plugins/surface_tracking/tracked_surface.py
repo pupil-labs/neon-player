@@ -632,6 +632,9 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         icon=QIcon(str(asset_path("edit.svg"))),
     )
     def edit_surface(self) -> None:
+        if self.edit:
+            return
+
         if self._location is None:
             logging.warning("Cannot edit surface when it is not visible in the current frame.")
             return
