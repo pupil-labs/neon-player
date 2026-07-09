@@ -1469,7 +1469,7 @@ dev = [
 
 [[package]]
 name = "pupil-labs-neon-recording"
-version = "2.1.4"
+version = "2.1.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
@@ -1479,9 +1479,9 @@ dependencies = [
     { name = "pupil-labs-video" },
     { name = "universal-pathlib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e4/54/76737ab8c779aea34756b8e39fd9cdc5a6faae815648b708741bb4b061d9/pupil_labs_neon_recording-2.1.4.tar.gz", hash = "sha256:4418a2a1e31bfd5794562d31c1c0056f56f9ffa66a647a6388e28ec8cc48a87e", size = 1360909, upload-time = "2026-04-15T13:58:50.913Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/49/00/b445f01762ad43e7c9c6e8418c8cd1daca6e952f8e0bc68567030f47b5ea/pupil_labs_neon_recording-2.1.5.tar.gz", hash = "sha256:a2fce26e54320a8a941ba2e4016c6f0aa0d72cac2d4b2ff3fb54ff8448d07c13", size = 1361249, upload-time = "2026-07-09T12:23:32.559Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ab/ff/e25f4f5b9ece453a1537048bace2a05bf0b7b9dd9591c7b1f4b6c0947d70/pupil_labs_neon_recording-2.1.4-py3-none-any.whl", hash = "sha256:c53e928a624a412be0c694e4b09883e8009fe5049fac9faedd8d60840f046153", size = 28201, upload-time = "2026-04-15T13:58:49.558Z" },
+    { url = "https://files.pythonhosted.org/packages/65/a3/7ce73391dbc90eebcb592c06c3f0cd1efb997374dca22bcfebab7c3c6cfd/pupil_labs_neon_recording-2.1.5-py3-none-any.whl", hash = "sha256:55c00d4e7bd81763425ba376592955bdfd127befce7ed3897d99c68019308921", size = 28417, upload-time = "2026-07-09T12:23:31.143Z" },
 ]
 
 [[package]]
