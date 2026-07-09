@@ -220,7 +220,7 @@ class XDFMultimodalPlugin(Plugin):
 
         return data
 
-    def load_xdf(self) -> None:
+    def load_xdf(self):
         try:
             logging.info(f"Loading XDF file: {self._xdf_path}")
             streams, header = pyxdf.load_xdf(str(self._xdf_path))
@@ -236,11 +236,30 @@ class XDFMultimodalPlugin(Plugin):
             self._stream_ts = None
             self._xdf_markers = []
             self._channel_names = []
+            self._channels = {}
 
-            self._available_stream_names = [str(s["info"]["name"][0]) for s in streams]
+            stream_names: list[str] = []
+            marker_stream_names: list[str] = []
+            for stream in streams:
+                info = stream.get("info", {})
+                stream_name = str(info.get("name", [""])[0])
+                if not stream_name:
+                    continue
+                stream_names.append(stream_name)
+
+                stream_type = str(info.get("type", [""])[0]).strip().lower()
+                if stream_type in ("markers", "event"):
+                    marker_stream_names.append(stream_name)
+
+            # Fallback: if no stream exposes type=Markers metadata, keep old behavior.
+            if not marker_stream_names:
+                marker_stream_names = list(stream_names)
+
+            self._available_stream_names = stream_names
+            self._available_marker_stream_names = marker_stream_names
             if self._data_stream_name not in self._available_stream_names:
                 self._data_stream_name = ""
-            if self._marker_stream_name not in self._available_stream_names:
+            if self._marker_stream_name not in self._available_marker_stream_names:
                 self._marker_stream_name = ""
             self.streams_changed.emit()
 
@@ -250,7 +269,7 @@ class XDFMultimodalPlugin(Plugin):
                     data_stream = stream
                 if self._marker_stream_name and name == self._marker_stream_name:
                     marker_stream = stream
-
+            
             if data_stream:
                 numeric_data = self._to_numeric_matrix(data_stream.get("time_series"))
                 if numeric_data is None:
@@ -278,7 +297,7 @@ class XDFMultimodalPlugin(Plugin):
                             self._stream_fs = 0.0
                     else:
                         self._stream_fs = 0.0
-
+                
                 # Extract channel names properly
                 channel_names = []
                 try:
@@ -293,7 +312,7 @@ class XDFMultimodalPlugin(Plugin):
                     pass
                 if (not channel_names) and self._stream_data is not None:
                     channel_names = [f"Ch{i}" for i in range(self._stream_data.shape[1])]
-
+                
                 # Populate channels dict (preserve previous enabled state)
                 self._channel_names = channel_names
                 new_channels: dict[str, bool] = {}
@@ -303,7 +322,7 @@ class XDFMultimodalPlugin(Plugin):
                         new_channels[name] = idx == 0
                     else:
                         new_channels[name] = self._channels.get(name, False)
-
+                
                 self.channels = new_channels
                 if self._stream_data is not None:
                     logging.info(
@@ -312,7 +331,7 @@ class XDFMultimodalPlugin(Plugin):
                         self._stream_data.shape[1],
                         channel_names,
                     )
-
+            
             if marker_stream:
                 self._xdf_markers = []
                 for ts, marker in zip(marker_stream["time_stamps"], marker_stream["time_series"], strict=False):
@@ -320,7 +339,7 @@ class XDFMultimodalPlugin(Plugin):
                     m_name = self._parse_event_name(m_text)
                     self._xdf_markers.append({"timestamp": ts, "name": m_name, "raw": m_text})
                 logging.info(f"Found {len(self._xdf_markers)} markers in XDF")
-
+            
             self.align_with_recording()
             self.changed.emit()
         except Exception as e:
