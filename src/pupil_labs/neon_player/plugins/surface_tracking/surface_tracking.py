@@ -261,20 +261,31 @@ class SurfaceTrackingPlugin(Plugin):
                 self._distort_and_draw_marker(painter, marker.corners, marker.tag_id)
 
         for surface in self.surfaces:
-            if surface.uid not in self.surface_locations:
-                continue
+            # Cancel editing if the playback was resumed
+            if surface.edit and frame_idx != surface.edit_frame_idx:
+                if self.app.is_playing:
+                    surface.edit = False
+                else:
+                    surface.edit_frame_idx = frame_idx
 
-            locations = self.surface_locations[surface.uid]
-            location = locations[frame_idx]
-            surface.location = location
-            if location is None:
+            # NOTE: while the surface is being edited, its location is updated separately
+            # only for the currently shown frame (see TrackedSurface.update_current_location)
+            # to make the interaction more responsive
+            if not surface.edit:
+                if surface.uid not in self.surface_locations:
+                    continue
+                locations = self.surface_locations[surface.uid]
+                location = locations[frame_idx]
+                surface.location = location
+
+            if surface.location is None:
                 continue
 
             if surface.tracker_surface is None:
                 continue
 
             show_heatmap = surface.show_heatmap and surface.heatmap_alpha > 0.0
-            if show_heatmap and surface._heatmap is not None:
+            if show_heatmap and surface._heatmap is not None and not surface.edit:
                 export_window = self.app.get_export_window()
                 if export_window[0] <= time_in_recording <= export_window[1]:
                     scalar = np.float64([
@@ -798,8 +809,8 @@ class SurfaceTrackingPlugin(Plugin):
     def on_marker_edit_changed(self, surface: "TrackedSurface") -> None:
         if surface.edit:
             for other_surface in self.surfaces:
-                if other_surface != surface:
-                    other_surface.edit = False
+                if other_surface != surface and other_surface.edit:
+                    other_surface.on_edit_surface_canceled()
 
             self.marker_editing_surface = surface
             for w in self.marker_edit_widgets.values():
@@ -819,6 +830,7 @@ class SurfaceTrackingPlugin(Plugin):
         with surf_path.open("wb") as f:
             pickle.dump(surface.tracker_surface, f)
 
+        del self.surface_locations[surface.uid]
         surface._heatmap = None
         surface.preview_options.render_size = [0, 0]
         self.trigger_scene_update()
