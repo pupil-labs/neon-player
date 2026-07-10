@@ -25,6 +25,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
         super().__init__()
         self._skip_gray_frames_on_load = True
         self._show_fps = False
+        self._enable_color_blind_mode = False
 
         plugin_names = [k.__name__ for k in Plugin.known_classes]
         plugin_names.sort()
@@ -52,6 +53,14 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
     @show_fps.setter
     def show_fps(self, value: bool) -> None:
         self._show_fps = value
+
+    @property
+    def enable_color_blind_mode(self) -> bool:
+        return self._enable_color_blind_mode
+
+    @enable_color_blind_mode.setter
+    def enable_color_blind_mode(self, value: bool) -> None:
+        self._enable_color_blind_mode = value
 
     @property
     def default_plugins(self) -> dict[str, bool]:

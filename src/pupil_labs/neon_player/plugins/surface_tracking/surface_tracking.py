@@ -148,6 +148,13 @@ class SurfaceTrackingPlugin(Plugin):
         self.marker_edit_widgets = {}
         self.header_action = ListPropertyAppenderAction("surfaces", "+ Add surface")
 
+        app = neon_player.instance()
+        if app is None:
+            return
+
+        self._enable_color_blind_mode = app.settings.enable_color_blind_mode
+        app.settings.changed.connect(self.on_settings_changed)
+
     def on_disabled(self) -> None:
         self.get_timeline().remove_timeline_plot("Marker visibility")
         for surface in self.surfaces:
@@ -163,6 +170,15 @@ class SurfaceTrackingPlugin(Plugin):
             surface.cleanup_widgets()
 
         self._surfaces.clear()
+
+    def on_settings_changed(self) -> None:
+        current_color_blind_mode = self.app.settings.enable_color_blind_mode
+        if self._enable_color_blind_mode == current_color_blind_mode:
+            return
+
+        self.get_timeline().remove_timeline_plot("Marker visibility")
+        self.attempt_marker_cache_load()
+        self._enable_color_blind_mode = current_color_blind_mode
 
     def _update_displays(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
@@ -472,6 +488,14 @@ class SurfaceTrackingPlugin(Plugin):
         stop_times = self.recording.scene.time[stop_indices].tolist()
 
         n_markers = marker_count_by_frame[start_indices].tolist()
+        max_n_markers = float(max(n_markers)) if n_markers else 0
+
+        if self.app.settings.enable_color_blind_mode:
+            color = "viridis"
+            color_source = None
+        else:
+            color = "RdYlGn"
+            color_source = "matplotlib"
 
         self.get_timeline().add_timeline_broken_bar(
             "Marker visibility",
@@ -480,6 +504,9 @@ class SurfaceTrackingPlugin(Plugin):
                 for start, stop, n in zip(start_times, stop_times, n_markers)
                 if n > 0
             ],
+            color=color,
+            color_limits=(0, max_n_markers),
+            color_source=color_source,
         )
 
     def _load_surface_locations_cache(self, surface_uid: str) -> None:
