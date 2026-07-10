@@ -69,10 +69,11 @@ class BaseBackgroundJob(QObject):
     finished = Signal()
     canceled = Signal()
 
-    def __init__(self, name: str, job_id: int):
+    def __init__(self, name: str, job_id: int, action_name: str):
         super().__init__()
         self.name = name
         self.job_id = job_id
+        self.action_name = action_name
         self.progress = -1
 
     def cancel(self):
@@ -90,7 +91,7 @@ class BackgroundJob(BaseBackgroundJob):
         recording_settings_path: Path | None = None,
         workspace_settings_path: Path | None = None,
     ):
-        super().__init__(name, job_id)
+        super().__init__(name, job_id, action_name)
 
         self.socket = None
         self._expected_payload_size = None
@@ -104,6 +105,7 @@ class BackgroundJob(BaseBackgroundJob):
 
         self.server.newConnection.connect(self._handle_connection)
 
+        self.args = args
         cmd = prepare_command(
             recording_path=recording_path,
             action_name=action_name,
@@ -182,7 +184,7 @@ class BatchBackgroundJob(BaseBackgroundJob):
         args_generator: T.Callable[[NeonRecording], T.Any] | None = None,
         recordings: list[NeonRecording] | None = None,
     ):
-        super().__init__(name, job_id)
+        super().__init__(name, job_id, action_name)
 
         app = neon_player.instance()
         if not app.batch_mode_enabled:
@@ -195,7 +197,6 @@ class BatchBackgroundJob(BaseBackgroundJob):
         if not recordings:
             raise ValueError("At least one recording is required to run the batch job.")
 
-        self.action_name = action_name
         self.args_generator = args_generator
         self.recordings = recordings.copy()
         self.size = len(self.recordings)

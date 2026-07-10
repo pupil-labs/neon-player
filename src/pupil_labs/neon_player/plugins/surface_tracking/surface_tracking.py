@@ -42,6 +42,7 @@ from qt_property_widgets.utilities import action_params, property_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action
+from pupil_labs.neon_player.job_manager import BaseBackgroundJob, BatchBackgroundJob
 from pupil_labs.neon_player.settings import SessionSettings
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.utilities import (
@@ -154,6 +155,13 @@ class SurfaceTrackingPlugin(Plugin):
         self.marker_edit_widgets = {}
         self.header_action = ListPropertyAppenderAction("surfaces", "+ Add surface")
 
+    @staticmethod
+    def instance() -> "SurfaceTrackingPlugin":
+        instance = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
+        if instance is None or not isinstance(instance, SurfaceTrackingPlugin):
+            raise RuntimeError("SurfaceTrackingPlugin instance not found")
+        return instance
+
     def on_disabled(self) -> None:
         self.get_timeline().remove_timeline_plot("Marker visibility")
         for surface in self.surfaces:
@@ -164,6 +172,7 @@ class SurfaceTrackingPlugin(Plugin):
             marker_widget.hide()
 
         for surface in self._surfaces:
+            surface.jobs.clear()
             surface.marker_edit_changed.disconnect()
             surface.locations_invalidated.disconnect()
             surface.cleanup_widgets()
@@ -645,8 +654,12 @@ class SurfaceTrackingPlugin(Plugin):
             lambda _: [surface_uid],
         )
         surface.add_bg_job(heatmap_job)
+
+        # NOTE: to allow switching between recordings while the batch job is running,
+        # we connect the signal to whatever instance of the plugin is currently active,
+        # since the one that started the job may already be disabled and destroyed
         heatmap_job.finished.connect(
-            lambda: self._build_aggregate_heatmap(surface_uid)
+            lambda: SurfaceTrackingPlugin.instance()._build_aggregate_heatmap(surface_uid)
         )
 
     def bg_build_heatmap(
@@ -744,6 +757,10 @@ class SurfaceTrackingPlugin(Plugin):
 
     def _build_aggregate_heatmap(self, surface_uid: str) -> None:
         surface = self.get_surface(surface_uid)
+        if surface is None:
+            logging.error(f"Surface with UID {surface_uid} not found. Cannot build aggregate heatmap.")
+            return
+
         logging.info(f"Building aggregate heatmap for surface {surface.name}")
         logging.info(f"Using data from {self.workspace.size} recordings")
 
@@ -867,6 +884,10 @@ class SurfaceTrackingPlugin(Plugin):
                     surface.name = candidate_name
                 surface_counter += 1
 
+            # When switching between recordings in workspace mode, detect any
+            # surface-related background jobs that are already running
+            surface.jobs = self.get_surface_jobs(surface.uid)
+
             surface.changed.connect(self.changed.emit)
             SlotDebouncer.debounce(
                 surface.heatmap_invalidated,
@@ -972,6 +993,21 @@ class SurfaceTrackingPlugin(Plugin):
         for s in self._surfaces:
             if s.uid == uid:
                 return s
+
+    def get_surface_jobs(self, surface_uid: str) -> list[BaseBackgroundJob]:
+        jobs = []
+        for job in self.job_manager.current_jobs:
+            plugin_name  = job.action_name.split(".")[0]
+            if plugin_name != self.__class__.__name__:
+                continue
+
+            is_batch_job = isinstance(job, BatchBackgroundJob)
+            job_args = job.args_generator(self.recording) if is_batch_job else job.args
+            if surface_uid not in job_args:
+                continue
+
+            jobs.append(job)
+        return jobs
 
     def bg_detect_markers(self) -> T.Generator[ProgressUpdate, None, None]:
         logging.info("Detecting markers...")
