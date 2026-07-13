@@ -49,6 +49,7 @@ from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.components import HoverRowTable, create_heading_with_icon
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
+from pupil_labs.neon_player.ui.recording_info_dialog import RecordingInfoDialog
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
@@ -505,6 +506,7 @@ class MainWindow(QMainWindow):
         self.register_action("&File/&Open recording", "Ctrl+o", self.on_open_action)
         self.register_action("&File/&Close recording", "Ctrl+w", app.unload)
         self.register_action("&File/&Global Settings", None, self.show_global_settings)
+        self.register_action("&File/&Recording Information", "Ctrl+i", self.show_recording_information)
         self.register_action("&File/&Quit", "Ctrl+q", self.on_quit_action)
 
         self.register_action("&Tools/&Console", "Ctrl+Alt+c", self.console_window.show)
@@ -656,6 +658,15 @@ class MainWindow(QMainWindow):
     def show_global_settings(self) -> None:
         dialog = GlobalSettingsDialog(self)
         dialog.resize(500, 600)
+        dialog.exec()
+
+    def show_recording_information(self) -> None:
+        app = neon_player.instance()
+
+        dialog = RecordingInfoDialog(self)
+        if app.recording is not None:
+            dialog.on_recording_loaded(app.recording)
+        dialog.resize(400, 300)
         dialog.exec()
 
     def on_quit_action(self) -> None:
