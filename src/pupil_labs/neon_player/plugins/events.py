@@ -238,39 +238,6 @@ class WorkspaceEventIndex():
         if recording_id not in self.recording_ids:
             self.recording_ids.add(recording_id)
 
-    def add_event(self, recording_id: str, event_name: str) -> None:
-        if event_name not in self.events:
-            self.events[event_name] = {}
-
-        if recording_id not in self.events[event_name]:
-            self.events[event_name][recording_id] = 0
-
-    def delete_event(self, recording_id: str, event_name: str) -> None:
-        if event_name not in self.events or recording_id not in self.events[event_name]:
-            return
-
-        self.events[event_name][recording_id] -= 1
-
-        if self.events[event_name][recording_id] <= 0:
-            del self.events[event_name][recording_id]
-        if not self.events[event_name]:
-            del self.events[event_name]
-
-    def rename_event(self, recording_id: str, old_name: str, new_name: str) -> None:
-        if old_name not in self.events:
-            return
-
-        if new_name not in self.events:
-            self.events[new_name] = {}
-
-        self.events[new_name][recording_id] = self.events[old_name].pop(recording_id)
-        if not self.events[old_name]:
-            del self.events[old_name]
-
-    def delete_event_type(self, event_name: str) -> None:
-        if event_name in self.events:
-            del self.events[event_name]
-
 
 def _load_events_from_recording(recording: NeonRecording):
     events: dict[str, list[int]] = {}
@@ -308,6 +275,7 @@ class EventsPlugin(neon_player.Plugin):
 
         self._consider_workspace = False
         self._batch_rename_job: BaseBackgroundJob | None = None
+        self._batch_update_job: BaseBackgroundJob | None = None
         self._workspace_index: WorkspaceEventIndex = WorkspaceEventIndex()
         self._index_file = "workspace-events.json"
 
@@ -412,6 +380,11 @@ class EventsPlugin(neon_player.Plugin):
             self._on_workspace_event_scan_finished()
             return
 
+        # Skip scanning if it is already in progress, connected slot should update the
+        # event types in the UI once done
+        if self._batch_update_job is not None:
+            return
+
         recordings_to_scan = self.workspace.get_recordings_by_id(missing_recording_ids)
         batch_job = self.job_manager.run_background_batch_action(
             "Scan events in workspace",
@@ -419,8 +392,10 @@ class EventsPlugin(neon_player.Plugin):
             recordings=recordings_to_scan
         )
         batch_job.finished.connect(EventsPlugin.instance()._on_workspace_event_scan_finished)
+        self._batch_update_job = batch_job
 
     def _on_workspace_event_scan_finished(self):
+        self._batch_update_job = None
         self._load_workspace_index()
 
         types_to_add = []
@@ -433,6 +408,20 @@ class EventsPlugin(neon_player.Plugin):
         if types_to_add:
             self.event_types = self.event_types + types_to_add
             self._update_gui_for_event_types(event_types_to_add=types_to_add)
+
+    def _scan_current_jobs(self):
+        for job in self.job_manager.current_jobs:
+            plugin_name, action_name = job.action_name.split(".")
+            if plugin_name != self.__class__.__name__:
+                continue
+
+            if action_name == "_update_workspace_index":
+                self._batch_update_job = job
+                continue
+
+            if action_name == "_rename_all_events_by_name":
+                self._batch_rename_job = job
+                continue
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         try:
@@ -483,6 +472,7 @@ class EventsPlugin(neon_player.Plugin):
         batch_mode_enabled = getattr(self.app, "batch_mode_enabled", False)
         self._consider_workspace = batch_mode_enabled and self.workspace.size > 1
         if self._consider_workspace:
+            self._scan_current_jobs()
             self._scan_events_in_workspace()
 
         logging.info(f"Loaded {sum(len(v) for v in self._events.values())} events")
@@ -637,7 +627,7 @@ class EventsPlugin(neon_player.Plugin):
             "EventsPlugin._delete_events_by_name",
             lambda _: [event_type.name]
         )
-        batch_job.finished.connect(lambda: self._delete_event_type(event_type))
+        batch_job.finished.connect(lambda: EventsPlugin.instance()._delete_event_type(event_type))
 
     def _delete_event_type(self, event_type: EventType) -> None:
         del self._event_types_by_name[event_type.name]
