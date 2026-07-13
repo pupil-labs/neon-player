@@ -21,6 +21,151 @@ from pupil_labs.neon_player import Plugin, action
 from pupil_labs.neon_recording import NeonRecording
 
 
+class XDFStream:
+    """Parses and holds the data from a single XDF stream dict."""
+
+    def __init__(self) -> None:
+        self.name: str = ""
+        self.type: str = ""
+        self.channel_count: int = -1
+        self.channel_format: str = ""
+        self.desc: str = ""
+        self._is_marker_stream: bool = False
+
+    @property
+    def is_data_stream(self) -> bool:
+        return not self._is_marker_stream
+
+    @property
+    def is_marker_stream(self) -> bool:
+        return self._is_marker_stream
+
+    @classmethod
+    def from_dict(cls, xdf_dict: dict) -> "XDFStream":
+        stream = cls()
+        info = xdf_dict.get("info", {})
+        stream.name = str(info.get("name", [""])[0])
+        stream.type = str(info.get("type", [""])[0]).strip().lower()
+        try:
+            stream.channel_count = int(info.get("channel_count", [-1])[0])
+        except (ValueError, TypeError):
+            stream.channel_count = -1
+        stream.channel_format = str(info.get("channel_format", [""])[0]).strip().lower()
+        stream.desc = info.get("desc", [""])[0] if info.get("desc") else ""
+
+        stream._is_marker_stream = (
+            stream.channel_format == "string"
+            or stream.type in ("markers", "event")
+        )
+
+        if stream.is_marker_stream:
+            stream.markers = cls._parse_markers(xdf_dict)
+            return stream
+
+        stream.data, stream.timestamps, stream.fs = cls._parse_stream_data(xdf_dict)
+
+        parsed_channel_names = cls._parse_channel_names(xdf_dict)
+        if parsed_channel_names is not None:
+            stream.channel_names = parsed_channel_names
+        else:
+            n_channels = stream.data.shape[1] if stream.data is not None else stream.channel_count
+            stream.channel_names = cls._fallback_channel_names(n_channels)
+        return stream
+
+    @staticmethod
+    def _parse_stream_data(
+        xdf_dict: dict,
+    ) -> "tuple[Optional[np.ndarray], Optional[np.ndarray], float]":
+        time_series = xdf_dict.get("time_series")
+        data = XDFStream._to_numeric(time_series)
+
+        if data is None:
+            return None, None, 0.0
+
+        timestamps = np.asarray(xdf_dict["time_stamps"], dtype=np.float64)
+
+        try:
+            fs = float(xdf_dict["info"]["nominal_srate"][0])
+        except Exception:
+            fs = 250.0
+
+        if (not np.isfinite(fs)) or fs <= 0:
+            if len(timestamps) > 2:
+                dt = np.diff(timestamps)
+                dt = dt[np.isfinite(dt) & (dt > 0)]
+                fs = 1.0 / float(np.median(dt)) if len(dt) > 0 else 0.0
+            else:
+                fs = 0.0
+
+        return data, timestamps, fs
+
+    @staticmethod
+    def _to_numeric(time_series) -> "Optional[np.ndarray]":
+        if time_series is None:
+            return None
+        try:
+            data = np.asarray(time_series, dtype=np.float32)
+        except Exception:
+            try:
+                data = np.array(
+                    [[float(v) for v in sample] for sample in time_series],
+                    dtype=np.float32,
+                )
+            except Exception:
+                return None
+        if data.ndim == 1:
+            data = data.reshape(-1, 1)
+        if data.ndim != 2:
+            return None
+        return data
+
+    @staticmethod
+    def _parse_channel_names(xdf_dict: dict) -> "Optional[list[str]]":
+        try:
+            desc = xdf_dict.get("info", {}).get("desc", [{}])[0]
+            ch_list = desc.get("channels", [{}])[0].get("channel", [])
+            if not ch_list:
+                ch_list = desc.get("channel", [])
+            if not ch_list:
+                return None
+            channel_names = []
+            for i, ch in enumerate(ch_list):
+                label_value = ch.get("label", [ch.get("name", [f"Ch{i+1}"])[0]])[0]
+                channel_names.append(str(label_value))
+            return channel_names if channel_names else None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _fallback_channel_names(channel_count: int) -> list[str]:
+        return [f"Ch{i+1}" for i in range(max(0, channel_count))]
+
+    @staticmethod
+    def _parse_markers(xdf_dict: dict) -> list[dict]:
+        markers = []
+        for ts, marker in zip(xdf_dict["time_stamps"], xdf_dict["time_series"], strict=False):
+            m_text = str(marker[0])
+            m_name = XDFStream._parse_event_name(m_text)
+            markers.append({"timestamp": ts, "name": m_name, "raw": m_text})
+        return markers
+
+    @staticmethod
+    def _parse_event_name(text: str) -> str:
+        if not text:
+            return ""
+        text = text.strip()
+        if "{" in text and "}" in text:
+            try:
+                start = text.find("{")
+                end = text.rfind("}") + 1
+                data = json.loads(text[start:end])
+                if isinstance(data, dict):
+                    return str(data.get("name", text)).strip()
+            except Exception:
+                pass
+        return text
+
+
 class XDFMultimodalPlugin(Plugin):
     label = "XDF Multimodal"
     streams_changed = Signal()
@@ -200,34 +345,10 @@ class XDFMultimodalPlugin(Plugin):
         if was_sorting_enabled:
             timeline.enable_plot_sorting()
 
-    def _to_numeric_matrix(self, time_series) -> Optional[np.ndarray]:
-        """Best-effort conversion from XDF time_series to a 2D numeric array."""
-        if time_series is None:
-            return None
-
-        try:
-            data = np.asarray(time_series, dtype=np.float32)
-        except Exception:
-            try:
-                # Handles streams where samples are nested lists/tuples of numeric strings.
-                data = np.array([[float(v) for v in sample] for sample in time_series], dtype=np.float32)
-            except Exception:
-                return None
-
-        if data.ndim == 1:
-            data = data.reshape(-1, 1)
-
-        if data.ndim != 2:
-            return None
-
-        return data
-
     def load_xdf(self):
         try:
             logging.info(f"Loading XDF file: {self._xdf_path}")
             streams, header = pyxdf.load_xdf(str(self._xdf_path))
-            data_stream = None
-            marker_stream = None
 
             # Clear all existing timeline rows (channels + Data Stream + XDF Markers)
             # before loading new data, so stale rows from a previous XDF don't persist.
@@ -240,29 +361,20 @@ class XDFMultimodalPlugin(Plugin):
             self._channel_names = []
             self._channels = {}
 
-            stream_names: list[str] = []
-            marker_stream_names: list[str] = []
-            non_marker_stream_names: list[str] = []
-            for stream in streams:
-                info = stream.get("info", {})
-                stream_name = str(info.get("name", [""])[0])
-                if not stream_name:
-                    continue
-                stream_names.append(stream_name)
+            xdf_streams = [XDFStream.from_dict(s) for s in streams]
+            xdf_streams = [s for s in xdf_streams if s.name]
 
-                stream_type = str(info.get("type", [""])[0]).strip().lower()
-                if stream_type in ("markers", "event"):
-                    marker_stream_names.append(stream_name)
-                else:
-                    non_marker_stream_names.append(stream_name)
+            marker_stream_names = [s.name for s in xdf_streams if s.is_marker_stream]
+            non_marker_stream_names = [s.name for s in xdf_streams if s.is_data_stream]
+            all_stream_names = [s.name for s in xdf_streams]
 
             # Fallback: if no stream exposes type=Markers metadata, keep old behavior.
             if not marker_stream_names:
-                marker_stream_names = list(stream_names)
+                marker_stream_names = list(all_stream_names)
 
             # Prefer non-marker streams for data selection, but keep a fallback when
             # type metadata is missing or all streams are marker-typed.
-            self._available_stream_names = non_marker_stream_names or list(stream_names)
+            self._available_stream_names = non_marker_stream_names or list(all_stream_names)
             self._available_marker_stream_names = marker_stream_names
             if self._data_stream_name not in self._available_stream_names:
                 self._data_stream_name = ""
@@ -270,109 +382,51 @@ class XDFMultimodalPlugin(Plugin):
                 self._marker_stream_name = ""
             self.streams_changed.emit()
 
-            for stream in streams:
-                name = stream["info"]["name"][0]
-                if self._data_stream_name and name == self._data_stream_name:
-                    data_stream = stream
-                if self._marker_stream_name and name == self._marker_stream_name:
-                    marker_stream = stream
-            
-            if data_stream:
-                numeric_data = self._to_numeric_matrix(data_stream.get("time_series"))
-                if numeric_data is None:
-                    logging.error(
-                        "Selected stream '%s' is not numeric. Choose a numeric stream to plot.",
-                        self._data_stream_name,
-                    )
-                else:
-                    self._stream_data = numeric_data
-                    self._stream_ts = np.asarray(data_stream["time_stamps"], dtype=np.float64)
-
-                try:
-                    self._stream_fs = float(data_stream["info"]["nominal_srate"][0])
-                except Exception:
-                    self._stream_fs = 250.0
-
-                # If nominal sample rate is unavailable or invalid, estimate from timestamps.
-                if (not np.isfinite(self._stream_fs)) or self._stream_fs <= 0:
-                    if self._stream_ts is not None and len(self._stream_ts) > 2:
-                        dt = np.diff(self._stream_ts)
-                        dt = dt[np.isfinite(dt) & (dt > 0)]
-                        if len(dt) > 0:
-                            self._stream_fs = 1.0 / float(np.median(dt))
-                        else:
-                            self._stream_fs = 0.0
+            for xdf_stream in xdf_streams:
+                if self._data_stream_name and xdf_stream.name == self._data_stream_name:
+                    data = getattr(xdf_stream, "data", None)
+                    if data is None:
+                        logging.error(
+                            "Selected stream '%s' is not numeric. Choose a numeric stream to plot.",
+                            self._data_stream_name,
+                        )
                     else:
-                        self._stream_fs = 0.0
-                
-                # Extract channel names properly
-                channel_names = []
-                try:
-                    desc = data_stream.get('info', {}).get('desc', [{}])[0]
-                    ch_list = desc.get('channels', [{}])[0].get('channel', [])
-                    if not ch_list:
-                        ch_list = desc.get('channel', [])
-                    for i, ch in enumerate(ch_list):
-                        label_value = ch.get('label', [ch.get('name', [f"Ch{i}"])[0]])[0]
-                        channel_names.append(str(label_value))
-                except Exception:
-                    pass
-                if (not channel_names) and self._stream_data is not None:
-                    channel_names = [f"Ch{i}" for i in range(self._stream_data.shape[1])]
-                
-                # Populate channels dict (preserve previous enabled state)
-                self._channel_names = channel_names
-                new_channels: dict[str, bool] = {}
-                for idx, name in enumerate(channel_names):
-                    if not self._channels:
-                        # Default to the first channel for unknown stream types.
-                        new_channels[name] = idx == 0
-                    else:
-                        new_channels[name] = self._channels.get(name, False)
-                
-                self.channels = new_channels
-                if self._stream_data is not None:
-                    logging.info(
-                        "Found data stream '%s' with %d channels: %s",
-                        self._data_stream_name,
-                        self._stream_data.shape[1],
-                        channel_names,
-                    )
-            
-            if marker_stream:
-                self._xdf_markers = []
-                for ts, marker in zip(marker_stream["time_stamps"], marker_stream["time_series"], strict=False):
-                    m_text = str(marker[0])
-                    m_name = self._parse_event_name(m_text)
-                    self._xdf_markers.append({"timestamp": ts, "name": m_name, "raw": m_text})
-                logging.info(f"Found {len(self._xdf_markers)} markers in XDF")
-            
+                        self._stream_data = data
+                        self._stream_ts = xdf_stream.timestamps
+                        self._stream_fs = xdf_stream.fs
+                        self._channel_names = xdf_stream.channel_names
+                        new_channels: dict[str, bool] = {}
+                        for idx, ch_name in enumerate(xdf_stream.channel_names):
+                            if not self._channels:
+                                # Default to the first channel for unknown stream types.
+                                new_channels[ch_name] = idx == 0
+                            else:
+                                new_channels[ch_name] = self._channels.get(ch_name, False)
+                        self.channels = new_channels
+                        logging.info(
+                            "Found data stream '%s' with %d channels: %s",
+                            self._data_stream_name,
+                            self._stream_data.shape[1],
+                            xdf_stream.channel_names,
+                        )
+
+                if self._marker_stream_name and xdf_stream.name == self._marker_stream_name:
+                    self._xdf_markers = xdf_stream.markers
+                    logging.info(f"Found {len(self._xdf_markers)} markers in XDF")
+
             self.align_with_recording()
             self.changed.emit()
         except Exception as e:
             logging.exception(f"Failed to load XDF: {e}")
 
-    def _parse_event_name(self, text: str) -> str:
-        if not text: return ""
-        text = text.strip()
-        if '{' in text and '}' in text:
-            try:
-                start = text.find('{')
-                end = text.rfind('}') + 1
-                data = json.loads(text[start:end])
-                if isinstance(data, dict):
-                    return str(data.get('name', text)).strip()
-            except: pass
-        return text
-
     def _get_neon_ev_info(self, ev) -> tuple[str, Optional[float]]:
         if isinstance(ev, dict):
             raw_name = str(ev.get("event", ev.get("name", ev.get("text", str(ev)))))
             ts_ns = ev.get("time", ev.get("timestamp", ev.get("timestamp_ns", None)))
-            return self._parse_event_name(raw_name), ts_ns
+            return XDFStream._parse_event_name(raw_name), ts_ns
 
         raw_name = str(getattr(ev, "event", getattr(ev, "name", getattr(ev, "text", str(ev)))))
-        name = self._parse_event_name(raw_name)
+        name = XDFStream._parse_event_name(raw_name)
         ts_ns = getattr(ev, "time", getattr(ev, "timestamp", getattr(ev, "timestamp_ns", None)))
         return name, ts_ns
 
