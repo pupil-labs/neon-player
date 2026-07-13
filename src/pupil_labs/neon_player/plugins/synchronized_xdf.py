@@ -46,12 +46,8 @@ class XDFStream:
         info = xdf_dict.get("info", {})
         stream.name = str(info.get("name", [""])[0])
         stream.type = str(info.get("type", [""])[0]).strip().lower()
-        try:
-            stream.channel_count = int(info.get("channel_count", [-1])[0])
-        except (ValueError, TypeError):
-            stream.channel_count = -1
+        stream.channel_count = int(info.get("channel_count", [-1])[0])
         stream.channel_format = str(info.get("channel_format", [""])[0]).strip().lower()
-        stream.desc = info.get("desc", [""])[0] if info.get("desc") else ""
 
         stream._is_marker_stream = (
             stream.channel_format == "string"
@@ -83,11 +79,7 @@ class XDFStream:
             return None, None, 0.0
 
         timestamps = np.asarray(xdf_dict["time_stamps"], dtype=np.float64)
-
-        try:
-            fs = float(xdf_dict["info"]["nominal_srate"][0])
-        except Exception:
-            fs = 250.0
+        fs = float(xdf_dict["info"]["nominal_srate"][0])
 
         if (not np.isfinite(fs)) or fs <= 0:
             if len(timestamps) > 2:
@@ -115,26 +107,21 @@ class XDFStream:
                 return None
         if data.ndim == 1:
             data = data.reshape(-1, 1)
-        if data.ndim != 2:
-            return None
         return data
 
     @staticmethod
     def _parse_channel_names(xdf_dict: dict) -> "Optional[list[str]]":
-        try:
-            desc = xdf_dict.get("info", {}).get("desc", [{}])[0]
-            ch_list = desc.get("channels", [{}])[0].get("channel", [])
-            if not ch_list:
-                ch_list = desc.get("channel", [])
-            if not ch_list:
-                return None
-            channel_names = []
-            for i, ch in enumerate(ch_list):
-                label_value = ch.get("label", [ch.get("name", [f"Ch{i+1}"])[0]])[0]
-                channel_names.append(str(label_value))
-            return channel_names if channel_names else None
-        except Exception:
+        desc = xdf_dict.get("info", {}).get("desc", [{}])[0]
+        ch_list = desc.get("channels", [{}])[0].get("channel", [])
+        if not ch_list:
+            ch_list = desc.get("channel", [])
+        if not ch_list:
             return None
+        channel_names = []
+        for i, ch in enumerate(ch_list):
+            label_value = ch.get("label", [ch.get("name", [f"Ch{i+1}"])[0]])[0]
+            channel_names.append(str(label_value))
+        return channel_names
 
     @staticmethod
     def _fallback_channel_names(channel_count: int) -> list[str]:
@@ -348,7 +335,7 @@ class XDFMultimodalPlugin(Plugin):
     def load_xdf(self):
         try:
             logging.info(f"Loading XDF file: {self._xdf_path}")
-            streams, header = pyxdf.load_xdf(str(self._xdf_path))
+            streams, _ = pyxdf.load_xdf(str(self._xdf_path))
 
             # Clear all existing timeline rows (channels + Data Stream + XDF Markers)
             # before loading new data, so stale rows from a previous XDF don't persist.
@@ -384,14 +371,13 @@ class XDFMultimodalPlugin(Plugin):
 
             for xdf_stream in xdf_streams:
                 if self._data_stream_name and xdf_stream.name == self._data_stream_name:
-                    data = getattr(xdf_stream, "data", None)
-                    if data is None:
+                    if xdf_stream.data is None:
                         logging.error(
                             "Selected stream '%s' is not numeric. Choose a numeric stream to plot.",
                             self._data_stream_name,
                         )
                     else:
-                        self._stream_data = data
+                        self._stream_data = xdf_stream.data
                         self._stream_ts = xdf_stream.timestamps
                         self._stream_fs = xdf_stream.fs
                         self._channel_names = xdf_stream.channel_names
@@ -420,15 +406,17 @@ class XDFMultimodalPlugin(Plugin):
             logging.exception(f"Failed to load XDF: {e}")
 
     def _get_neon_ev_info(self, ev) -> tuple[str, Optional[float]]:
-        if isinstance(ev, dict):
-            raw_name = str(ev.get("event", ev.get("name", ev.get("text", str(ev)))))
-            ts_ns = ev.get("time", ev.get("timestamp", ev.get("timestamp_ns", None)))
-            return XDFStream._parse_event_name(raw_name), ts_ns
+        name_keys = ("event", "name", "text")
+        time_keys = ("time", "timestamp", "timestamp_ns")
 
-        raw_name = str(getattr(ev, "event", getattr(ev, "name", getattr(ev, "text", str(ev)))))
-        name = XDFStream._parse_event_name(raw_name)
-        ts_ns = getattr(ev, "time", getattr(ev, "timestamp", getattr(ev, "timestamp_ns", None)))
-        return name, ts_ns
+        if isinstance(ev, dict):
+            raw_name = str(next((ev[k] for k in name_keys if k in ev), str(ev)))
+            ts_ns = next((ev[k] for k in time_keys if k in ev), None)
+        else:
+            raw_name = str(next((getattr(ev, k) for k in name_keys if hasattr(ev, k)), str(ev)))
+            ts_ns = next((getattr(ev, k) for k in time_keys if hasattr(ev, k)), None)
+
+        return XDFStream._parse_event_name(raw_name), ts_ns
 
     def align_with_recording(self) -> None:
         if not self.recording or not self._xdf_markers:
@@ -474,7 +462,7 @@ class XDFMultimodalPlugin(Plugin):
             else:
                 sources.append(("EventsPlugin.events", getattr(ep, "events", None)))
 
-        for src_name, src_val in sources:
+        for _, src_val in sources:
             if src_val is None: continue
             try:
                 extracted = list(src_val) if not hasattr(src_val, "samples") else list(src_val.samples)
@@ -583,22 +571,18 @@ class XDFMultimodalPlugin(Plugin):
 
             if selected_names:
                 indices = [self._channel_names.index(n) for n in selected_names]
-                names = selected_names
 
                 # Extract and clean data
                 data = plot_data[:, indices].astype(np.float32)
                 data = np.nan_to_num(data, nan=0.0)
 
                 # Optional EEG-style filter for streams where that makes sense.
-                if self._apply_bandpass and butter is not None and filtfilt is not None and self._stream_fs > 0:
-                    try:
-                        nyq = 0.5 * self._stream_fs
-                        low, high = 1.0 / nyq, 30.0 / nyq
-                        # Simple bandpass 1-30Hz
-                        b, a = butter(4, [max(0.001, low), min(0.999, high)], btype='band')
-                        data = filtfilt(b, a, data, axis=0)
-                    except Exception as e:
-                        logging.error(f"Filtering failed: {e}")
+                if self._apply_bandpass and self._stream_fs > 0:
+                    nyq = 0.5 * self._stream_fs
+                    low, high = 1.0 / nyq, 30.0 / nyq
+                    # Simple bandpass 1-30Hz
+                    b, a = butter(4, [max(0.001, low), min(0.999, high)], btype='band')
+                    data = filtfilt(b, a, data, axis=0)
                 elif self._apply_bandpass and self._stream_fs <= 0:
                     logging.warning(
                         "Bandpass filtering is enabled, but sample rate is invalid (%.3f Hz). Skipping filter.",
@@ -608,53 +592,38 @@ class XDFMultimodalPlugin(Plugin):
                 # 4. Normalize (Center the data around 0)
                 data = data - np.nanmean(data, axis=0)
 
-                # Ensure data is 2D: (Samples, Channels)
-                if data.ndim == 1:
-                    data = data.reshape(-1, 1)
-
                 # 6. Plot the raw, centered data
-                try:
-                    plot_item = None
-                    for i, name in enumerate(names):
-                        channel_data = data[:, i]
-                        plot_data_matrix = np.column_stack((plot_ts, channel_data))
+                plot_item = None
+                for i, name in enumerate(selected_names):
+                    channel_data = data[:, i]
+                    plot_data_matrix = np.column_stack((plot_ts, channel_data))
 
-                        plot_item = timeline.add_timeline_plot(
-                            timeline_row_name=name,
-                            data=plot_data_matrix,
-                            plot_name=""
-                        )
-                        if plot_item is not None:
-                            plot_item.preferred_height_2d = 60
-                            plot_item.adjust_size()
-
-                    # 7. Let the graph auto-range to fit the raw data naturally!
+                    plot_item = timeline.add_timeline_plot(
+                        timeline_row_name=name,
+                        data=plot_data_matrix,
+                        plot_name=""
+                    )
                     if plot_item is not None:
+                        plot_item.preferred_height_2d = 60
+                        plot_item.adjust_size()
                         plot_item.getViewBox().enableAutoRange(y=True)
 
-                except Exception as e:
-                    logging.error(f"Failed to add EEG plot: {e}")
-
             # Update the status bars on the timeline
-            try:
-                start_ns = int(plot_ts[0])
-                end_ns = int(plot_ts[-1])
-                timeline.add_timeline_broken_bar("Data Stream", [(start_ns, end_ns)], "", "#00FFFF")
+            start_ns = int(plot_ts[0])
+            end_ns = int(plot_ts[-1])
+            timeline.add_timeline_broken_bar("Data Stream", [(start_ns, end_ns)], "", "#00FFFF")
 
-                if self._xdf_markers:
-                    # Filter and plot markers that fall within the recording
-                    marker_segs = []
-                    for m in self._xdf_markers:
-                        m_ts_ns = int((m["timestamp"] - self._offset_s) * 1e9)
-                        if self._rec_begin_ns <= m_ts_ns <= self._rec_end_ns:
-                            # 100ms duration for visibility
-                            marker_segs.append((m_ts_ns, m_ts_ns + 100_000_000))
+            if self._xdf_markers:
+                # Filter and plot markers that fall within the recording
+                marker_segs = []
+                for m in self._xdf_markers:
+                    m_ts_ns = int((m["timestamp"] - self._offset_s) * 1e9)
+                    if self._rec_begin_ns <= m_ts_ns <= self._rec_end_ns:
+                        # 100ms duration for visibility
+                        marker_segs.append((m_ts_ns, m_ts_ns + 100_000_000))
 
-                    if marker_segs:
-                        timeline.add_timeline_broken_bar("XDF Markers", marker_segs, "", "#FFCC00")
-            except Exception as e:
-                logging.error(f"Failed to update tracks: {e}")
-
+                if marker_segs:
+                    timeline.add_timeline_broken_bar("XDF Markers", marker_segs, "", "#FFCC00")
         self.changed.emit()
 
     @action
