@@ -1,5 +1,6 @@
 import logging
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -85,6 +86,9 @@ class Workspace(QObject):
     @property
     def recording_metadata(self) -> list[RecordingMetadata]:
         return list(self._recording_metadata.values())
+
+    def get_recordings_by_id(self, recording_ids: Iterable[str]) -> list[NeonRecording]:
+        return [rec for rec in self._recordings if rec.id in recording_ids]
 
     def get_recording_path(self, recording_name: str) -> Path | None:
         """

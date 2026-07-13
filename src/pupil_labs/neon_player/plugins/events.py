@@ -180,6 +180,98 @@ class EventTypeListWidget(ValueListWidget):
         item_widget.deleteLater()
 
 
+class WorkspaceEventIndex():
+    """
+    Maintains an index of all events and the number of their occurrences
+    across all recordings in the workspace to support renaming and deletion.
+    """
+    def __init__(self) -> None:
+        # {event_name: {recording_name: event_count}}
+        self.events: dict[str, dict[str, int]] = {}
+
+        # IDs of recording that the index is based on
+        self.recording_ids: set[str] = set()
+
+    def load(self, data: dict[str, T.Any]) -> None:
+        if data is None:
+            return
+
+        self.events = data.get("events", {})
+        self.recording_ids = set(data.get("recording_ids", []))
+
+    def to_dict(self) -> dict[str, T.Any]:
+        data = {
+            "events": self.events,
+            "recording_ids": list(self.recording_ids)
+        }
+        return data
+
+    def update(self, recording_id: str, recording_events: dict[str, list[int]]) -> None:
+        """
+        Batch index update that goes through all events in the index and all
+        recording events.
+        """
+        # First, check if existing index entries for this recording are up-to-date
+        for event_name, recording_counts in self.events.items():
+            event_in_recording = event_name in recording_events
+            recording_in_index = recording_id in recording_counts
+
+            if recording_in_index and not event_in_recording:
+                del recording_counts[recording_id]
+
+            if event_in_recording:
+                timestamps = recording_events[event_name]
+                self.events[event_name][recording_id] = len(timestamps)
+
+        # Process other events from the recording that are not yet in the index
+        for event_name, timestamps in recording_events.items():
+            if event_name in IMMUTABLE_EVENTS:
+                continue
+
+            if event_name in self.events:
+                continue
+
+            self.events[event_name] = {}
+            self.events[event_name][recording_id] = len(timestamps)
+
+        # Mark recording as processed in the index
+        if recording_id not in self.recording_ids:
+            self.recording_ids.add(recording_id)
+
+    def add_event(self, recording_id: str, event_name: str) -> None:
+        if event_name not in self.events:
+            self.events[event_name] = {}
+
+        if recording_id not in self.events[event_name]:
+            self.events[event_name][recording_id] = 0
+
+    def delete_event(self, recording_id: str, event_name: str) -> None:
+        if event_name not in self.events or recording_id not in self.events[event_name]:
+            return
+
+        self.events[event_name][recording_id] -= 1
+
+        if self.events[event_name][recording_id] <= 0:
+            del self.events[event_name][recording_id]
+        if not self.events[event_name]:
+            del self.events[event_name]
+
+    def rename_event(self, recording_id: str, old_name: str, new_name: str) -> None:
+        if old_name not in self.events:
+            return
+
+        if new_name not in self.events:
+            self.events[new_name] = {}
+
+        self.events[new_name][recording_id] = self.events[old_name].pop(recording_id)
+        if not self.events[old_name]:
+            del self.events[old_name]
+
+    def delete_event_type(self, event_name: str) -> None:
+        if event_name in self.events:
+            del self.events[event_name]
+
+
 def _load_events_from_recording(recording: NeonRecording):
     events: dict[str, list[int]] = {}
 
@@ -204,13 +296,6 @@ def _load_events_from_dataframe(events_df: pd.DataFrame) -> dict[str, list[int]]
     return events
 
 
-def _filter_event_types(event_types: list[EventType], mutable: bool) -> list[EventType]:
-    if mutable:
-        return [et for et in event_types if et.name not in IMMUTABLE_EVENTS]
-    else:
-        return [et for et in event_types if et.name in IMMUTABLE_EVENTS]
-
-
 class EventsPlugin(neon_player.Plugin):
     label = "Events"
     global_properties = EventsPluginGlobalProps()
@@ -220,8 +305,11 @@ class EventsPlugin(neon_player.Plugin):
         self._event_types_by_name: dict[str, EventType] = {}
         self._immutable_event_types: list[EventType] = []
         self._events: dict[str, list[int]] = {}
+
         self._consider_workspace = False
         self._batch_rename_job: BaseBackgroundJob | None = None
+        self._workspace_index: WorkspaceEventIndex = WorkspaceEventIndex()
+        self._index_file = "workspace-events.json"
 
         if self.headless:
             return
@@ -257,7 +345,8 @@ class EventsPlugin(neon_player.Plugin):
         are used as keys, the corresponding event types should always be accessible in the
         recording settings.
         """
-        plugin_state = self.app.session_settings.recording_settings.plugin_states.get(self.__class__.__name__, {})
+        recording_settings = self.app.session_settings.recording_settings
+        plugin_state = recording_settings.plugin_states.get(self.__class__.__name__, {})
         event_types_state = plugin_state.get("event_types", [])
         uid_name_mapping = {}
         event_names = [None] * len(event_types_state)
@@ -289,6 +378,61 @@ class EventsPlugin(neon_player.Plugin):
             events_changed = True
 
         return corrected_events, events_changed
+
+    def _load_workspace_index(self) -> None:
+        data = self.load_cached_json(self._index_file, workspace=True)
+        self._workspace_index.load(data)
+
+    def _save_workspace_index(self) -> None:
+        data = self._workspace_index.to_dict()
+        self.save_cached_json(self._index_file, data, workspace=True)
+
+    def _update_workspace_index(self, load: bool = True, save: bool = True) -> None:
+        if load:
+            self._load_workspace_index()
+        self._workspace_index.update(self.recording.id, self.events)
+        if save:
+            self._save_workspace_index()
+
+    def _scan_events_in_workspace(self):
+        # Update the index for the current recording to account for any changes
+        # outside of the workspace mode
+        self._update_workspace_index()
+
+        if self.headless:
+            self._on_workspace_event_scan_finished()
+            return
+
+        # If all recordings have already been scanned, update the UI immediately,
+        # otherwise launch a batch background job
+        workspace_recording_ids = {rec.id for rec in self.workspace.recordings}
+        scanned_recording_ids = self._workspace_index.recording_ids
+        missing_recording_ids = workspace_recording_ids - scanned_recording_ids
+        if not missing_recording_ids:
+            self._on_workspace_event_scan_finished()
+            return
+
+        recordings_to_scan = self.workspace.get_recordings_by_id(missing_recording_ids)
+        batch_job = self.job_manager.run_background_batch_action(
+            "Scan events in workspace",
+            "EventsPlugin._update_workspace_index",
+            recordings=recordings_to_scan
+        )
+        batch_job.finished.connect(EventsPlugin.instance()._on_workspace_event_scan_finished)
+
+    def _on_workspace_event_scan_finished(self):
+        self._load_workspace_index()
+
+        types_to_add = []
+        for event_name in self._workspace_index.events:
+            if event_name in self._event_types_by_name:
+                continue
+
+            types_to_add.append(EventType.from_name(event_name))
+
+        if types_to_add:
+            self.event_types = self.event_types + types_to_add
+            self._update_gui_for_event_types(event_types_to_add=types_to_add)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         try:
@@ -338,6 +482,8 @@ class EventsPlugin(neon_player.Plugin):
 
         batch_mode_enabled = getattr(self.app, "batch_mode_enabled", False)
         self._consider_workspace = batch_mode_enabled and self.workspace.size > 1
+        if self._consider_workspace:
+            self._scan_events_in_workspace()
 
         logging.info(f"Loaded {sum(len(v) for v in self._events.values())} events")
         self._update_gui_for_event_types(event_types_to_add=event_types_to_setup_ui_for)
