@@ -138,19 +138,7 @@ class XDFStream:
 
     @staticmethod
     def _parse_event_name(text: str) -> str:
-        if not text:
-            return ""
-        text = text.strip()
-        if "{" in text and "}" in text:
-            try:
-                start = text.find("{")
-                end = text.rfind("}") + 1
-                data = json.loads(text[start:end])
-                if isinstance(data, dict):
-                    return str(data.get("name", text)).strip()
-            except Exception:
-                pass
-        return text
+        return text.strip() # For now, just strip whitespace. Future improvements could parse JSON or other structured formats.
 
 
 class XDFMultimodalPlugin(Plugin):
