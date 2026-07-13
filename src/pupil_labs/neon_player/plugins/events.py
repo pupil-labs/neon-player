@@ -100,9 +100,12 @@ class EventType(PersistentPropertiesMixin, QObject):
         # but on the other hand, pass original name before the first change as
         # `old_name` to ensure correct modification, so we re-use the value from t
         # he pending debouncer if it exists
-        debouncer = SignalDebouncer.get_pending_debouncer(self.name_changed)
-        original_name = debouncer.args[0] if debouncer is not None else old_name
-        SignalDebouncer.debounce(self.name_changed, 1.5, original_name, value)
+        if plugin is not None:
+            debouncer = SignalDebouncer.get_pending_debouncer(self.name_changed)
+            original_name = debouncer.args[0] if debouncer is not None else old_name
+            SignalDebouncer.debounce(self.name_changed, 1.5, original_name, value)
+        else:
+            self.name_changed.emit(old_name, value)
 
     @property
     @property_params(max_length=1)
@@ -180,6 +183,7 @@ class EventTypeListWidget(ValueListWidget):
 def _load_events_from_recording(recording: NeonRecording):
     events: dict[str, list[int]] = {}
 
+    logging.debug("Loading events from Neon recording")
     for event_name in np.unique(recording.events.event):
         timestamps = recording.events[recording.events.event == event_name].time
         events[str(event_name)] = [int(t) for t in timestamps]
@@ -247,24 +251,77 @@ class EventsPlugin(neon_player.Plugin):
             if event_type.shortcut.lower() == key_text:
                 self._add_event(event_type)
 
+    def _ensure_correct_format(self, events: dict[str, list[int]]) -> tuple[dict[str, list[int]], bool]:
+        """
+        Ensure that the events dictionary has event names as keys, not unique IDs. If IDs
+        are used as keys, the corresponding event types should always be accessible in the
+        recording settings.
+        """
+        plugin_state = self.app.session_settings.recording_settings.plugin_states.get(self.__class__.__name__, {})
+        event_types_state = plugin_state.get("event_types", [])
+        uid_name_mapping = {}
+        event_names = [None] * len(event_types_state)
+        for idx, et in enumerate(event_types_state):
+            is_dict = isinstance(et, dict)
+            uid = et["uid"] if is_dict else et.uid
+            name = et["name"] if is_dict else et.name
+            uid_name_mapping[uid] = name
+            event_names[idx] = name
+
+        events_changed = False
+        corrected_events = {}
+        for key, value in events.items():
+            if key in IMMUTABLE_EVENTS:
+                corrected_events[key] = value
+                continue
+
+            # New format: keys are event names, keep them as is
+            if key in event_names:
+                corrected_events[key] = value
+                continue
+
+            # Old format: keys are event type UIDs, replace with event names
+            event_name = uid_name_mapping.get(key, None)
+            if event_name is None:
+                raise ValueError(f"Event type with UID '{key}' not found in recording settings")
+
+            corrected_events[event_name] = value
+            events_changed = True
+
+        return corrected_events, events_changed
+
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         try:
             events = self.load_cached_json("events.json")
         except Exception:
-            logging.exception("Failed to load events json")
+            logging.exception("Failed to load events.json")
             events = None
 
         if events is None:
             events = _load_events_from_recording(recording)
+        else:
+            events, events_changed = self._ensure_correct_format(events)
+            if events_changed:
+                logging.debug("Replacing event type IDs with event names in the events.json file")
+                self.save_cached_json("events.json", events)
         self._events = events
 
         # NOTE: event types are loaded from plugin settings before this method is called,
-        # so existing event types need to be preserved while adding missing ones
+        # so existing event types need to be preserved while adding missing ones. If
+        # event type ID is different from the event name, make them match to align event
+        # types across recordings
         event_types_to_setup_ui_for = self.event_types
         event_types_changed = False
         for event_name in events:
-            if event_name in self._event_types_by_name or event_name in IMMUTABLE_EVENTS:
+            if event_name in IMMUTABLE_EVENTS:
                 continue
+
+            event_type = self._event_types_by_name.get(event_name, None)
+            if event_type is not None:
+                if event_type.uid != event_name:
+                    event_type.uid = event_name
+                    event_types_changed = True
+                    continue
 
             new_event_type = EventType.from_name(event_name)
             self._event_types_by_name[event_name] = new_event_type
@@ -532,7 +589,7 @@ class EventsPlugin(neon_player.Plugin):
         item_params={"label_field": "name"},
         prevent_add=True,
         primary=True,
-        scope=["recording", "workspace"],
+        scope=["workspace"],
     )
     def event_types(self) -> list[EventType]:
         return list(self._event_types_by_name.values())
