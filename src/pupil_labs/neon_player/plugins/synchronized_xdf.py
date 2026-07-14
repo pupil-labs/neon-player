@@ -27,6 +27,7 @@ class XDFStream:
     def __init__(self) -> None:
         self.name: str = ""
         self.type: str = ""
+        self.type_display: str = ""
         self.channel_count: int = -1
         self.channel_format: str = ""
         self.desc: str = ""
@@ -45,7 +46,8 @@ class XDFStream:
         stream = cls()
         info = xdf_dict.get("info", {})
         stream.name = str(info.get("name", [""])[0])
-        stream.type = str(info.get("type", [""])[0]).strip().lower()
+        stream.type_display = str(info.get("type", [""])[0]).strip()
+        stream.type = stream.type_display.lower()
         stream.channel_count = int(info.get("channel_count", [-1])[0])
         stream.channel_format = str(info.get("channel_format", [""])[0]).strip().lower()
 
@@ -153,12 +155,13 @@ class XDFMultimodalPlugin(Plugin):
         self._available_marker_stream_names: list[str] = []
         self._available_sync_events: list[str] = []
         self._data_stream_name: str = ""
+        self._data_stream_type: str = ""
         self._marker_stream_name: str = ""
         self._selected_sync_event: str = ""
 
         self._stream_data: Optional[np.ndarray] = None
         self._stream_ts: Optional[np.ndarray] = None
-        self._stream_fs: float = 250.0
+        self._stream_fs: float = 0
         self._apply_bandpass: bool = False
         self._xdf_markers: list[dict] = []
         self._channel_names: list[str] = []   # ordered channel names from XDF
@@ -166,6 +169,10 @@ class XDFMultimodalPlugin(Plugin):
 
         self._offset_s: float = 0.0
         self._is_aligned: bool = False
+
+    def _get_data_stream_group_title(self) -> str:
+        stream_type = self._data_stream_type.strip()
+        return f"XDF - {stream_type}" if stream_type else "XDF - Data Stream"
 
     @property
     @property_params(label="File Path (.xdf)")
@@ -314,7 +321,16 @@ class XDFMultimodalPlugin(Plugin):
         timeline = self.get_timeline()
         was_sorting_enabled = timeline.disable_plot_sorting()
 
-        for row_name in (*self._channel_names, "Data Stream", "XDF Markers"):
+        channel_row_names = [
+            f"{self._get_data_stream_group_title()} - {channel_name}"
+            for channel_name in self._channel_names
+        ]
+
+        for row_name in (
+            *channel_row_names,
+            "Data Stream",
+            "XDF Markers",
+        ):
             timeline.remove_timeline_plot(row_name)
 
         if was_sorting_enabled:
@@ -333,6 +349,7 @@ class XDFMultimodalPlugin(Plugin):
             self._stream_data = None
             self._stream_ts = None
             self._xdf_markers = []
+            self._data_stream_type = ""
             self._channel_names = []
             self._channels = {}
 
@@ -368,6 +385,7 @@ class XDFMultimodalPlugin(Plugin):
                         self._stream_data = xdf_stream.data
                         self._stream_ts = xdf_stream.timestamps
                         self._stream_fs = xdf_stream.fs
+                        self._data_stream_type = xdf_stream.type_display
                         self._channel_names = xdf_stream.channel_names
                         new_channels: dict[str, bool] = {}
                         for idx, ch_name in enumerate(xdf_stream.channel_names):
@@ -580,16 +598,16 @@ class XDFMultimodalPlugin(Plugin):
                 # 4. Normalize (Center the data around 0)
                 data = data - np.nanmean(data, axis=0)
 
-                # 6. Plot the raw, centered data
-                plot_item = None
+                # 6. Plot each channel in its own subplot under the XDF group prefix.
                 for i, name in enumerate(selected_names):
                     channel_data = data[:, i]
                     plot_data_matrix = np.column_stack((plot_ts, channel_data))
+                    row_name = f"{self._get_data_stream_group_title()} - {name}"
 
                     plot_item = timeline.add_timeline_plot(
-                        timeline_row_name=name,
+                        timeline_row_name=row_name,
                         data=plot_data_matrix,
-                        plot_name=""
+                        plot_name="",
                     )
                     if plot_item is not None:
                         plot_item.preferred_height_2d = 60
@@ -599,7 +617,12 @@ class XDFMultimodalPlugin(Plugin):
             # Update the status bars on the timeline
             start_ns = int(plot_ts[0])
             end_ns = int(plot_ts[-1])
-            timeline.add_timeline_broken_bar("Data Stream", [(start_ns, end_ns)], "", "#00FFFF")
+            timeline.add_timeline_broken_bar(
+                "Data Stream",
+                [(start_ns, end_ns)],
+                "",
+                "#00FFFF",
+            )
 
             if self._xdf_markers:
                 # Filter and plot markers that fall within the recording
@@ -611,7 +634,12 @@ class XDFMultimodalPlugin(Plugin):
                         marker_segs.append((m_ts_ns, m_ts_ns + 100_000_000))
 
                 if marker_segs:
-                    timeline.add_timeline_broken_bar("XDF Markers", marker_segs, "", "#FFCC00")
+                    timeline.add_timeline_broken_bar(
+                        "XDF Markers",
+                        marker_segs,
+                        "",
+                        "#FFCC00",
+                    )
         self.changed.emit()
 
     @action
