@@ -1,4 +1,5 @@
 import logging
+import json
 import numpy as np
 import pandas as pd
 import pyxdf
@@ -14,9 +15,11 @@ from qt_property_widgets.utilities import (
 from qt_property_widgets.widgets import DynamicComboWidget
 from scipy.signal import butter, filtfilt
 from typing import Optional
+from collections.abc import Generator
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, action
+from pupil_labs.neon_player.job_manager import ProgressUpdate
 from pupil_labs.neon_recording import NeonRecording
 
 
@@ -167,6 +170,9 @@ class XDFMultimodalPlugin(Plugin):
 
         self._offset_s: float = 0.0
         self._is_aligned: bool = False
+        self._xdf_load_job = None
+        self._reload_after_job = False
+        self._active_channel_row_names: list[str] = []
 
     def _get_data_stream_group_title(self) -> str:
         stream_type = self._data_stream_type.strip()
@@ -325,89 +331,263 @@ class XDFMultimodalPlugin(Plugin):
         ]
 
         for row_name in (
+            *self._active_channel_row_names,
             *channel_row_names,
             "Data Stream",
             "XDF Markers",
         ):
             timeline.remove_timeline_plot(row_name)
 
+        self._active_channel_row_names = []
+
         if was_sorting_enabled:
             timeline.enable_plot_sorting()
 
+    def _get_selected_stream_info_cache_file(self) -> Path:
+        safe_stream_name = "".join(
+            c if c.isalnum() or c in ("-", "_") else "_"
+            for c in self._data_stream_name
+        )
+        return self.get_cache_path() / f"xdf_stream_{safe_stream_name}.json"
+
+    def _get_xdf_meta_cache_file(self) -> Path:
+        return self.get_cache_path() / "xdf_selection_meta.json"
+
+    def _reset_loaded_xdf_state(self) -> None:
+        self._stream_data = None
+        self._stream_ts = None
+        self._stream_fs = 0
+        self._xdf_markers = []
+        self._data_stream_type = ""
+        self._channel_names = []
+        self._channels = {}
+
+    def _restore_channel_selection(self, channel_names: list[str]) -> None:
+        self._channel_names = list(channel_names)
+        previous_channels = dict(self._channels)
+        new_channels: dict[str, bool] = {}
+        for idx, ch_name in enumerate(self._channel_names):
+            if previous_channels:
+                new_channels[ch_name] = previous_channels.get(ch_name, False)
+            else:
+                new_channels[ch_name] = idx == 0
+        self.channels = new_channels
+
     def load_xdf(self):
+        #Prevent overlapping loads
+        if self._xdf_load_job is not None:
+            self._reload_after_job = True
+            return
+
+        # Fast path: if this xdf stream is already cached, load it instantly.
+        if self._load_xdf_from_cache(log_missing=False):
+            return
+
+        self._clear_timeline_tracks()
+        self._reset_loaded_xdf_state()
+
+        if self.app.headless:
+            for _ in self._bg_load_xdf(
+                str(self._xdf_path),
+                self._data_stream_name,
+                self._marker_stream_name,
+            ):
+                pass
+            self._load_xdf_from_cache()
+            return
+
+        self._reload_after_job = False
+        self._xdf_load_job = self.job_manager.run_background_action(
+            "Loading XDF streams",
+            "XDFMultimodalPlugin._bg_load_xdf",
+            self._xdf_path,
+            self._data_stream_name,
+            self._marker_stream_name,
+        )
+        if self._xdf_load_job is not None:
+            self._xdf_load_job.finished.connect(self._on_xdf_load_finished)
+
+    def _on_xdf_load_finished(self) -> None:
+        self._xdf_load_job = None
+        if self._reload_after_job:
+            self._reload_after_job = False
+            self.load_xdf()
+            return
+        self._load_xdf_from_cache()
+
+    def _bg_load_xdf(
+        self,
+        xdf_path: str,
+        data_stream_name: str,
+        marker_stream_name: str,
+    ) -> Generator[ProgressUpdate, None, None]:
         try:
-            logging.info(f"Loading XDF file: {self._xdf_path}")
-            streams, _ = pyxdf.load_xdf(str(self._xdf_path))
+            xdf_file = Path(xdf_path)
+            logging.info("Loading XDF in background: %s", xdf_file)
+            yield ProgressUpdate(0.1)
 
-            # Clear all existing timeline rows (channels + Data Stream + XDF Markers)
-            # before loading new data, so stale rows from a previous XDF don't persist.
-            self._clear_timeline_tracks()
-
-            # Reset data so stream re-selection cannot leave stale content behind.
-            self._stream_data = None
-            self._stream_ts = None
-            self._xdf_markers = []
-            self._data_stream_type = ""
-            self._channel_names = []
-            self._channels = {}
-
+            streams, _ = pyxdf.load_xdf(str(xdf_file))
             xdf_streams = [XDFStream.from_dict(s) for s in streams]
             xdf_streams = [s for s in xdf_streams if s.name]
 
             marker_stream_names = [s.name for s in xdf_streams if s.is_marker_stream]
             non_marker_stream_names = [s.name for s in xdf_streams if s.is_data_stream]
             all_stream_names = [s.name for s in xdf_streams]
-
-            # Fallback: if no stream exposes type=Markers metadata, keep old behavior.
             if not marker_stream_names:
                 marker_stream_names = list(all_stream_names)
 
-            # Prefer non-marker streams for data selection, but keep a fallback when
-            # type metadata is missing or all streams are marker-typed.
-            self._available_stream_names = non_marker_stream_names or list(all_stream_names)
-            self._available_marker_stream_names = marker_stream_names
+            selected_data_stream: dict[str, object] | None = None
+            marker_stream_payloads: dict[str, list[dict]] = {}
+            n_streams = len(xdf_streams)
+
+            for idx, stream in enumerate(xdf_streams):
+                if data_stream_name and stream.name == data_stream_name:
+                    if stream.data is not None:
+                        safe_stream_name = "".join(
+                            c if c.isalnum() or c in ("-", "_") else "_"
+                            for c in data_stream_name
+                        )
+                        data_cache_file = self.get_cache_path() / f"xdf_stream_{safe_stream_name}.npy"
+                        data_cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+                        # One NPY per selected data stream. First column is timestamps.
+                        stream_matrix = np.column_stack((stream.timestamps, stream.data))
+                        np.save(str(data_cache_file), stream_matrix.astype(np.float32))
+
+                        selected_data_stream = {
+                            "name": stream.name,
+                            "type_display": stream.type_display,
+                            "fs": stream.fs,
+                            "channel_names": stream.channel_names,
+                            "data_file": data_cache_file.name,
+                        }
+
+                        stream_info_cache_file = self.get_cache_path() / f"xdf_stream_{safe_stream_name}.json"
+                        with stream_info_cache_file.open("w", encoding="utf-8") as stream_meta_fp:
+                            json.dump(
+                                {
+                                    "source_path": str(xdf_file.resolve()),
+                                    **selected_data_stream,
+                                },
+                                stream_meta_fp,
+                            )
+
+                if stream.is_marker_stream:
+                    marker_stream_payloads[stream.name] = stream.markers
+                    
+                yield ProgressUpdate(0.2 + (0.7 * (idx + 1) / n_streams))
+
+            meta_payload = {
+                "source_path": str(xdf_file.resolve()),
+                "available_stream_names": non_marker_stream_names or list(all_stream_names),
+                "available_marker_stream_names": marker_stream_names,
+                "selected_data_stream": selected_data_stream,
+                "marker_stream_payloads": marker_stream_payloads,
+            }
+
+            meta_cache_file = self.get_cache_path() / "xdf_selection_meta.json"
+            meta_cache_file.parent.mkdir(parents=True, exist_ok=True)
+            with meta_cache_file.open("w", encoding="utf-8") as meta_fp:
+                json.dump(meta_payload, meta_fp)
+        except Exception:
+            logging.exception("Failed to load XDF in background")
+
+        yield ProgressUpdate(1.0)
+
+    def _load_xdf_from_cache(self, *, log_missing: bool = True) -> bool:
+        meta_cache_file = self._get_xdf_meta_cache_file()
+        if not meta_cache_file.exists():
+            if log_missing:
+                logging.error("XDF cache metadata file not found: %s", meta_cache_file)
+            return False
+
+        try:
+            with meta_cache_file.open("r", encoding="utf-8") as meta_fp:
+                meta_payload = json.load(meta_fp)
+
+            source_path = meta_payload.get("source_path", "")
+            if source_path != str(self._xdf_path.resolve()):
+                logging.info("Ignoring stale XDF cache metadata for %s", source_path)
+                return False
+
+            self._available_stream_names = list(meta_payload.get("available_stream_names", []))
+            self._available_marker_stream_names = list(meta_payload.get("available_marker_stream_names", []))
             if self._data_stream_name not in self._available_stream_names:
                 self._data_stream_name = ""
             if self._marker_stream_name not in self._available_marker_stream_names:
                 self._marker_stream_name = ""
             self.streams_changed.emit()
 
-            for xdf_stream in xdf_streams:
-                if self._data_stream_name and xdf_stream.name == self._data_stream_name:
-                    if xdf_stream.data is None:
-                        logging.error(
-                            "Selected stream '%s' is not numeric. Choose a numeric stream to plot.",
-                            self._data_stream_name,
-                        )
-                    else:
-                        self._stream_data = xdf_stream.data
-                        self._stream_ts = xdf_stream.timestamps
-                        self._stream_fs = xdf_stream.fs
-                        self._data_stream_type = xdf_stream.type_display
-                        self._channel_names = xdf_stream.channel_names
-                        new_channels: dict[str, bool] = {}
-                        for idx, ch_name in enumerate(xdf_stream.channel_names):
-                            if not self._channels:
-                                # Default to the first channel for unknown stream types.
-                                new_channels[ch_name] = idx == 0
-                            else:
-                                new_channels[ch_name] = self._channels.get(ch_name, False)
-                        self.channels = new_channels
-                        logging.info(
-                            "Found data stream '%s' with %d channels: %s",
-                            self._data_stream_name,
-                            self._stream_data.shape[1],
-                            xdf_stream.channel_names,
-                        )
+            self._stream_data = None
+            self._stream_ts = None
+            self._stream_fs = 0
+            self._xdf_markers = []
+            self._data_stream_type = ""
+            self._channel_names = []
 
-                if self._marker_stream_name and xdf_stream.name == self._marker_stream_name:
-                    self._xdf_markers = xdf_stream.markers
-                    logging.info(f"Found {len(self._xdf_markers)} markers in XDF")
+            loaded_data_from_cache = False
+            selected_data_stream = meta_payload.get("selected_data_stream")
+            if isinstance(selected_data_stream, dict) and selected_data_stream.get("name") == self._data_stream_name:
+                data_file_name = selected_data_stream.get("data_file")
+                if isinstance(data_file_name, str):
+                    data_cache_file = self.get_cache_path() / data_file_name
+                    if data_cache_file.exists():
+                        stream_matrix = np.load(str(data_cache_file))
+                        if stream_matrix.ndim == 2 and stream_matrix.shape[1] >= 2:
+                            self._stream_ts = stream_matrix[:, 0].astype(np.float64)
+                            self._stream_data = stream_matrix[:, 1:].astype(np.float32)
+                            self._stream_fs = float(selected_data_stream.get("fs", 0.0))
+                            self._data_stream_type = str(selected_data_stream.get("type_display", ""))
+                            self._restore_channel_selection(
+                                list(selected_data_stream.get("channel_names", []))
+                            )
+                            loaded_data_from_cache = True
+                        else:
+                            logging.error("Invalid cached stream matrix for '%s'", self._data_stream_name)
+                    else:
+                        logging.error("Missing cached stream file: %s", data_cache_file)
+
+            # If main metadata does not match current selection, try stream-specific cache.
+            if self._data_stream_name and not loaded_data_from_cache:
+                stream_info_cache_file = self._get_selected_stream_info_cache_file()
+                if stream_info_cache_file.exists():
+                    with stream_info_cache_file.open("r", encoding="utf-8") as stream_meta_fp:
+                        stream_meta = json.load(stream_meta_fp)
+
+                    if (
+                        stream_meta.get("source_path") == str(self._xdf_path.resolve())
+                        and stream_meta.get("name") == self._data_stream_name
+                    ):
+                        data_file_name = stream_meta.get("data_file")
+                        if isinstance(data_file_name, str):
+                            data_cache_file = self.get_cache_path() / data_file_name
+                            if data_cache_file.exists():
+                                stream_matrix = np.load(str(data_cache_file))
+                                if stream_matrix.ndim == 2 and stream_matrix.shape[1] >= 2:
+                                    self._stream_ts = stream_matrix[:, 0].astype(np.float64)
+                                    self._stream_data = stream_matrix[:, 1:].astype(np.float32)
+                                    self._stream_fs = float(stream_meta.get("fs", 0.0))
+                                    self._data_stream_type = str(stream_meta.get("type_display", ""))
+                                    self._restore_channel_selection(
+                                        list(stream_meta.get("channel_names", []))
+                                    )
+                                    loaded_data_from_cache = True
+
+            marker_loaded_from_cache = False
+            marker_stream_payloads = meta_payload.get("marker_stream_payloads")
+            if isinstance(marker_stream_payloads, dict) and self._marker_stream_name:
+                cached_markers = marker_stream_payloads.get(self._marker_stream_name)
+                if isinstance(cached_markers, list):
+                    self._xdf_markers = list(cached_markers)
+                    marker_loaded_from_cache = True
 
             self.align_with_recording()
             self.changed.emit()
-        except Exception as e:
-            logging.exception(f"Failed to load XDF: {e}")
+            marker_ready = (not self._marker_stream_name) or marker_loaded_from_cache
+            return loaded_data_from_cache and marker_ready
+        except Exception:
+            logging.exception("Failed to load XDF from cache")
+            return False
 
     def _get_neon_ev_info(self, ev) -> tuple[str, Optional[float]]:
         name_keys = ("event", "name", "text")
@@ -466,15 +646,17 @@ class XDFMultimodalPlugin(Plugin):
             else:
                 sources.append(("EventsPlugin.events", getattr(ep, "events", None)))
 
-        for _, src_val in sources:
-            if src_val is None: continue
+        for src_name, src_val in sources:
+            if src_val is None:
+                continue
             try:
                 extracted = list(src_val) if not hasattr(src_val, "samples") else list(src_val.samples)
                 if len(extracted) > 0:
                     neon_events = extracted
                     break
-            except: pass
-
+            except Exception as exc:
+                logging.debug("Failed to extract events from source %s: %s", src_name, exc, exc_info=True)
+                
         if not neon_events:
             self._set_common_sync_events([])
             self._is_aligned = False
@@ -597,10 +779,12 @@ class XDFMultimodalPlugin(Plugin):
                 data = data - np.nanmean(data, axis=0)
 
                 # 6. Plot each channel in its own subplot under the XDF group prefix.
+                plotted_row_names: list[str] = []
                 for i, name in enumerate(selected_names):
                     channel_data = data[:, i]
                     plot_data_matrix = np.column_stack((plot_ts, channel_data))
                     row_name = f"{self._get_data_stream_group_title()} - {name}"
+                    plotted_row_names.append(row_name)
 
                     plot_item = timeline.add_timeline_plot(
                         timeline_row_name=row_name,
@@ -611,6 +795,8 @@ class XDFMultimodalPlugin(Plugin):
                         plot_item.preferred_height_2d = 60
                         plot_item.adjust_size()
                         plot_item.getViewBox().enableAutoRange(y=True)
+
+                self._active_channel_row_names = plotted_row_names
 
             # Update the status bars on the timeline
             start_ns = int(plot_ts[0])
