@@ -1,4 +1,3 @@
-import json
 import logging
 import numpy as np
 import pandas as pd
@@ -30,7 +29,6 @@ class XDFStream:
         self.type_display: str = ""
         self.channel_count: int = -1
         self.channel_format: str = ""
-        self.desc: str = ""
         self._is_marker_stream: bool = False
 
     @property
