@@ -204,7 +204,7 @@ class NeonPlayerApp(QApplication):
 
         self.aboutToQuit.connect(self.unload)
 
-    def run_jobs(self, job):
+    def run_jobs(self, job) -> None:
         plugin_name, action_name = job[0].split(".")
         job_args = job[1:]
 
@@ -349,14 +349,14 @@ class NeonPlayerApp(QApplication):
         enabled: bool,
         state: dict | None = None,
         delete: bool = True
-    ) -> Plugin | None:
+    ) -> None:
         if isinstance(kls, str):
             try:
                 kls = Plugin.get_class_by_name(kls)
             except ValueError:
                 if enabled:
                     logging.warning(f"Couldn't enable plugin class: {kls}")
-                return None
+                return
 
         plugin_exists = kls.__name__ in self.plugins_by_class
         if plugin_exists and not isinstance(self.plugins_by_class[kls.__name__], kls):
@@ -372,7 +372,7 @@ class NeonPlayerApp(QApplication):
                 if plugin_exists:
                     plugin = self.plugins_by_class[kls.__name__]
                 else:
-                    plugin: Plugin = kls.from_dict(state)
+                    plugin = kls.from_dict(state)
                     self.plugins_by_class[kls.__name__] = plugin
 
                     plugin.changed.connect(self.main_window.video_widget.update)
@@ -385,7 +385,7 @@ class NeonPlayerApp(QApplication):
                 plugin._enabled = True
             except Exception:
                 logging.exception(f"Failed to enable plugin {kls}")
-                return None
+                return
 
         elif not enabled and currently_enabled:
             plugin = self.plugins_by_class[kls.__name__]

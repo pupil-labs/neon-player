@@ -192,11 +192,6 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
     @property
     @property_params(widget=None, dont_encode=True)
-    def batch_mode_enabled(self) -> bool:
-        return getattr(self.app, "batch_mode_enabled", False)
-
-    @property
-    @property_params(widget=None, dont_encode=True)
     def workspace(self) -> "Workspace":
         return neon_player.instance().workspace
 
