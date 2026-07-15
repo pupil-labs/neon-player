@@ -3,6 +3,7 @@ import fractions
 import numpy as np
 import typing as T
 
+from pathlib import Path
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
@@ -53,7 +54,7 @@ class AudioPlugin(neon_player.Plugin):
         self.app.seeked.connect(self.on_user_seeked)
         self.app.speed_changed.connect(self.on_speed_changed)
 
-        self.cache_file = self.get_cache_path() / "audio.wav"
+        self.cache_file = Path()
 
         self.volume_button = VolumeButton()
         self.volume_button.setIconSize(QSize(32, 32))
@@ -65,6 +66,8 @@ class AudioPlugin(neon_player.Plugin):
         self.player.stop()
         self.player.setSource(QUrl())
         self.get_timeline().remove_timeline_plot("Audio")
+
+    def on_deleted(self) -> None:
         self.get_timeline().toolbar_layout.removeWidget(self.volume_button)
         self.volume_button.deleteLater()
 
@@ -124,6 +127,8 @@ class AudioPlugin(neon_player.Plugin):
             self.player.play()
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
+        self.cache_file = self.get_cache_path() / "audio.wav"
+
         self.recording_has_audio = False
         if not self.cache_file.exists():
             if self.app.headless:

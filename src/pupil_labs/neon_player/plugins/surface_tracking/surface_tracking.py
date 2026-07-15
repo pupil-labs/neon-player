@@ -133,8 +133,7 @@ class SurfaceTrackingPlugin(Plugin):
 
     def __init__(self) -> None:
         super().__init__()
-        self.marker_cache_file = self.get_cache_path() / "markers.npy"
-        self.surface_cache_file = self.get_cache_path() / "surfaces.npy"
+        self.marker_cache_file = Path("")
 
         self._draw_marker_ids = False
         self._draw_names = True
@@ -219,6 +218,8 @@ class SurfaceTrackingPlugin(Plugin):
             self.recording.calibration.scene_camera_matrix,
             self.recording.calibration.scene_distortion_coefficients,
         )
+
+        self.marker_cache_file = self.get_cache_path() / "markers.npy"
         self.attempt_marker_cache_load()
 
     def attempt_marker_cache_load(self) -> None:

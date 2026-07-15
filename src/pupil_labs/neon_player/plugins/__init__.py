@@ -111,6 +111,9 @@ class Plugin(PersistentPropertiesMixin, QObject):
     def on_disabled(self) -> None:
         pass
 
+    def on_deleted(self) -> None:
+        pass
+
     def trigger_scene_update(self) -> None:
         self.app.main_window.video_widget.update()
 
@@ -186,6 +189,11 @@ class Plugin(PersistentPropertiesMixin, QObject):
     @property_params(widget=None, dont_encode=True)
     def app(self) -> "NeonPlayerApp":
         return neon_player.instance()
+
+    @property
+    @property_params(widget=None, dont_encode=True)
+    def batch_mode_enabled(self) -> bool:
+        return getattr(self.app, "batch_mode_enabled", False)
 
     @property
     @property_params(widget=None, dont_encode=True)
