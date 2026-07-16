@@ -381,6 +381,7 @@ class XDFMultimodalPlugin(Plugin):
         self._reset_loaded_xdf_state()
 
         if self.app.headless:
+            # pump background job updates until it is complete
             for _ in self._bg_load_xdf(
                 str(self._xdf_path),
                 self._data_stream_name,
