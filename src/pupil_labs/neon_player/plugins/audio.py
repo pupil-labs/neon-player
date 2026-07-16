@@ -1,5 +1,6 @@
 import av
 import fractions
+import logging
 import numpy as np
 import typing as T
 
@@ -54,7 +55,7 @@ class AudioPlugin(neon_player.Plugin):
         self.app.seeked.connect(self.on_user_seeked)
         self.app.speed_changed.connect(self.on_speed_changed)
 
-        self.cache_file = Path()
+        self.cache_file: Path | None = None
 
         self.volume_button = VolumeButton()
         self.volume_button.setIconSize(QSize(32, 32))
@@ -145,7 +146,7 @@ class AudioPlugin(neon_player.Plugin):
             self.load_audio()
 
     def load_audio(self) -> None:
-        if not self.cache_file.exists():
+        if self.cache_file is None or not self.cache_file.exists():
             return
 
         self.recording_has_audio = True
@@ -164,6 +165,10 @@ class AudioPlugin(neon_player.Plugin):
         timeline.add_timeline_line("Audio", data)
 
     def extract_audio(self) -> T.Generator[ProgressUpdate, None, None]:
+        if self.cache_file is None:
+            logging.warning("Cache file path is not set. Cannot extract audio.")
+            return
+
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
 
         container = av.open(str(self.cache_file), "w")
