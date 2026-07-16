@@ -1387,6 +1387,7 @@ dependencies = [
     { name = "pyobjc", marker = "sys_platform == 'darwin'" },
     { name = "pyqtgraph" },
     { name = "pyside6" },
+    { name = "pyxdf" },
     { name = "qt-property-widgets" },
     { name = "scipy" },
     { name = "setuptools" },
@@ -1435,6 +1436,7 @@ requires-dist = [
     { name = "pyobjc", marker = "sys_platform == 'darwin'" },
     { name = "pyqtgraph", specifier = ">=0.13.7" },
     { name = "pyside6", specifier = ">=6.10.2" },
+    { name = "pyxdf", specifier = ">=1.17.5" },
     { name = "qt-property-widgets", git = "https://github.com/domstoppable/qt-property-widgets" },
     { name = "scipy", specifier = ">=1.15.2" },
     { name = "setuptools", specifier = ">=78.1.0" },
@@ -4455,6 +4457,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/de/ef/3bae0e537cfe91e8431efcba4434463d2c5a65f5a89edd47c6cf2f03c55f/python_discovery-1.2.2.tar.gz", hash = "sha256:876e9c57139eb757cb5878cbdd9ae5379e5d96266c99ef731119e04fffe533bb", size = 58872, upload-time = "2026-04-07T17:28:49.249Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d8/db/795879cc3ddfe338599bddea6388cc5100b088db0a4caf6e6c1af1c27e04/python_discovery-1.2.2-py3-none-any.whl", hash = "sha256:e1ae95d9af875e78f15e19aed0c6137ab1bb49c200f21f5061786490c9585c7a", size = 31894, upload-time = "2026-04-07T17:28:48.09Z" },
+]
+
+[[package]]
+name = "pyxdf"
+version = "1.17.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f6/e9/0e34f94f443fa88d70ddce91d4f3fbce319165dee09309e6ba6029cb1eda/pyxdf-1.17.5.tar.gz", hash = "sha256:97ab76e066855ed2233ebd8a2b046ea01306c5846a9471194c6dbc7e3a6a7bf4", size = 35635, upload-time = "2026-06-15T15:25:56.416Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/92/26/40408ec2d50b5a3794c1fbace10ca36882eb0d97bc2633d76e4edfb29efe/pyxdf-1.17.5-py3-none-any.whl", hash = "sha256:3162772dba88ed4516956f91ec05ea87b8c93387a403dacb7497ffcd0ee345af", size = 21577, upload-time = "2026-06-15T15:25:57.323Z" },
 ]
 
 [[package]]

@@ -40,6 +40,7 @@ from pupil_labs.neon_player.plugins import (
     imu,  # noqa: F401
     scene_renderer,  # noqa: F401
     surface_tracking,  # noqa: F401
+    synchronized_xdf,  # noqa: F401
     video_exporter,  # noqa: F401
 )
 from pupil_labs.neon_player.history import RecordingHistory
