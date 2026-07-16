@@ -157,6 +157,8 @@ class FixationsPlugin(neon_player.Plugin):
         return self.gaze_plugin.offset_x, self.gaze_plugin.offset_y
 
     def on_disabled(self) -> None:
+        self.flow_dict = {}
+
         self.get_timeline().remove_timeline_plot("Fixations")
         self.unregister_action("Playback/Next Fixation")
         self.unregister_action("Playback/Previous Fixation")
