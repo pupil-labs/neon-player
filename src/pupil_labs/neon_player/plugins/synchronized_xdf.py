@@ -192,12 +192,10 @@ class XDFMultimodalPlugin(Plugin):
         if str(p) in ("", "."):
             if self._xdf_path != Path(""):
                 self._xdf_path = Path("")
-                self.changed.emit()
             return
 
         if p != self._xdf_path:
             self._xdf_path = p
-            self.changed.emit()
             if self._xdf_path.exists() and self._xdf_path.is_file():
                 self.load_xdf()
 
@@ -216,7 +214,6 @@ class XDFMultimodalPlugin(Plugin):
         clean_value = str(value or "").strip()
         if self._data_stream_name != clean_value:
             self._data_stream_name = clean_value
-            self.changed.emit()
             if self._xdf_path.exists() and self._xdf_path.is_file():
                 self.load_xdf()
 
@@ -235,7 +232,6 @@ class XDFMultimodalPlugin(Plugin):
         clean_value = str(value or "").strip()
         if self._marker_stream_name != clean_value:
             self._marker_stream_name = clean_value
-            self.changed.emit()
             if self._xdf_path.exists() and self._xdf_path.is_file():
                 self.load_xdf()
 
@@ -256,7 +252,6 @@ class XDFMultimodalPlugin(Plugin):
             self._selected_sync_event = clean_value
             self._is_aligned = False
             self.align_with_recording()
-            self.changed.emit()
 
     @property
     @property_params(label="Apply Bandpass 1-30 Hz (EEG-like streams)")
@@ -265,9 +260,8 @@ class XDFMultimodalPlugin(Plugin):
 
     @apply_bandpass.setter
     def apply_bandpass(self, value: bool) -> None:
-        new_value = bool(value)
-        if self._apply_bandpass != new_value:
-            self._apply_bandpass = new_value
+        if self._apply_bandpass != value:
+            self._apply_bandpass = value
             self.update_timeline()
 
     @property
