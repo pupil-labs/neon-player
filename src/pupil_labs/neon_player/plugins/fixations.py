@@ -36,7 +36,6 @@ class FixationsPlugin(neon_player.Plugin):
 
         self._visualizations: list[FixationVisualization] = [ScanpathViz(), FixationCircleViz()]
 
-        self.gaze_plugin: GazeDataPlugin | None = None
         self.flow_dict: dict[int, dict[int, np.ndarray]] = {}
         self.header_action = ListPropertyAppenderAction("visualizations", "+ Add viz")
 
@@ -147,13 +146,12 @@ class FixationsPlugin(neon_player.Plugin):
             )
 
     def get_gaze_offset(self) -> tuple[float, float]:
-        if not self.gaze_plugin:
-            self.gaze_plugin = neon_player.Plugin.get_instance_by_name("GazeDataPlugin")
+        gaze_plugin = neon_player.Plugin.get_instance_by_name("GazeDataPlugin")
 
-        if not self.gaze_plugin:
+        if not gaze_plugin:
             return (0.0, 0.0)
 
-        return self.gaze_plugin.offset_x, self.gaze_plugin.offset_y
+        return gaze_plugin.offset_x, gaze_plugin.offset_y
 
     def on_disabled(self) -> None:
         self.get_timeline().remove_timeline_plot("Fixations")
