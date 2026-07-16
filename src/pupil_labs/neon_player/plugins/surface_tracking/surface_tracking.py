@@ -133,8 +133,8 @@ class SurfaceTrackingPlugin(Plugin):
 
     def __init__(self) -> None:
         super().__init__()
-        self.marker_cache_file = self.get_cache_path() / "markers.npy"
-        self.surface_cache_file = self.get_cache_path() / "surfaces.npy"
+        self.marker_cache_file: Path | None = None
+        self.camera: Camera | None = None
 
         self._draw_marker_ids = False
         self._draw_names = True
@@ -219,9 +219,14 @@ class SurfaceTrackingPlugin(Plugin):
             self.recording.calibration.scene_camera_matrix,
             self.recording.calibration.scene_distortion_coefficients,
         )
+
+        self.marker_cache_file = self.get_cache_path() / "markers.npy"
         self.attempt_marker_cache_load()
 
     def attempt_marker_cache_load(self) -> None:
+        if self.marker_cache_file is None:
+            return
+
         if self.marker_cache_file.exists():
             self._load_marker_cache()
             return
@@ -447,6 +452,10 @@ class SurfaceTrackingPlugin(Plugin):
             painter.setPen(old_pen)
 
     def _load_marker_cache(self) -> None:
+        if self.marker_cache_file is None:
+            logging.warning("Marker cache file path is not set. Cannot load marker cache.")
+            return
+
         self.markers_by_frame = np.load(self.marker_cache_file, allow_pickle=True)
         self.trigger_scene_update()
         for frame_markers in self.markers_by_frame:

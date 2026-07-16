@@ -53,6 +53,8 @@ class IMUPlugin(neon_player.Plugin):
         self.update_plots()
 
     def on_disabled(self) -> None:
+        self.imu_data = None
+
         timeline = self.get_timeline()
         for name in ["IMU - Orientation", "IMU - Gyroscope", "IMU - Acceleration"]:
             timeline.remove_timeline_plot(name)

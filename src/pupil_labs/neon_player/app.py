@@ -204,7 +204,7 @@ class NeonPlayerApp(QApplication):
 
         self.aboutToQuit.connect(self.unload)
 
-    def run_jobs(self, job):
+    def run_jobs(self, job) -> None:
         plugin_name, action_name = job[0].split(".")
         job_args = job[1:]
 
@@ -348,16 +348,20 @@ class NeonPlayerApp(QApplication):
         kls: type[Plugin] | str,
         enabled: bool,
         state: dict | None = None,
-    ) -> Plugin | None:
+        delete: bool = True
+    ) -> None:
         if isinstance(kls, str):
             try:
                 kls = Plugin.get_class_by_name(kls)
             except ValueError:
                 if enabled:
                     logging.warning(f"Couldn't enable plugin class: {kls}")
-                return None
+                return
 
-        currently_enabled = kls.__name__ in self.plugins_by_class
+        plugin_exists = kls.__name__ in self.plugins_by_class
+        if plugin_exists and not isinstance(self.plugins_by_class[kls.__name__], kls):
+            raise RuntimeError(f"Invalid instance of plugin found: {kls.__name__}")
+        currently_enabled = plugin_exists and self.plugins_by_class[kls.__name__]._enabled
 
         if enabled and not currently_enabled:
             logging.info(f"Enabling plugin: {kls.__name__}")
@@ -365,31 +369,38 @@ class NeonPlayerApp(QApplication):
                 if state is None:
                     state = self.session_settings.plugin_states.get(kls.__name__, {})
 
-                plugin: Plugin = kls.from_dict(state)
+                if plugin_exists:
+                    plugin = self.plugins_by_class[kls.__name__]
+                else:
+                    plugin = kls.from_dict(state)
+                    self.plugins_by_class[kls.__name__] = plugin
 
-                self.plugins_by_class[kls.__name__] = plugin
+                    plugin.changed.connect(self.main_window.video_widget.update)
+                    SlotDebouncer.debounce(plugin.changed, self.save_settings)
+
                 self.main_window.settings_panel.add_plugin_settings(plugin)
-
-                plugin.changed.connect(self.main_window.video_widget.update)
-                SlotDebouncer.debounce(plugin.changed, self.save_settings)
-
                 if self.recording:
                     plugin.on_recording_loaded(self.recording)
+
+                plugin._enabled = True
             except Exception:
                 logging.exception(f"Failed to enable plugin {kls}")
-                return None
+                return
 
         elif not enabled and currently_enabled:
             plugin = self.plugins_by_class[kls.__name__]
 
             plugin.on_disabled()
-            plugin.deleteLater()
-            del self.plugins_by_class[kls.__name__]
+            plugin._enabled = False
             self.main_window.settings_panel.remove_plugin_settings(kls.__name__)
+            if delete:
+                plugin.on_deleted()
+                plugin.deleteLater()
+                del self.plugins_by_class[kls.__name__]
 
             logging.info(f"Disabled plugin: {kls.__name__}")
 
-        self.plugins = list(self.plugins_by_class.values())
+        self.plugins = [p for p in self.plugins_by_class.values() if p._enabled]
         self.plugins.sort(key=lambda p: p.render_layer)
 
         self.main_window.video_widget.update()
@@ -429,12 +440,12 @@ class NeonPlayerApp(QApplication):
 
     def unload(self) -> None:
         if self.recording:
-            self.unload_recording()
+            self.unload_recording(delete_plugins=True)
 
         self.workspace.clear()
         self.workspace_unloaded.emit()
 
-    def unload_recording(self) -> None:
+    def unload_recording(self, delete_plugins: bool = False) -> None:
         self.set_playback_state(False)
         self.save_settings(force=True)
         class_names = list(self.plugins_by_class.keys())
@@ -442,7 +453,7 @@ class NeonPlayerApp(QApplication):
         timeline = self.main_window.timeline
         timeline.disable_plot_sorting()
         for plugin_class_name in class_names:
-            self.toggle_plugin(plugin_class_name, False)
+            self.toggle_plugin(plugin_class_name, False, delete=delete_plugins)
         timeline.enable_plot_sorting()
 
         if self.recording is not None:
