@@ -34,15 +34,15 @@ def create_workspace_metadata(path: Path) -> dict[str, str]:
     return result
 
 
-def _ensure_correct_format(state: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
+def _ensure_correct_format(history: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
     """
-    Ensure that the state dictionary has the correct format.
-    If the state is in an older format, convert it to the new format.
+    Ensure that the history dictionary has the correct format. Originally, it contained only
+    recent recordings, so the format is extended to include recent workspaces as well.
     """
-    if "recent_recordings" not in state:
-        state = {"recent_recordings": state, "recent_workspaces": {}}
+    if "recent_recordings" not in history:
+        history = {"recent_recordings": history, "recent_workspaces": {}}
 
-    return state
+    return history
 
 
 class LoadHistory(PersistentPropertiesMixin, QObject):
@@ -54,18 +54,19 @@ class LoadHistory(PersistentPropertiesMixin, QObject):
         self._recent_workspaces : OrderedDict[str, dict[str, str]] = OrderedDict()
         self.capacity : int = capacity
 
-    def _cleanup(self, recordings: bool = True, workspaces: bool = True) -> None:
-        """
-        Remove non-existing recent recordings and workspaces, enforce capacity limit.
-        """
-        if recordings:
-            self._recent_recordings = self._cleanup_dict(self._recent_recordings)
-        if workspaces:
-            self._recent_workspaces = self._cleanup_dict(self._recent_workspaces)
+    def _cleanup_recordings(self) -> None:
+        self._recent_recordings = self._cleanup_dict(self._recent_recordings)
+
+    def _cleanup_workspaces(self) -> None:
+        self._recent_workspaces = self._cleanup_dict(self._recent_workspaces)
 
     def _cleanup_dict(
         self, recent_dict: OrderedDict[str, dict[str, str]]
     ) -> OrderedDict[str, dict[str, str]]:
+        """
+        Remove entries from the recent_dict that no longer exist on disk and
+        ensure that the number of entries does not exceed the capacity.
+        """
         recent_dict = OrderedDict({
             path: meta
             for path, meta in recent_dict.items()
@@ -94,7 +95,10 @@ class LoadHistory(PersistentPropertiesMixin, QObject):
 
         dest[key] = metadata
         dest.move_to_end(key, last=False)
-        self._cleanup(recordings=is_recording_entry, workspaces=not is_recording_entry)
+        if is_recording_entry:
+            self._cleanup_recordings()
+        else:
+            self._cleanup_workspaces()
 
         self.changed.emit()
 
@@ -105,7 +109,7 @@ class LoadHistory(PersistentPropertiesMixin, QObject):
     @recent_recordings.setter
     def recent_recordings(self, value: OrderedDict[str, dict[str, str]]):
         self._recent_recordings = value
-        self._cleanup(workspaces=False)
+        self._cleanup_recordings()
         self.changed.emit()
 
     @property
@@ -115,7 +119,7 @@ class LoadHistory(PersistentPropertiesMixin, QObject):
     @recent_workspaces.setter
     def recent_workspaces(self, value: OrderedDict[str, dict[str, str]]):
         self._recent_workspaces = value
-        self._cleanup(recordings=False)
+        self._cleanup_workspaces()
         self.changed.emit()
 
     @classmethod
