@@ -127,7 +127,7 @@ class RecentWidget(QWidget):
             "Recorded": "recorded",
             "Path": "path"
         }
-        self.recording_table = self._create_history_table(list(self.recording_columns.keys()))
+        self.recording_table = self._create_history_table(self.recording_columns)
         self.recording_table.cellClicked.connect(self.on_recording_table_cell_clicked)
 
         workspace_heading = self._create_heading_with_icon(
@@ -140,7 +140,7 @@ class RecentWidget(QWidget):
             "Last opened": "last_opened",
             "Path": "path"
         }
-        self.workspace_table = self._create_history_table(list(self.workspace_columns.keys()))
+        self.workspace_table = self._create_history_table(self.workspace_columns)
         self.workspace_table.cellClicked.connect(self.on_workspace_table_cell_clicked)
 
         self.container = QWidget(self)
@@ -187,10 +187,14 @@ class RecentWidget(QWidget):
     @staticmethod
     def _update_recent_items(
         table: QTableWidget,
-        columns: list[str],
+        columns: dict[str, str],
         recent_items: list[tuple[str, dict]],
         no_history_label: QLabel,
     ) -> None:
+        """
+        Update the table displaying recently opened recordings or workspaces.
+        If there are no recent items, hide the table and show a label instead.
+        """
         table.setSortingEnabled(False)
         table.clearContents()
 
@@ -235,6 +239,9 @@ class RecentWidget(QWidget):
     @staticmethod
     def _on_table_cell_clicked(table: QTableWidget, row: int, column: int) -> None:
         item = table.item(row, 0)
+        if item is None:
+            return
+
         path_str = item.data(Qt.ItemDataRole.UserRole)
         if not path_str:
             return
@@ -245,15 +252,15 @@ class RecentWidget(QWidget):
     def _create_heading_with_icon(heading: str, icon_path: str) -> QHBoxLayout:
         layout = QHBoxLayout()
         icon = QLabel()
-        icon.setPixmap(QPixmap(asset_path(icon_path)))
+        icon.setPixmap(QPixmap(icon_path))
         layout.addWidget(icon)
         layout.addWidget(QLabel(f"<h2>{heading}</h2>"))
         layout.addStretch()
         return layout
 
     @staticmethod
-    def _create_empty_history_label(kind: str) -> QLabel:
-        label = QLabel(f"Recently opened {kind} will appear here.")
+    def _create_empty_history_label(entity: str) -> QLabel:
+        label = QLabel(f"Recently opened {entity} will appear here.")
         label.setAlignment(Qt.AlignmentFlag.AlignTop)
         label.setSizePolicy(
             QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
@@ -261,12 +268,12 @@ class RecentWidget(QWidget):
         label.setVisible(False)
         return label
 
-    def _create_history_table(self, column_names: list[str]) -> QTableWidget:
-        num_columns = len(column_names)
+    def _create_history_table(self, columns: dict[str, str]) -> QTableWidget:
+        num_columns = len(columns)
 
         table = HoverRowTable(self)
         table.setColumnCount(num_columns)
-        table.setHorizontalHeaderLabels(column_names)
+        table.setHorizontalHeaderLabels(list(columns.keys()))
 
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -553,7 +560,7 @@ class MainWindow(QMainWindow):
         self.on_workspace_closed()
         self.status_label.clicked.connect(self.console_window.show)
 
-    def reset_docks(self):
+    def reset_docks(self) -> None:
         docks_and_areas = {
             self.timeline_dock: Qt.DockWidgetArea.BottomDockWidgetArea,
             self.settings_dock: Qt.DockWidgetArea.RightDockWidgetArea,
@@ -565,7 +572,7 @@ class MainWindow(QMainWindow):
             dock.setFloating(False)
             dock.show()
 
-    def on_workspace_opened(self):
+    def on_workspace_opened(self) -> None:
         app = neon_player.instance()
 
         self.greeting_switcher.setCurrentIndex(1)
@@ -576,10 +583,10 @@ class MainWindow(QMainWindow):
         self.menuBar().show()
         self.statusBar().show()
 
-    def on_recording_opened(self):
+    def on_recording_opened(self) -> None:
         QTimer.singleShot(1, self.timeline.reset_view)
 
-    def on_workspace_closed(self):
+    def on_workspace_closed(self) -> None:
         self.greeting_switcher.setCurrentIndex(0)
         self.timeline_dock.hide()
         self.settings_dock.hide()
