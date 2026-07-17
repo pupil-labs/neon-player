@@ -191,10 +191,11 @@ class SessionSettings(PersistentPropertiesMixin):
 
         # NOTE: to_dict is applied recursively to decompose custom objects into
         # primitives, thereby dropping all references that prevent garbage
-        # collection of plugins when switching recordings
+        # collection of plugins when they are no longer needed
         current_states = {
             class_name: p.to_dict(recursive=True)
             for class_name, p in app.plugins_by_class.items()
+            if p._enabled
         }
 
         overwrite_condition = None

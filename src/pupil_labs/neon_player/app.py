@@ -371,6 +371,7 @@ class NeonPlayerApp(QApplication):
 
                 if plugin_exists:
                     plugin = self.plugins_by_class[kls.__name__]
+                    plugin.__setstate__(state)
                 else:
                     plugin = kls.from_dict(state)
                     self.plugins_by_class[kls.__name__] = plugin
