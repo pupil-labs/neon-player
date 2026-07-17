@@ -1,10 +1,12 @@
 import logging
+import typing as T
 
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
+from qt_property_widgets.utilities import PersistentPropertiesMixin
 
 
 def create_recording_metadata(path: Path, recording: NeonRecording) -> dict[str, str]:
@@ -24,34 +26,74 @@ def create_recording_metadata(path: Path, recording: NeonRecording) -> dict[str,
     return result
 
 
-class RecordingHistory(QObject):
+def create_workspace_metadata(path: Path) -> dict[str, str]:
+    """Short description that is displayed for recently opened workspaces."""
+    last_opened_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    result = {"name": path.name, "last_opened": last_opened_str}
+    return result
+
+
+def _ensure_correct_format(state: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
+    """
+    Ensure that the state dictionary has the correct format.
+    If the state is in an older format, convert it to the new format.
+    """
+    if "recent_recordings" not in state:
+        state = {"recent_recordings": state, "recent_workspaces": {}}
+
+    return state
+
+
+class LoadHistory(PersistentPropertiesMixin, QObject):
     changed = Signal()
 
     def __init__(self, capacity: int = 10) -> None:
         super().__init__()
         self._recent_recordings : OrderedDict[str, dict[str, str]] = OrderedDict()
+        self._recent_workspaces : OrderedDict[str, dict[str, str]] = OrderedDict()
         self.capacity : int = capacity
 
-    def _cleanup(self) -> None:
-        """Remove non-existing recent_recordings and enforce capacity limit."""
-        self._recent_recordings = OrderedDict({
+    def _cleanup(self, recordings: bool = True, workspaces: bool = True) -> None:
+        """
+        Remove non-existing recent recordings and workspaces, enforce capacity limit.
+        """
+        if recordings:
+            self._recent_recordings = self._cleanup_dict(self._recent_recordings)
+        if workspaces:
+            self._recent_workspaces = self._cleanup_dict(self._recent_workspaces)
+
+    def _cleanup_dict(
+        self, recent_dict: OrderedDict[str, dict[str, str]]
+    ) -> OrderedDict[str, dict[str, str]]:
+        recent_dict = OrderedDict({
             path: meta
-            for path, meta in self._recent_recordings.items()
+            for path, meta in recent_dict.items()
             if Path(path).exists()
         })
 
-        while len(self._recent_recordings) > self.capacity:
-            self._recent_recordings.popitem()
+        while len(recent_dict) > self.capacity:
+            recent_dict.popitem()
+
+        return recent_dict
 
     def add_recording(self, path: Path, recording: NeonRecording):
         metadata = create_recording_metadata(path, recording)
-        key = str(path.resolve())
+        self._add_entry("recording", path, metadata)
 
+    def add_workspace(self, path: Path):
+        metadata = create_workspace_metadata(path)
+        self._add_entry("workspace", path, metadata)
+
+    def _add_entry(self, kind: str, path: Path, metadata: dict[str, str]) -> None:
         # NOTE: always update metadata since the last opened timestamp changes if
         # even the key already existed
-        self._recent_recordings[key] = metadata
-        self._recent_recordings.move_to_end(key, last=False)
-        self._cleanup()
+        is_recording_entry = kind == "recording"
+        dest = self._recent_recordings if is_recording_entry else self._recent_workspaces
+        key = str(path.resolve())
+
+        dest[key] = metadata
+        dest.move_to_end(key, last=False)
+        self._cleanup(recordings=is_recording_entry, workspaces=not is_recording_entry)
 
         self.changed.emit()
 
@@ -59,10 +101,26 @@ class RecordingHistory(QObject):
     def recent_recordings(self):
         return self._recent_recordings
 
+    @recent_recordings.setter
+    def recent_recordings(self, value: OrderedDict[str, dict[str, str]]):
+        self._recent_recordings = value
+        self._cleanup(workspaces=False)
+        self.changed.emit()
+
+    @property
+    def recent_workspaces(self):
+        return self._recent_workspaces
+
+    @recent_workspaces.setter
+    def recent_workspaces(self, value: OrderedDict[str, dict[str, str]]):
+        self._recent_workspaces = value
+        self._cleanup(recordings=False)
+        self.changed.emit()
+
     @classmethod
-    def from_dict(cls, recent_recordings):
+    def from_dict(cls: type["LoadHistory"], state: dict[str, T.Any]) -> "LoadHistory":
+        state = _ensure_correct_format(state)
+
         instance = cls()
-        instance._recent_recordings = OrderedDict(recent_recordings)
-        instance._cleanup()
-        instance.changed.emit()
+        instance.__setstate__(state)
         return instance

@@ -43,7 +43,7 @@ from pupil_labs.neon_player.plugins import (
     surface_tracking,  # noqa: F401
     video_exporter,  # noqa: F401
 )
-from pupil_labs.neon_player.history import RecordingHistory
+from pupil_labs.neon_player.history import LoadHistory
 from pupil_labs.neon_player.settings import (
     GeneralSettings, PluginSettingsDispatcher
 )
@@ -99,7 +99,7 @@ class NeonPlayerApp(QApplication):
 
         self.settings = GeneralSettings()
         self.loading_recording = False
-        self.recording_history = RecordingHistory()
+        self.load_history = LoadHistory()
 
         self.refresh_timer = QTimer(self)
         self.refresh_timer.setInterval(1000 / 30)
@@ -180,12 +180,12 @@ class NeonPlayerApp(QApplication):
             logging.exception("Failed to load settings")
 
         try:
-            self.recording_history = RecordingHistory.from_dict(self.load_recording_history())
+            self.load_history = LoadHistory.from_dict(self.load_history_data())
         except FileNotFoundError:
             logging.warning("Recording history file not found")
         except Exception:
             logging.exception("Failed to load recording history")
-        self.recording_history.changed.connect(self.save_history)
+        self.load_history.changed.connect(self.save_history)
 
         if self.args.job and self.args.recording:
             path_to_load = Path(self.args.recording)
@@ -265,8 +265,8 @@ class NeonPlayerApp(QApplication):
         logging.info(f"Loading settings from {self.settings_path}")
         return json.loads(self.settings_path.read_text())
 
-    def load_recording_history(self) -> T.Any:
-        logging.info(f"Loading recording history from {self.history_path}")
+    def load_history_data(self) -> T.Any:
+        logging.info(f"Loading recently opened recordings/workspaces from {self.history_path}")
         return json.loads(self.history_path.read_text())
 
     def save_settings(self, force: bool = False) -> None:
@@ -297,9 +297,8 @@ class NeonPlayerApp(QApplication):
     def save_history(self) -> None:
         try:
             self.history_path.parent.mkdir(parents=True, exist_ok=True)
-            data = self.recording_history.recent_recordings
             with self.history_path.open("w") as f:
-                json.dump(data, f, cls=ComplexEncoder)
+                json.dump(self.load_history.to_dict(), f, cls=ComplexEncoder)
 
             logging.info("History saved")
         except Exception:
@@ -503,6 +502,7 @@ class NeonPlayerApp(QApplication):
         self.session_settings.load_workspace_settings(
             self.workspace_settings_path
         )
+        self.load_history.add_workspace(path)
 
     def load_recording(self, path: Path) -> None:
         """Load a recording from the given path."""
@@ -511,7 +511,8 @@ class NeonPlayerApp(QApplication):
         self.unload_recording()
         logging.info("Opening recording at path: %s", path)
         self.recording = nr.load(path)
-        self.recording_history.add_recording(path, self.recording)
+        if not self.batch_mode_enabled:
+            self.recording_history.add_recording(path, self.recording)
 
         os.chdir(path)
         self.playback_start_anchor = 0
