@@ -512,7 +512,7 @@ class NeonPlayerApp(QApplication):
         logging.info("Opening recording at path: %s", path)
         self.recording = nr.load(path)
         if not self.batch_mode_enabled:
-            self.recording_history.add_recording(path, self.recording)
+            self.load_history.add_recording(path, self.recording)
 
         os.chdir(path)
         self.playback_start_anchor = 0

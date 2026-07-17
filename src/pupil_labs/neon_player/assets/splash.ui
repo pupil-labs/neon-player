@@ -112,7 +112,7 @@ border-radius: 5px;
            <item>
             <widget class="QLabel" name="label_3">
              <property name="text">
-              <string>Drop a recording folder here or</string>
+              <string>Drop a folder with one or more recordings here or</string>
              </property>
              <property name="alignment">
               <set>Qt::AlignmentFlag::AlignCenter</set>
@@ -131,7 +131,7 @@ border-radius: 5px;
               <cursorShape>PointingHandCursor</cursorShape>
              </property>
              <property name="text">
-              <string> Choose a recording folder</string>
+              <string> Choose a folder</string>
              </property>
              <property name="icon">
               <iconset theme="folder"/>
@@ -180,7 +180,7 @@ border-radius: 5px;
         <item>
          <widget class="QPushButton" name="recent_button">
           <property name="text">
-           <string> Show recently opened recordings</string>
+           <string> Show recently opened recordings and workspaces</string>
           </property>
           <property name="iconSize">
            <size>

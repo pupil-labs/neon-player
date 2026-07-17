@@ -1,3 +1,4 @@
+import copy
 import logging
 import typing as T
 
@@ -99,7 +100,7 @@ class LoadHistory(PersistentPropertiesMixin, QObject):
 
     @property
     def recent_recordings(self):
-        return self._recent_recordings
+        return copy.deepcopy(self._recent_recordings)
 
     @recent_recordings.setter
     def recent_recordings(self, value: OrderedDict[str, dict[str, str]]):
@@ -109,7 +110,7 @@ class LoadHistory(PersistentPropertiesMixin, QObject):
 
     @property
     def recent_workspaces(self):
-        return self._recent_workspaces
+        return copy.deepcopy(self._recent_workspaces)
 
     @recent_workspaces.setter
     def recent_workspaces(self, value: OrderedDict[str, dict[str, str]]):
