@@ -44,4 +44,8 @@ class MockNeonPlayerApp(QApplication):
 
 @pytest.fixture(scope="session")
 def qapp_cls():
+    from pupil_labs.neon_player.app import NeonPlayerApp
+
+    MockNeonPlayerApp.toggle_plugin = NeonPlayerApp.toggle_plugin
+
     return MockNeonPlayerApp

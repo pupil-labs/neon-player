@@ -2,7 +2,7 @@ from qt_property_widgets.utilities import property_params
 
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.settings import (
-    get_property_scopes, merge_plugin_states
+    get_property_scopes, merge_plugin_states, filter_state_by_scope
 )
 
 
@@ -115,3 +115,18 @@ def test_settings_merge_plugin_states_overwrite_workspace_only():
     assert plugin_states["recording_property"] == 0
     assert plugin_states["workspace_property"] == 1
     assert plugin_states["general_property"] == 1
+
+
+def test_settings_filter_state_by_scope():
+    scopes = get_property_scopes(ExamplePlugin)
+    state = {
+        "default_property": 1,
+        "recording_property": 1,
+        "workspace_property": 1,
+        "general_property": 1
+    }
+
+    recording_state = filter_state_by_scope(state, scopes, "recording")
+    assert len(recording_state) == 2
+    assert "recording_property" in recording_state
+    assert "general_property" in recording_state
