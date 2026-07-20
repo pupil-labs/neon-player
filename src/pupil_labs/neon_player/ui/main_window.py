@@ -115,47 +115,33 @@ class RecentWidget(QWidget):
         self.back_button.setIcon(QIcon(str(asset_path("arrow_back.svg"))))
         self.back_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        title_layout = QHBoxLayout()
-        title_icon = QLabel()
-        title_icon.setPixmap(QPixmap(asset_path("recent.svg")))
-        title_layout.addWidget(title_icon)
-        title_layout.addWidget(QLabel("<h2>Recently Opened</h2>"))
-        title_layout.addStretch()
-
-        self.empty_history_label = QLabel("Recently opened recordings will appear here.")
-        self.empty_history_label.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.empty_history_label.setSizePolicy(
-            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
+        recording_heading = self._create_heading_with_icon(
+            "Recently opened",
+            str(asset_path("recent.svg"))
         )
-        self.empty_history_label.setVisible(False)
+        self.no_recording_history_label = self._create_empty_history_label("recordings")
+        self.recording_columns = {
+            "Recording name": "name",
+            "Wearer": "wearer",
+            "Last opened": "last_opened",
+            "Recorded": "recorded",
+            "Path": "path"
+        }
+        self.recording_table = self._create_history_table(self.recording_columns)
+        self.recording_table.cellClicked.connect(self.on_recording_table_cell_clicked)
 
-        self.table = HoverRowTable(self)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.table.setShowGrid(False)
-        self.table.setWordWrap(False)
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels([
-            "Recording name",
-            "Wearer",
-            "Last opened",
-            "Recorded",
-            "Path",
-        ])
-        self.table.cellClicked.connect(self.on_table_cell_clicked)
-
-        horiz_header = self.table.horizontalHeader()
-        horiz_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        horiz_header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
-        horiz_header.setDefaultAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        workspace_heading = self._create_heading_with_icon(
+            "Workspaces",
+            str(asset_path("workspace.svg"))
         )
-        horiz_header.setCursor(Qt.CursorShape.PointingHandCursor)
-
-        vert_header = self.table.verticalHeader()
-        vert_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        vert_header.setVisible(False)
+        self.no_workspace_history_label = self._create_empty_history_label("workspaces")
+        self.workspace_columns = {
+            "Workspace name": "name",
+            "Last opened": "last_opened",
+            "Path": "path"
+        }
+        self.workspace_table = self._create_history_table(self.workspace_columns)
+        self.workspace_table.cellClicked.connect(self.on_workspace_table_cell_clicked)
 
         self.container = QWidget(self)
         self.container.setObjectName("content")
@@ -163,9 +149,13 @@ class RecentWidget(QWidget):
         layout = QVBoxLayout(self.container)
         layout.setContentsMargins(50, 50, 50, 50)
         layout.addWidget(self.back_button, alignment=Qt.AlignmentFlag.AlignLeft)
-        layout.addLayout(title_layout)
-        layout.addWidget(self.empty_history_label)
-        layout.addWidget(self.table)
+        layout.addLayout(recording_heading)
+        layout.addWidget(self.no_recording_history_label)
+        layout.addWidget(self.recording_table)
+        layout.addSpacing(20)
+        layout.addLayout(workspace_heading)
+        layout.addWidget(self.no_workspace_history_label)
+        layout.addWidget(self.workspace_table)
 
         self.grid_layout = QGridLayout(self)
         self.grid_layout.setContentsMargins(0, 0, 0, 0)
@@ -173,60 +163,137 @@ class RecentWidget(QWidget):
         self.setLayout(self.grid_layout)
 
         app = neon_player.instance()
-        app.recording_history.changed.connect(self.update_recent_recordings)
+        app.load_history.changed.connect(self.update_load_history)
 
-    def update_recent_recordings(self) -> None:
+    def update_load_history(self) -> None:
         app = neon_player.instance()
-        recent = app.recording_history.recent_recordings.items()
 
-        self.table.setSortingEnabled(False)
-        self.table.clearContents()
+        recent_recordings = app.load_history.recent_recordings.items()
+        self._update_recent_items(
+            self.recording_table,
+            self.recording_columns,
+            recent_recordings,
+            self.no_recording_history_label
+        )
 
-        if not recent:
-            self.table.setVisible(False)
-            self.empty_history_label.setVisible(True)
+        recent_workspaces = app.load_history.recent_workspaces.items()
+        self._update_recent_items(
+            self.workspace_table,
+            self.workspace_columns,
+            recent_workspaces,
+            self.no_workspace_history_label
+        )
+
+    @staticmethod
+    def _update_recent_items(
+        table: QTableWidget,
+        columns: dict[str, str],
+        recent_items: list[tuple[str, dict]],
+        no_history_label: QLabel,
+    ) -> None:
+        """
+        Update the table displaying recently opened recordings or workspaces.
+        If there are no recent items, hide the table and show a label instead.
+        """
+        table.setSortingEnabled(False)
+        table.clearContents()
+
+        if not recent_items:
+            table.setVisible(False)
+            no_history_label.setVisible(True)
             return
 
-        self.empty_history_label.setVisible(False)
-        self.table.setVisible(True)
-        self.table.setRowCount(len(recent))
-        for row, (path, info) in enumerate(recent):
-            item_name = QTableWidgetItem(info["name"])
-            item_name.setData(Qt.ItemDataRole.UserRole, path)
-            item_name.setForeground(QColor("#6d7be0"))
-            font = item_name.font()
-            font.setBold(True)
-            item_name.setFont(font)
+        no_history_label.setVisible(False)
+        table.setVisible(True)
+        table.setRowCount(len(recent_items))
+        for row, (path, info) in enumerate(recent_items):
+            for col, field_name in enumerate(columns.values()):
+                if field_name == "path":
+                    item_path = QTableWidgetItem(path)
+                    item_path.setForeground(QColor("#666"))
+                    item_path.setToolTip(path)
+                    table.setItem(row, col, item_path)
+                    continue
 
-            item_wearer = QTableWidgetItem(info.get("wearer", "-"))
-            item_wearer.setForeground(QColor("#ededef"))
+                item_text = info.get(field_name, "-")
+                item = QTableWidgetItem(item_text)
+                item.setForeground(QColor("#ededef"))
+                if field_name == "name":
+                    item.setData(Qt.ItemDataRole.UserRole, path)
+                    item.setForeground(QColor("#6d7be0"))
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
+                table.setItem(row, col, item)
 
-            item_last_opened = QTableWidgetItem(info["last_opened"])
-            item_last_opened.setForeground(QColor("#ededef"))
+        last_opened_col_index = list(columns.keys()).index("Last opened")
+        table.setSortingEnabled(True)
+        table.sortByColumn(last_opened_col_index, Qt.SortOrder.DescendingOrder)
 
-            item_recorded = QTableWidgetItem(info.get("recorded", "-"))
-            item_recorded.setForeground(QColor("#ededef"))
+    def on_recording_table_cell_clicked(self, row: int, column: int) -> None:
+        self._on_table_cell_clicked(self.recording_table, row, column)
 
-            item_path = QTableWidgetItem(path)
-            item_path.setForeground(QColor("#666"))
-            item_path.setToolTip(path)
+    def on_workspace_table_cell_clicked(self, row: int, column: int) -> None:
+        self._on_table_cell_clicked(self.workspace_table, row, column)
 
-            self.table.setItem(row, 0, item_name)
-            self.table.setItem(row, 1, item_wearer)
-            self.table.setItem(row, 2, item_last_opened)
-            self.table.setItem(row, 3, item_recorded)
-            self.table.setItem(row, 4, item_path)
+    @staticmethod
+    def _on_table_cell_clicked(table: QTableWidget, row: int, column: int) -> None:
+        item = table.item(row, 0)
+        if item is None:
+            return
 
-        self.table.setSortingEnabled(True)
-        self.table.sortByColumn(2, Qt.SortOrder.DescendingOrder)
-
-    def on_table_cell_clicked(self, row: int, column: int) -> None:
-        item = self.table.item(row, 0)
         path_str = item.data(Qt.ItemDataRole.UserRole)
         if not path_str:
             return
 
         neon_player.instance().load(Path(path_str))
+
+    @staticmethod
+    def _create_heading_with_icon(heading: str, icon_path: str) -> QHBoxLayout:
+        layout = QHBoxLayout()
+        icon = QLabel()
+        icon.setPixmap(QPixmap(icon_path))
+        layout.addWidget(icon)
+        layout.addWidget(QLabel(f"<h2>{heading}</h2>"))
+        layout.addStretch()
+        return layout
+
+    @staticmethod
+    def _create_empty_history_label(entity: str) -> QLabel:
+        label = QLabel(f"Recently opened {entity} will appear here.")
+        label.setAlignment(Qt.AlignmentFlag.AlignTop)
+        label.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
+        )
+        label.setVisible(False)
+        return label
+
+    def _create_history_table(self, columns: dict[str, str]) -> QTableWidget:
+        num_columns = len(columns)
+
+        table = HoverRowTable(self)
+        table.setColumnCount(num_columns)
+        table.setHorizontalHeaderLabels(list(columns.keys()))
+
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        table.setShowGrid(False)
+        table.setWordWrap(False)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+
+        horiz_header = table.horizontalHeader()
+        horiz_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        horiz_header.setSectionResizeMode(num_columns - 1, QHeaderView.ResizeMode.Stretch)
+        horiz_header.setDefaultAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        horiz_header.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        vert_header = table.verticalHeader()
+        vert_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        vert_header.setVisible(False)
+
+        return table
 
 
 class MainWindow(QMainWindow):
@@ -493,7 +560,7 @@ class MainWindow(QMainWindow):
         self.on_workspace_closed()
         self.status_label.clicked.connect(self.console_window.show)
 
-    def reset_docks(self):
+    def reset_docks(self) -> None:
         docks_and_areas = {
             self.timeline_dock: Qt.DockWidgetArea.BottomDockWidgetArea,
             self.settings_dock: Qt.DockWidgetArea.RightDockWidgetArea,
@@ -505,7 +572,7 @@ class MainWindow(QMainWindow):
             dock.setFloating(False)
             dock.show()
 
-    def on_workspace_opened(self):
+    def on_workspace_opened(self) -> None:
         app = neon_player.instance()
 
         self.greeting_switcher.setCurrentIndex(1)
@@ -516,10 +583,10 @@ class MainWindow(QMainWindow):
         self.menuBar().show()
         self.statusBar().show()
 
-    def on_recording_opened(self):
+    def on_recording_opened(self) -> None:
         QTimer.singleShot(1, self.timeline.reset_view)
 
-    def on_workspace_closed(self):
+    def on_workspace_closed(self) -> None:
         self.greeting_switcher.setCurrentIndex(0)
         self.timeline_dock.hide()
         self.settings_dock.hide()
@@ -528,7 +595,7 @@ class MainWindow(QMainWindow):
         self.statusBar().hide()
 
     def on_show_recent_action(self) -> None:
-        self.recent_widget.update_recent_recordings()
+        self.recent_widget.update_load_history()
         self.greeting_switcher.setCurrentIndex(2)
 
     def on_show_splash_action(self) -> None:
