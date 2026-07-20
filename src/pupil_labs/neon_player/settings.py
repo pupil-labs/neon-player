@@ -48,6 +48,25 @@ def get_property_scopes(plugin_cls: type) -> dict[str, list[str]]:
     return scopes
 
 
+def filter_state_by_scope(
+    state: dict[str, T.Any],
+    property_scopes: dict[str, list[str]],
+    target_scope: str
+) -> dict[str, T.Any]:
+    """
+    Filter a plugin state dictionary to include only values of properties that
+    have the target scope.
+    """
+    filtered_state = {}
+
+    for key, value in state.items():
+        scope = property_scopes.get(key, [])
+        if target_scope in scope:
+            filtered_state[key] = value
+
+    return filtered_state
+
+
 def merge_plugin_states(
     saved_states: dict[str, dict],
     new_states: dict[str, dict],

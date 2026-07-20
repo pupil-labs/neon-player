@@ -45,7 +45,7 @@ from pupil_labs.neon_player.plugins import (
 )
 from pupil_labs.neon_player.history import LoadHistory
 from pupil_labs.neon_player.settings import (
-    GeneralSettings, PluginSettingsDispatcher
+    GeneralSettings, PluginSettingsDispatcher, filter_state_by_scope
 )
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
@@ -357,23 +357,29 @@ class NeonPlayerApp(QApplication):
                     logging.warning(f"Couldn't enable plugin class: {kls}")
                 return
 
-        plugin_exists = kls.__name__ in self.plugins_by_class
-        if plugin_exists and not isinstance(self.plugins_by_class[kls.__name__], kls):
-            raise RuntimeError(f"Invalid instance of plugin found: {kls.__name__}")
-        currently_enabled = plugin_exists and self.plugins_by_class[kls.__name__]._enabled
+        class_name = kls.__name__
+        plugin_exists = class_name in self.plugins_by_class
+        if plugin_exists and not isinstance(self.plugins_by_class[class_name], kls):
+            raise RuntimeError(f"Invalid instance of plugin found: {class_name}")
+        currently_enabled = plugin_exists and self.plugins_by_class[class_name]._enabled
 
         if enabled and not currently_enabled:
-            logging.info(f"Enabling plugin: {kls.__name__}")
+            logging.info(f"Enabling plugin: {class_name}")
             try:
                 if state is None:
-                    state = self.session_settings.plugin_states.get(kls.__name__, {})
+                    state = self.session_settings.plugin_states.get(class_name, {})
 
                 if plugin_exists:
-                    plugin = self.plugins_by_class[kls.__name__]
+                    # NOTE: in multi-recording mode, the plugin instance is re-used when
+                    # switching between recordings, so it is sufficient to update only
+                    # the values of recording-specific properties
+                    plugin = self.plugins_by_class[class_name]
+                    property_scopes = self.session_settings.property_scopes.get(class_name, {})
+                    state = filter_state_by_scope(state, property_scopes, "recording")
                     plugin.__setstate__(state)
                 else:
                     plugin = kls.from_dict(state)
-                    self.plugins_by_class[kls.__name__] = plugin
+                    self.plugins_by_class[class_name] = plugin
 
                     plugin.changed.connect(self.main_window.video_widget.update)
                     SlotDebouncer.debounce(plugin.changed, self.save_settings)
@@ -388,17 +394,17 @@ class NeonPlayerApp(QApplication):
                 return
 
         elif not enabled and currently_enabled:
-            plugin = self.plugins_by_class[kls.__name__]
+            plugin = self.plugins_by_class[class_name]
 
             plugin.on_disabled()
             plugin._enabled = False
-            self.main_window.settings_panel.remove_plugin_settings(kls.__name__)
+            self.main_window.settings_panel.remove_plugin_settings(class_name)
             if delete:
                 plugin.on_deleted()
                 plugin.deleteLater()
-                del self.plugins_by_class[kls.__name__]
+                del self.plugins_by_class[class_name]
 
-            logging.info(f"Disabled plugin: {kls.__name__}")
+            logging.info(f"Disabled plugin: {class_name}")
 
         self.plugins = [p for p in self.plugins_by_class.values() if p._enabled]
         self.plugins.sort(key=lambda p: p.render_layer)
