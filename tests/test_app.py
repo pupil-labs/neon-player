@@ -63,3 +63,6 @@ def test__toggle_plugin__enable_from_existing(qapp):
     plugin = qapp.plugins_by_class[MyPlugin.__name__]
     assert plugin.prop1 == "new_value1"
     assert plugin.prop2 == "old_value2"
+
+    # Ensure that regular fields remain unchanged
+    assert plugin._var == "var"
