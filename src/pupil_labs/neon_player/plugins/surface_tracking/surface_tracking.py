@@ -171,6 +171,12 @@ class SurfaceTrackingPlugin(Plugin):
         for marker_widget in self.marker_edit_widgets.values():
             marker_widget.hide()
 
+        # Invalidate recording-specific data to safely switch between recordings
+        self.markers_by_frame = []
+        self._markers_loaded = False
+        self.surface_locations = {}
+
+    def on_deleted(self) -> None:
         for surface in self._surfaces:
             surface.jobs.clear()
             surface.marker_edit_changed.disconnect()
@@ -238,6 +244,8 @@ class SurfaceTrackingPlugin(Plugin):
 
         self.marker_cache_file = self.get_cache_path() / "markers.npy"
         self.attempt_marker_cache_load()
+        for surface in self.surfaces:
+            self.attempt_load_surface_locations(surface)
 
     def _get_own_job_name(self) -> str | None:
         if not self.app.args.job:
@@ -646,6 +654,7 @@ class SurfaceTrackingPlugin(Plugin):
             heatmap_job.finished.connect(
                 lambda: self._load_surface_heatmap(surface_uid)
             )
+            return
 
         # In multi-recording mode, calculate a heatmap for each recording and aggregate
         heatmap_job = self.job_manager.run_background_batch_action(
@@ -654,12 +663,8 @@ class SurfaceTrackingPlugin(Plugin):
             lambda _: [surface_uid],
         )
         surface.add_bg_job(heatmap_job)
-
-        # NOTE: to allow switching between recordings while the batch job is running,
-        # we connect the signal to whatever instance of the plugin is currently active,
-        # since the one that started the job may already be disabled and destroyed
         heatmap_job.finished.connect(
-            lambda: SurfaceTrackingPlugin.instance()._build_aggregate_heatmap(surface_uid)
+            lambda: self._build_aggregate_heatmap(surface_uid)
         )
 
     def bg_build_heatmap(
@@ -884,10 +889,6 @@ class SurfaceTrackingPlugin(Plugin):
                     surface.name = candidate_name
                 surface_counter += 1
 
-            # When switching between recordings in workspace mode, detect any
-            # surface-related background jobs that are already running
-            surface.jobs = self.get_surface_jobs(surface.uid)
-
             surface.changed.connect(self.changed.emit)
             SlotDebouncer.debounce(
                 surface.heatmap_invalidated,
@@ -993,21 +994,6 @@ class SurfaceTrackingPlugin(Plugin):
         for s in self._surfaces:
             if s.uid == uid:
                 return s
-
-    def get_surface_jobs(self, surface_uid: str) -> list[BaseBackgroundJob]:
-        jobs = []
-        for job in self.job_manager.current_jobs:
-            plugin_name  = job.action_name.split(".")[0]
-            if plugin_name != self.__class__.__name__:
-                continue
-
-            is_batch_job = isinstance(job, BatchBackgroundJob)
-            job_args = job.args_generator(self.recording) if is_batch_job else job.args
-            if surface_uid not in job_args:
-                continue
-
-            jobs.append(job)
-        return jobs
 
     def bg_detect_markers(self) -> T.Generator[ProgressUpdate, None, None]:
         logging.info("Detecting markers...")

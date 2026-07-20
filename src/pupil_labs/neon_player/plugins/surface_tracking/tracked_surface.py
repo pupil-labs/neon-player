@@ -178,7 +178,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._edit_frame_idx = -1
 
         self._location = None
-        self._location = None
 
         self.preview_window = None
         self.handle_widgets = {}
