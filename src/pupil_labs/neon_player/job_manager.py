@@ -250,7 +250,10 @@ class BatchBackgroundJob(BaseBackgroundJob):
             shutil.copy(original_path, tmp_path)
 
     def _clear_tmp_settings(self):
-        shutil.rmtree(self._tmp_settings_path)
+        try:
+            shutil.rmtree(self._tmp_settings_path)
+        except Exception:
+            logging.warning(f"Failed to clear a temporary copy of settings")
 
     def _submit_next_sub_job(self):
         if self._canceled:
