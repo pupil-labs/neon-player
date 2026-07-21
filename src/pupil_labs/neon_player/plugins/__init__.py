@@ -124,7 +124,11 @@ class Plugin(PersistentPropertiesMixin, QObject):
         reply = QMessageBox.question(None, title, message)
         return reply == QMessageBox.StandardButton.Yes
 
-    def get_cache_path(self, workspace: bool = False, recording: NeonRecording | None = None) -> Path | None:
+    def get_cache_path(
+        self,
+        workspace: bool = False,
+        recording: NeonRecording | None = None
+    ) -> Path | None:
         if workspace and self.workspace.path is not None:
             cache_dir = self.workspace.path / ".neon_player" / "cache"
             return cache_dir / self.__class__.__name__
@@ -139,7 +143,10 @@ class Plugin(PersistentPropertiesMixin, QObject):
         return cache_dir / self.__class__.__name__
 
     def load_cached_json(
-        self, filename: str, workspace: bool = False, recording: NeonRecording | None = None
+        self,
+        filename: str,
+        workspace: bool = False,
+        recording: NeonRecording | None = None
     ) -> T.Any:
         cache_path = self.get_cache_path(workspace=workspace, recording=recording)
         if cache_path is None:
@@ -153,7 +160,11 @@ class Plugin(PersistentPropertiesMixin, QObject):
             return json.load(f)
 
     def save_cached_json(
-        self, filename: str, data: T.Any, workspace: bool = False, recording: NeonRecording | None = None
+        self,
+        filename: str,
+        data: T.Any,
+        workspace: bool = False,
+        recording: NeonRecording | None = None
     ) -> None:
         cache_path = self.get_cache_path(workspace=workspace, recording=recording)
         if cache_path is None:
