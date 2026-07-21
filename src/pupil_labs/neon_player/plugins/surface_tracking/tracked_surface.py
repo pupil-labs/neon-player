@@ -236,32 +236,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
         self.handle_widgets = {}
 
-    def cleanup_cache(self):
-        surface_files = [
-            "surface.pkl",
-            "locations.npy",
-            "heatmap.png",
-            "surface_visibility.pkl",
-            "gazes.pkl"
-        ]
-        workspace_surface_files = ["surface.pkl", "heatmap.png"]
-
-        workspace_cache_path = self.tracker_plugin.get_cache_path(workspace=True)
-        for surface_file in surface_files:
-            file_path = self.tracker_plugin.get_cache_path() / f"{self.uid}_{surface_file}"
-            if file_path.exists():
-                file_path.unlink()
-
-            if not self.tracker_plugin.batch_mode_enabled:
-                continue
-
-            if surface_file not in workspace_surface_files:
-                continue
-
-            workspace_file_path = workspace_cache_path / f"{self.uid}_{surface_file}"
-            if workspace_file_path.exists():
-                workspace_file_path.unlink()
-
     def add_marker(self, marker_uid: str) -> None:
         frame_idx = self.tracker_plugin.get_scene_idx_for_time()
         markers = self.tracker_plugin.markers_by_frame[frame_idx]

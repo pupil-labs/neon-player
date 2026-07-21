@@ -1,7 +1,8 @@
-import typing as T
-
 import cv2
 import numpy as np
+import typing as T
+
+from pathlib import Path
 from pyqtgraph.functions import imageToArray
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QImage
@@ -32,6 +33,11 @@ def qimage_from_frame(frame: np.ndarray | None) -> QImage:
 
 def ndarray_from_qimage(image: QImage) -> np.ndarray:
     return imageToArray(image, transpose=False)
+
+
+def remove_file_if_exists(path: Path) -> None:
+    if path.exists():
+        path.unlink()
 
 
 def clone_menu(menu: QMenu) -> QMenu:

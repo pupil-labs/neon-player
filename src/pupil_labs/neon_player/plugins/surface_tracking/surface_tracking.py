@@ -49,6 +49,7 @@ from pupil_labs.neon_player.utilities import (
     SlotDebouncer,
     ndarray_from_qimage,
     qimage_from_frame,
+    remove_file_if_exists,
 )
 
 from .tracked_surface import TrackedSurface
@@ -169,7 +170,7 @@ class SurfaceTrackingPlugin(Plugin):
 
         # Surfaces are not re-loaded when switching between recordings within a
         # workspace, so we trigger a reload of surface locations manually
-        if self.batch_mode_enabled:
+        if self.batch_mode_enabled and not self.headless:
             for surface in self.surfaces:
                 self.attempt_load_surface_locations(surface)
 
@@ -271,10 +272,10 @@ class SurfaceTrackingPlugin(Plugin):
                 self._load_marker_cache()
 
         else:
-            self.marker_detection_job = self.job_manager.run_background_action(
+            marker_detection_job = self.job_manager.run_background_action(
                 "Detect Markers", "SurfaceTrackingPlugin.bg_detect_markers"
             )
-            self.marker_detection_job.finished.connect(self._load_marker_cache)
+            marker_detection_job.finished.connect(self._load_marker_cache)
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:  # noqa: C901
         self._update_displays()
@@ -597,6 +598,19 @@ class SurfaceTrackingPlugin(Plugin):
 
             self.attempt_load_surface_heatmap(surface_uid)
 
+    def _cleanup_surface_locations_cache(self, surface_uid: str) -> None:
+        recordings_to_consider = [self.recording]
+        if self.batch_mode_enabled:
+            recordings_to_consider = self.workspace.recordings
+
+        files_to_consider = ["locations.npy", "surface_visibility.pkl", "gazes.pkl"]
+
+        for recording in recordings_to_consider:
+            locations_path = self.get_cache_path(recording=recording)
+            for file_name in files_to_consider:
+                file_path = locations_path / f"{surface_uid}_{file_name}"
+                remove_file_if_exists(file_path)
+
     def add_visibility_timeline(self, surface):
         surf_viz_path = self.get_cache_path() / f"{surface.uid}_surface_visibility.pkl"
         if not surf_viz_path.exists():
@@ -798,18 +812,23 @@ class SurfaceTrackingPlugin(Plugin):
         self.trigger_scene_update()
         self.add_surface_gaze_timeline(surface)
 
-    def recalculate_heatmap(self, surface_uid: str) -> None:
+    def _cleanup_surface_heatmap_cache(self, surface_uid: str) -> None:
         cache_path = self.get_cache_path(workspace=self.batch_mode_enabled)
         cache_file = cache_path / f"{surface_uid}_heatmap.png"
         if cache_file.exists():
             cache_file.unlink()
 
-        if self.batch_mode_enabled:
-            for recording in self.workspace.recordings:
-                cache_path = self.get_cache_path(recording=recording)
-                cache_file = cache_path / f"{surface_uid}_heatmap.png"
-                if cache_file.exists():
-                    cache_file.unlink()
+        if not self.batch_mode_enabled:
+            return
+
+        for recording in self.workspace.recordings:
+            cache_path = self.get_cache_path(recording=recording)
+            cache_file = cache_path / f"{surface_uid}_heatmap.png"
+            if cache_file.exists():
+                cache_file.unlink()
+
+    def recalculate_heatmap(self, surface_uid: str) -> None:
+        self._cleanup_surface_heatmap_cache(surface_uid)
 
         self.get_surface(surface_uid)._heatmap = None
         self.trigger_scene_update()
@@ -906,14 +925,22 @@ class SurfaceTrackingPlugin(Plugin):
             surface.marker_edit_changed.disconnect()
             surface.locations_invalidated.disconnect()
 
+            self._cleanup_surface_cache(surface.uid)
             surface.cleanup_widgets()
-            surface.cleanup_cache()
             surface.cancel_bg_jobs()
 
             self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
             self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
 
         self.changed.emit()
+
+    def _cleanup_surface_cache(self, surface_uid: str) -> None:
+        self._cleanup_surface_locations_cache(surface_uid)
+        self._cleanup_surface_heatmap_cache(surface_uid)
+
+        surface_cache_path = self.get_cache_path(workspace=self.batch_mode_enabled)
+        surface_file = surface_cache_path / f"{surface_uid}_surface.pkl"
+        remove_file_if_exists(surface_file)
 
     def on_marker_edit_changed(self, surface: "TrackedSurface") -> None:
         if surface.edit:
@@ -931,14 +958,7 @@ class SurfaceTrackingPlugin(Plugin):
                 w.hide()
 
     def on_locations_invalidated(self, surface: "TrackedSurface") -> None:
-        recordings_to_consider = [self.recording]
-        if self.batch_mode_enabled:
-            recordings_to_consider = self.workspace.recordings
-
-        for recording in recordings_to_consider:
-            locations_path = self.get_cache_path(recording=recording) / f"{surface.uid}_locations.npy"
-            if locations_path.exists():
-                locations_path.unlink()
+        self._cleanup_surface_locations_cache(surface.uid)
 
         cache_path = self.get_cache_path(workspace=self.batch_mode_enabled)
         surf_path = cache_path / f"{surface.uid}_surface.pkl"
