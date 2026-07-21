@@ -303,7 +303,7 @@ class JobManager(QObject):
     def __init__(self):
         super().__init__()
         self.current_jobs = []
-        self.job_counter = 0
+        self._job_counter = 0
 
     def work_job(self, job: T.Generator[ProgressUpdate, None, None]) -> None:
         ipc_name = neon_player.instance().progress_ipc_name
@@ -370,14 +370,14 @@ class JobManager(QObject):
 
         job = BackgroundJob(
             name,
-            self.job_counter,
+            self._job_counter,
             rec_dir,
             action_name,
             *args,
             recording_settings_path=recording_settings_path,
             workspace_settings_path=workspace_settings_path,
         )
-        self.job_counter += 1
+        self._job_counter += 1
 
         job.canceled.connect(lambda: self.on_job_canceled(job))
         job.finished.connect(lambda: self.on_job_finished(job, notify_on_completion))
@@ -402,12 +402,12 @@ class JobManager(QObject):
 
         job = BatchBackgroundJob(
             name,
-            self.job_counter,
+            self._job_counter,
             action_name,
             args_generator=args_generator,
             recordings=recordings
         )
-        self.job_counter += 1
+        self._job_counter += 1
 
         job.canceled.connect(lambda: self.on_job_canceled(job))
         job.finished.connect(lambda: self.on_job_finished(job))
@@ -436,7 +436,6 @@ class JobManager(QObject):
         self.updated.emit()
 
     def remove_job(self, job: BaseBackgroundJob) -> None:
-        self.job_counter -= 1
         with contextlib.suppress(ValueError):
             self.current_jobs.remove(job)
         self.job_finished.emit(job)
