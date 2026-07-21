@@ -42,7 +42,7 @@ from qt_property_widgets.utilities import action_params, property_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action
-from pupil_labs.neon_player.job_manager import BaseBackgroundJob, BatchBackgroundJob
+from pupil_labs.neon_player.plugins.shared import run_export_across_recordings
 from pupil_labs.neon_player.settings import SessionSettings
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.utilities import (
@@ -135,6 +135,7 @@ class SurfaceTrackingPlugin(Plugin):
         "bg_detect_markers": [],
         "bg_detect_surface_locations": ["markers"],
         "bg_build_heatmap": ["surface_locations", "markers"],
+        "bg_batch_export": ["surface_locations", "markers"],
     }
 
     def __init__(self) -> None:
@@ -181,7 +182,7 @@ class SurfaceTrackingPlugin(Plugin):
         for marker_widget in self.marker_edit_widgets.values():
             marker_widget.hide()
 
-        # Invalidate recording-specific data to safely switch between recordings
+        # Clean up recording-specific data to safely switch between recordings
         self.markers_by_frame = []
         self._markers_loaded = False
         self.surface_locations = {}
@@ -755,7 +756,9 @@ class SurfaceTrackingPlugin(Plugin):
     def _build_aggregate_heatmap(self, surface_uid: str) -> None:
         surface = self.get_surface(surface_uid)
         if surface is None:
-            logging.error(f"Surface with UID {surface_uid} not found. Cannot build aggregate heatmap.")
+            logging.error(
+                f"Surface with UID {surface_uid} not found. "
+                f"Cannot build aggregate heatmap.")
             return
 
         logging.info(f"Building aggregate heatmap for surface {surface.name}")
@@ -1174,6 +1177,30 @@ class SurfaceTrackingPlugin(Plugin):
                 destination,
             )
 
+            if not self.batch_mode_enabled:
+                surface.export_heatmap(destination)
+
+    def bg_batch_export(
+        self, destination: Path = Path()
+    ) -> T.Generator[ProgressUpdate, None, None]:
+        total_surfaces = len(self._surfaces)
+        for idx, surface in enumerate(self._surfaces):
+            bg_generator = self.bg_export_surface_gazes(surface.uid, destination)
+            self.job_manager.run_in_foreground(bg_generator)
+
+            bg_generator = self.bg_export_surface_fixations(surface.uid, destination)
+            self.job_manager.run_in_foreground(bg_generator)
+
+            yield ProgressUpdate(progress=(idx + 1) / total_surfaces)
+
+    @action
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
+    def export_all_recordings(self, destination: Path = Path()) -> None:
+        run_export_across_recordings(self, destination, action_name="bg_batch_export")
+
+        for surface in self._surfaces:
+            surface.export_heatmap(destination)
+
     def _get_gazes_in_export_window(self):
         start_time, stop_time = self.app.get_export_window()
         start_mask = self.recording.gaze.time >= start_time
@@ -1181,13 +1208,17 @@ class SurfaceTrackingPlugin(Plugin):
 
         return self.recording.gaze[start_mask & stop_mask]
 
-    def bg_export_surface_gazes(self, surface_uid: str, destination: Path):
+    def bg_export_surface_gazes(
+        self, surface_uid: str, destination: Path
+    ) -> T.Generator[ProgressUpdate, None, None]:
         gazes_in_window = self._get_gazes_in_export_window()
         surface = self.get_surface(surface_uid)
         surface.export_gazes(gazes_in_window, destination)
         yield ProgressUpdate(1.0)
 
-    def bg_export_surface_fixations(self, surface_uid: str, destination: Path):
+    def bg_export_surface_fixations(
+        self, surface_uid: str, destination: Path
+    ) -> T.Generator[ProgressUpdate, None, None]:
         try:
             gazes_in_window = self._get_gazes_in_export_window()
             surface = self.get_surface(surface_uid)

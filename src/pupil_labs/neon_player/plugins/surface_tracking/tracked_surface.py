@@ -538,6 +538,10 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             destination / f"gaze_positions_on_surface_{self.name}.csv", index=False
         )
 
+    def export_heatmap(self, destination: Path = Path()):
+        if self._heatmap is None:
+            return
+
         cv2.imwrite(
             destination / f"{self.name}_heatmap.png",
             cv2.applyColorMap(self._heatmap, self.heatmap_color.value),
