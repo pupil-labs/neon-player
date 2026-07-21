@@ -155,12 +155,22 @@ class SurfaceTrackingPlugin(Plugin):
         self.marker_edit_widgets = {}
         self.header_action = ListPropertyAppenderAction("surfaces", "+ Add surface")
 
-    @staticmethod
-    def instance() -> "SurfaceTrackingPlugin":
-        instance = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
-        if instance is None or not isinstance(instance, SurfaceTrackingPlugin):
-            raise RuntimeError("SurfaceTrackingPlugin instance not found")
-        return instance
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
+        self.camera = Camera(
+            recording.scene.width,
+            recording.scene.height,
+            self.recording.calibration.scene_camera_matrix,
+            self.recording.calibration.scene_distortion_coefficients,
+        )
+
+        self.marker_cache_file = self.get_cache_path() / "markers.npy"
+        self.attempt_marker_cache_load()
+
+        # Surfaces are not re-loaded when switching between recordings within a
+        # workspace, so we trigger a reload of surface locations manually
+        if self.batch_mode_enabled:
+            for surface in self.surfaces:
+                self.attempt_load_surface_locations(surface)
 
     def on_disabled(self) -> None:
         self.get_timeline().remove_timeline_plot("Marker visibility")
@@ -178,11 +188,11 @@ class SurfaceTrackingPlugin(Plugin):
 
     def on_deleted(self) -> None:
         for surface in self._surfaces:
-            surface.jobs.clear()
             surface.marker_edit_changed.disconnect()
             surface.locations_invalidated.disconnect()
             surface.cleanup_widgets()
             surface.cleanup_edit_dialog()
+            surface.cancel_bg_jobs()
 
         self._surfaces.clear()
 
@@ -233,19 +243,6 @@ class SurfaceTrackingPlugin(Plugin):
                 vrw.set_child_scaled_center(
                     marker_widget, distorted_center[0], distorted_center[1]
                 )
-
-    def on_recording_loaded(self, recording: NeonRecording) -> None:
-        self.camera = Camera(
-            recording.scene.width,
-            recording.scene.height,
-            self.recording.calibration.scene_camera_matrix,
-            self.recording.calibration.scene_distortion_coefficients,
-        )
-
-        self.marker_cache_file = self.get_cache_path() / "markers.npy"
-        self.attempt_marker_cache_load()
-        for surface in self.surfaces:
-            self.attempt_load_surface_locations(surface)
 
     def _get_own_job_name(self) -> str | None:
         if not self.app.args.job:
@@ -548,6 +545,7 @@ class SurfaceTrackingPlugin(Plugin):
 
         if not self.app.headless:
             self._start_bg_surface_locator(surface)
+            return
 
         # Skip computation of surface locations before marker detection is complete
         # (surface definition from settings is loaded before markers for a given recording)
@@ -912,30 +910,9 @@ class SurfaceTrackingPlugin(Plugin):
             surface.locations_invalidated.disconnect()
 
             surface.cleanup_widgets()
-
-            surface_files = [
-                "surface.pkl",
-                "locations.npy",
-                "heatmap.png",
-                "surface_visibility.pkl",
-                "gazes.pkl"
-            ]
-            workspace_surface_files = ["surface.pkl", "heatmap.png"]
-            workspace_cache_path = self.get_cache_path(workspace=True)
-            for surface_file in surface_files:
-                file_path = self.get_cache_path() / f"{surface.uid}_{surface_file}"
-                if file_path.exists():
-                    file_path.unlink()
-
-                if not self.batch_mode_enabled:
-                    continue
-
-                if surface_file not in workspace_surface_files:
-                    continue
-
-                workspace_file_path = workspace_cache_path / f"{surface.uid}_{surface_file}"
-                if workspace_file_path.exists():
-                    workspace_file_path.unlink()
+            surface.cleanup_cache()
+            surface.cleanup_edit_dialog()
+            surface.cancel_bg_jobs()
 
             self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
             self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
@@ -977,9 +954,15 @@ class SurfaceTrackingPlugin(Plugin):
         surface.preview_options.render_size = [0, 0]
         self.trigger_scene_update()
 
-        self._start_bg_surface_locator(surface)
+        self._start_bg_surface_locator(surface, cancel_batch_jobs=True)
 
-    def _start_bg_surface_locator(self, surface: "TrackedSurface", *args, **kwargs):
+    def _start_bg_surface_locator(
+        self,
+        surface: "TrackedSurface",
+        *args,
+        cancel_batch_jobs: bool = False,
+        **kwargs
+    ):
         job = self.job_manager.run_background_action(
             f"Detect Surface Locations [{surface.name}]",
             "SurfaceTrackingPlugin.bg_detect_surface_locations",
@@ -987,7 +970,7 @@ class SurfaceTrackingPlugin(Plugin):
             *args,
             **kwargs,
         )
-        surface.add_bg_job(job)
+        surface.add_bg_job(job, cancel_batch_jobs=cancel_batch_jobs)
         job.finished.connect(lambda: self._load_surface_locations_cache(surface.uid))
 
     def get_surface(self, uid: str):

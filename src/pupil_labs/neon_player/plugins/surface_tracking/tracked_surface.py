@@ -23,6 +23,7 @@ from qt_property_widgets.utilities import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, action, asset_path
+from pupil_labs.neon_player.job_manager import BatchBackgroundJob
 from pupil_labs.neon_player.plugins.gaze import CircleViz, GazeVisualization
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
@@ -199,13 +200,20 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         if not app.headless:
             self.edit_widget.setParent(app.main_window.video_widget)
 
-    def add_bg_job(self, job):
+    def add_bg_job(self, job, cancel_batch_jobs: bool = False):
         for j in self.jobs:
+            if isinstance(j, BatchBackgroundJob) and not cancel_batch_jobs:
+                continue
+
             j.cancel()
 
         self.jobs.append(job)
         job.finished.connect(lambda: self._remove_job(job))
         job.canceled.connect(lambda: self._remove_job(job))
+
+    def cancel_bg_jobs(self):
+        for j in self.jobs:
+            j.cancel()
 
     def _remove_job(self, job):
         with contextlib.suppress(ValueError):
@@ -248,6 +256,32 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self.edit_widget.setParent(None)
         self.edit_widget.deleteLater()
         self.edit_widget = None
+
+    def cleanup_cache(self):
+        surface_files = [
+            "surface.pkl",
+            "locations.npy",
+            "heatmap.png",
+            "surface_visibility.pkl",
+            "gazes.pkl"
+        ]
+        workspace_surface_files = ["surface.pkl", "heatmap.png"]
+
+        workspace_cache_path = self.tracker_plugin.get_cache_path(workspace=True)
+        for surface_file in surface_files:
+            file_path = self.tracker_plugin.get_cache_path() / f"{self.uid}_{surface_file}"
+            if file_path.exists():
+                file_path.unlink()
+
+            if not self.tracker_plugin.batch_mode_enabled:
+                continue
+
+            if surface_file not in workspace_surface_files:
+                continue
+
+            workspace_file_path = workspace_cache_path / f"{self.uid}_{surface_file}"
+            if workspace_file_path.exists():
+                workspace_file_path.unlink()
 
     def add_marker(self, marker_uid: str) -> None:
         frame_idx = self.tracker_plugin.get_scene_idx_for_time()
