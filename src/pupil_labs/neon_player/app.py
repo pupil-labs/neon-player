@@ -384,11 +384,11 @@ class NeonPlayerApp(QApplication):
                     plugin.changed.connect(self.main_window.video_widget.update)
                     SlotDebouncer.debounce(plugin.changed, self.save_settings)
 
-                self.main_window.settings_panel.add_plugin_settings(plugin)
                 if self.recording:
                     plugin.on_recording_loaded(self.recording)
 
                 plugin._enabled = True
+                self.main_window.settings_panel.add_plugin_settings(plugin)
             except Exception:
                 logging.exception(f"Failed to enable plugin {kls}")
                 return

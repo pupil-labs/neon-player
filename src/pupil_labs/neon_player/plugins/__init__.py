@@ -85,7 +85,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
     def unregister_data_point_action(
         self, event_name: str, action_name: str
-    ):
+    ) -> None:
         self.app.main_window.timeline.unregister_data_point_action(
             event_name, action_name
         )
@@ -124,30 +124,53 @@ class Plugin(PersistentPropertiesMixin, QObject):
         reply = QMessageBox.question(None, title, message)
         return reply == QMessageBox.StandardButton.Yes
 
-    def get_cache_path(self) -> Path:
-        if self.recording is None:
+    def get_cache_path(
+        self,
+        workspace: bool = False,
+        recording: NeonRecording | None = None
+    ) -> Path | None:
+        if workspace and self.workspace.path is not None:
+            cache_dir = self.workspace.path / ".neon_player" / "cache"
+            return cache_dir / self.__class__.__name__
+
+        if recording is None:
+            recording = self.recording
+
+        if recording is None:
             return None
 
-        cache_dir = self.recording._rec_dir / ".neon_player" / "cache"
+        cache_dir = recording._rec_dir / ".neon_player" / "cache"
         return cache_dir / self.__class__.__name__
 
-    def load_cached_json(self, filename: str) -> T.Any:
-        if self.recording is None:
+    def load_cached_json(
+        self,
+        filename: str,
+        workspace: bool = False,
+        recording: NeonRecording | None = None
+    ) -> T.Any:
+        cache_path = self.get_cache_path(workspace=workspace, recording=recording)
+        if cache_path is None:
             return None
 
-        cache_file = self.get_cache_path() / filename
-
+        cache_file = cache_path / filename
         if not cache_file.exists():
             return None
 
         with cache_file.open("r") as f:
             return json.load(f)
 
-    def save_cached_json(self, filename: str, data: T.Any) -> None:
-        if self.recording is None:
+    def save_cached_json(
+        self,
+        filename: str,
+        data: T.Any,
+        workspace: bool = False,
+        recording: NeonRecording | None = None
+    ) -> None:
+        cache_path = self.get_cache_path(workspace=workspace, recording=recording)
+        if cache_path is None:
             return
 
-        cache_file = self.get_cache_path() / filename
+        cache_file = cache_path / filename
         cache_file.parent.mkdir(parents=True, exist_ok=True)
 
         with cache_file.open("w") as f:
@@ -189,6 +212,11 @@ class Plugin(PersistentPropertiesMixin, QObject):
     @property_params(widget=None, dont_encode=True)
     def app(self) -> "NeonPlayerApp":
         return neon_player.instance()
+
+    @property
+    @property_params(widget=None, dont_encode=True)
+    def batch_mode_enabled(self) -> bool:
+        return getattr(self.app, "batch_mode_enabled", False)
 
     @property
     @property_params(widget=None, dont_encode=True)

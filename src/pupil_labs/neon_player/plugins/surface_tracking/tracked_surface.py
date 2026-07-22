@@ -22,6 +22,7 @@ from qt_property_widgets.utilities import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, action
+from pupil_labs.neon_player.job_manager import BatchBackgroundJob
 from pupil_labs.neon_player.plugins.gaze import CircleViz, GazeVisualization
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
@@ -163,6 +164,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._heatmap_alpha = 0.75
         self._heatmap = None
         self._heatmap_color = ColorMap.Jet
+        self._defining_recording_id = ""
         self._defining_frame_index = -1
 
         self.tracker_surface = None
@@ -185,13 +187,20 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             self.heatmap_invalidated.emit
         )
 
-    def add_bg_job(self, job):
+    def add_bg_job(self, job, cancel_batch_jobs: bool = False):
         for j in self.jobs:
+            if isinstance(j, BatchBackgroundJob) and not cancel_batch_jobs:
+                continue
+
             j.cancel()
 
         self.jobs.append(job)
         job.finished.connect(lambda: self._remove_job(job))
         job.canceled.connect(lambda: self._remove_job(job))
+
+    def cancel_bg_jobs(self):
+        for j in self.jobs:
+            j.cancel()
 
     def _remove_job(self, job):
         with contextlib.suppress(ValueError):
@@ -242,6 +251,15 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def remove_marker(self, marker_uid: str) -> None:
         self.tracker_surface.remove_marker(marker_uid)
         self.locations_invalidated.emit()
+
+    @property
+    @property_params(widget=None)
+    def defining_recording_id(self) -> str:
+        return self._defining_recording_id
+
+    @defining_recording_id.setter
+    def defining_recording_id(self, value: str) -> None:
+        self._defining_recording_id = value
 
     @property
     @property_params(widget=None)
@@ -493,6 +511,10 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         gazes.to_csv(
             destination / f"gaze_positions_on_surface_{self.name}.csv", index=False
         )
+
+    def export_heatmap(self, destination: Path = Path()):
+        if self._heatmap is None:
+            return
 
         cv2.imwrite(
             destination / f"{self.name}_heatmap.png",
