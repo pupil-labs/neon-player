@@ -16,6 +16,7 @@ from qt_property_widgets.utilities import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
+from pupil_labs.neon_player.plugins.shared import run_export_across_recordings
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.utilities import (
     cart_to_spherical,
@@ -242,8 +243,13 @@ class GazeDataPlugin(neon_player.Plugin):
 
         logging.info(f"Wrote {export_file}")
 
+    @action
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
+    def export_all_recordings(self, destination: Path = Path(".")) -> None:
+        run_export_across_recordings(self, destination)
+
     @property
-    @property_params(min=-1, max=1, step=0.01, decimals=3)
+    @property_params(min=-1, max=1, step=0.01, decimals=3, scope="recording")
     def offset_x(self) -> float:
         return self._offset_x
 
@@ -253,7 +259,7 @@ class GazeDataPlugin(neon_player.Plugin):
         self.offset_changed.emit()
 
     @property
-    @property_params(min=-1, max=1, step=0.01, decimals=3)
+    @property_params(min=-1, max=1, step=0.01, decimals=3, scope="recording")
     def offset_y(self) -> float:
         return self._offset_y
 

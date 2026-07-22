@@ -7,6 +7,7 @@ from scipy.spatial.transform import Rotation
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
+from pupil_labs.neon_player.plugins.shared import run_export_across_recordings
 from pupil_labs.neon_recording import NeonRecording
 
 
@@ -52,6 +53,8 @@ class IMUPlugin(neon_player.Plugin):
         self.update_plots()
 
     def on_disabled(self) -> None:
+        self.imu_data = None
+
         timeline = self.get_timeline()
         for name in ["IMU - Orientation", "IMU - Gyroscope", "IMU - Acceleration"]:
             timeline.remove_timeline_plot(name)
@@ -110,6 +113,11 @@ class IMUPlugin(neon_player.Plugin):
 
         export_file = destination / "imu.csv"
         self.imu_data[start_mask & stop_mask].to_csv(export_file, index=False)
+
+    @action
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
+    def export_all_recordings(self, destination: Path = Path(".")) -> None:
+        run_export_across_recordings(self, destination)
 
     @property
     def orientation(self) -> bool:
