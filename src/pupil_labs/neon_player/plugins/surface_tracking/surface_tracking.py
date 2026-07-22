@@ -784,7 +784,7 @@ class SurfaceTrackingPlugin(Plugin):
             cache_file = cache_path / f"{surface_uid}_heatmap.png"
             if not cache_file.exists():
                 logging.error(
-                    f"Heatmap file not found for recording {recording._rec_dir.name}"
+                    f"Heatmap file not found for recording {recording._rec_dir.name} "
                     f"and surface {surface.name}. Stopping the aggregation."
                 )
                 return
@@ -1040,7 +1040,7 @@ class SurfaceTrackingPlugin(Plugin):
         if surface.defining_recording_id != self.recording.id:
             logging.error(
                 f"Surface {surface.name} was defined in a different recording, "
-                f"expected surface file to be available in cache but it was not found."
+                f"expected surface file to be available in cache but it was not found. "
                 f"This error indicates a problem with cache, please try to delete and "
                 f"re-create the surface."
             )
