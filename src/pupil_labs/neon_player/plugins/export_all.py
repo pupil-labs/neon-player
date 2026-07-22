@@ -29,6 +29,10 @@ class ExportAllPlugin(neon_player.Plugin):
         self._export_meta_data = True
         self._export_camera_calibrations = True
 
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
+        if not self.headless and self.batch_mode_enabled:
+            self.add_dynamic_action("Export all recordings", self.export_all_recordings)
+
     @property
     def export_meta_data(self) -> bool:
         return self._export_meta_data
@@ -121,7 +125,6 @@ class ExportAllPlugin(neon_player.Plugin):
             with export_file.open("w") as out_file:
                 json.dump(calibration, out_file)
 
-    @neon_player.action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export_all_recordings(self, destination: Path = Path(".")) -> None:
         run_export_across_recordings(

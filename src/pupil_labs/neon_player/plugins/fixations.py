@@ -39,6 +39,10 @@ class FixationsPlugin(neon_player.Plugin):
 
         self.gaze_plugin: GazeDataPlugin | None = None
         self.flow_dict: dict[int, dict[int, np.ndarray]] = {}
+
+        if self.headless:
+            return
+
         self.header_action = ListPropertyAppenderAction("visualizations", "+ Add viz")
 
     def seek_by_fixation(self, direction: int) -> None:
@@ -69,6 +73,9 @@ class FixationsPlugin(neon_player.Plugin):
 
         self.fixations = recording.fixations
 
+        if self.headless:
+            return
+
         self.get_timeline().add_timeline_broken_bar(
             "Fixations", self.fixations[["start_time", "stop_time"]]
         )
@@ -83,6 +90,9 @@ class FixationsPlugin(neon_player.Plugin):
             QKeyCombination(Qt.Key.Key_A),
             lambda: self.seek_by_fixation(-1),
         )
+
+        if self.batch_mode_enabled:
+            self.add_dynamic_action("Export all recordings", self.export_all_recordings)
 
     def _load_optic_flow(self) -> None:
         if self.recording is None:
@@ -158,6 +168,9 @@ class FixationsPlugin(neon_player.Plugin):
 
     def on_disabled(self) -> None:
         self.flow_dict = {}
+
+        if self.headless:
+            return
 
         self.get_timeline().remove_timeline_plot("Fixations")
         self.unregister_action("Playback/Next Fixation")
@@ -241,7 +254,6 @@ class FixationsPlugin(neon_player.Plugin):
         export_saccades.to_csv(export_file, index=False)
         logging.info(f"Exported saccades to '{export_file}'")
 
-    @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export_all_recordings(self, destination: Path = Path(".")) -> None:
         run_export_across_recordings(self, destination)

@@ -3,6 +3,7 @@ import typing as T
 from pathlib import Path
 
 from PySide6.QtGui import QColorConstants, QPainter, QIcon
+from pupil_labs.neon_recording import NeonRecording
 from qt_property_widgets.utilities import property_params, action, action_params
 
 from pupil_labs import neon_player
@@ -26,6 +27,10 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
         self._show_frame_index = False
         self._brightness = self.DEFAULT_BRIGHTNESS
         self._contrast = self.DEFAULT_CONTRAST
+
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
+        if not self.headless and self.batch_mode_enabled:
+            self.add_dynamic_action("Export all recordings", self.export_all_recordings)
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         if self.recording is None:
@@ -104,7 +109,6 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
 
         self.job_manager.run_in_foreground(self.bg_export(destination))
 
-    @action
     @action_params(compact=True, icon=QIcon(str(asset_path("export.svg"))))
     def export_all_recordings(self, destination: Path = Path(".")) -> None:
         run_export_across_recordings(self, destination, action_name="export_raw_scene_video")

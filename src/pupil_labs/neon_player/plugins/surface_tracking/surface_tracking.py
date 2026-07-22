@@ -155,6 +155,10 @@ class SurfaceTrackingPlugin(Plugin):
         self._surfaces: list[TrackedSurface] = []
 
         self.marker_edit_widgets = {}
+
+        if self.headless:
+            return
+
         self.header_action = ListPropertyAppenderAction("surfaces", "+ Add surface")
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
@@ -173,6 +177,8 @@ class SurfaceTrackingPlugin(Plugin):
         if self.batch_mode_enabled and not self.headless:
             for surface in self.surfaces:
                 self.attempt_load_surface_locations(surface)
+
+            self.add_dynamic_action("Export all recordings", self.export_all_recordings)
 
     def on_disabled(self) -> None:
         self.get_timeline().remove_timeline_plot("Marker visibility")
@@ -1213,7 +1219,6 @@ class SurfaceTrackingPlugin(Plugin):
 
             yield ProgressUpdate(progress=(idx + 1) / total_surfaces)
 
-    @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export_all_recordings(self, destination: Path = Path()) -> None:
         run_export_across_recordings(self, destination, action_name="bg_batch_export")

@@ -74,6 +74,9 @@ class GazeDataPlugin(neon_player.Plugin):
             CircleViz(),
         ]
 
+        if self.headless:
+            return
+
         self.header_action = ListPropertyAppenderAction("visualizations", "+ Add viz")
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
@@ -97,6 +100,9 @@ class GazeDataPlugin(neon_player.Plugin):
                 "Worn",
                 list(zip(start_times, stop_times, strict=False)),
             )
+
+            if self.batch_mode_enabled:
+                self.add_dynamic_action("Export all recordings", self.export_all_recordings)
 
         except Exception:
             self.worn_data = None
@@ -243,7 +249,6 @@ class GazeDataPlugin(neon_player.Plugin):
 
         logging.info(f"Wrote {export_file}")
 
-    @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export_all_recordings(self, destination: Path = Path(".")) -> None:
         run_export_across_recordings(self, destination)
