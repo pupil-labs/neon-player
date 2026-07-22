@@ -19,11 +19,19 @@ class BlinksPlugin(neon_player.Plugin):
         if len(recording.blinks) == 0:
             return
 
+        if self.headless:
+            return
+
         self.get_timeline().add_timeline_broken_bar(
             "Blinks", self.recording.blinks[["start_time", "stop_time"]]
         )
+        if self.batch_mode_enabled:
+            self.add_dynamic_action("Export all recordings", self.export_all_recordings)
 
     def on_disabled(self) -> None:
+        if self.headless:
+            return
+
         self.get_timeline().remove_timeline_plot("Blinks")
 
     @action

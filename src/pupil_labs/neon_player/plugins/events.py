@@ -494,6 +494,8 @@ class EventsPlugin(neon_player.Plugin):
             self._scan_events_in_workspace()
 
         self._update_gui_for_event_types(event_types_to_add=event_types_to_setup_ui_for)
+        if not self.headless and self.batch_mode_enabled:
+            self.add_dynamic_action("Export all recordings", self.export_all_recordings)
 
     def on_disabled(self) -> None:
         if self.headless or self.recording is None:
@@ -1013,7 +1015,6 @@ class EventsPlugin(neon_player.Plugin):
 
         return events_df
 
-    @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export_all_recordings(self, destination: Path = Path(".")) -> None:
         run_export_across_recordings(self, destination)

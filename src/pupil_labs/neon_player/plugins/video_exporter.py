@@ -4,6 +4,7 @@ from pathlib import Path
 from PySide6.QtCore import QSize
 from PySide6.QtGui import QColorConstants, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QFileDialog
+from pupil_labs.neon_recording import NeonRecording
 from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
@@ -21,19 +22,10 @@ class VideoExporter(neon_player.Plugin, BackgroundVideoExportMixin):
         self.gray = QColorConstants.Gray
         self.is_exporting = False
 
-    @action
-    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
-    def export(self, destination: Path = Path()) -> BackgroundJob | None:
-        app = neon_player.instance()
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
+        if not self.headless and self.batch_mode_enabled:
+            self.add_dynamic_action("Export all recordings", self.export_all_recordings)
 
-        if not app.headless:
-            return self.job_manager.run_background_action(
-                "Video Export", "VideoExporter.export", destination
-            )
-
-        self.job_manager.run_in_foreground(self.bg_export(destination))
-
-    @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export_all_recordings(self, destination: Path = Path()) -> None:
         run_export_across_recordings(self, destination, action_name="export")
@@ -90,3 +82,15 @@ class VideoExporter(neon_player.Plugin, BackgroundVideoExportMixin):
 
         clipboard = neon_player.instance().clipboard()
         clipboard.setPixmap(QPixmap.fromImage(frame))
+
+    @action
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
+    def export(self, destination: Path = Path()) -> BackgroundJob | None:
+        app = neon_player.instance()
+
+        if not app.headless:
+            return self.job_manager.run_background_action(
+                "Video Export", "VideoExporter.export", destination
+            )
+
+        self.job_manager.run_in_foreground(self.bg_export(destination))

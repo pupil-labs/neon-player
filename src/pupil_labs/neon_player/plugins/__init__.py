@@ -91,6 +91,15 @@ class Plugin(PersistentPropertiesMixin, QObject):
         )
 
     def add_dynamic_action(self, name: str, func: T.Callable) -> None:
+        """
+        Adds an action to the plugin's property form. Adding actions dynamically is not possible
+        in plugin constructor, as the property form is not yet created at that point. Use this
+        method in `on_recording_loaded` or subsequent method calls.
+
+        Args:
+            name: The name of the action.
+            func: The function to be called when the action is triggered.
+        """
         my_prop_form = self.app.main_window.settings_panel.plugin_class_expanders[
             self.__class__.__name__
         ].content_widget
