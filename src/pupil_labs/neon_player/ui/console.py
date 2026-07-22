@@ -5,6 +5,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QSizePolicy,
@@ -97,7 +98,7 @@ class JobProgressBar(QWidget):
         self.cancel_button = QToolButton()
         self.cancel_button.setText("🗑")
         self.cancel_button.setAutoRaise(True)
-        self.cancel_button.clicked.connect(job.cancel)
+        self.cancel_button.clicked.connect(self.on_cancel_clicked)
         self.main_layout.addWidget(self.cancel_button)
 
         self.worker = job
@@ -106,6 +107,19 @@ class JobProgressBar(QWidget):
     def on_worker_progress(self, v: float):
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(v * 100)
+
+    def on_cancel_clicked(self):
+        if self.worker.warn_on_cancel:
+            result = QMessageBox.question(
+                None,
+                "Cancel Job",
+                self.worker.warn_on_cancel,
+            )
+
+            if result != QMessageBox.StandardButton.Yes:
+                return
+
+        self.worker.cancel()
 
 
 class ConsoleWindow(QWidget):
