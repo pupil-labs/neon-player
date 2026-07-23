@@ -307,45 +307,61 @@ class EventsPlugin(neon_player.Plugin):
             if event_type.shortcut.lower() == key_text:
                 self._add_event(event_type)
 
-    def _ensure_correct_format(self, events: dict[str, list[int]]) -> tuple[dict[str, list[int]], bool]:
-        """
-        Ensure that the events dictionary has event names as keys, not unique IDs. If IDs
-        are used as keys, the corresponding event types should always be accessible in the
-        recording settings.
-        """
+    def _get_uid_name_mapping(self) -> dict[str, str]:
         recording_settings = self.app.session_settings.recording_settings
         plugin_state = recording_settings.plugin_states.get(self.__class__.__name__, {})
         event_types_state = plugin_state.get("event_types", [])
-        uid_name_mapping = {}
-        event_names = [None] * len(event_types_state)
-        for idx, et in enumerate(event_types_state):
-            is_dict = isinstance(et, dict)
-            uid = et["uid"] if is_dict else et.uid
-            name = et["name"] if is_dict else et.name
-            uid_name_mapping[uid] = name
-            event_names[idx] = name
 
-        events_changed = False
+        uid_name_mapping = {}
+        for et in event_types_state:
+            uid_name_mapping[et["uid"]] = et["name"]
+
+        return uid_name_mapping
+
+    def _load_events_from_cache(self) -> dict[str, list[int]] | None:
+        """
+        Load events from the cached JSON file. Ensure that the events dictionary has
+        event names as keys, not unique IDs. If IDs are used as keys, the corresponding
+        event names are derived from the recording settings.
+        """
+        try:
+            events = self.load_cached_json("events.json")
+        except Exception:
+            logging.exception("Failed to load events.json")
+            return None
+
+        if events is None:
+            return None
+
+        uid_name_mapping = self._get_uid_name_mapping()
         corrected_events = {}
+        events_changed = False
         for key, value in events.items():
             if key in IMMUTABLE_EVENTS:
                 corrected_events[key] = value
                 continue
 
             # New format: keys are event names, keep them as is
-            if key in event_names:
+            if key in self._event_types_by_name:
                 corrected_events[key] = value
                 continue
 
-            # Old format: keys are event type UIDs, replace with event names
-            event_name = uid_name_mapping.get(key, None)
-            if event_name is None:
-                raise ValueError(f"Event type with UID '{key}' not found in recording settings")
+            # Old format: keys are event type UIDs, replace with event names using
+            # the mapping based on recording settings
+            if key in uid_name_mapping:
+                event_name = uid_name_mapping[key]
+                corrected_events[event_name] = value
+                events_changed = True
+                continue
 
-            corrected_events[event_name] = value
-            events_changed = True
+            # Otherwise, keep the key as is, a corresponding event type will be created
+            corrected_events[key] = value
 
-        return corrected_events, events_changed
+        if events_changed:
+            logging.debug("Corrected event keys from UIDs to names in events.json")
+            self.save_cached_json("events.json", corrected_events)
+
+        return corrected_events
 
     def _load_workspace_index(self) -> None:
         data = self.load_cached_json(self._index_file, workspace=True)
@@ -416,19 +432,9 @@ class EventsPlugin(neon_player.Plugin):
             self._update_gui_for_event_types(event_types_to_add=types_to_add)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
-        try:
-            events = self.load_cached_json("events.json")
-        except Exception:
-            logging.exception("Failed to load events.json")
-            events = None
-
+        events = self._load_events_from_cache()
         if events is None:
             events = _load_events_from_recording(recording)
-        # else:
-        #     events, events_changed = self._ensure_correct_format(events)
-        #     if events_changed:
-        #         logging.debug("Replacing event type IDs with event names in the events.json file")
-        #         self.save_cached_json("events.json", events)
         self._events = events
 
         # NOTE: event types are loaded from plugin settings before this method is called,
