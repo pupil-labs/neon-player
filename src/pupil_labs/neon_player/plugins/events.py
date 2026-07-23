@@ -75,12 +75,12 @@ class EventType(PersistentPropertiesMixin, QObject):
         # NOTE: if multiple name changes are made in quick succession, we need to,
         # on the one hand, debounce the signal to avoid launching multiple bg jobs,
         # but on the other hand, pass original name before the first change as
-        # `old_name` to ensure correct modification, so we re-use the value from t
-        # he pending debouncer if it exists
-        if plugin is not None:
+        # `old_name` to ensure correct modification, so we re-use the value from
+        # the pending debouncer if it exists
+        if plugin is not None and plugin.batch_mode_enabled:
             debouncer = SignalDebouncer.get_pending_debouncer(self.name_changed)
             original_name = debouncer.args[0] if debouncer is not None else old_name
-            SignalDebouncer.debounce(self.name_changed, 1.5, original_name, value)
+            SignalDebouncer.debounce(self.name_changed, 1.0, original_name, value)
         else:
             self.name_changed.emit(old_name, value)
 
@@ -273,8 +273,8 @@ class EventsPlugin(neon_player.Plugin):
         self._events: dict[str, list[int]] = {}
 
         self._consider_workspace = False
-        self._batch_rename_job: BatchBackgroundJob | None = None
-        self._batch_delete_job: BatchBackgroundJob | None = None
+        self._batch_rename_job: dict[str, BatchBackgroundJob] = {}
+        self._batch_delete_job: dict[str, BatchBackgroundJob] = {}
         self._batch_update_job: BatchBackgroundJob | None = None
         self._workspace_index: WorkspaceEventIndex = WorkspaceEventIndex()
         self._index_file = "workspace-events.json"
@@ -425,6 +425,10 @@ class EventsPlugin(neon_player.Plugin):
         types_to_add = []
         for event_name in self._workspace_index.events:
             if event_name in self._event_types_by_name:
+                continue
+
+            # Hide event types that are being deleted across the workspace
+            if event_name in self._batch_delete_job:
                 continue
 
             types_to_add.append(EventType.from_name(event_name))
@@ -639,16 +643,17 @@ class EventsPlugin(neon_player.Plugin):
         if event_type.name not in self._event_types_by_name:
             return
 
+        del self._event_types_by_name[event_type.name]
+        self._delete_events_by_name(event_type.name)
+        self.changed.emit()
         if not self.headless:
             self._update_gui_for_event_types(event_types_to_remove=[event_type])
 
         if not self._consider_workspace:
-            self._delete_events_by_name(event_type.name)
-            self._delete_event_type(event_type)
             return
 
         warn_on_cancel = (
-            f"Cancelling this operation will leave the instances of event '{event_type.name}' "
+            f"Cancelling this operation will leave instances of event '{event_type.name}' "
             f"in an inconsistent state across recordings. Are you sure you want to cancel?"
         )
         batch_job = self.job_manager.run_background_batch_action(
@@ -657,13 +662,12 @@ class EventsPlugin(neon_player.Plugin):
             args_generator=lambda _: [event_type.name],
             warn_on_cancel=warn_on_cancel
         )
-        batch_job.finished.connect(lambda: self._delete_event_type(event_type))
-        self._batch_delete_job = batch_job
+        batch_job.finished.connect(lambda: self._on_batch_delete_finished(event_type))
+        batch_job.canceled.connect(lambda: self._on_batch_delete_finished(event_type))
+        self._batch_delete_job[event_type.name] = batch_job
 
-    def _delete_event_type(self, event_type: EventType) -> None:
-        self._batch_delete_job = None
-        del self._event_types_by_name[event_type.name]
-        self.changed.emit()
+    def _on_batch_delete_finished(self, event_type: EventType) -> None:
+        del self._batch_delete_job[event_type.name]
 
     def _delete_events_by_name(self, event_name: str) -> None:
         """
