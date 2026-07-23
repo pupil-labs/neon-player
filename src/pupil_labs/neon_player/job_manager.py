@@ -69,12 +69,12 @@ class BaseBackgroundJob(QObject):
     finished = Signal()
     canceled = Signal()
 
-    def __init__(self, name: str, job_id: int, action_name: str, warn_on_cancel):
+    def __init__(self, name: str, job_id: int, action_name: str, confirm_cancel: str):
         super().__init__()
         self.name = name
         self.job_id = job_id
         self.action_name = action_name
-        self.warn_on_cancel = warn_on_cancel
+        self.confirm_cancel = confirm_cancel
         self.progress = -1
 
     def cancel(self):
@@ -91,9 +91,9 @@ class BackgroundJob(BaseBackgroundJob):
         *args: T.Any,
         recording_settings_path: Path | None = None,
         workspace_settings_path: Path | None = None,
-        warn_on_cancel: str = "",
+        confirm_cancel: str = "",
     ):
-        super().__init__(name, job_id, action_name, warn_on_cancel)
+        super().__init__(name, job_id, action_name, confirm_cancel)
 
         self.socket = None
         self._expected_payload_size = None
@@ -185,9 +185,9 @@ class BatchBackgroundJob(BaseBackgroundJob):
         action_name: str,
         args_generator: T.Callable[[NeonRecording], T.Any] | None = None,
         recordings: list[NeonRecording] | None = None,
-        warn_on_cancel: str = ""
+        confirm_cancel: str = ""
     ):
-        super().__init__(name, job_id, action_name, warn_on_cancel)
+        super().__init__(name, job_id, action_name, confirm_cancel)
 
         app = neon_player.instance()
         if not app.batch_mode_enabled:
@@ -277,7 +277,7 @@ class BatchBackgroundJob(BaseBackgroundJob):
             recording_settings_path=self._tmp_recording_settings_path(current_recording),
             workspace_settings_path=self._tmp_workspace_settings_path(),
             notify_on_completion=False,
-            warn_on_cancel=self.warn_on_cancel
+            confirm_cancel=self.confirm_cancel
         )
         sub_job.canceled.connect(lambda: self._on_sub_job_canceled())
         sub_job.finished.connect(lambda: self._on_sub_job_finished())
@@ -361,7 +361,7 @@ class JobManager(QObject):
         recording_settings_path: Path | None = None,
         workspace_settings_path: Path | None = None,
         notify_on_completion: bool = True,
-        warn_on_cancel: str = ""
+        confirm_cancel: str = ""
     ) -> BackgroundJob:
         if neon_player.instance().headless:
             logging.warning("Not starting background job in headless mode")
@@ -385,7 +385,7 @@ class JobManager(QObject):
             *args,
             recording_settings_path=recording_settings_path,
             workspace_settings_path=workspace_settings_path,
-            warn_on_cancel=warn_on_cancel
+            confirm_cancel=confirm_cancel
         )
         self._job_counter += 1
 
@@ -407,7 +407,7 @@ class JobManager(QObject):
         action_name: str,
         args_generator: T.Callable[[NeonRecording], T.Any] | None = None,
         recordings: list[NeonRecording] | None = None,
-        warn_on_cancel: str = ""
+        confirm_cancel: str = ""
     ) -> BatchBackgroundJob:
         neon_player.instance().save_settings()
 
@@ -417,7 +417,7 @@ class JobManager(QObject):
             action_name,
             args_generator=args_generator,
             recordings=recordings,
-            warn_on_cancel=warn_on_cancel
+            confirm_cancel=confirm_cancel
         )
         self._job_counter += 1
 

@@ -109,11 +109,11 @@ class JobProgressBar(QWidget):
         self.progress_bar.setValue(v * 100)
 
     def on_cancel_clicked(self):
-        if self.worker.warn_on_cancel:
+        if self.worker.confirm_cancel:
             result = QMessageBox.question(
                 None,
                 "Cancel Job",
-                self.worker.warn_on_cancel,
+                self.worker.confirm_cancel,
             )
 
             if result != QMessageBox.StandardButton.Yes:

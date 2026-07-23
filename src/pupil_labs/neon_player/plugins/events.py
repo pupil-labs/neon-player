@@ -652,7 +652,7 @@ class EventsPlugin(neon_player.Plugin):
         if not self._consider_workspace:
             return
 
-        warn_on_cancel = (
+        confirm_cancel = (
             f"Cancelling this operation will leave instances of event '{event_type.name}' "
             f"in an inconsistent state across recordings. Are you sure you want to cancel?"
         )
@@ -660,7 +660,7 @@ class EventsPlugin(neon_player.Plugin):
             f"Delete events [{event_type.name}]",
             "EventsPlugin._delete_events_by_name",
             args_generator=lambda _: [event_type.name],
-            warn_on_cancel=warn_on_cancel
+            confirm_cancel=confirm_cancel
         )
         batch_job.finished.connect(lambda: self._on_batch_delete_finished(event_type))
         batch_job.canceled.connect(lambda: self._on_batch_delete_finished(event_type))
