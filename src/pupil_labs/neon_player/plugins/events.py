@@ -408,6 +408,7 @@ class EventsPlugin(neon_player.Plugin):
             return
 
         recordings_to_scan = self.workspace.get_recordings_by_id(missing_recording_ids)
+        logging.info(f"Scanning events in {len(recordings_to_scan)} recordings of the workspace")
         batch_job = self.job_manager.run_background_batch_action(
             "Scan events in workspace",
             "EventsPlugin._update_workspace_index",
@@ -419,6 +420,7 @@ class EventsPlugin(neon_player.Plugin):
     def _on_workspace_event_scan_finished(self):
         self._batch_update_job = None
         self._load_workspace_index()
+        logging.info("Finished scanning events in workspace recordings")
 
         types_to_add = []
         for event_name in self._workspace_index.events:
@@ -436,28 +438,27 @@ class EventsPlugin(neon_player.Plugin):
         if events is None:
             events = _load_events_from_recording(recording)
         self._events = events
+        logging.info(f"Loaded {sum(len(v) for v in self._events.values())} events")
 
         # NOTE: event types are loaded from plugin settings before this method is called,
-        # so existing event types need to be preserved while adding missing ones. If
-        # event type ID is different from the event name, make them match to align event
-        # types across recordings
-        event_types_to_setup_ui_for = self.event_types
-        event_types_changed = False
+        # so existing event types need to be preserved while adding missing ones.
         for event_name in events:
             if event_name in IMMUTABLE_EVENTS:
                 continue
 
-            event_type = self._event_types_by_name.get(event_name, None)
-            if event_type is not None:
-                if event_type.uid != event_name:
-                    event_type.uid = event_name
-                    event_types_changed = True
-                    continue
+            if event_name in self._event_types_by_name:
+                continue
 
             new_event_type = EventType.from_name(event_name)
             self._event_types_by_name[event_name] = new_event_type
-            event_types_to_setup_ui_for.append(new_event_type)
-            event_types_changed = True
+
+        # If event type ID is different from the event name, make them match to
+        # align event types across recordings
+        event_types_changed = False
+        for event_type in self._event_types_by_name.values():
+            if event_type.uid != event_type.name:
+                event_type.uid = event_type.name
+                event_types_changed = True
         if event_types_changed:
             self.changed.emit()
 
@@ -465,13 +466,12 @@ class EventsPlugin(neon_player.Plugin):
         self._immutable_event_types = [
             EventType.from_name(event_name) for event_name in IMMUTABLE_EVENTS
         ]
-        event_types_to_setup_ui_for.extend(self._immutable_event_types)
+        event_types_to_setup_ui_for = self._immutable_event_types + self.event_types
 
         self._consider_workspace = self.batch_mode_enabled and self.workspace.size > 1
         if self._consider_workspace:
             self._scan_events_in_workspace()
 
-        logging.info(f"Loaded {sum(len(v) for v in self._events.values())} events")
         self._update_gui_for_event_types(event_types_to_add=event_types_to_setup_ui_for)
 
     def on_disabled(self) -> None:
