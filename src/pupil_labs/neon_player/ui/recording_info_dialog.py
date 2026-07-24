@@ -92,7 +92,6 @@ class RecordingInfoDialog(QDialog):
                 main_layout.addSpacing(5)
             main_layout.addSpacing(10)
 
-
     def update(self, data: dict[str, dict[str, str]]) -> None:
         for group_name, group_data in data.items():
             if group_name not in self.groups:

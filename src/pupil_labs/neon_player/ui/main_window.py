@@ -281,7 +281,6 @@ class RecentWidget(QWidget):
         horiz_header.setCursor(Qt.CursorShape.PointingHandCursor)
 
         vert_header = table.verticalHeader()
-        vert_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         vert_header.setVisible(False)
 
         return table

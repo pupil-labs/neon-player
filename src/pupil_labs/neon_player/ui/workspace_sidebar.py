@@ -56,7 +56,6 @@ class WorkspaceSidebar(QWidget):
         horiz_header.setCursor(Qt.CursorShape.PointingHandCursor)
 
         vert_header = self.recordings_table.verticalHeader()
-        vert_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         vert_header.setVisible(False)
 
         workspace_layout = create_heading_with_icon(
@@ -107,6 +106,7 @@ class WorkspaceSidebar(QWidget):
                 item.setForeground(QColor(Color.Text.Secondary))
                 if field == "name" and recording.thumbnail_path.exists():
                     item.setIcon(QIcon(str(recording.thumbnail_path)))
+
                 self.recordings_table.setItem(i_row, i_col, item)
 
         self.recordings_table.resizeColumnsToContents()

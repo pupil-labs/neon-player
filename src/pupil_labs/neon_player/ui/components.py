@@ -2,7 +2,13 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QHBoxLayout, QLabel, QStyle, QStyledItemDelegate, QTableWidget, QStyleOptionViewItem
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QTableWidget,
 )
 from PySide6.QtSvgWidgets import QSvgWidget
 
@@ -49,6 +55,7 @@ class _RowColorDelegate(QStyledItemDelegate):
         # default painting behavior from overriding our custom colors
         opt.state &= ~QStyle.StateFlag.State_Selected
         opt.state &= ~QStyle.StateFlag.State_MouseOver
+
         super().paint(painter, opt, index)
 
 
@@ -65,6 +72,8 @@ class HoverRowTable(QTableWidget):
         self._hovered_row = -1
         self.setMouseTracking(True)
         self.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
+        self.verticalHeader().setDefaultSectionSize(60)
 
         delegate = _RowColorDelegate(self, normal_color, hover_color, selected_color)
         self.setItemDelegate(delegate)
@@ -76,8 +85,7 @@ class HoverRowTable(QTableWidget):
             }
             QTableWidget::item {
                 border-bottom: 1px solid #292d2d;
-                padding: 20px;
-                padding-left: 0px;
+                padding-right: 20px;
             }
 
             QHeaderView::section {
