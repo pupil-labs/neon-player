@@ -115,7 +115,7 @@ class SettingsPanel(QScrollArea):
         self.plugin_list_widget = ExpanderList(parent=self)
         self.plugin_list_widget.setContentsMargins(0, 0, 0, 0)
         self.plugin_list_widget.searchbar_visibility = False
-        self.setMinimumSize(400, 100)
+        self.setMinimumSize(350, 100)
 
         self.plugin_class_expanders: dict[str, Expander] = {}
 

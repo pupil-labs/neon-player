@@ -1,5 +1,5 @@
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import (
     QToolButton, QWidget, QVBoxLayout, QLabel, QTableWidgetItem, QAbstractItemView, QHeaderView
 )
@@ -8,6 +8,7 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import asset_path
 from pupil_labs.neon_player.workspace import RecordingMetadata
 from pupil_labs.neon_player.ui.components import HoverRowTable, create_heading_with_icon
+from pupil_labs.neon_player.ui.constants import Color
 from pupil_labs.neon_recording import NeonRecording
 
 
@@ -26,7 +27,7 @@ class WorkspaceSidebar(QWidget):
         self.icon_path_collapsed = str(asset_path("chevron_forward.svg"))
         self.icon_path_expanded = str(asset_path("chevron_back.svg"))
         self.width_collapsed = 50
-        self.width_expanded = 400
+        self.width_expanded = 350
 
         self._collapsed = False
         self.toggle_button = QToolButton(self)
@@ -86,7 +87,7 @@ class WorkspaceSidebar(QWidget):
 
     def on_table_cell_clicked(self, row: int, column: int) -> None:
         app = neon_player.instance()
-        recording_name = self.recordings_table.item(row, 0).text()
+        recording_name = self.recordings_table.item(row, 0).text().strip()
         recording_path = app.workspace.get_recording_path(recording_name)
         app.load_recording(recording_path)
 
@@ -104,6 +105,7 @@ class WorkspaceSidebar(QWidget):
                     value = formatter(value)
 
                 item = QTableWidgetItem(str(value))
+                item.setForeground(QColor(Color.Text.Secondary))
                 if field == "name" and recording.thumbnail_path.exists():
                     item.setIcon(QIcon(str(recording.thumbnail_path)))
                 self.recordings_table.setItem(i_row, i_col, item)

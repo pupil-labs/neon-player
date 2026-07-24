@@ -1,7 +1,12 @@
 from pathlib import Path
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QTableWidget
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
+    QHBoxLayout, QLabel, QStyle, QStyledItemDelegate, QTableWidget, QStyleOptionViewItem
+)
 from PySide6.QtSvgWidgets import QSvgWidget
+
+from pupil_labs.neon_player.ui.constants import Color
 
 
 def create_heading_with_icon(
@@ -21,24 +26,58 @@ def create_heading_with_icon(
     return layout
 
 
+class _RowColorDelegate(QStyledItemDelegate):
+    def __init__(self, table, normal, hovered, selected, parent=None):
+        super().__init__(parent)
+        self._table = table
+        self.normal = QColor(normal)
+        self.hovered = QColor(hovered)
+        self.selected = QColor(selected)
+
+    def paint(self, painter, option, index):
+        opt = QStyleOptionViewItem(option)
+        row = index.row()
+
+        if option.state & QStyle.StateFlag.State_Selected:
+            painter.fillRect(option.rect, self.selected)
+        elif row == self._table._hovered_row:
+            painter.fillRect(option.rect, self.hovered)
+        else:
+            painter.fillRect(option.rect, self.normal)
+
+        # NOTE: clear the selected and hovered state flags to prevent the
+        # default painting behavior from overriding our custom colors
+        opt.state &= ~QStyle.StateFlag.State_Selected
+        opt.state &= ~QStyle.StateFlag.State_MouseOver
+        super().paint(painter, opt, index)
+
+
 class HoverRowTable(QTableWidget):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(
+        self,
+        *args,
+        normal_color: str = "transparent",
+        hover_color: str = Color.State.Hover,
+        selected_color: str = Color.State.Selected,
+        **kwargs,
+    ) -> None:
         super().__init__(*args, **kwargs)
+        self._hovered_row = -1
         self.setMouseTracking(True)
+        self.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+
+        delegate = _RowColorDelegate(self, normal_color, hover_color, selected_color)
+        self.setItemDelegate(delegate)
+
         self.setStyleSheet("""
             QTableWidget, QHeaderView {
                 background: transparent;
                 border: none;
             }
-
             QTableWidget::item {
                 border-bottom: 1px solid #292d2d;
                 padding: 20px;
                 padding-left: 0px;
-            }
-
-            QTableWidget::item:selected {
-                background: #292d2d;
             }
 
             QHeaderView::section {
@@ -48,28 +87,30 @@ class HoverRowTable(QTableWidget):
                 font-size: 10pt;
                 font-weight: normal;
             }
-
             QHeaderView::section:hover {
                 background-color: #292d2d;
             }
         """)
 
-    def update_hovered_row(self, cursor_position):
-        idx = self.indexAt(cursor_position)
-        if idx.isValid():
-            self.setCurrentCell(idx.row(), 0)
-            self.setCursor(Qt.CursorShape.PointingHandCursor)
+    def _set_hovered_row(self, row: int):
+        if row != self._hovered_row:
+            self._hovered_row = row
+            self.viewport().update()
 
     def mouseMoveEvent(self, event):
-        self.update_hovered_row(event.pos())
+        idx = self.indexAt(event.pos())
+        if idx.isValid():
+            self._set_hovered_row(idx.row())
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
         super().mouseMoveEvent(event)
 
     def wheelEvent(self, event):
-        self.update_hovered_row(event.position().toPoint())
+        idx = self.indexAt(event.position().toPoint())
+        if idx.isValid():
+            self._set_hovered_row(idx.row())
         super().wheelEvent(event)
 
     def leaveEvent(self, event):
-        self.clearSelection()
-        self.setCurrentCell(-1, -1)
+        self._set_hovered_row(-1)
         self.setCursor(Qt.CursorShape.ArrowCursor)
         super().leaveEvent(event)
