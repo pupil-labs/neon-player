@@ -732,10 +732,10 @@ class EventsPlugin(neon_player.Plugin):
     def _find_closest_event(
         self, event_type: EventType, target_ts: int, tolerance_ns: int = 5
     ) -> int | None:
-        if event_type.uid not in self._events:
+        if event_type.name not in self._events:
             return None
 
-        events_list = self._events[event_type.uid]
+        events_list = self._events[event_type.name]
         if not events_list:
             return None
 
@@ -786,7 +786,7 @@ class EventsPlugin(neon_player.Plugin):
         if plot_item is None or not plot_item.items:
             return
 
-        x = np.array(self._events.get(event_type.uid, []))
+        x = np.array(self._events.get(event_type.name, []))
         y = np.zeros_like(x)
         plot_item.items[0].setData(x, y)
 
@@ -813,13 +813,7 @@ class EventsPlugin(neon_player.Plugin):
         as keys and lists of all timestamps for each event as values. For modifying
         events from other plugins, use add_events() and delete_events() methods.
         """
-        event_id_name_mapping = {et.uid: et.name for et in self.event_types}
-        events_by_name = {}
-        for event_id, timestamps in self._events.items():
-            # Use IDs as fallback for immutable events that are not included in event_types
-            event_name = event_id_name_mapping.get(event_id, event_id)
-            events_by_name[event_name] = timestamps
-        return events_by_name
+        return self._events
 
     def add_events(self, events: dict[str, list[int]]) -> None:
         """
@@ -842,9 +836,9 @@ class EventsPlugin(neon_player.Plugin):
                     )
                 event_types_to_update.append(event_type)
 
-            if event_type.uid not in self._events:
-                self._events[event_type.uid] = []
-            self._events[event_type.uid].extend(timestamps)
+            if event_type.name not in self._events:
+                self._events[event_type.name] = []
+            self._events[event_type.name].extend(timestamps)
 
         self.save_cached_json("events.json", self._events)
         self._update_workspace_index()
@@ -878,15 +872,15 @@ class EventsPlugin(neon_player.Plugin):
                 )
 
             event_type = self._event_types_by_name[event_name]
-            existing_timestamps = set(self._events[event_type.uid])
+            existing_timestamps = set(self._events[event_type.name])
             timestamps_to_remove = set(timestamps)
             remaining_timestamps = existing_timestamps - timestamps_to_remove
             if remaining_timestamps:
-                self._events[event_type.uid] = list(remaining_timestamps)
+                self._events[event_type.name] = list(remaining_timestamps)
                 event_types_to_update.append(event_type)
                 continue
 
-            del self._events[event_type.uid]
+            del self._events[event_type.name]
             if remove_empty_types:
                 del self._event_types_by_name[event_name]
                 event_types_to_remove.append(event_type)
