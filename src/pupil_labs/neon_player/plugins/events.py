@@ -455,6 +455,7 @@ class EventsPlugin(neon_player.Plugin):
         events = self._load_events_from_cache()
         if events is None:
             events = _load_events_from_recording(recording)
+            self.save_cached_json("events.json", events)
         self._events = events
         logging.info(f"Loaded {sum(len(v) for v in self._events.values())} events")
 

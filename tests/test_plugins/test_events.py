@@ -91,18 +91,20 @@ def test_events__load_events_from_dataframe():
         assert events[event_name] == ts, f"Wrong timestamp for {event_name}"
 
 
-def test_events_plugin__on_recording_loaded__from_recording(mock_neon_recording):
-    et = EventType.from_name("test.event")
-
+@patch(
+    "pupil_labs.neon_player.plugins.events._load_events_from_recording",
+    return_value={"test.event": [100, 200, 300]}
+)
+def test_events_plugin__on_recording_loaded__from_recording(mock_load_events, mock_neon_recording):
     plugin = EventsPlugin()
-    plugin._load_events = MagicMock(
-        return_value=([et], {et.uid: [100, 200, 300]}, "recording")
-    )
     plugin.save_cached_json = MagicMock()
     plugin.on_recording_loaded(mock_neon_recording())
 
-    assert plugin.event_types == [et], "Expected event types to be loaded from recording"
-    assert plugin._events == {et.uid: [100, 200, 300]}, "Expected events to be loaded from recording"
+    mock_load_events.assert_called_once()
+    assert "test.event" in plugin._event_types_by_name, \
+        "Expected event type to be created from recording"
+    assert plugin._events == {"test.event": [100, 200, 300]}, \
+        "Expected events to be loaded from recording"
     plugin.save_cached_json.assert_called_once()
 
 
@@ -188,14 +190,22 @@ def test_events_plugin__on_event_name_changed():
     plugin = EventsPlugin()
     et = EventType.from_name("test.event")
     plugin.event_types = [et]
+    plugin._events = {"test.event": [100, 200, 300]}
 
     et._name = "renamed.event"
 
     # Simulate the name_changed signal being emitted
-    plugin._on_event_name_changed("test.event", "renamed.event", et)
+    plugin._on_event_name_changed("test.event", "renamed.event")
 
     assert "test.event" not in plugin._event_types_by_name
+    assert "test.event" not in plugin._events
     assert "renamed.event" in plugin._event_types_by_name
+    assert "renamed.event" in plugin._events
+
+    assert plugin._event_types_by_name["renamed.event"] is et, \
+        "Expected event type to be preserved under the new name"
+    assert plugin._events["renamed.event"] == [100, 200, 300], \
+        "Expected events to be preserved under the new event type name"
 
 
 def test_events_plugin__add_events__adds_new_event_types(qtbot):
