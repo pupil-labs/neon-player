@@ -64,11 +64,11 @@ class EventType(PersistentPropertiesMixin, QObject):
         if self._name == value:
             return
 
+        old_name = self._name
         plugin = EventsPlugin.instance()
-        if plugin is not None and not plugin.validate_event_name(value):
+        if plugin is not None and not plugin.validate_event_rename(old_name, value):
             return
 
-        old_name = self._name
         self._name = value
         self._uid = value
 
@@ -96,6 +96,12 @@ class EventType(PersistentPropertiesMixin, QObject):
     @property
     @property_params(widget=None)
     def uid(self) -> str:
+        """
+        This property is deprecated and should always have the same value as `name`.
+
+        It is kept for compatibility with the original implementation of the plugin
+        that used UIDs as the primary identifier for event types.
+        """
         return self._uid
 
     @uid.setter
@@ -595,30 +601,30 @@ class EventsPlugin(neon_player.Plugin):
             candidate_name = f"event-{event_type_counter}"
         return EventType.from_name(candidate_name)
 
-    def validate_event_name(self, name: str) -> bool:
-        if name in IMMUTABLE_EVENTS:
+    def validate_event_rename(self, old_name: str, new_name: str) -> bool:
+        if new_name in IMMUTABLE_EVENTS:
             QMessageBox.warning(
                 None,
                 "Invalid event name",
-                f"Event cannot be renamed to '{name}' as this name is reserved. "
+                f"Event cannot be renamed to '{new_name}' as this name is reserved. "
                 f"Please choose a different name.",
             )
             return False
 
-        if name in self._event_types_by_name:
+        if new_name in self._event_types_by_name:
             QMessageBox.warning(
                 None,
                 "Duplicate event name",
-                f"Event '{name}' already exists. Please choose a different name.",
+                f"Event '{new_name}' already exists. Please choose a different name.",
             )
             return False
 
-        if self._batch_rename_job is not None:
+        if old_name in self._batch_rename_job:
             QMessageBox.warning(
                 None,
                 "Event rename in progress",
-                "Please wait for the current event rename operation to complete "
-                "before renaming the event again.",
+                f"Please wait for the current event rename operation to complete "
+                f"before renaming the event '{old_name}' again.",
             )
             return False
 
@@ -652,19 +658,21 @@ class EventsPlugin(neon_player.Plugin):
         if not self._consider_workspace:
             return
 
-        confirm_cancel = (
-            f"Cancelling this operation will leave instances of event '{event_type.name}' "
-            f"in an inconsistent state across recordings. Are you sure you want to cancel?"
-        )
         batch_job = self.job_manager.run_background_batch_action(
             f"Delete events [{event_type.name}]",
             "EventsPlugin._delete_events_by_name",
             args_generator=lambda _: [event_type.name],
-            confirm_cancel=confirm_cancel
+            confirm_cancel=self.confirm_cancel_message(event_type.name),
         )
         batch_job.finished.connect(lambda: self._on_batch_delete_finished(event_type))
         batch_job.canceled.connect(lambda: self._on_batch_delete_finished(event_type))
         self._batch_delete_job[event_type.name] = batch_job
+
+    def confirm_cancel_message(self, event_name: str) -> str:
+        return (
+            f"Cancelling this operation will leave instances of event '{event_name}' "
+            f"in an inconsistent state across recordings. Are you sure you want to cancel?"
+        )
 
     def _on_batch_delete_finished(self, event_type: EventType) -> None:
         del self._batch_delete_job[event_type.name]
@@ -682,9 +690,7 @@ class EventsPlugin(neon_player.Plugin):
             return
 
         logging.debug(f"Deleting all instances of event '{event_name}'")
-        del self._events[event_name]
-        self._update_workspace_index()
-        self.save_cached_json("events.json", self._events)
+        self.delete_events({event_name: self.events[event_name]})
 
     def _add_event(self, event_type: EventType, ts: int | None = None) -> None:
         if self.recording is None:
@@ -875,14 +881,10 @@ class EventsPlugin(neon_player.Plugin):
             logging.warning(f"Event type '{old_name}' not found for renaming")
             return
 
-        if self._batch_rename_job is not None:
+        if old_name in self._batch_rename_job:
             return
 
-        # NOTE: While renaming the events, we need both the old and new names to be
-        # present for events to load correctly. Once the renaming is complete, the
-        # old name can be removed from the event types.
         self._event_types_by_name[new_name] = event_type
-        self._event_types_by_name[old_name] = EventType.from_name(old_name)
         self._rename_all_events_by_name(old_name, new_name)
         if not self.headless:
             timeline = self.get_timeline()
@@ -896,16 +898,17 @@ class EventsPlugin(neon_player.Plugin):
                 timeline.enable_plot_sorting()
 
         if not self._consider_workspace:
-            self._rename_all_events_by_name(old_name, new_name)
-            self._finalize_event_rename(old_name)
             return
 
-        self._batch_rename_job = self.job_manager.run_background_batch_action(
+        batch_job = self.job_manager.run_background_batch_action(
             f"Rename events [{old_name} -> {new_name}]",
             "EventsPlugin._rename_all_events_by_name",
-            lambda _: [old_name, new_name]
+            lambda _: [old_name, new_name],
+            confirm_cancel=self.confirm_cancel_message(old_name)
         )
-        self._batch_rename_job.finished.connect(lambda: self._finalize_event_rename(old_name))
+        batch_job.finished.connect(lambda: self._on_batch_rename_finished(new_name))
+        batch_job.canceled.connect(lambda: self._on_batch_rename_finished(new_name))
+        self._batch_rename_job[new_name] = batch_job
 
     def _rename_all_events_by_name(self, old_name: str, new_name: str) -> None:
         if old_name not in self._events:
@@ -915,11 +918,8 @@ class EventsPlugin(neon_player.Plugin):
         self.save_cached_json("events.json", self._events)
         self._update_workspace_index()
 
-    def _finalize_event_rename(self, old_name: str) -> None:
-        if old_name in self._event_types_by_name:
-            del self._event_types_by_name[old_name]
-        self.changed.emit()
-        self._batch_rename_job = None
+    def _on_batch_rename_finished(self, new_name: str) -> None:
+        del self._batch_rename_job[new_name]
 
     @action
     @action_params(
