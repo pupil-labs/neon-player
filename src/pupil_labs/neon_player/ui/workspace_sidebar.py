@@ -50,7 +50,6 @@ class WorkspaceSidebar(QWidget):
 
         horiz_header = self.recordings_table.horizontalHeader()
         horiz_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        horiz_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         horiz_header.setDefaultAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
