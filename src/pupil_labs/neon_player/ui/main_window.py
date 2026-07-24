@@ -502,8 +502,8 @@ class MainWindow(QMainWindow):
         )
         self.register_action("&Help/&About", on_triggered=self.on_about_action)
 
-        self.register_action("&File/&Open recording", "Ctrl+o", self.on_open_action)
-        self.register_action("&File/&Close recording", "Ctrl+w", app.unload)
+        self.register_action("&File/&Open folder", "Ctrl+o", self.on_open_action)
+        self.register_action("&File/&Close folder", "Ctrl+w", app.unload)
         self.register_action("&File/&Global settings", None, self.show_global_settings)
         self.register_action("&File/&Recording information", "Ctrl+i", self.show_recording_information)
         self.register_action("&File/&Quit", "Ctrl+q", self.on_quit_action)
