@@ -379,6 +379,16 @@ class MainWindow(QMainWindow):
                 color: #fff;
             }
 
+            QToolButton#WorkspaceSidebarToggle {
+                background-color: transparent;
+                border: none;
+                border-radius: 4px;
+            }
+
+            QToolButton#WorkspaceSidebarToggle:hover {
+                background-color: #292d2d;
+            }
+
             ConsoleWindow>QTextEdit {
                 font-family: 'Menlo', 'Monico', 'Consolas', 'Lucida Console',
                     'monospace', 'Courier New', 'Courier';
@@ -481,6 +491,8 @@ class MainWindow(QMainWindow):
         self.workspace_dock = self.add_dock(
             self.workspace_sidebar, "", Qt.DockWidgetArea.LeftDockWidgetArea
         )
+        self.workspace_dock.topLevelChanged.connect(self.on_workspace_dock_top_level_changed)
+        self.workspace_dock.dockLocationChanged.connect(self.on_workspace_dock_location_changed)
         app.workspace.recording_list_loaded.connect(
             self.workspace_sidebar.update_recording_table
         )
@@ -562,14 +574,26 @@ class MainWindow(QMainWindow):
             dock.setFloating(False)
             dock.show()
 
+    def on_workspace_dock_top_level_changed(self, top_level: bool) -> None:
+        if top_level:
+            self.workspace_sidebar.toggle_button.hide()
+
+    def on_workspace_dock_location_changed(self, area: Qt.DockWidgetArea) -> None:
+        is_floating = self.workspace_dock.isFloating()
+        if area == Qt.DockWidgetArea.LeftDockWidgetArea and not is_floating:
+            self.workspace_sidebar.toggle_button.show()
+        else:
+            self.workspace_sidebar.toggle_button.hide()
+
     def on_workspace_opened(self) -> None:
         app = neon_player.instance()
 
         self.greeting_switcher.setCurrentIndex(1)
         self.timeline_dock.show()
         self.settings_dock.show()
-        if app.batch_mode_enabled:
-            self.workspace_dock.show()
+        self.workspace_dock.show()
+        if not app.batch_mode_enabled:
+            self.workspace_sidebar.collapse()
         self.menuBar().show()
         self.statusBar().show()
 

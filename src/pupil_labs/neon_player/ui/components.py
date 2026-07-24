@@ -11,6 +11,7 @@ def create_heading_with_icon(
     icon_size: tuple[int, int] = (24, 24),
 ) -> QHBoxLayout:
     layout = QHBoxLayout()
+    layout.setContentsMargins(0, 0, 0, 0)
     layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
     icon_widget = QSvgWidget(str(icon_path))
     icon_widget.setFixedSize(*icon_size)
