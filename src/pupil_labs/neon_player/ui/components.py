@@ -71,6 +71,7 @@ class HoverRowTable(QTableWidget):
         super().__init__(*args, **kwargs)
         self._hovered_row = -1
         self.setMouseTracking(True)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
         self.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
         self.verticalHeader().setDefaultSectionSize(60)

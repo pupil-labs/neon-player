@@ -1,7 +1,7 @@
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QPoint, QSize, Qt
 from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import (
-    QToolButton, QWidget, QVBoxLayout, QLabel, QTableWidgetItem, QAbstractItemView, QHeaderView
+    QMenu, QToolButton, QWidget, QVBoxLayout, QLabel, QTableWidgetItem, QAbstractItemView, QHeaderView
 )
 
 from pupil_labs import neon_player
@@ -9,6 +9,7 @@ from pupil_labs.neon_player import asset_path
 from pupil_labs.neon_player.workspace import RecordingMetadata
 from pupil_labs.neon_player.ui.components import HoverRowTable, create_heading_with_icon
 from pupil_labs.neon_player.ui.constants import Color
+from pupil_labs.neon_player.ui.recording_info_dialog import RecordingInfoDialog
 from pupil_labs.neon_recording import NeonRecording
 
 
@@ -47,6 +48,7 @@ class WorkspaceSidebar(QWidget):
         self.recordings_table.setShowGrid(False)
         self.recordings_table.setIconSize(QSize(80, 40))
         self.recordings_table.cellClicked.connect(self.on_table_cell_clicked)
+        self.recordings_table.customContextMenuRequested.connect(self.on_table_right_clicked)
 
         horiz_header = self.recordings_table.horizontalHeader()
         horiz_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
@@ -88,6 +90,32 @@ class WorkspaceSidebar(QWidget):
         recording_name = self.recordings_table.item(row, 0).text().strip()
         recording_path = app.workspace.get_recording_path(recording_name)
         app.load_recording(recording_path)
+
+    def on_table_right_clicked(self, pos: QPoint) -> None:
+        item = self.recordings_table.itemAt(pos)
+        if item is None:
+            return
+
+        menu = self.get_context_menu(item)
+
+        # NOTE: QTableView maps the context menu event to coordinates of the viewport()
+        menu.exec(self.recordings_table.viewport().mapToGlobal(pos))
+
+    def get_context_menu(self, item: QTableWidgetItem) -> QMenu:
+        menu = QMenu(self)
+        show_info_action = menu.addAction("View recording information")
+        show_info_action.triggered.connect(lambda: self.show_recording_info(item))
+        return menu
+
+    def show_recording_info(self, item: QTableWidgetItem) -> None:
+        app = neon_player.instance()
+        recording_name = item.text().strip()
+        recording_path = app.workspace.get_recording_path(recording_name)
+        recording = NeonRecording(recording_path)
+
+        dialog = RecordingInfoDialog(app.main_window)
+        dialog.set_recording(recording)
+        dialog.exec()
 
     def update_recording_table(self, recording_list: list[RecordingMetadata]) -> None:
         self.recordings_table.clearContents()

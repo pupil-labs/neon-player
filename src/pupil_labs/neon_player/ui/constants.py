@@ -1,5 +1,6 @@
 class Color:
     class Text:
+        Primary = "#ededef"
         Secondary = "#a09fa6"
 
     class State:

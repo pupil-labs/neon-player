@@ -504,8 +504,8 @@ class MainWindow(QMainWindow):
 
         self.register_action("&File/&Open recording", "Ctrl+o", self.on_open_action)
         self.register_action("&File/&Close recording", "Ctrl+w", app.unload)
-        self.register_action("&File/&Global Settings", None, self.show_global_settings)
-        self.register_action("&File/&Recording Information", "Ctrl+i", self.show_recording_information)
+        self.register_action("&File/&Global settings", None, self.show_global_settings)
+        self.register_action("&File/&Recording information", "Ctrl+i", self.show_recording_information)
         self.register_action("&File/&Quit", "Ctrl+q", self.on_quit_action)
 
         self.register_action("&Tools/&Console", "Ctrl+Alt+c", self.console_window.show)
@@ -664,8 +664,7 @@ class MainWindow(QMainWindow):
 
         dialog = RecordingInfoDialog(self)
         if app.recording is not None:
-            dialog.on_recording_loaded(app.recording)
-        dialog.resize(400, 300)
+            dialog.set_recording(app.recording)
         dialog.exec()
 
     def on_quit_action(self) -> None:
