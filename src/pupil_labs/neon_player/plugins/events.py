@@ -370,6 +370,9 @@ class EventsPlugin(neon_player.Plugin):
         self.save_cached_json(self._index_file, data, workspace=True)
 
     def _update_workspace_index(self, load: bool = True, save: bool = True) -> None:
+        if not self._consider_workspace:
+            return
+
         if load:
             self._load_workspace_index()
         self._workspace_index.update(self.recording.id, self.events)
@@ -443,7 +446,7 @@ class EventsPlugin(neon_player.Plugin):
         """
         if not self.batch_mode_enabled:
             events = self.events.get(event_name, [])
-            return len(events), [self.recording._rec_dir.name] if events else []
+            return len(events), [self.recording.id] if events else []
 
         event_occurrences = self._workspace_index.events.get(event_name, {})
         return sum(event_occurrences.values()), list(event_occurrences.keys())
@@ -677,8 +680,8 @@ class EventsPlugin(neon_player.Plugin):
         if event_type.name not in self._event_types_by_name:
             return
 
-        del self._event_types_by_name[event_type.name]
         self._delete_events_by_name(event_type.name)
+        del self._event_types_by_name[event_type.name]
         self.changed.emit()
         if not self.headless:
             self._update_gui_for_event_types(event_types_to_remove=[event_type])
@@ -686,10 +689,17 @@ class EventsPlugin(neon_player.Plugin):
         if not self._consider_workspace:
             return
 
+        _, recording_ids = self._count_events_across_workspace(event_type.name)
+        other_recording_ids = set(recording_ids) - {self.recording.id}
+        other_recordings = self.workspace.get_recordings_by_id(other_recording_ids)
+        if not other_recordings:
+            return
+
         batch_job = self.job_manager.run_background_batch_action(
             f"Delete events [{event_type.name}]",
             "EventsPlugin._delete_events_by_name",
             args_generator=lambda _: [event_type.name],
+            recordings=other_recordings,
             confirm_cancel=self.confirm_cancel_message(event_type.name),
         )
         batch_job.finished.connect(lambda: self._on_batch_delete_finished(event_type))
@@ -836,9 +846,9 @@ class EventsPlugin(neon_player.Plugin):
                     )
                 event_types_to_update.append(event_type)
 
-            if event_type.name not in self._events:
-                self._events[event_type.name] = []
-            self._events[event_type.name].extend(timestamps)
+            if event_name not in self._events:
+                self._events[event_name] = []
+            self._events[event_name].extend(timestamps)
 
         self.save_cached_json("events.json", self._events)
         self._update_workspace_index()
@@ -861,7 +871,7 @@ class EventsPlugin(neon_player.Plugin):
         event_types_to_remove = []
         event_types_to_update = []
         for event_name, timestamps in events.items():
-            if event_name not in self._event_types_by_name:
+            if event_name not in self._events:
                 logging.warning(f"Skipping unknown event '{event_name}' from deletion")
                 continue
 
@@ -871,16 +881,16 @@ class EventsPlugin(neon_player.Plugin):
                     f"of this event cannot be deleted."
                 )
 
-            event_type = self._event_types_by_name[event_name]
-            existing_timestamps = set(self._events[event_type.name])
+            event_type = self._event_types_by_name.get(event_name, None)
+            existing_timestamps = set(self._events[event_name])
             timestamps_to_remove = set(timestamps)
             remaining_timestamps = existing_timestamps - timestamps_to_remove
             if remaining_timestamps:
-                self._events[event_type.name] = list(remaining_timestamps)
-                event_types_to_update.append(event_type)
+                self._events[event_name] = list(remaining_timestamps)
+                event_types_to_update.append(self._event_types_by_name[event_name])
                 continue
 
-            del self._events[event_type.name]
+            del self._events[event_name]
             if remove_empty_types:
                 del self._event_types_by_name[event_name]
                 event_types_to_remove.append(event_type)
@@ -922,10 +932,17 @@ class EventsPlugin(neon_player.Plugin):
         if not self._consider_workspace:
             return
 
+        _, recording_ids = self._count_events_across_workspace(event_type.name)
+        other_recording_ids = set(recording_ids) - {self.recording.id}
+        other_recordings = self.workspace.get_recordings_by_id(other_recording_ids)
+        if not other_recordings:
+            return
+
         batch_job = self.job_manager.run_background_batch_action(
             f"Rename events [{old_name} -> {new_name}]",
             "EventsPlugin._rename_all_events_by_name",
-            lambda _: [old_name, new_name],
+            args_generator=lambda _: [old_name, new_name],
+            recordings=other_recordings,
             confirm_cancel=self.confirm_cancel_message(old_name)
         )
         batch_job.finished.connect(lambda: self._on_batch_rename_finished(new_name))
