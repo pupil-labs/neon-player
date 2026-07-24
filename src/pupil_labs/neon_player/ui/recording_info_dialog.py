@@ -82,8 +82,7 @@ class RecordingInfoDialog(QDialog):
                 main_layout.addWidget(separator)
                 main_layout.addSpacing(10)
 
-            group_label = QLabel(f"<b>{group.label}</b>")
-            group_label.setFont(QFont("Arial", 20, QFont.Weight.Medium))
+            group_label = QLabel(f"<h2>{group.label}</h2>")
             main_layout.addWidget(group_label)
             for field in group.fields.values():
                 field_label = QLabel(f"{field.label}:")
@@ -121,8 +120,6 @@ class RecordingInfoDialog(QDialog):
             self.update(self._load_template_info(recording))
         except FileNotFoundError:
             logging.warning("Failed to load information about template")
-
-        self.update
 
     @staticmethod
     def _load_recording_info(recording: NeonRecording) -> dict[str, dict[str, str]]:
