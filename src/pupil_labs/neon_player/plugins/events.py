@@ -147,16 +147,8 @@ class EventTypeListWidget(ValueListWidget):
             return
 
         event_type = item_widget.item_widget.value
-        events = plugin._events.get(event_type.uid, [])
-        if events:
-            suffix = "" if len(events) == 1 else "s"
-            confirmed = plugin.user_confirm(
-                "Confirm event type deletion",
-                f"Deleting event type '{event_type.name}' will also delete its {len(events)}"
-                f" instance{suffix}. Do you want to proceed?",
-            )
-            if not confirmed:
-                return
+        if not plugin.confirm_event_type_removal(event_type.name):
+            return
 
         plugin.delete_event_type(event_type)
         self.container_layout.removeWidget(item_widget)
@@ -443,6 +435,19 @@ class EventsPlugin(neon_player.Plugin):
             self.event_types = self.event_types + types_to_add
             self._update_gui_for_event_types(event_types_to_add=types_to_add)
 
+    def _count_events_across_workspace(self, event_name: str) -> tuple[int, list[str]]:
+        """
+        Returns the total number of occurrences of a given event across all
+        recordings in the workspace, along with a list of recording IDs that
+        contain this event.
+        """
+        if not self.batch_mode_enabled:
+            events = self.events.get(event_name, [])
+            return len(events), [self.recording._rec_dir.name] if events else []
+
+        event_occurrences = self._workspace_index.events.get(event_name, {})
+        return sum(event_occurrences.values()), list(event_occurrences.keys())
+
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         events = self._load_events_from_cache()
         if events is None:
@@ -639,6 +644,29 @@ class EventsPlugin(neon_player.Plugin):
         self._event_types_by_name[event_type.name] = event_type
         self._update_gui_for_event_types(event_types_to_add=[event_type])
         self.changed.emit()
+
+    def confirm_event_type_removal(self, event_name: str) -> bool:
+        num_events, recording_ids = self._count_events_across_workspace(event_name)
+        if not num_events:
+            return True
+
+        recordings_desc = ""
+        assert recording_ids, "Recording IDs should not be empty when num_events > 0"
+        if len(recording_ids) > 1:
+            recordings_desc = f" across {len(recording_ids)} recordings in the workspace"
+        elif recording_ids[0] == self.recording.id:
+            recordings_desc = " in the current recording"
+        else:
+            other_rec = self.workspace.get_recordings_by_id([recording_ids[0]])
+            recordings_desc = f" in the recording '{other_rec[0]._rec_dir.name}'"
+
+        suffix = "" if num_events == 1 else "s"
+        confirmed = self.user_confirm(
+            "Confirm event type deletion",
+            f"Deleting event type '{event_name}' will also delete its {num_events}"
+            f" instance{suffix}{recordings_desc}. Do you want to proceed?",
+        )
+        return confirmed
 
     def delete_event_type(self, event_type: EventType) -> None:
         if event_type.name in IMMUTABLE_EVENTS:
