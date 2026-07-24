@@ -47,7 +47,7 @@ from qt_property_widgets.widgets import PropertyForm
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.ui import QtShortcutType
-from pupil_labs.neon_player.ui.components import HoverRowTable
+from pupil_labs.neon_player.ui.components import HoverRowTable, create_heading_with_icon
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
@@ -115,7 +115,7 @@ class RecentWidget(QWidget):
         self.back_button.setIcon(QIcon(str(asset_path("arrow_back.svg"))))
         self.back_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        recording_heading = self._create_heading_with_icon(
+        recording_heading = create_heading_with_icon(
             "Recently opened",
             str(asset_path("recent.svg"))
         )
@@ -130,7 +130,7 @@ class RecentWidget(QWidget):
         self.recording_table = self._create_history_table(self.recording_columns)
         self.recording_table.cellClicked.connect(self.on_recording_table_cell_clicked)
 
-        workspace_heading = self._create_heading_with_icon(
+        workspace_heading = create_heading_with_icon(
             "Workspaces",
             str(asset_path("workspace.svg"))
         )
@@ -247,16 +247,6 @@ class RecentWidget(QWidget):
             return
 
         neon_player.instance().load(Path(path_str))
-
-    @staticmethod
-    def _create_heading_with_icon(heading: str, icon_path: str) -> QHBoxLayout:
-        layout = QHBoxLayout()
-        icon = QLabel()
-        icon.setPixmap(QPixmap(icon_path))
-        layout.addWidget(icon)
-        layout.addWidget(QLabel(f"<h2>{heading}</h2>"))
-        layout.addStretch()
-        return layout
 
     @staticmethod
     def _create_empty_history_label(entity: str) -> QLabel:

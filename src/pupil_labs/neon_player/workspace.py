@@ -1,11 +1,13 @@
 import logging
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
 
+from pupil_labs import neon_player
 from pupil_labs import neon_recording as nr
 from pupil_labs.neon_recording import NeonRecording
 
@@ -13,10 +15,12 @@ from pupil_labs.neon_recording import NeonRecording
 @dataclass
 class RecordingMetadata:
     name: str
+    id: str
     path: Path
     recorded: datetime
     duration: timedelta
     wearer: str
+    thumbnail_path: Path
 
 
 def get_recording_metadata(path: Path) -> RecordingMetadata | None:
@@ -28,13 +32,16 @@ def get_recording_metadata(path: Path) -> RecordingMetadata | None:
         rec = nr.load(path)
         recorded = datetime.fromtimestamp(rec.start_time / 1e9)
         duration = timedelta(seconds=rec.duration // 1e9)
+        thumbnail_path = path / ".neon_player" / "cache" / "thumbnail.png"
 
         return RecordingMetadata(
             name=path.name,
+            id=rec.id,
             path=path,
             duration=duration,
             wearer=rec.wearer["name"],
-            recorded=recorded
+            recorded=recorded,
+            thumbnail_path=thumbnail_path,
         )
     except FileNotFoundError:  # path / info.json / wearer.json missing
         return None
@@ -95,6 +102,9 @@ class Workspace(QObject):
 
         return self._recording_metadata[recording_name].path
 
+    def get_recordings_by_id(self, recording_ids: Iterable[str]) -> list[NeonRecording]:
+        return [rec for rec in self._recordings if rec.id in recording_ids]
+
     def clear(self):
         self._recording_metadata = {}
         self._recordings = []
@@ -119,8 +129,28 @@ class Workspace(QObject):
         self._recordings = [nr.load(rec.path) for rec in recording_list]
         self.path = path
 
-        logging.info(
-            f"Found {self.size} recordings in the provided folder"
-        )
+        logging.info(f"Found {self.size} recordings in the provided folder")
+
         self.initialized = True
+        self.recording_list_loaded.emit(self.recording_metadata)
+
+        app = neon_player.instance()
+        if app is None or app.headless:
+            return
+
+        thumbnail_missing_ids = [
+            rec.id for rec in recording_list if not rec.thumbnail_path.exists()
+        ]
+        if not thumbnail_missing_ids:
+            return
+
+        thumbnail_missing_recs = self.get_recordings_by_id(thumbnail_missing_ids)
+        batch_job = app.job_manager.run_background_batch_action(
+            "Generate Thumbnails",
+            "SceneRendererPlugin.bg_create_thumbnail",
+            recordings=thumbnail_missing_recs,
+        )
+        batch_job.finished.connect(self.on_thumbnail_generation_finished)
+
+    def on_thumbnail_generation_finished(self):
         self.recording_list_loaded.emit(self.recording_metadata)

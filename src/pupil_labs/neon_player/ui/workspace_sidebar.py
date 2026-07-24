@@ -1,11 +1,13 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidgetItem, QAbstractItemView, QHeaderView
 )
 
 from pupil_labs import neon_player
+from pupil_labs.neon_player import asset_path
 from pupil_labs.neon_player.workspace import RecordingMetadata
-from pupil_labs.neon_player.ui.components import HoverRowTable
+from pupil_labs.neon_player.ui.components import HoverRowTable, create_heading_with_icon
 from pupil_labs.neon_recording import NeonRecording
 
 
@@ -17,7 +19,6 @@ class WorkspaceSidebar(QWidget):
         self._column_field_mapping = {
             "Recording name": ("name", None),
             "Duration": ("duration", lambda dur: str(dur)),
-            "Recorded": ("recorded", lambda dt: dt.strftime("%Y-%m-%d %H:%M:%S")),
             "Wearer": ("wearer", None)
         }
         self._column_names = list(self._column_field_mapping.keys())
@@ -30,11 +31,12 @@ class WorkspaceSidebar(QWidget):
         self.recordings_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.recordings_table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.recordings_table.setShowGrid(False)
+        self.recordings_table.setIconSize(QSize(80, 40))
         self.recordings_table.cellClicked.connect(self.on_table_cell_clicked)
 
         horiz_header = self.recordings_table.horizontalHeader()
         horiz_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        horiz_header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        horiz_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         horiz_header.setDefaultAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
@@ -44,8 +46,14 @@ class WorkspaceSidebar(QWidget):
         vert_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         vert_header.setVisible(False)
 
+        workspace_heading = create_heading_with_icon(
+            "Workspace",
+            str(asset_path("workspace.svg")),
+            heading_level=3,
+            icon_size=(16, 16)
+        )
         main_layout = QVBoxLayout(self)
-        main_layout.addWidget(QLabel("Workspace"))
+        main_layout.addLayout(workspace_heading)
         main_layout.addWidget(self.recordings_table)
         main_layout.setContentsMargins(10, 10, 10, 10)
         self.setLayout(main_layout)
@@ -77,7 +85,12 @@ class WorkspaceSidebar(QWidget):
                 value = getattr(recording, field)
                 if formatter is not None:
                     value = formatter(value)
-                self.recordings_table.setItem(i_row, i_col, QTableWidgetItem(value))
+
+                item = QTableWidgetItem(str(value))
+                if field == "name" and recording.thumbnail_path.exists():
+                    item.setIcon(QIcon(str(recording.thumbnail_path)))
+                self.recordings_table.setItem(i_row, i_col, item)
 
         self.recordings_table.resizeColumnsToContents()
         self.recordings_table.setSortingEnabled(True)
+        self.recordings_table.sortByColumn(0, Qt.SortOrder.AscendingOrder)

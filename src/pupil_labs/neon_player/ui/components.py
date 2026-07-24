@@ -1,5 +1,23 @@
+from pathlib import Path
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QTableWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QTableWidget
+from PySide6.QtSvgWidgets import QSvgWidget
+
+
+def create_heading_with_icon(
+    heading: str,
+    icon_path: str | Path,
+    heading_level: int = 2,
+    icon_size: tuple[int, int] = (24, 24),
+) -> QHBoxLayout:
+    layout = QHBoxLayout()
+    layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+    icon_widget = QSvgWidget(str(icon_path))
+    icon_widget.setFixedSize(*icon_size)
+    layout.addWidget(icon_widget)
+    layout.addWidget(QLabel(f"<h{heading_level}>{heading}</h{heading_level}>"))
+    layout.addStretch()
+    return layout
 
 
 class HoverRowTable(QTableWidget):
