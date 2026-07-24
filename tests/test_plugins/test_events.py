@@ -5,7 +5,6 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from pupil_labs.neon_player.plugins.events import (
-    _load_events_from_cache,
     _load_events_from_recording,
     _load_events_from_dataframe,
     EventType,
@@ -43,21 +42,8 @@ def test_events__load_events_from_recording(mock_neon_recording):
     mock_events = mock_event_timeseries(events_dict)
     recording = mock_neon_recording(events=mock_events)
 
-    event_types, events = _load_events_from_recording(recording)
-    assert len(event_types) == 4
-    assert len(events) == 4
-
-    for event_name in ["recording.begin", "trial.begin", "trial.end", "recording.end"]:
-        et = [et for et in event_types if et.name == event_name]
-        assert len(et) == 1, f"Expected exactly one event type for {event_name}, got {len(et)}"
-        et = et[0]
-
-        assert et.name == event_name
-        if "recording" in event_name:
-            assert et.uid == event_name, "Expected uid to match name for immutable events"
-
-        assert events[et.uid] == events_dict[event_name], \
-            f"Timestamps for {event_name} do not match input data"
+    events = _load_events_from_recording(recording)
+    assert events == events_dict, "Expected events to match the recording events"
 
 
 def test_events__load_events_from_cache():
