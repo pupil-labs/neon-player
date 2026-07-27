@@ -409,7 +409,7 @@ class JobManager(QObject):
         recordings: list[NeonRecording] | None = None,
         confirm_cancel: str = ""
     ) -> BatchBackgroundJob:
-        neon_player.instance().save_settings()
+        neon_player.instance().save_settings(force=True)
 
         job = BatchBackgroundJob(
             name,

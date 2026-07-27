@@ -935,7 +935,7 @@ class EventsPlugin(neon_player.Plugin):
         if not self._consider_workspace:
             return
 
-        _, recording_ids = self._count_events_across_workspace(event_type.name)
+        _, recording_ids = self._count_events_across_workspace(old_name)
         other_recording_ids = set(recording_ids) - {self.recording.id}
         other_recordings = self.workspace.get_recordings_by_id(other_recording_ids)
         if not other_recordings:
