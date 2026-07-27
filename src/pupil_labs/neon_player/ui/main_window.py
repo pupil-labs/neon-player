@@ -577,6 +577,7 @@ class MainWindow(QMainWindow):
 
     def on_workspace_dock_top_level_changed(self, top_level: bool) -> None:
         if top_level:
+            self.workspace_sidebar.expand()
             self.workspace_sidebar.toggle_button.hide()
 
     def on_workspace_dock_location_changed(self, area: Qt.DockWidgetArea) -> None:
@@ -584,6 +585,7 @@ class MainWindow(QMainWindow):
         if area == Qt.DockWidgetArea.LeftDockWidgetArea and not is_floating:
             self.workspace_sidebar.toggle_button.show()
         else:
+            self.workspace_sidebar.expand()
             self.workspace_sidebar.toggle_button.hide()
 
     def on_workspace_opened(self) -> None:
