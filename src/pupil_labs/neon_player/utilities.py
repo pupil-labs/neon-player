@@ -157,6 +157,10 @@ class SignalDebouncer:
         debouncer.args = args
         debouncer.timer.start(delay * 1000)
 
+    @staticmethod
+    def get_pending_debouncer(signal: Signal) -> T.Optional["SignalDebouncer"]:
+        return SignalDebouncer._signal_debouncer_map.get(signal)
+
     def __init__(self, signal: Signal):
         self.signal = signal
         self.timer = QTimer()

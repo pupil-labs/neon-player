@@ -385,7 +385,7 @@ class PluginSettingsDispatcher(QObject):
             workspace_states,
             recording_states,
             scopes=self.property_scopes,
-            overwrite_condition=lambda scopes: "recording" in scopes
+            overwrite_condition=lambda scopes: scopes == ["recording"]
         )
 
         return combined_states
