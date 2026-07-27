@@ -459,6 +459,14 @@ class EventsPlugin(neon_player.Plugin):
         self._events = events
         logging.info(f"Loaded {sum(len(v) for v in self._events.values())} events")
 
+        # If event type ID is different from the event name, make them match to
+        # align event types across recordings
+        event_types_changed = False
+        for event_type in self._event_types_by_name.values():
+            if event_type.uid != event_type.name:
+                event_type.uid = event_type.name
+                event_types_changed = True
+
         # NOTE: event types are loaded from plugin settings before this method is called,
         # so existing event types need to be preserved while adding missing ones.
         for event_name in events:
@@ -470,14 +478,8 @@ class EventsPlugin(neon_player.Plugin):
 
             new_event_type = EventType.from_name(event_name)
             self._event_types_by_name[event_name] = new_event_type
+            event_types_changed = True
 
-        # If event type ID is different from the event name, make them match to
-        # align event types across recordings
-        event_types_changed = False
-        for event_type in self._event_types_by_name.values():
-            if event_type.uid != event_type.name:
-                event_type.uid = event_type.name
-                event_types_changed = True
         if event_types_changed:
             self.changed.emit()
 

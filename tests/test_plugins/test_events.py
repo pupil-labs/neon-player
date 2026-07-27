@@ -46,35 +46,6 @@ def test_events__load_events_from_recording(mock_neon_recording):
     assert events == events_dict, "Expected events to match the recording events"
 
 
-def test_events__load_events_from_cache():
-    # Should not contain recording.begin / recording.end as these types are
-    # not stored in the settings file
-    event_names = [
-        "trial.begin", "trial.end", "extra.event"
-    ]
-    event_types = []
-    for idx, event_name in enumerate(event_names):
-        et = EventType()
-        et._name = event_name
-        et._uid = event_name if "recording" in event_name else f"uid{idx}"
-        event_types.append(et)
-
-    cached_events = {
-        "recording.begin": [0],
-        "uid0": [100, 400, 700],  # trial.begin
-        "uid1": [200, 500, 800],  # trial.end
-        "recording.end": [1000],
-    }
-
-    event_types, events = _load_events_from_cache(cached_events, event_types)
-
-    assert len(event_types) == 4
-    for et in event_types:
-        assert et in event_types, f"Expected known event types to be used"
-        assert et.name != "extra.event", "Only present event types should be returned"
-    assert events == cached_events, "Expected events to match cached events"
-
-
 def test_events__load_events_from_dataframe():
     events_df = pd.DataFrame({
         "name": [
@@ -91,14 +62,59 @@ def test_events__load_events_from_dataframe():
         assert events[event_name] == ts, f"Wrong timestamp for {event_name}"
 
 
+def test_events_plugin__load_events_from_cache__old_format():
+    """
+    Event type IDs in the cached events dict are replaced with their corresponding names
+    using the mapping returned by _get_uid_name_mapping.
+    """
+    cached_events = {
+        "recording.begin": [0],
+        "uid0": [100, 400, 700],
+        "uid1": [200, 500, 800],
+        "recording.end": [1000],
+    }
+    uid_name_mapping = {
+        "uid0": "trial.begin",
+        "uid1": "trial.end",
+    }
+    expected_events = cached_events.copy()
+    expected_events["trial.begin"] = expected_events.pop("uid0")
+    expected_events["trial.end"] = expected_events.pop("uid1")
+
+    plugin = EventsPlugin()
+    plugin.load_cached_json = MagicMock(return_value=cached_events)
+    plugin._get_uid_name_mapping = MagicMock(return_value=uid_name_mapping)
+    events = plugin._load_events_from_cache()
+
+    assert events == expected_events
+
+
+def test_events_plugin__load_events_from_cache__new_format():
+    cached_events = {
+        "recording.begin": [0],
+        "trial_begin": [100, 400, 700],
+        "trial_end": [200, 500, 800],
+        "recording.end": [1000],
+    }
+    uid_name_mapping = {}
+
+    plugin = EventsPlugin()
+    plugin.load_cached_json = MagicMock(return_value=cached_events)
+    plugin._get_uid_name_mapping = MagicMock(return_value=uid_name_mapping)
+    events = plugin._load_events_from_cache()
+
+    assert events == cached_events
+
+
 @patch(
     "pupil_labs.neon_player.plugins.events._load_events_from_recording",
     return_value={"test.event": [100, 200, 300]}
 )
-def test_events_plugin__on_recording_loaded__from_recording(mock_load_events, mock_neon_recording):
+def test_events_plugin__on_recording_loaded__from_recording(mock_load_events, qtbot, mock_neon_recording):
     plugin = EventsPlugin()
     plugin.save_cached_json = MagicMock()
-    plugin.on_recording_loaded(mock_neon_recording())
+    with qtbot.waitSignal(plugin.changed):
+        plugin.on_recording_loaded(mock_neon_recording())
 
     mock_load_events.assert_called_once()
     assert "test.event" in plugin._event_types_by_name, \
@@ -108,18 +124,45 @@ def test_events_plugin__on_recording_loaded__from_recording(mock_load_events, mo
     plugin.save_cached_json.assert_called_once()
 
 
-def test_events_plugin__on_recording_loaded__from_cache(mock_neon_recording):
-    et = EventType.from_name("test.event")
+def test_events_plugin__on_recording_loaded__from_cache_old_format(qtbot, mock_neon_recording):
+    cached_events = {
+        "recording.begin": [0],
+        "trial": [100, 400, 700],
+        "recording.end": [1000],
+    }
+
+    # Simulate old format where event type ID is different from the name
+    et_begin = EventType.from_name("trial")
+    et_begin.uid = "uid0"
 
     plugin = EventsPlugin()
-    plugin._load_events = MagicMock(
-        return_value=([et], {et.uid: [100, 200, 300]}, "cache")
-    )
+    plugin.event_types = [et_begin]
+    plugin._load_events_from_cache = MagicMock(return_value=cached_events)
     plugin.save_cached_json = MagicMock()
-    plugin.on_recording_loaded(mock_neon_recording())
+    with qtbot.waitSignal(plugin.changed):
+        plugin.on_recording_loaded(mock_neon_recording())
 
-    assert plugin.event_types == [], "Expected event types not to be modified"
-    assert plugin._events == {et.uid: [100, 200, 300]}, "Expected events to be loaded from cache"
+    assert plugin.event_types[0].uid == "trial", "Expected event type ID to match its name"
+    assert plugin._events["trial"] == [100, 400, 700], "Expected events to be loaded from cache"
+    plugin.save_cached_json.assert_not_called()
+
+
+def test_events_plugin__on_recording_loaded__from_cache_new_format(qtbot, mock_neon_recording):
+    cached_events = {
+        "recording.begin": [0],
+        "trial": [100, 400, 700],
+        "recording.end": [1000],
+    }
+    et_begin = EventType.from_name("trial")
+
+    plugin = EventsPlugin()
+    plugin.event_types = [et_begin]
+    plugin._load_events_from_cache = MagicMock(return_value=cached_events)
+    plugin.save_cached_json = MagicMock()
+    with qtbot.assertNotEmitted(plugin.changed):
+        plugin.on_recording_loaded(mock_neon_recording())
+
+    assert plugin._events["trial"] == [100, 400, 700], "Expected events to be loaded from cache"
     plugin.save_cached_json.assert_not_called()
 
 
