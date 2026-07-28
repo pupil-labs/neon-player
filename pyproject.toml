@@ -19,6 +19,7 @@ classifiers = [
 
 dependencies = [
     "av>=16.0.0",
+    "matplotlib>=3.11.1",
     "nuitka<2.8",
     "numpy<2.4.0",
     "numpyencoder>=0.3.2",

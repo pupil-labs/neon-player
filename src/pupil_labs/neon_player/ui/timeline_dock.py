@@ -747,6 +747,9 @@ def _resolve_bar_colors(
     try:
         cmap = pg.colormap.get(color_arg, source=color_source)
     except Exception:
+        cmap = None
+
+    if cmap is None:
         cmap = pg.colormap.get("viridis")
 
     colors = cmap.map(norm_values, mode="qcolor")
