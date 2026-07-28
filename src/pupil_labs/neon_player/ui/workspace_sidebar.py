@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QMenu,
     QSizePolicy,
+    QSpacerItem,
     QTableWidgetItem,
     QToolButton,
     QVBoxLayout,
@@ -79,6 +80,10 @@ class WorkspaceSidebar(QWidget):
         self.workspace_heading = QWidget(self)
         self.workspace_heading.setContentsMargins(0, 0, 0, 0)
         self.workspace_heading.setLayout(workspace_layout)
+
+        # Fills the sidebar space when collapsed to keep the toggle button at the top
+        self.spacer = QSpacerItem(0, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         self.main_layout = QVBoxLayout(self)
         self.main_layout.addWidget(self.toggle_button, alignment=Qt.AlignmentFlag.AlignRight)
         self.main_layout.addWidget(self.workspace_heading)
@@ -167,7 +172,7 @@ class WorkspaceSidebar(QWidget):
         self.toggle_button.setIcon(QIcon(self.icon_path_collapsed))
         self.workspace_heading.hide()
         self.recordings_table.hide()
-        self.main_layout.addStretch()
+        self.main_layout.addItem(self.spacer)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.setMinimumWidth(self.width_collapsed)
         self._collapsed = True
@@ -177,9 +182,9 @@ class WorkspaceSidebar(QWidget):
             return
 
         self.toggle_button.setIcon(QIcon(self.icon_path_expanded))
+        self.main_layout.removeItem(self.spacer)
         self.workspace_heading.show()
         self.recordings_table.show()
-        self.main_layout.takeAt(self.main_layout.count() - 1)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
         self.setMinimumWidth(self.width_expanded)
         self._collapsed = False
