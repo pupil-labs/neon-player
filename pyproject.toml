@@ -83,7 +83,7 @@ dev-dependencies = [
 ]
 
 [tool.uv.sources]
-qt-property-widgets = { git = "https://github.com/domstoppable/qt-property-widgets" }
+qt-property-widgets = { git = "https://github.com/domstoppable/qt-property-widgets", rev = "d2b7fab2dd24794e2a93c1faa02a04fa767bd1a0" }
 pupil-labs-neon-recording = { git = "https://github.com/pupil-labs/pl-neon-recording", rev = "476ba1fb6340d56a302ee5fd82653b5ecc202cd1" }
 
 [build-system]

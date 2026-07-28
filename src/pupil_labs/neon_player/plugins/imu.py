@@ -50,7 +50,12 @@ class IMUPlugin(neon_player.Plugin):
             "quaternion w": recording.imu.rotation[:, 3],
         })
 
+        if self.headless:
+            return
+
         self.update_plots()
+        if self.batch_mode_enabled:
+            self.add_dynamic_action("Export all recordings", self.export_all_recordings)
 
     def on_disabled(self) -> None:
         self.imu_data = None
@@ -114,7 +119,6 @@ class IMUPlugin(neon_player.Plugin):
         export_file = destination / "imu.csv"
         self.imu_data[start_mask & stop_mask].to_csv(export_file, index=False)
 
-    @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export_all_recordings(self, destination: Path = Path(".")) -> None:
         run_export_across_recordings(self, destination)
