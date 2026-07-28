@@ -213,6 +213,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._heatmap_options = HeatmapViewDisplayOptions()
         self._heatmap_options._tracked_surface = self
         self._heatmap_options.changed.connect(self.changed.emit)
+        self._defining_recording_id = ""
         self._defining_frame_index = -1
         self._reference_image: np.ndarray | None = None
 
