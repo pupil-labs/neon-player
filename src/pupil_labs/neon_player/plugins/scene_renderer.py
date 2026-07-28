@@ -1,7 +1,9 @@
 import cv2
+import numpy as np
 import typing as T
-from pathlib import Path
 
+from pathlib import Path
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtGui import QColorConstants, QPainter, QIcon
 from qt_property_widgets.utilities import property_params, action, action_params
 
@@ -121,3 +123,22 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
             output_video_filename="scene.mp4",
             output_timestamps_filename="scene_timestamps.csv"
         )
+
+    def bg_create_thumbnail(
+        self, width: int = 200, height: int = 150
+    ) -> T.Generator[ProgressUpdate, None, None]:
+        if self.recording is None:
+            return
+
+        try:
+            thumbnail_ts = self.recording.start_time + self.recording.duration // 2
+            thumbnail_frame = self.recording.scene.sample([thumbnail_ts], method="backward")[0]
+            thumbnail = cv2.resize(thumbnail_frame.bgr, (width, height), interpolation=cv2.INTER_AREA)
+        except NeonRecording.SensorError:
+            thumbnail = 128 * np.ones((height, width, 3), dtype=np.uint8)
+
+        cache_path = self.get_cache_path()
+        assert cache_path is not None
+        thumbnail_path = cache_path.parent / "thumbnail.png"
+        cv2.imwrite(str(thumbnail_path), thumbnail)
+        yield ProgressUpdate(1.0)

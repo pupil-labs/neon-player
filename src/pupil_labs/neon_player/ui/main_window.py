@@ -47,8 +47,9 @@ from qt_property_widgets.widgets import PropertyForm
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.ui import QtShortcutType
-from pupil_labs.neon_player.ui.components import HoverRowTable
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
+from pupil_labs.neon_player.ui.recently_opened import RecentWidget, RecentWidgetBackdrop
+from pupil_labs.neon_player.ui.recording_info_dialog import RecordingInfoDialog
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
@@ -102,198 +103,6 @@ class SplashWidget(Ui_Class, QtBaseClass):
                 return
 
         event.ignore()
-
-
-class RecentWidget(QWidget):
-    def __init__(self) -> None:
-        super().__init__()
-        self.setObjectName("RecentWidget")
-        self.setStyleSheet("#content { background: #000000; }")
-
-        self.back_button = QPushButton(" Back")
-        self.back_button.setObjectName("BackButton")
-        self.back_button.setIcon(QIcon(str(asset_path("arrow_back.svg"))))
-        self.back_button.setCursor(Qt.CursorShape.PointingHandCursor)
-
-        recording_heading = self._create_heading_with_icon(
-            "Recently opened",
-            str(asset_path("recent.svg"))
-        )
-        self.no_recording_history_label = self._create_empty_history_label("recordings")
-        self.recording_columns = {
-            "Recording name": "name",
-            "Wearer": "wearer",
-            "Last opened": "last_opened",
-            "Recorded": "recorded",
-            "Path": "path"
-        }
-        self.recording_table = self._create_history_table(self.recording_columns)
-        self.recording_table.cellClicked.connect(self.on_recording_table_cell_clicked)
-
-        workspace_heading = self._create_heading_with_icon(
-            "Workspaces",
-            str(asset_path("workspace.svg"))
-        )
-        self.no_workspace_history_label = self._create_empty_history_label("workspaces")
-        self.workspace_columns = {
-            "Workspace name": "name",
-            "Last opened": "last_opened",
-            "Path": "path"
-        }
-        self.workspace_table = self._create_history_table(self.workspace_columns)
-        self.workspace_table.cellClicked.connect(self.on_workspace_table_cell_clicked)
-
-        self.container = QWidget(self)
-        self.container.setObjectName("content")
-
-        layout = QVBoxLayout(self.container)
-        layout.setContentsMargins(50, 50, 50, 50)
-        layout.addWidget(self.back_button, alignment=Qt.AlignmentFlag.AlignLeft)
-        layout.addLayout(recording_heading)
-        layout.addWidget(self.no_recording_history_label)
-        layout.addWidget(self.recording_table)
-        layout.addSpacing(20)
-        layout.addLayout(workspace_heading)
-        layout.addWidget(self.no_workspace_history_label)
-        layout.addWidget(self.workspace_table)
-
-        self.grid_layout = QGridLayout(self)
-        self.grid_layout.setContentsMargins(0, 0, 0, 0)
-        self.grid_layout.addWidget(self.container, 0, 0, 1, 1)
-        self.setLayout(self.grid_layout)
-
-        app = neon_player.instance()
-        app.load_history.changed.connect(self.update_load_history)
-
-    def update_load_history(self) -> None:
-        app = neon_player.instance()
-
-        recent_recordings = app.load_history.recent_recordings.items()
-        self._update_recent_items(
-            self.recording_table,
-            self.recording_columns,
-            recent_recordings,
-            self.no_recording_history_label
-        )
-
-        recent_workspaces = app.load_history.recent_workspaces.items()
-        self._update_recent_items(
-            self.workspace_table,
-            self.workspace_columns,
-            recent_workspaces,
-            self.no_workspace_history_label
-        )
-
-    @staticmethod
-    def _update_recent_items(
-        table: QTableWidget,
-        columns: dict[str, str],
-        recent_items: list[tuple[str, dict]],
-        no_history_label: QLabel,
-    ) -> None:
-        """
-        Update the table displaying recently opened recordings or workspaces.
-        If there are no recent items, hide the table and show a label instead.
-        """
-        table.setSortingEnabled(False)
-        table.clearContents()
-
-        if not recent_items:
-            table.setVisible(False)
-            no_history_label.setVisible(True)
-            return
-
-        no_history_label.setVisible(False)
-        table.setVisible(True)
-        table.setRowCount(len(recent_items))
-        for row, (path, info) in enumerate(recent_items):
-            for col, field_name in enumerate(columns.values()):
-                if field_name == "path":
-                    item_path = QTableWidgetItem(path)
-                    item_path.setForeground(QColor("#666"))
-                    item_path.setToolTip(path)
-                    table.setItem(row, col, item_path)
-                    continue
-
-                item_text = info.get(field_name, "-")
-                item = QTableWidgetItem(item_text)
-                item.setForeground(QColor("#ededef"))
-                if field_name == "name":
-                    item.setData(Qt.ItemDataRole.UserRole, path)
-                    item.setForeground(QColor("#6d7be0"))
-                    font = item.font()
-                    font.setBold(True)
-                    item.setFont(font)
-                table.setItem(row, col, item)
-
-        last_opened_col_index = list(columns.keys()).index("Last opened")
-        table.setSortingEnabled(True)
-        table.sortByColumn(last_opened_col_index, Qt.SortOrder.DescendingOrder)
-
-    def on_recording_table_cell_clicked(self, row: int, column: int) -> None:
-        self._on_table_cell_clicked(self.recording_table, row, column)
-
-    def on_workspace_table_cell_clicked(self, row: int, column: int) -> None:
-        self._on_table_cell_clicked(self.workspace_table, row, column)
-
-    @staticmethod
-    def _on_table_cell_clicked(table: QTableWidget, row: int, column: int) -> None:
-        item = table.item(row, 0)
-        if item is None:
-            return
-
-        path_str = item.data(Qt.ItemDataRole.UserRole)
-        if not path_str:
-            return
-
-        neon_player.instance().load(Path(path_str))
-
-    @staticmethod
-    def _create_heading_with_icon(heading: str, icon_path: str) -> QHBoxLayout:
-        layout = QHBoxLayout()
-        icon = QLabel()
-        icon.setPixmap(QPixmap(icon_path))
-        layout.addWidget(icon)
-        layout.addWidget(QLabel(f"<h2>{heading}</h2>"))
-        layout.addStretch()
-        return layout
-
-    @staticmethod
-    def _create_empty_history_label(entity: str) -> QLabel:
-        label = QLabel(f"Recently opened {entity} will appear here.")
-        label.setAlignment(Qt.AlignmentFlag.AlignTop)
-        label.setSizePolicy(
-            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
-        )
-        label.setVisible(False)
-        return label
-
-    def _create_history_table(self, columns: dict[str, str]) -> QTableWidget:
-        num_columns = len(columns)
-
-        table = HoverRowTable(self)
-        table.setColumnCount(num_columns)
-        table.setHorizontalHeaderLabels(list(columns.keys()))
-
-        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        table.setShowGrid(False)
-        table.setWordWrap(False)
-        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-
-        horiz_header = table.horizontalHeader()
-        horiz_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        horiz_header.setSectionResizeMode(num_columns - 1, QHeaderView.ResizeMode.Stretch)
-        horiz_header.setDefaultAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-        )
-        horiz_header.setCursor(Qt.CursorShape.PointingHandCursor)
-
-        vert_header = table.verticalHeader()
-        vert_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        vert_header.setVisible(False)
-
-        return table
 
 
 class MainWindow(QMainWindow):
@@ -389,6 +198,16 @@ class MainWindow(QMainWindow):
                 color: #fff;
             }
 
+            QToolButton#WorkspaceSidebarToggle {
+                background-color: transparent;
+                border: none;
+                border-radius: 4px;
+            }
+
+            QToolButton#WorkspaceSidebarToggle:hover {
+                background-color: #292d2d;
+            }
+
             ConsoleWindow>QTextEdit {
                 font-family: 'Menlo', 'Monico', 'Consolas', 'Lucida Console',
                     'monospace', 'Courier New', 'Courier';
@@ -447,16 +266,20 @@ class MainWindow(QMainWindow):
 
         self.video_widget = VideoRenderWidget()
 
-        self.recent_widget = RecentWidget()
-        self.recent_widget.back_button.clicked.connect(self.on_show_splash_action)
-
         self.greeting_switcher = QStackedLayout()
-        central_widget = QWidget(self)
-        central_widget.setLayout(self.greeting_switcher)
         self.greeting_switcher.addWidget(self.splash_widget)
         self.greeting_switcher.addWidget(self.video_widget)
-        self.greeting_switcher.addWidget(self.recent_widget)
+
+        central_widget = QWidget(self)
+        central_widget.setLayout(self.greeting_switcher)
         self.setCentralWidget(central_widget)
+
+        self.recent_backdrop = RecentWidgetBackdrop(central_widget)
+        self.recent_backdrop.clicked.connect(self.on_show_splash_action)
+        self.recent_backdrop.hide()
+
+        self.recent_widget = RecentWidget(central_widget)
+        self.recent_widget.hide()
 
         app.workspace_loaded.connect(self.on_workspace_opened)
         app.recording_loaded.connect(self.on_recording_opened)
@@ -491,6 +314,8 @@ class MainWindow(QMainWindow):
         self.workspace_dock = self.add_dock(
             self.workspace_sidebar, "", Qt.DockWidgetArea.LeftDockWidgetArea
         )
+        self.workspace_dock.topLevelChanged.connect(self.on_workspace_dock_top_level_changed)
+        self.workspace_dock.dockLocationChanged.connect(self.on_workspace_dock_location_changed)
         app.workspace.recording_list_loaded.connect(
             self.workspace_sidebar.update_recording_table
         )
@@ -500,9 +325,10 @@ class MainWindow(QMainWindow):
         )
         self.register_action("&Help/&About", on_triggered=self.on_about_action)
 
-        self.register_action("&File/&Open recording", "Ctrl+o", self.on_open_action)
-        self.register_action("&File/&Close recording", "Ctrl+w", app.unload)
-        self.register_action("&File/&Global Settings", None, self.show_global_settings)
+        self.register_action("&File/&Open folder", "Ctrl+o", self.on_open_action)
+        self.register_action("&File/&Close folder", "Ctrl+w", app.unload)
+        self.register_action("&File/&Global settings", None, self.show_global_settings)
+        self.register_action("&File/&Recording information", "Ctrl+i", self.show_recording_information)
         self.register_action("&File/&Quit", "Ctrl+q", self.on_quit_action)
 
         self.register_action("&Tools/&Console", "Ctrl+Alt+c", self.console_window.show)
@@ -572,14 +398,30 @@ class MainWindow(QMainWindow):
             dock.setFloating(False)
             dock.show()
 
+    def on_workspace_dock_top_level_changed(self, top_level: bool) -> None:
+        if top_level:
+            self.workspace_sidebar.expand()
+            self.workspace_sidebar.toggle_button.hide()
+
+    def on_workspace_dock_location_changed(self, area: Qt.DockWidgetArea) -> None:
+        is_floating = self.workspace_dock.isFloating()
+        if area == Qt.DockWidgetArea.LeftDockWidgetArea and not is_floating:
+            self.workspace_sidebar.toggle_button.show()
+        else:
+            self.workspace_sidebar.expand()
+            self.workspace_sidebar.toggle_button.hide()
+
     def on_workspace_opened(self) -> None:
         app = neon_player.instance()
 
         self.greeting_switcher.setCurrentIndex(1)
+        self.recent_widget.hide()
+        self.recent_backdrop.hide()
         self.timeline_dock.show()
         self.settings_dock.show()
-        if app.batch_mode_enabled:
-            self.workspace_dock.show()
+        self.workspace_dock.show()
+        if not app.batch_mode_enabled:
+            self.workspace_sidebar.collapse()
         self.menuBar().show()
         self.statusBar().show()
 
@@ -594,12 +436,45 @@ class MainWindow(QMainWindow):
         self.menuBar().hide()
         self.statusBar().hide()
 
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        cw = self.centralWidget()
+        if self.recent_widget.isVisible():
+            self.recent_backdrop.fit_rect(cw.rect())
+            self.recent_widget.fit_rect(cw.rect())
+
+    def _stop_recent_widget_animation(self) -> None:
+        if hasattr(self, "_drawer_anim"):
+            self._drawer_anim.stop()
+
+    def _hide_recent_widget(self) -> None:
+        self.recent_widget.hide()
+        self.recent_backdrop.hide()
+
     def on_show_recent_action(self) -> None:
+        self._stop_recent_widget_animation()
         self.recent_widget.update_load_history()
-        self.greeting_switcher.setCurrentIndex(2)
+        cw = self.centralWidget()
+
+        # Backdrop widget captures clicks outside the recent widget to close it
+        self.recent_backdrop.fit_rect(cw.rect())
+        self.recent_backdrop.show()
+        self.recent_backdrop.raise_()
+
+        # Recent widget slides in from the left
+        self.recent_widget.fit_rect(cw.rect())
+        self.recent_widget.show()
+        self.recent_widget.raise_()
+        self._drawer_anim = self.recent_widget.slide_in_animation(cw.rect())
+        self._drawer_anim.start()
 
     def on_show_splash_action(self) -> None:
-        self.greeting_switcher.setCurrentIndex(0)
+        self._stop_recent_widget_animation()
+
+        cw = self.centralWidget()
+        self._drawer_anim = self.recent_widget.slide_out_animation(cw.rect())
+        self._drawer_anim.finished.connect(self._hide_recent_widget)
+        self._drawer_anim.start()
 
     def update_job_status(self) -> None:
         job_manager = neon_player.instance().job_manager
@@ -642,6 +517,14 @@ class MainWindow(QMainWindow):
     def show_global_settings(self) -> None:
         dialog = GlobalSettingsDialog(self)
         dialog.resize(500, 600)
+        dialog.exec()
+
+    def show_recording_information(self) -> None:
+        app = neon_player.instance()
+
+        dialog = RecordingInfoDialog(self)
+        if app.recording is not None:
+            dialog.set_recording(app.recording)
         dialog.exec()
 
     def on_quit_action(self) -> None:
