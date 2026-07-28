@@ -1054,6 +1054,7 @@ class TimeLineDock(QWidget):
         | NDArray[np.integer[T.Any] | np.floating[T.Any]],
         item_name: str = "",
         color: str = "white",
+        color_limits: tuple[float, float] | None = None,
         tooltip: TimelineTooltipConfig | None = None,
     ) -> TimelinePlotItem | None:
         """Add horizontal bars to show time ranges on the timeline.
@@ -1065,12 +1066,14 @@ class TimeLineDock(QWidget):
                 values control the bar colors when supplied.
             item_name: Optional name shown in the row legend.
             color: Color name or pyqtgraph color map name.
+            color_limits: Tuple specifying the min and max values for the colormap.
             tooltip: Optional tooltip callback or custom widget for the row; see
                 [`add_timeline_plot`][] for details on the expected format.
 
         Returns:
             plot_item: The timeline row, or ``None`` if no recording is open.
         """
+
         plot_widget = self.get_timeline_plot(timeline_row_name, True)
 
         if tooltip is not None:
@@ -1097,7 +1100,9 @@ class TimeLineDock(QWidget):
                 else np.full(len(starts_raw), np.nan)
             )
             color_values = values if not np.all(np.isnan(values)) else np.array([])
-            pens, brushes = _resolve_bar_colors(color_values, color, len(starts_raw))
+            pens, brushes = _resolve_bar_colors(
+                color_values, color_limits, color, count=len(starts_raw)
+            )
 
             bars = pg.BarGraphItem(
                 x0=starts_raw,
@@ -1224,20 +1229,21 @@ class TimeLineDock(QWidget):
 
 
 def _resolve_bar_colors(
-    values: NDArray[np.float64], color_arg: str = "white", count: int = 1
+    values: NDArray[np.float64],
+    limits: tuple[float, float] | None = None,
+    color_arg: str = "white",
+    count: int = 1,
 ) -> tuple[list[QPen], list[QBrush]]:
-    """Determine pen and brush colors for bars based on values and color arg."""
+    """
+    Determine pen and brush colors for bars based on values, limits and color args.
+    """
     if values.size == 0 or np.all(np.isnan(values)):
         c = pg.mkColor(color_arg)
         pen = pg.mkPen(c)
         brush = pg.mkBrush(c)
         return [pen] * count, [brush] * count
 
-    min_v, max_v = np.min(values), np.max(values)
-    if max_v == min_v:
-        norm_values = np.full_like(values, 0.5)
-    else:
-        norm_values = (values - min_v) / (max_v - min_v)
+    norm_values = _get_normalized_values(values, limits)
 
     try:
         cmap = pg.colormap.get(color_arg)
@@ -1246,3 +1252,18 @@ def _resolve_bar_colors(
 
     colors = cmap.map(norm_values, mode="qcolor")
     return [pg.mkPen(c) for c in colors], [pg.mkBrush(c) for c in colors]
+
+
+def _get_normalized_values(
+    values: np.ndarray, limits: tuple[float, float] | None
+) -> np.ndarray:
+    if limits is None:
+        min_v, max_v = np.min(values), np.max(values)
+    else:
+        min_v, max_v = limits
+
+    if max_v == min_v:
+        norm_values = np.full_like(values, 0.5)
+    else:
+        norm_values = (values - min_v) / (max_v - min_v)
+    return norm_values

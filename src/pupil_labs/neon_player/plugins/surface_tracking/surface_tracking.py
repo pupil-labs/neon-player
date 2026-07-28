@@ -534,6 +534,7 @@ class SurfaceTrackingPlugin(Plugin):
         stop_times = recording.scene.time[stop_indices].tolist()
 
         n_markers = marker_count_by_frame[start_indices].tolist()
+        max_n_markers = float(max(n_markers)) if n_markers else 0
 
         self.get_timeline().add_timeline_broken_bar(
             "Marker visibility",
@@ -544,6 +545,8 @@ class SurfaceTrackingPlugin(Plugin):
                 )
                 if n > 0
             ],
+            color="viridis",
+            color_limits=(0, max_n_markers),
             tooltip=marker_visibility_tooltip,
         )
 
