@@ -3,6 +3,7 @@ import logging
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QDialog, QFrame, QScrollArea, QVBoxLayout, QLabel, QWidget
@@ -12,7 +13,7 @@ from pupil_labs.neon_player.ui.constants import Color
 
 
 def get_recording_size(recording: NeonRecording) -> int:
-    manifest_file = recording._rec_dir / "manifest.json"
+    manifest_file = Path(recording._rec_dir.path) / "manifest.json"
     if not manifest_file.exists():
         logging.warning(
             f"Manifest file not found in {recording._rec_dir}. Cannot "
@@ -21,8 +22,9 @@ def get_recording_size(recording: NeonRecording) -> int:
         return 0
 
     try:
-        manifest = json.load(open(manifest_file, "r"))
-        manifest_size = sum(entry["size"] for entry in manifest)
+        with open(manifest_file, "r") as f:
+            manifest = json.load(f)
+        manifest_size = sum(int(entry["size"]) for entry in manifest)
         manifest_file_size = manifest_file.stat().st_size
         return manifest_size + manifest_file_size
     except Exception as e:
@@ -50,9 +52,6 @@ class TextFieldGroup:
             widget.setCursor(Qt.CursorShape.IBeamCursor)
 
             self.fields[name] = TextField(label=label, widget=widget)
-
-    def __getitem__(self, key: str) -> TextField:
-        return self.fields[key]
 
 
 class RecordingInfoDialog(QDialog):
@@ -150,12 +149,11 @@ class RecordingInfoDialog(QDialog):
             for field in group.fields.values():
                 field_label = QLabel(f"{field.label}:")
                 field_label.setObjectName("FieldLabel")
-                field_label.setFont(QFont("Arial", 16, QFont.Weight.Normal))
                 content_layout.addWidget(field_label)
                 content_layout.addWidget(field.widget)
                 content_layout.addSpacing(5)
 
-    def update(self, data: dict[str, dict[str, str]]) -> None:
+    def update_field_data(self, data: dict[str, dict[str, str]]) -> None:
         for group_name, group_data in data.items():
             if group_name not in self.groups:
                 raise ValueError(f"Unknown group name: {group_name}")
@@ -165,21 +163,21 @@ class RecordingInfoDialog(QDialog):
                 if field_name not in group.fields:
                     raise ValueError(f"Unknown field {field_name} in group {group_name}")
 
-                group[field_name].widget.setText(value)
+                group.fields[field_name].widget.setText(value)
 
     def set_recording(self, recording: NeonRecording) -> None:
         try:
-            self.update(self._load_recording_info(recording))
+            self.update_field_data(self._load_recording_info(recording))
         except FileNotFoundError:
             logging.warning("Failed to load information about recording")
 
         try:
-            self.update(self._load_wearer_info(recording))
+            self.update_field_data(self._load_wearer_info(recording))
         except FileNotFoundError:
             logging.warning("Failed to load information about wearer")
 
         try:
-            self.update(self._load_template_info(recording))
+            self.update_field_data(self._load_template_info(recording))
         except FileNotFoundError:
             logging.warning("Failed to load information about template")
 
@@ -212,7 +210,7 @@ class RecordingInfoDialog(QDialog):
         }
 
     @staticmethod
-    def _load_wearer_info(recording: NeonRecording) -> str:
+    def _load_wearer_info(recording: NeonRecording) -> dict[str, dict[str, str]]:
         return {
             "recording": {
                 "wearer": recording.wearer["name"]
@@ -220,8 +218,16 @@ class RecordingInfoDialog(QDialog):
         }
 
     @staticmethod
-    def _load_template_info(recording: NeonRecording) -> str:
-        with open(recording._rec_dir / "template.json", "r") as f:
+    def _load_template_info(recording: NeonRecording) -> dict[str, dict[str, str]]:
+        template_file = Path(recording._rec_dir.path) / "template.json"
+        if not template_file.exists():
+            return {
+                "recording": {
+                    "template": "-"
+                }
+            }
+
+        with open(template_file, "r") as f:
             template_data = json.load(f)
 
         return {

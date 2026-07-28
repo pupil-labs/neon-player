@@ -1,5 +1,5 @@
 from PySide6.QtCore import QRect, Qt, Signal, QPropertyAnimation, QEasingCurve
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QMouseEvent
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -32,8 +32,6 @@ class RecentWidget(QWidget):
             "Recording name": "name",
             "Wearer": "wearer",
             "Last opened": "last_opened",
-            "Recorded": "recorded",
-            "Path": "path"
         }
         self.recording_table = self._create_history_table(self.recording_columns)
         self.recording_table.cellClicked.connect(self.on_recording_table_cell_clicked)
@@ -46,7 +44,6 @@ class RecentWidget(QWidget):
         self.workspace_columns = {
             "Workspace name": "name",
             "Last opened": "last_opened",
-            "Path": "path"
         }
         self.workspace_table = self._create_history_table(self.workspace_columns)
         self.workspace_table.cellClicked.connect(self.on_workspace_table_cell_clicked)
@@ -140,16 +137,10 @@ class RecentWidget(QWidget):
         table.setRowCount(len(recent_items))
         for row, (path, info) in enumerate(recent_items):
             for col, field_name in enumerate(columns.values()):
-                if field_name == "path":
-                    item_path = QTableWidgetItem(path)
-                    item_path.setForeground(QColor("#666"))
-                    item_path.setToolTip(path)
-                    table.setItem(row, col, item_path)
-                    continue
-
                 item_text = info.get(field_name, "-")
                 item = QTableWidgetItem(item_text)
                 item.setForeground(QColor("#ededef"))
+                item.setToolTip(path)
                 if field_name == "name":
                     item.setData(Qt.ItemDataRole.UserRole, path)
                     item.setForeground(QColor("#6d7be0"))
@@ -205,7 +196,7 @@ class RecentWidget(QWidget):
 
         horiz_header = table.horizontalHeader()
         horiz_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        horiz_header.setSectionResizeMode(num_columns - 1, QHeaderView.ResizeMode.Stretch)
+        horiz_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         horiz_header.setDefaultAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
@@ -231,7 +222,7 @@ class RecentWidgetBackdrop(QWidget):
     def fit_rect(self, rect: QRect) -> None:
         self.setGeometry(rect)
 
-    def mousePressEvent(self, event) -> None:
+    def mousePressEvent(self, event: QMouseEvent) -> None:
         # Override mouse press event to prevent interaction with underlying widgets
         event.accept()
 
