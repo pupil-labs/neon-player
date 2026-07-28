@@ -112,16 +112,20 @@ class WorkspaceSidebar(QWidget):
         menu.exec(self.recordings_table.viewport().mapToGlobal(pos))
 
     def get_context_menu(self, item: QTableWidgetItem) -> QMenu:
+        recording_name = item.text().strip()
+
         menu = QMenu(self)
         show_info_action = menu.addAction("View recording information")
-        show_info_action.triggered.connect(lambda: self.show_recording_info(item))
+        show_info_action.triggered.connect(lambda: self.show_recording_info(recording_name))
         return menu
 
-    def show_recording_info(self, item: QTableWidgetItem) -> None:
+    def show_recording_info(self, recording_name: str) -> None:
         app = neon_player.instance()
-        recording_name = item.text().strip()
-        recording = app.workspace.get_recordings_by_name([recording_name])[0]
+        recordings = app.workspace.get_recordings_by_name([recording_name])
+        if not recordings:
+            return
 
+        recording = recordings[0]
         dialog = RecordingInfoDialog(app.main_window)
         dialog.set_recording(recording)
         dialog.exec()

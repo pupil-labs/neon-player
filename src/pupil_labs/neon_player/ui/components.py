@@ -1,6 +1,6 @@
 from pathlib import Path
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtCore import Qt, QEvent
+from PySide6.QtGui import QColor, QMouseEvent, QWheelEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
@@ -44,7 +44,7 @@ class _RowColorDelegate(QStyledItemDelegate):
         opt = QStyleOptionViewItem(option)
         row = index.row()
 
-        if option.state & QStyle.StateFlag.State_Selected:
+        if row == self._table._selected_row:
             painter.fillRect(option.rect, self.selected)
         elif row == self._table._hovered_row:
             painter.fillRect(option.rect, self.hovered)
@@ -70,6 +70,7 @@ class HoverRowTable(QTableWidget):
     ) -> None:
         super().__init__(*args, **kwargs)
         self._hovered_row = -1
+        self._selected_row = -1
         self.setMouseTracking(True)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
@@ -106,20 +107,38 @@ class HoverRowTable(QTableWidget):
             self._hovered_row = row
             self.viewport().update()
 
-    def mouseMoveEvent(self, event):
+    def _set_selected_row(self, row: int):
+        if row != self._selected_row:
+            self._selected_row = row
+            self.viewport().update()
+
+    def setCurrentCell(self, row: int, column: int) -> None:
+        super().setCurrentCell(row, column)
+        self._set_selected_row(row)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
         idx = self.indexAt(event.pos())
         if idx.isValid():
             self._set_hovered_row(idx.row())
             self.setCursor(Qt.CursorShape.PointingHandCursor)
         super().mouseMoveEvent(event)
 
-    def wheelEvent(self, event):
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        # Ignore right-click events to prevent the table from selecting
+        # a row when the user is trying to open the context menu
+        if event.button() == Qt.MouseButton.RightButton:
+            event.ignore()
+            return
+
+        super().mousePressEvent(event)
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
         idx = self.indexAt(event.position().toPoint())
         if idx.isValid():
             self._set_hovered_row(idx.row())
         super().wheelEvent(event)
 
-    def leaveEvent(self, event):
+    def leaveEvent(self, event: QEvent) -> None:
         self._set_hovered_row(-1)
         self.setCursor(Qt.CursorShape.ArrowCursor)
         super().leaveEvent(event)
