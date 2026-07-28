@@ -1,7 +1,14 @@
 from PySide6.QtCore import QPoint, QSize, Qt
 from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import (
-    QMenu, QToolButton, QWidget, QVBoxLayout, QLabel, QTableWidgetItem, QAbstractItemView, QHeaderView
+    QAbstractItemView,
+    QHeaderView,
+    QMenu,
+    QSizePolicy,
+    QTableWidgetItem,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
 
 from pupil_labs import neon_player
@@ -17,6 +24,7 @@ class WorkspaceSidebar(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.setObjectName("WorkspaceSidebar")
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
 
         self._column_field_mapping = {
             "Recording name": ("name", lambda name: f"  {name}"),
@@ -42,16 +50,18 @@ class WorkspaceSidebar(QWidget):
         self.recordings_table.setColumnCount(len(self._column_names))
         self.recordings_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.recordings_table.setFocusPolicy(Qt.NoFocus)
+        self.recordings_table.setIconSize(QSize(80, 40))
         self.recordings_table.setHorizontalHeaderLabels(self._column_names)
         self.recordings_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.recordings_table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.recordings_table.setShowGrid(False)
-        self.recordings_table.setIconSize(QSize(80, 40))
+        self.recordings_table.setWordWrap(False)
         self.recordings_table.cellClicked.connect(self.on_table_cell_clicked)
         self.recordings_table.customContextMenuRequested.connect(self.on_table_right_clicked)
 
         horiz_header = self.recordings_table.horizontalHeader()
         horiz_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        horiz_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         horiz_header.setDefaultAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
@@ -110,8 +120,7 @@ class WorkspaceSidebar(QWidget):
     def show_recording_info(self, item: QTableWidgetItem) -> None:
         app = neon_player.instance()
         recording_name = item.text().strip()
-        recording_path = app.workspace.get_recording_path(recording_name)
-        recording = NeonRecording(recording_path)
+        recording = app.workspace.get_recordings_by_name([recording_name])[0]
 
         dialog = RecordingInfoDialog(app.main_window)
         dialog.set_recording(recording)
@@ -155,8 +164,8 @@ class WorkspaceSidebar(QWidget):
         self.workspace_heading.hide()
         self.recordings_table.hide()
         self.main_layout.addStretch()
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.setMinimumWidth(self.width_collapsed)
-        self.setMaximumWidth(self.width_collapsed)
         self._collapsed = True
 
     def expand(self) -> None:
@@ -167,5 +176,6 @@ class WorkspaceSidebar(QWidget):
         self.workspace_heading.show()
         self.recordings_table.show()
         self.main_layout.takeAt(self.main_layout.count() - 1)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
         self.setMinimumWidth(self.width_expanded)
         self._collapsed = False

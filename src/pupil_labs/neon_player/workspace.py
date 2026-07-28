@@ -105,6 +105,9 @@ class Workspace(QObject):
     def get_recordings_by_id(self, recording_ids: Iterable[str]) -> list[NeonRecording]:
         return [rec for rec in self._recordings if rec.id in recording_ids]
 
+    def get_recordings_by_name(self, recording_names: Iterable[str]) -> list[NeonRecording]:
+        return [rec for rec in self._recordings if rec._rec_dir.name in recording_names]
+
     def clear(self):
         self._recording_metadata = {}
         self._recordings = []
