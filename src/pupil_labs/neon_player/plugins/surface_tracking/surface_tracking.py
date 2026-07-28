@@ -791,6 +791,7 @@ class SurfaceTrackingPlugin(Plugin):
         cache_path = self.get_cache_path(workspace=self.batch_mode_enabled)
         cache_file = cache_path / f"{surface_uid}_heatmap.png"
         surface._heatmap = cv2.imread(str(cache_file))
+        surface.changed.emit()
         self.trigger_scene_update()
         self.add_surface_gaze_timeline(surface)
 

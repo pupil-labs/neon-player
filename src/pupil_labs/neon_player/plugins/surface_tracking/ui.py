@@ -285,4 +285,5 @@ class HeatmapViewWindow(QSplitter):
 
         self.addWidget(self.options_container)
 
+        surface.heatmap_options.changed.connect(surface.changed.emit)
         surface.changed.connect(self.view_widget.refit_rect)
