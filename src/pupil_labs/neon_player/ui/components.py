@@ -1,6 +1,8 @@
+import typing as T
+
 from pathlib import Path
-from PySide6.QtCore import Qt, QEvent
-from PySide6.QtGui import QColor, QMouseEvent, QWheelEvent
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, Qt, QEvent, QPersistentModelIndex
+from PySide6.QtGui import QColor, QMouseEvent, QPainter, QWheelEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
@@ -9,6 +11,7 @@ from PySide6.QtWidgets import (
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QTableWidget,
+    QWidget,
 )
 from PySide6.QtSvgWidgets import QSvgWidget
 
@@ -33,14 +36,26 @@ def create_heading_with_icon(
 
 
 class _RowColorDelegate(QStyledItemDelegate):
-    def __init__(self, table, normal, hovered, selected, parent=None):
+    def __init__(
+        self,
+        table: "HoverRowTable",
+        normal: str,
+        hovered: str,
+        selected: str,
+        parent: QWidget | None = None
+    ) -> None:
         super().__init__(parent)
         self._table = table
         self.normal = QColor(normal)
         self.hovered = QColor(hovered)
         self.selected = QColor(selected)
 
-    def paint(self, painter, option, index):
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex
+    ) -> None:
         opt = QStyleOptionViewItem(option)
         row = index.row()
 
@@ -62,11 +77,11 @@ class _RowColorDelegate(QStyledItemDelegate):
 class HoverRowTable(QTableWidget):
     def __init__(
         self,
-        *args,
+        *args: T.Any,
         normal_color: str = "transparent",
         hover_color: str = Color.State.Hover,
         selected_color: str = Color.State.Selected,
-        **kwargs,
+        **kwargs: T.Any,
     ) -> None:
         super().__init__(*args, **kwargs)
         self._hovered_row = -1
@@ -74,7 +89,7 @@ class HoverRowTable(QTableWidget):
         self.setMouseTracking(True)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
-        self.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
+        self.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         self.verticalHeader().setDefaultSectionSize(60)
 
         delegate = _RowColorDelegate(self, normal_color, hover_color, selected_color)
@@ -102,17 +117,21 @@ class HoverRowTable(QTableWidget):
             }
         """)
 
-    def _set_hovered_row(self, row: int):
-        if row != self._hovered_row:
-            self._hovered_row = row
-            self.viewport().update()
+    def _set_hovered_row(self, row: int) -> None:
+        if row == self._hovered_row:
+            return
 
-    def _set_selected_row(self, row: int):
-        if row != self._selected_row:
-            self._selected_row = row
-            self.viewport().update()
+        self._hovered_row = row
+        self.viewport().update()
 
-    def setCurrentCell(self, row: int, column: int) -> None:
+    def _set_selected_row(self, row: int) -> None:
+        if row == self._selected_row:
+            return
+
+        self._selected_row = row
+        self.viewport().update()
+
+    def setCurrentCell(self, row: int, column: int) -> None:  # type: ignore[override]
         super().setCurrentCell(row, column)
         self._set_selected_row(row)
 

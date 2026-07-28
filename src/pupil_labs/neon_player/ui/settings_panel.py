@@ -70,7 +70,7 @@ class SettingsPanel(QScrollArea):
 
         self.content_widget = QWidget()
         self.content_layout = QVBoxLayout()
-        self.content_layout.setContentsMargins(0, 0, 5, 0)
+        self.content_layout.setContentsMargins(0, 10, 5, 0)
         self.content_widget.setLayout(self.content_layout)
         self.setWidgetResizable(True)
 

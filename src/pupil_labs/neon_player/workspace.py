@@ -73,7 +73,7 @@ def check_if_neon_recording(path: Path) -> bool:
 class Workspace(QObject):
     recording_list_loaded = Signal(object)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         self._recording_metadata : dict[str, RecordingMetadata] = {}
@@ -108,13 +108,13 @@ class Workspace(QObject):
     def get_recordings_by_name(self, recording_names: Iterable[str]) -> list[NeonRecording]:
         return [rec for rec in self._recordings if rec._rec_dir.name in recording_names]
 
-    def clear(self):
+    def clear(self) -> None:
         self._recording_metadata = {}
         self._recordings = []
         self.path = None
         self.initialized = False
 
-    def add_recording(self, path: Path):
+    def add_recording(self, path: Path) -> None:
         desc = get_recording_metadata(path)
 
         if desc:
@@ -124,7 +124,7 @@ class Workspace(QObject):
             self.initialized = True
             self.recording_list_loaded.emit(self.recording_metadata)
 
-    def load_recording_list(self, path: Path):
+    def load_recording_list(self, path: Path) -> None:
         logging.info(f"Scanning for recordings in: {path}")
         self.initialized = False
         recording_list = get_recording_list(path)
@@ -155,5 +155,5 @@ class Workspace(QObject):
         )
         batch_job.finished.connect(self.on_thumbnail_generation_finished)
 
-    def on_thumbnail_generation_finished(self):
+    def on_thumbnail_generation_finished(self) -> None:
         self.recording_list_loaded.emit(self.recording_metadata)

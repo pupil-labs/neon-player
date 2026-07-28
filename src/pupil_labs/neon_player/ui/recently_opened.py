@@ -15,13 +15,14 @@ from pathlib import Path
 from pupil_labs import neon_player
 from pupil_labs.neon_player import asset_path
 from pupil_labs.neon_player.ui.components import create_heading_with_icon, HoverRowTable
+from pupil_labs.neon_player.ui.constants import Color
 
 
 class RecentWidget(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("RecentWidget")
-        self.setStyleSheet("#content { background: #121212; }")
+        self.setStyleSheet(f"#content {{ background: {Color.Background.Recent}; }}")
 
         recording_heading = create_heading_with_icon(
             "Recently opened",
@@ -139,11 +140,11 @@ class RecentWidget(QWidget):
             for col, field_name in enumerate(columns.values()):
                 item_text = info.get(field_name, "-")
                 item = QTableWidgetItem(item_text)
-                item.setForeground(QColor("#ededef"))
+                item.setForeground(QColor(Color.Text.Primary))
                 item.setToolTip(path)
                 if field_name == "name":
                     item.setData(Qt.ItemDataRole.UserRole, path)
-                    item.setForeground(QColor("#6d7be0"))
+                    item.setForeground(QColor(Color.Primary.Main))
                     font = item.font()
                     font.setBold(True)
                     item.setFont(font)

@@ -124,17 +124,21 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
             output_timestamps_filename="scene_timestamps.csv"
         )
 
-    def bg_create_thumbnail(self) -> T.Generator[ProgressUpdate, None, None]:
+    def bg_create_thumbnail(
+        self, width: int = 200, height: int = 150
+    ) -> T.Generator[ProgressUpdate, None, None]:
         if self.recording is None:
             return
 
         try:
             thumbnail_ts = self.recording.start_time + self.recording.duration // 2
             thumbnail_frame = self.recording.scene.sample([thumbnail_ts], method="backward")[0]
-            thumbnail = cv2.resize(thumbnail_frame.bgr, (200, 150), interpolation=cv2.INTER_AREA)
+            thumbnail = cv2.resize(thumbnail_frame.bgr, (width, height), interpolation=cv2.INTER_AREA)
         except NeonRecording.SensorError:
-            thumbnail = 128 * np.ones((150, 200, 3), dtype=np.uint8)
+            thumbnail = 128 * np.ones((height, width, 3), dtype=np.uint8)
 
-        thumbnail_path = self.get_cache_path().parent / "thumbnail.png"
+        cache_path = self.get_cache_path()
+        assert cache_path is not None
+        thumbnail_path = cache_path.parent / "thumbnail.png"
         cv2.imwrite(str(thumbnail_path), thumbnail)
         yield ProgressUpdate(1.0)
