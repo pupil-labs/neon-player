@@ -575,6 +575,8 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, int, T.SupportsFloat]] | list[tuple[int, int]] | np.ndarray,
         item_name: str = "",
         color: str = "white",
+        color_limits: tuple[float, float] | None = None,
+        color_source: str | None = None,
     ) -> pg.PlotDataItem | None:
         """Adds a broken bar plot to the timeline where bars are colored based on a Z-value.
 
@@ -584,7 +586,10 @@ class TimeLineDock(QWidget):
             data: A list of tuples (start, stop, value) or (start, stop).
                   'value' is used for the colormap.
             item_name: Name for the legend.
-            color: Name of the pyqtgraph colormap or color(e.g., 'viridis', 'white', ...)
+            color: Name of the pyqtgraph colormap or color (e.g., 'viridis', 'white', ...).
+            color_limits: Tuple specifying the min and max values for the colormap.
+            color_source: By default, pyqtgraph colormaps are used. Provide 'matplotlib' or
+                          'colorcet' to use colormaps from those libraries.
         """
         plot_widget = self.get_timeline_plot(timeline_row_name, True)
         if plot_widget is None:
@@ -611,7 +616,9 @@ class TimeLineDock(QWidget):
                 else np.full(len(starts_raw), np.nan)
             )
             color_values = values if not np.all(np.isnan(values)) else np.array([])
-            pens, brushes = _resolve_bar_colors(color_values, color, len(starts_raw))
+            pens, brushes = _resolve_bar_colors(
+                color_values, color_limits, color, color_source, count=len(starts_raw)
+            )
 
             bars = pg.BarGraphItem(
                 x0=starts_raw, x1=stops_raw, y0=-0.4, y1=0.4, pens=pens, brushes=brushes
@@ -722,25 +729,38 @@ class TimeLineDock(QWidget):
 
 
 def _resolve_bar_colors(
-    values: np.ndarray, color_arg: str = "white", count: int = 1
+    values: np.ndarray,
+    limits: tuple[float, float] | None = None,
+    color_arg: str = "white",
+    color_source: str | None = None,
+    count: int = 1
 ) -> tuple[list, list]:
-    """Determine pen and brush colors for bars based on values and color arg."""
+    """Determine pen and brush colors for bars based on values, limits and color args."""
     if values.size == 0 or np.all(np.isnan(values)):
         c = pg.mkColor(color_arg)
         pen = pg.mkPen(c)
         brush = pg.mkBrush(c)
         return [pen] * count, [brush] * count
 
-    min_v, max_v = np.min(values), np.max(values)
-    if max_v == min_v:
-        norm_values = np.full_like(values, 0.5)
-    else:
-        norm_values = (values - min_v) / (max_v - min_v)
+    norm_values = _get_normalized_values(values, limits)
 
     try:
-        cmap = pg.colormap.get(color_arg)
+        cmap = pg.colormap.get(color_arg, source=color_source)
     except Exception:
         cmap = pg.colormap.get("viridis")
 
     colors = cmap.map(norm_values, mode="qcolor")
     return [pg.mkPen(c) for c in colors], [pg.mkBrush(c) for c in colors]
+
+
+def _get_normalized_values(values, limits):
+    if limits is None:
+        min_v, max_v = np.min(values), np.max(values)
+    else:
+        min_v, max_v = limits
+
+    if max_v == min_v:
+        norm_values = np.full_like(values, 0.5)
+    else:
+        norm_values = (values - min_v) / (max_v - min_v)
+    return norm_values
