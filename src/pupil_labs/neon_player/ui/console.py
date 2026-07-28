@@ -5,6 +5,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QSizePolicy,
@@ -15,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player.job_manager import BackgroundJob
+from pupil_labs.neon_player.job_manager import BaseBackgroundJob
 
 LOG_COLORS = {
     "DEBUG": Qt.GlobalColor.green,
@@ -82,7 +83,7 @@ class QTextEditLogger(logging.Handler):
 
 
 class JobProgressBar(QWidget):
-    def __init__(self, job: BackgroundJob, *args: T.Any, **kwargs: T.Any) -> None:
+    def __init__(self, job: BaseBackgroundJob, *args: T.Any, **kwargs: T.Any) -> None:
         super().__init__(*args, **kwargs)
 
         self.main_layout = QHBoxLayout()
@@ -97,7 +98,7 @@ class JobProgressBar(QWidget):
         self.cancel_button = QToolButton()
         self.cancel_button.setText("🗑")
         self.cancel_button.setAutoRaise(True)
-        self.cancel_button.clicked.connect(job.cancel)
+        self.cancel_button.clicked.connect(self.on_cancel_clicked)
         self.main_layout.addWidget(self.cancel_button)
 
         self.worker = job
@@ -106,6 +107,19 @@ class JobProgressBar(QWidget):
     def on_worker_progress(self, v: float):
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(v * 100)
+
+    def on_cancel_clicked(self):
+        if self.worker.confirm_cancel:
+            result = QMessageBox.question(
+                None,
+                "Cancel Job",
+                self.worker.confirm_cancel,
+            )
+
+            if result != QMessageBox.StandardButton.Yes:
+                return
+
+        self.worker.cancel()
 
 
 class ConsoleWindow(QWidget):
@@ -188,10 +202,10 @@ class ConsoleWindow(QWidget):
         self.console_widget.clear()
         logging.info("Log display cleared")
 
-    def on_job_added(self, job: BackgroundJob) -> None:
+    def on_job_added(self, job: BaseBackgroundJob) -> None:
         self.job_table_layout.addRow(job.name, JobProgressBar(job))
 
-    def remove_job(self, job: BackgroundJob) -> None:
+    def remove_job(self, job: BaseBackgroundJob) -> None:
         for row_idx in range(self.job_table_layout.rowCount()):
             item = self.job_table_layout.itemAt(row_idx, QFormLayout.ItemRole.FieldRole)
             widget = item.widget()

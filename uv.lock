@@ -1430,12 +1430,12 @@ requires-dist = [
     { name = "protobuf", specifier = "<6" },
     { name = "pupil-apriltags", specifier = ">=1.0.4.post11" },
     { name = "pupil-labs-marker-mapper", specifier = ">=1.0.0" },
-    { name = "pupil-labs-neon-recording", specifier = ">=2.1.5" },
+    { name = "pupil-labs-neon-recording", git = "https://github.com/pupil-labs/pl-neon-recording?rev=476ba1fb6340d56a302ee5fd82653b5ecc202cd1" },
     { name = "pupil-labs-video", specifier = ">=1.0.13" },
     { name = "pyobjc", marker = "sys_platform == 'darwin'" },
     { name = "pyqtgraph", specifier = ">=0.13.7" },
     { name = "pyside6", specifier = ">=6.10.2" },
-    { name = "qt-property-widgets", git = "https://github.com/domstoppable/qt-property-widgets" },
+    { name = "qt-property-widgets", git = "https://github.com/domstoppable/qt-property-widgets?rev=d2b7fab2dd24794e2a93c1faa02a04fa767bd1a0" },
     { name = "scipy", specifier = ">=1.15.2" },
     { name = "setuptools", specifier = ">=78.1.0" },
     { name = "tqdm", specifier = ">=4.67.1" },
@@ -1469,8 +1469,8 @@ dev = [
 
 [[package]]
 name = "pupil-labs-neon-recording"
-version = "2.1.5"
-source = { registry = "https://pypi.org/simple" }
+version = "2.1.5.post1.dev0+476ba1f"
+source = { git = "https://github.com/pupil-labs/pl-neon-recording?rev=476ba1fb6340d56a302ee5fd82653b5ecc202cd1#476ba1fb6340d56a302ee5fd82653b5ecc202cd1" }
 dependencies = [
     { name = "numpy" },
     { name = "packaging" },
@@ -1478,10 +1478,6 @@ dependencies = [
     { name = "protobuf" },
     { name = "pupil-labs-video" },
     { name = "universal-pathlib" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/49/00/b445f01762ad43e7c9c6e8418c8cd1daca6e952f8e0bc68567030f47b5ea/pupil_labs_neon_recording-2.1.5.tar.gz", hash = "sha256:a2fce26e54320a8a941ba2e4016c6f0aa0d72cac2d4b2ff3fb54ff8448d07c13", size = 1361249, upload-time = "2026-07-09T12:23:32.559Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/65/a3/7ce73391dbc90eebcb592c06c3f0cd1efb997374dca22bcfebab7c3c6cfd/pupil_labs_neon_recording-2.1.5-py3-none-any.whl", hash = "sha256:55c00d4e7bd81763425ba376592955bdfd127befce7ed3897d99c68019308921", size = 28417, upload-time = "2026-07-09T12:23:31.143Z" },
 ]
 
 [[package]]
@@ -4526,8 +4522,8 @@ wheels = [
 
 [[package]]
 name = "qt-property-widgets"
-version = "0.0.0.post73.dev0+952c170"
-source = { git = "https://github.com/domstoppable/qt-property-widgets#952c170fa2cff67206e17ee7d4c75b4f3ed93b87" }
+version = "0.0.0.post81.dev0+d2b7fab"
+source = { git = "https://github.com/domstoppable/qt-property-widgets?rev=d2b7fab2dd24794e2a93c1faa02a04fa767bd1a0#d2b7fab2dd24794e2a93c1faa02a04fa767bd1a0" }
 dependencies = [
     { name = "pyside6" },
 ]

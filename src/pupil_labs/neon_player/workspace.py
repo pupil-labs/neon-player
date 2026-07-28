@@ -1,0 +1,162 @@
+import logging
+
+from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from pathlib import Path
+
+from PySide6.QtCore import QObject, Signal
+
+from pupil_labs import neon_player
+from pupil_labs import neon_recording as nr
+from pupil_labs.neon_recording import NeonRecording
+
+
+@dataclass
+class RecordingMetadata:
+    name: str
+    id: str
+    path: Path
+    recorded: datetime
+    duration: timedelta
+    wearer: str
+    thumbnail_path: Path
+
+
+def get_recording_metadata(path: Path) -> RecordingMetadata | None:
+    """
+    Extracts recording name, duration, and wearer name to provide
+    metadata of the recording.
+    """
+    try:
+        rec = nr.load(path)
+        recorded = datetime.fromtimestamp(rec.start_time / 1e9)
+        duration = timedelta(seconds=rec.duration // 1e9)
+        thumbnail_path = path / ".neon_player" / "cache" / "thumbnail.png"
+
+        return RecordingMetadata(
+            name=path.name,
+            id=rec.id,
+            path=path,
+            duration=duration,
+            wearer=rec.wearer["name"],
+            recorded=recorded,
+            thumbnail_path=thumbnail_path,
+        )
+    except FileNotFoundError:  # path / info.json / wearer.json missing
+        return None
+
+
+def get_recording_list(path: Path) -> list[RecordingMetadata]:
+    """
+    Get a list of recordings present in a folder.
+    Only a subset of fields is extracted to provide metadata.
+    """
+    recordings = []
+    folders = sorted([p for p in path.iterdir() if p.is_dir()])
+    for folder in folders:
+        if desc := get_recording_metadata(folder):
+            recordings.append(desc)
+
+    return recordings
+
+
+def check_if_neon_recording(path: Path) -> bool:
+    """
+    Check if the given path contains a Neon recording.
+    """
+    info_file = path / "info.json"
+    wearer_file = path / "wearer.json"
+    return info_file.exists() and wearer_file.exists()
+
+
+class Workspace(QObject):
+    recording_list_loaded = Signal(object)
+
+    def __init__(self) -> None:
+        super().__init__()
+
+        self._recording_metadata : dict[str, RecordingMetadata] = {}
+        self._recordings : list[NeonRecording] = []
+        self.path : Path | None = None
+        self.initialized : bool = False
+
+    @property
+    def recordings(self) -> list[NeonRecording]:
+        return self._recordings
+
+    @property
+    def size(self) -> int:
+        return len(self._recordings)
+
+    @property
+    def recording_metadata(self) -> list[RecordingMetadata]:
+        return list(self._recording_metadata.values())
+
+    def get_recordings_by_id(self, recording_ids: Iterable[str]) -> list[NeonRecording]:
+        return [rec for rec in self._recordings if rec.id in recording_ids]
+
+    def get_recording_path(self, recording_name: str) -> Path | None:
+        """
+        Get the file path of a recording by its name.
+        """
+        if recording_name not in self._recording_metadata:
+            return None
+
+        return self._recording_metadata[recording_name].path
+
+    def get_recordings_by_id(self, recording_ids: Iterable[str]) -> list[NeonRecording]:
+        return [rec for rec in self._recordings if rec.id in recording_ids]
+
+    def get_recordings_by_name(self, recording_names: Iterable[str]) -> list[NeonRecording]:
+        return [rec for rec in self._recordings if rec._rec_dir.name in recording_names]
+
+    def clear(self) -> None:
+        self._recording_metadata = {}
+        self._recordings = []
+        self.path = None
+        self.initialized = False
+
+    def add_recording(self, path: Path) -> None:
+        desc = get_recording_metadata(path)
+
+        if desc:
+            self._recordings.append(nr.load(path))
+            self._recording_metadata[desc.name] = desc
+            self.path = path.parent
+            self.initialized = True
+            self.recording_list_loaded.emit(self.recording_metadata)
+
+    def load_recording_list(self, path: Path) -> None:
+        logging.info(f"Scanning for recordings in: {path}")
+        self.initialized = False
+        recording_list = get_recording_list(path)
+        self._recording_metadata = {rec.name: rec for rec in recording_list}
+        self._recordings = [nr.load(rec.path) for rec in recording_list]
+        self.path = path
+
+        logging.info(f"Found {self.size} recordings in the provided folder")
+
+        self.initialized = True
+        self.recording_list_loaded.emit(self.recording_metadata)
+
+        app = neon_player.instance()
+        if app is None or app.headless:
+            return
+
+        thumbnail_missing_ids = [
+            rec.id for rec in recording_list if not rec.thumbnail_path.exists()
+        ]
+        if not thumbnail_missing_ids:
+            return
+
+        thumbnail_missing_recs = self.get_recordings_by_id(thumbnail_missing_ids)
+        batch_job = app.job_manager.run_background_batch_action(
+            "Generate Thumbnails",
+            "SceneRendererPlugin.bg_create_thumbnail",
+            recordings=thumbnail_missing_recs,
+        )
+        batch_job.finished.connect(self.on_thumbnail_generation_finished)
+
+    def on_thumbnail_generation_finished(self) -> None:
+        self.recording_list_loaded.emit(self.recording_metadata)

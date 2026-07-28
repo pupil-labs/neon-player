@@ -8,6 +8,7 @@ from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
+from pupil_labs.neon_player.plugins.shared import run_export_across_recordings
 from pupil_labs.neon_recording import NeonRecording
 
 
@@ -169,11 +170,17 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
 
         self.eyestate_data = pd.DataFrame(eyestate_data_dict)
 
+        if self.headless:
+            return
+
         self._update_plot_visibilities("Pupil diameter", self._pupil_diameter_plots)
         self._update_plot_visibilities("Eyeball center", self._eyeball_center_plots)
         self._update_plot_visibilities("Optical axis", self._optical_axis_plots)
         self._update_plot_visibilities("Eyelid angle", self._eyelid_angle_plots)
         self._update_plot_visibilities("Eyelid aperture", self._eyelid_aperture_plots)
+
+        if self.batch_mode_enabled:
+            self.add_dynamic_action("Export all recordings", self.export_all_recordings)
 
     def on_disabled(self) -> None:
         timeline = self.get_timeline()
@@ -235,3 +242,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         stop_mask = self.eyestate_data["timestamp [ns]"] <= stop_time
 
         self.eyestate_data[start_mask & stop_mask].to_csv(export_file, index=False)
+
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
+    def export_all_recordings(self, destination: Path = Path(".")) -> None:
+        run_export_across_recordings(self, destination)

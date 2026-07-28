@@ -2,7 +2,6 @@ import logging
 import numpy as np
 import pandas as pd
 import typing as T
-import uuid
 
 from pathlib import Path
 from pupil_labs.neon_recording import NeonRecording
@@ -19,8 +18,11 @@ from qt_property_widgets.widgets import ValueListWidget, ValueListItemWidget
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
+from pupil_labs.neon_player.job_manager import BatchBackgroundJob
+from pupil_labs.neon_player.plugins.shared import run_export_across_recordings
 from pupil_labs.neon_player.plugins import Plugin
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
+from pupil_labs.neon_player.utilities import SignalDebouncer
 
 IMMUTABLE_EVENTS = ["recording.begin", "recording.end"]
 
@@ -49,6 +51,10 @@ class EventType(PersistentPropertiesMixin, QObject):
         self._shortcut = ""
         self._uid = ""
 
+    def __repr__(self) -> str:
+        shortcut_str = f", shortcut={self._shortcut}" if self._shortcut else ""
+        return f"EventType({self._name}{shortcut_str})"
+
     @property
     def name(self) -> str:
         return self._name
@@ -58,27 +64,25 @@ class EventType(PersistentPropertiesMixin, QObject):
         if self._name == value:
             return
 
-        plugin = EventsPlugin.instance()
-        if plugin is not None and value in IMMUTABLE_EVENTS:
-            QMessageBox.warning(
-                None,
-                "Invalid event name",
-                f"Event cannot be renamed to '{value}' as this name is reserved. "
-                f"Please choose a different name.",
-            )
-            return
-
-        if plugin is not None and value in plugin._event_types_by_name:
-            QMessageBox.warning(
-                None,
-                "Duplicate event name",
-                f"Event '{value}' already exists. Please choose a different name.",
-            )
-            return
-
         old_name = self._name
+        plugin = EventsPlugin.instance()
+        if plugin is not None and not plugin.validate_event_rename(old_name, value):
+            return
+
         self._name = value
-        self.name_changed.emit(old_name, value)
+        self._uid = value
+
+        # NOTE: if multiple name changes are made in quick succession, we need to,
+        # on the one hand, debounce the signal to avoid launching multiple bg jobs,
+        # but on the other hand, pass original name before the first change as
+        # `old_name` to ensure correct modification, so we re-use the value from
+        # the pending debouncer if it exists
+        if plugin is not None and plugin.batch_mode_enabled:
+            debouncer = SignalDebouncer.get_pending_debouncer(self.name_changed)
+            original_name = debouncer.args[0] if debouncer is not None else old_name
+            SignalDebouncer.debounce(self.name_changed, 1.0, original_name, value)
+        else:
+            self.name_changed.emit(old_name, value)
 
     @property
     @property_params(max_length=1)
@@ -92,6 +96,12 @@ class EventType(PersistentPropertiesMixin, QObject):
     @property
     @property_params(widget=None)
     def uid(self) -> str:
+        """
+        This property is deprecated and should always have the same value as `name`.
+
+        It is kept for compatibility with the original implementation of the plugin
+        that used UIDs as the primary identifier for event types.
+        """
         return self._uid
 
     @uid.setter
@@ -102,7 +112,7 @@ class EventType(PersistentPropertiesMixin, QObject):
     def from_name(name: str) -> "EventType":
         et = EventType()
         et._name = name
-        et._uid = name if name in IMMUTABLE_EVENTS else str(uuid.uuid4())
+        et._uid = name
         return et
 
 
@@ -137,82 +147,104 @@ class EventTypeListWidget(ValueListWidget):
             return
 
         event_type = item_widget.item_widget.value
-        events = plugin._events.get(event_type.uid, [])
-        if events:
-            suffix = "" if len(events) == 1 else "s"
-            confirmed = plugin.user_confirm(
-                "Confirm event type deletion",
-                f"Deleting event type '{event_type.name}' will also delete its {len(events)}"
-                f" instance{suffix}. Do you want to proceed?",
-            )
-            if not confirmed:
-                return
+        if not plugin.confirm_event_type_removal(event_type.name):
+            return
 
         plugin.delete_event_type(event_type)
-        super().remove_item(item_widget)
+        self.container_layout.removeWidget(item_widget)
+        item_widget.deleteLater()
 
 
-def _load_events_from_recording(
-    recording: NeonRecording, global_event_types: list[str] = []
-) -> tuple[list[EventType], dict[str, list[int]]]:
+class WorkspaceEventIndex():
     """
-    Loads events from the recording and additionally creates event types that
-    are defined in global settings.
-
-    Returns all created event types and the events as {uid: list of timestamps}.
+    Maintains an index of all events and the number of their occurrences
+    across all recordings in the workspace to support renaming and deletion.
     """
-    event_type_cache: dict[str, EventType] = {}
+    def __init__(self) -> None:
+        # {event_name: {recording_name: event_count}}
+        self.events: dict[str, dict[str, int]] = {}
+
+        # IDs of recording that the index is based on
+        self.recording_ids: set[str] = set()
+
+    def load(self, data: dict[str, T.Any]) -> None:
+        if data is None:
+            return
+
+        self.events = data.get("events", {})
+        self.recording_ids = set(data.get("recording_ids", []))
+
+    def to_dict(self) -> dict[str, T.Any]:
+        data = {
+            "events": self.events,
+            "recording_ids": list(self.recording_ids)
+        }
+        return data
+
+    def _cleanup_events(self) -> None:
+        """
+        Clean up any events that no longer exist in any recordings.
+        """
+        self.events = {k: v for k, v in self.events.items() if v}
+
+    def update(self, recording_id: str, recording_events: dict[str, list[int]]) -> None:
+        """
+        Batch index update that goes through all events in the index and all events
+        that belong to a particular recording.
+        """
+        # First, check if existing index entries for this recording are up-to-date
+        for event_name, recording_counts in self.events.items():
+            event_in_recording = event_name in recording_events
+            recording_in_index = recording_id in recording_counts
+
+            if recording_in_index and not event_in_recording:
+                del recording_counts[recording_id]
+
+            if event_in_recording:
+                timestamps = recording_events[event_name]
+                self.events[event_name][recording_id] = len(timestamps)
+
+        self._cleanup_events()
+
+        # Process other events from the recording that are not yet in the index
+        for event_name, timestamps in recording_events.items():
+            if event_name in IMMUTABLE_EVENTS:
+                continue
+
+            if event_name in self.events:
+                continue
+
+            self.events[event_name] = {}
+            self.events[event_name][recording_id] = len(timestamps)
+
+        # Mark recording as processed in the index
+        if recording_id not in self.recording_ids:
+            self.recording_ids.add(recording_id)
+
+    def drop(self, recording_id: str) -> None:
+        """
+        Remove all events from the index that belong to a particular recording.
+        """
+        if recording_id not in self.recording_ids:
+            return
+
+        for recording_counts in self.events.values():
+            if recording_id in recording_counts:
+                del recording_counts[recording_id]
+
+        self._cleanup_events()
+        self.recording_ids.remove(recording_id)
+
+
+def _load_events_from_recording(recording: NeonRecording):
     events: dict[str, list[int]] = {}
 
-    for event in recording.events:
-        event_name = str(event.event)
+    logging.debug("Loading events from Neon recording")
+    for event_name in np.unique(recording.events.event):
+        timestamps = recording.events[recording.events.event == event_name].time
+        events[str(event_name)] = [int(t) for t in timestamps]
 
-        # Look up or create the event type
-        et = event_type_cache.get(event_name, None)
-        if et is None:
-            et = EventType.from_name(event_name)
-            event_type_cache[event_name] = et
-
-        # Add event to the dictionary
-        if et.uid not in events:
-            events[et.uid] = []
-        events[et.uid].append(int(event.time))
-
-    for event_name in global_event_types:
-        if event_name in event_type_cache:
-            continue
-
-        event_type_cache[event_name] = EventType.from_name(event_name)
-
-    return list(event_type_cache.values()), events
-
-
-def _load_events_from_cache(
-    cached_events: dict, known_event_types: list[EventType]
-) -> tuple[list[EventType], dict]:
-    """
-    Load event data from a cache stored in events.json. All event types are expected
-    to either be immutable (recording.begin, recording.end) or have been previously
-    defined and stored in the known_event_types list.
-
-    Returns event types that are present in the cache as well as events themselves.
-    """
-    known_event_types_by_uid = {et.uid: et for et in known_event_types}
-    for event_name in IMMUTABLE_EVENTS:
-        et = EventType.from_name(event_name)
-        known_event_types_by_uid[et.uid] = et
-
-    event_type_cache = {}
-    for uid in cached_events:
-        if uid in event_type_cache:
-            continue
-
-        if uid not in known_event_types_by_uid:
-            raise ValueError(f"Event type with uid {uid} not found")
-
-        event_type_cache[uid] = known_event_types_by_uid[uid]
-
-    return list(event_type_cache.values()), cached_events
+    return events
 
 
 def _load_events_from_dataframe(events_df: pd.DataFrame) -> dict[str, list[int]]:
@@ -228,13 +260,6 @@ def _load_events_from_dataframe(events_df: pd.DataFrame) -> dict[str, list[int]]
     return events
 
 
-def _filter_event_types(event_types: list[EventType], mutable: bool) -> list[EventType]:
-    if mutable:
-        return [et for et in event_types if et.name not in IMMUTABLE_EVENTS]
-    else:
-        return [et for et in event_types if et.name in IMMUTABLE_EVENTS]
-
-
 class EventsPlugin(neon_player.Plugin):
     label = "Events"
     global_properties = EventsPluginGlobalProps()
@@ -244,6 +269,13 @@ class EventsPlugin(neon_player.Plugin):
         self._event_types_by_name: dict[str, EventType] = {}
         self._immutable_event_types: list[EventType] = []
         self._events: dict[str, list[int]] = {}
+
+        self._consider_workspace = False
+        self._batch_rename_job: dict[str, BatchBackgroundJob] = {}
+        self._batch_delete_job: dict[str, BatchBackgroundJob] = {}
+        self._batch_update_job: BatchBackgroundJob | None = None
+        self._workspace_index: WorkspaceEventIndex = WorkspaceEventIndex()
+        self._index_file = "workspace-events.json"
 
         if self.headless:
             return
@@ -273,50 +305,197 @@ class EventsPlugin(neon_player.Plugin):
             if event_type.shortcut.lower() == key_text:
                 self._add_event(event_type)
 
-    def _load_events(self, recording: NeonRecording) -> tuple[list[EventType], dict, str]:
-        events: dict[str, list[int]] = {}
-        event_types: list[EventType] = []
+    def _get_uid_name_mapping(self) -> dict[str, str]:
+        recording_settings = self.app.session_settings.recording_settings
+        plugin_state = recording_settings.plugin_states.get(self.__class__.__name__, {})
+        event_types_state = plugin_state.get("event_types", [])
 
+        uid_name_mapping = {}
+        for et in event_types_state:
+            uid_name_mapping[et["uid"]] = et["name"]
+
+        return uid_name_mapping
+
+    def _load_events_from_cache(self) -> dict[str, list[int]] | None:
+        """
+        Load events from the cached JSON file. Ensure that the events dictionary has
+        event names as keys, not unique IDs. If IDs are used as keys, the corresponding
+        event names are derived from the recording settings.
+        """
         try:
-            cached_events = self.load_cached_json("events.json")
+            events = self.load_cached_json("events.json")
         except Exception:
-            logging.exception("Failed to load events json")
-            cached_events = None
+            logging.exception("Failed to load events.json")
+            return None
 
-        if cached_events is not None:
-            event_types, events = _load_events_from_cache(
-                cached_events, list(self._event_types_by_name.values())
-            )
-            return event_types, events, "cache"
+        if events is None:
+            return None
 
-        event_types, events = _load_events_from_recording(
-            recording, self.global_properties.global_event_types
+        uid_name_mapping = self._get_uid_name_mapping()
+        corrected_events = {}
+        events_changed = False
+        for key, value in events.items():
+            if key in IMMUTABLE_EVENTS:
+                corrected_events[key] = value
+                continue
+
+            # New format: keys are event names, keep them as is
+            if key in self._event_types_by_name:
+                corrected_events[key] = value
+                continue
+
+            # Old format: keys are event type UIDs, replace with event names using
+            # the mapping based on recording settings
+            if key in uid_name_mapping:
+                event_name = uid_name_mapping[key]
+                corrected_events[event_name] = value
+                events_changed = True
+                continue
+
+            # Otherwise, keep the key as is, a corresponding event type will be created
+            corrected_events[key] = value
+
+        if events_changed:
+            logging.debug("Corrected event keys from UIDs to names in events.json")
+            self.save_cached_json("events.json", corrected_events)
+
+        return corrected_events
+
+    def _load_workspace_index(self) -> None:
+        data = self.load_cached_json(self._index_file, workspace=True)
+        self._workspace_index.load(data)
+
+    def _save_workspace_index(self) -> None:
+        data = self._workspace_index.to_dict()
+        self.save_cached_json(self._index_file, data, workspace=True)
+
+    def _update_workspace_index(self, load: bool = True, save: bool = True) -> None:
+        if not self._consider_workspace:
+            return
+
+        if load:
+            self._load_workspace_index()
+        self._workspace_index.update(self.recording.id, self.events)
+        if save:
+            self._save_workspace_index()
+
+    def _scan_events_in_workspace(self):
+        # Skip scanning if it is already in progress, connected slot should update the
+        # event types in the UI once done
+        if self._batch_update_job is not None:
+            return
+
+        # Update the index for the current recording to account for any changes
+        # outside of the workspace mode
+        self._update_workspace_index()
+
+        if self.headless:
+            self._on_workspace_event_scan_finished()
+            return
+
+        workspace_recording_ids = {rec.id for rec in self.workspace.recordings}
+        scanned_recording_ids = self._workspace_index.recording_ids
+
+        # Remove any recordings from the index that no longer exist in the workspace
+        outdated_recording_ids = scanned_recording_ids - workspace_recording_ids
+        for recording_id in outdated_recording_ids:
+            self._workspace_index.drop(recording_id)
+
+        # If all recordings have already been scanned, update the UI immediately,
+        # otherwise launch a batch background job
+        missing_recording_ids = workspace_recording_ids - scanned_recording_ids
+        if not missing_recording_ids:
+            self._on_workspace_event_scan_finished()
+            return
+
+        recordings_to_scan = self.workspace.get_recordings_by_id(missing_recording_ids)
+        logging.info(f"Scanning events in {len(recordings_to_scan)} recordings of the workspace")
+        batch_job = self.job_manager.run_background_batch_action(
+            "Scan events in workspace",
+            "EventsPlugin._update_workspace_index",
+            recordings=recordings_to_scan
         )
+        batch_job.finished.connect(self._on_workspace_event_scan_finished)
+        self._batch_update_job = batch_job
 
-        return event_types, events, "recording"
+    def _on_workspace_event_scan_finished(self):
+        self._batch_update_job = None
+        self._load_workspace_index()
+        logging.info("Finished scanning events in workspace recordings")
 
-    def on_recording_loaded(self, recording: NeonRecording) -> None:  # noqa: C901
-        event_types, events, source = self._load_events(recording)
-        self._events = events
+        types_to_add = []
+        for event_name in self._workspace_index.events:
+            if event_name in self._event_types_by_name:
+                continue
 
-        if source == "recording":
-            # When loading from recording, only mutable event types need to be saved,
-            # but the UI needs to be set up for all event types
-            mutable_event_types = _filter_event_types(event_types, mutable=True)
-            self._immutable_event_types = _filter_event_types(event_types, mutable=False)
-            event_types_to_setup_ui_for = event_types
-            self.event_types = mutable_event_types
+            # Hide event types that are being deleted across the workspace
+            if event_name in self._batch_delete_job:
+                continue
+
+            types_to_add.append(EventType.from_name(event_name))
+
+        if types_to_add:
+            self.event_types = self.event_types + types_to_add
+            self._update_gui_for_event_types(event_types_to_add=types_to_add)
+
+    def _count_events_across_workspace(self, event_name: str) -> tuple[int, list[str]]:
+        """
+        Returns the total number of occurrences of a given event across all
+        recordings in the workspace, along with a list of recording IDs that
+        contain this event.
+        """
+        if not self.batch_mode_enabled:
+            events = self.events.get(event_name, [])
+            return len(events), [self.recording.id] if events else []
+
+        event_occurrences = self._workspace_index.events.get(event_name, {})
+        return sum(event_occurrences.values()), list(event_occurrences.keys())
+
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
+        events = self._load_events_from_cache()
+        if events is None:
+            events = _load_events_from_recording(recording)
             self.save_cached_json("events.json", events)
-        elif source == "cache":
-            # When loading from cache, all event types are expected to have been loaded
-            # from plugin settings, so self.event_types is already correct, but the UI
-            # still needs to be set up for stored and immutable event types
-            self._immutable_event_types = _filter_event_types(event_types, mutable=False)
-            event_types_to_setup_ui_for = self.event_types + self._immutable_event_types
-
+        self._events = events
         logging.info(f"Loaded {sum(len(v) for v in self._events.values())} events")
 
+        # If event type ID is different from the event name, make them match to
+        # align event types across recordings
+        event_types_changed = False
+        for event_type in self._event_types_by_name.values():
+            if event_type.uid != event_type.name:
+                event_type.uid = event_type.name
+                event_types_changed = True
+
+        # NOTE: event types are loaded from plugin settings before this method is called,
+        # so existing event types need to be preserved while adding missing ones.
+        for event_name in events:
+            if event_name in IMMUTABLE_EVENTS:
+                continue
+
+            if event_name in self._event_types_by_name:
+                continue
+
+            new_event_type = EventType.from_name(event_name)
+            self._event_types_by_name[event_name] = new_event_type
+            event_types_changed = True
+
+        if event_types_changed:
+            self.changed.emit()
+
+        # Immutable event types are not stored in plugin settings but require UI
+        self._immutable_event_types = [
+            EventType.from_name(event_name) for event_name in IMMUTABLE_EVENTS
+        ]
+        event_types_to_setup_ui_for = self._immutable_event_types + self.event_types
+
+        self._consider_workspace = self.batch_mode_enabled and self.workspace.size > 1
+        if self._consider_workspace:
+            self._scan_events_in_workspace()
+
         self._update_gui_for_event_types(event_types_to_add=event_types_to_setup_ui_for)
+        if not self.headless and self.batch_mode_enabled:
+            self.add_dynamic_action("Export all recordings", self.export_all_recordings)
 
     def on_disabled(self) -> None:
         if self.headless or self.recording is None:
@@ -342,9 +521,7 @@ class EventsPlugin(neon_player.Plugin):
 
         for et in event_types_to_add:
             et.changed.connect(self.changed.emit)
-            et.name_changed.connect(
-                lambda old, new, et=et: self._on_event_name_changed(old, new, et)
-            )
+            et.name_changed.connect(self._on_event_name_changed)
             self._setup_gui_for_event_type(et)
             self._update_timeline_data(et)
 
@@ -430,17 +607,41 @@ class EventsPlugin(neon_player.Plugin):
         self.app.main_window.remove_menu_if_empty("Timeline/Add Event")
 
     def create_event_type(self) -> EventType:
-        new_event_type = EventType()
-        new_event_type.uid = str(uuid.uuid4())
-
         event_type_counter = 1
-        while new_event_type.name == "":
-            candidate_name = f"event-{event_type_counter}"
-            if candidate_name not in self._event_types_by_name:
-                new_event_type.name = candidate_name
+        candidate_name = f"event-{event_type_counter}"
+        while candidate_name in self._event_types_by_name:
             event_type_counter += 1
+            candidate_name = f"event-{event_type_counter}"
+        return EventType.from_name(candidate_name)
 
-        return new_event_type
+    def validate_event_rename(self, old_name: str, new_name: str) -> bool:
+        if new_name in IMMUTABLE_EVENTS:
+            QMessageBox.warning(
+                None,
+                "Invalid event name",
+                f"Event cannot be renamed to '{new_name}' as this name is reserved. "
+                f"Please choose a different name.",
+            )
+            return False
+
+        if new_name in self._event_types_by_name:
+            QMessageBox.warning(
+                None,
+                "Duplicate event name",
+                f"Event '{new_name}' already exists. Please choose a different name.",
+            )
+            return False
+
+        if old_name in self._batch_rename_job:
+            QMessageBox.warning(
+                None,
+                "Event rename in progress",
+                f"Please wait for the current event rename operation to complete "
+                f"before renaming the event '{old_name}' again.",
+            )
+            return False
+
+        return True
 
     def add_event_type(self, event_type: EventType) -> None:
         if event_type.name in self._event_types_by_name:
@@ -452,20 +653,87 @@ class EventsPlugin(neon_player.Plugin):
         self._update_gui_for_event_types(event_types_to_add=[event_type])
         self.changed.emit()
 
+    def confirm_event_type_removal(self, event_name: str) -> bool:
+        num_events, recording_ids = self._count_events_across_workspace(event_name)
+        if not num_events:
+            return True
+
+        recordings_desc = ""
+        assert recording_ids, "Recording IDs should not be empty when num_events > 0"
+        if len(recording_ids) > 1:
+            recordings_desc = f" across {len(recording_ids)} recordings in the workspace"
+        elif recording_ids[0] == self.recording.id:
+            recordings_desc = " in the current recording"
+        else:
+            other_rec = self.workspace.get_recordings_by_id([recording_ids[0]])
+            recordings_desc = f" in the recording '{other_rec[0]._rec_dir.name}'"
+
+        suffix = "" if num_events == 1 else "s"
+        confirmed = self.user_confirm(
+            "Confirm event type deletion",
+            f"Deleting event type '{event_name}' will also delete its {num_events}"
+            f" instance{suffix}{recordings_desc}. Do you want to proceed?",
+        )
+        return confirmed
+
     def delete_event_type(self, event_type: EventType) -> None:
         if event_type.name in IMMUTABLE_EVENTS:
             raise ValueError(
                 f"Event type {event_type.name} cannot be deleted."
             )
 
-        if event_type.uid in self._events:
-            del self._events[event_type.uid]
-            self.save_cached_json("events.json", self._events)
+        if event_type.name not in self._event_types_by_name:
+            return
 
-        if event_type.name in self._event_types_by_name:
-            del self._event_types_by_name[event_type.name]
+        self._delete_events_by_name(event_type.name)
+        del self._event_types_by_name[event_type.name]
+        self.changed.emit()
+        if not self.headless:
             self._update_gui_for_event_types(event_types_to_remove=[event_type])
-            self.changed.emit()
+
+        if not self._consider_workspace:
+            return
+
+        _, recording_ids = self._count_events_across_workspace(event_type.name)
+        other_recording_ids = set(recording_ids) - {self.recording.id}
+        other_recordings = self.workspace.get_recordings_by_id(other_recording_ids)
+        if not other_recordings:
+            return
+
+        batch_job = self.job_manager.run_background_batch_action(
+            f"Delete events [{event_type.name}]",
+            "EventsPlugin._delete_events_by_name",
+            args_generator=lambda _: [event_type.name],
+            recordings=other_recordings,
+            confirm_cancel=self.confirm_cancel_message(event_type.name),
+        )
+        batch_job.finished.connect(lambda: self._on_batch_delete_finished(event_type))
+        batch_job.canceled.connect(lambda: self._on_batch_delete_finished(event_type))
+        self._batch_delete_job[event_type.name] = batch_job
+
+    def confirm_cancel_message(self, event_name: str) -> str:
+        return (
+            f"Cancelling this operation will leave instances of event '{event_name}' "
+            f"in an inconsistent state across recordings. Are you sure you want to cancel?"
+        )
+
+    def _on_batch_delete_finished(self, event_type: EventType) -> None:
+        del self._batch_delete_job[event_type.name]
+
+    def _delete_events_by_name(self, event_name: str) -> None:
+        """
+        Background job to delete an event type in sibling recordings of the workspace.
+        The event type will be deleted from the current recording in the main process, so
+        the background job only needs to delete events of this type if they exist.
+        """
+        if event_name in IMMUTABLE_EVENTS:
+            return
+
+        if event_name not in self.events:
+            return
+
+        logging.debug(f"Deleting all instances of event '{event_name}'")
+        self.delete_events({event_name: self.events[event_name]})
 
     def _add_event(self, event_type: EventType, ts: int | None = None) -> None:
         if self.recording is None:
@@ -479,10 +747,10 @@ class EventsPlugin(neon_player.Plugin):
     def _find_closest_event(
         self, event_type: EventType, target_ts: int, tolerance_ns: int = 5
     ) -> int | None:
-        if event_type.uid not in self._events:
+        if event_type.name not in self._events:
             return None
 
-        events_list = self._events[event_type.uid]
+        events_list = self._events[event_type.name]
         if not events_list:
             return None
 
@@ -533,7 +801,7 @@ class EventsPlugin(neon_player.Plugin):
         if plot_item is None or not plot_item.items:
             return
 
-        x = np.array(self._events.get(event_type.uid, []))
+        x = np.array(self._events.get(event_type.name, []))
         y = np.zeros_like(x)
         plot_item.items[0].setData(x, y)
 
@@ -543,6 +811,7 @@ class EventsPlugin(neon_player.Plugin):
         item_params={"label_field": "name"},
         prevent_add=True,
         primary=True,
+        scope=["workspace"],
     )
     def event_types(self) -> list[EventType]:
         return list(self._event_types_by_name.values())
@@ -559,13 +828,7 @@ class EventsPlugin(neon_player.Plugin):
         as keys and lists of all timestamps for each event as values. For modifying
         events from other plugins, use add_events() and delete_events() methods.
         """
-        event_id_name_mapping = {et.uid: et.name for et in self.event_types}
-        events_by_name = {}
-        for event_id, timestamps in self._events.items():
-            # Use IDs as fallback for immutable events that are not included in event_types
-            event_name = event_id_name_mapping.get(event_id, event_id)
-            events_by_name[event_name] = timestamps
-        return events_by_name
+        return self._events
 
     def add_events(self, events: dict[str, list[int]]) -> None:
         """
@@ -588,11 +851,13 @@ class EventsPlugin(neon_player.Plugin):
                     )
                 event_types_to_update.append(event_type)
 
-            if event_type.uid not in self._events:
-                self._events[event_type.uid] = []
-            self._events[event_type.uid].extend(timestamps)
+            if event_name not in self._events:
+                self._events[event_name] = []
+            self._events[event_name].extend(timestamps)
 
         self.save_cached_json("events.json", self._events)
+        self._update_workspace_index()
+
         self._update_gui_for_event_types(event_types_to_add=event_types_to_add)
         if event_types_to_add:
             self.changed.emit()
@@ -611,7 +876,7 @@ class EventsPlugin(neon_player.Plugin):
         event_types_to_remove = []
         event_types_to_update = []
         for event_name, timestamps in events.items():
-            if event_name not in self._event_types_by_name:
+            if event_name not in self._events:
                 logging.warning(f"Skipping unknown event '{event_name}' from deletion")
                 continue
 
@@ -621,16 +886,16 @@ class EventsPlugin(neon_player.Plugin):
                     f"of this event cannot be deleted."
                 )
 
-            event_type = self._event_types_by_name[event_name]
-            existing_timestamps = set(self._events[event_type.uid])
+            event_type = self._event_types_by_name.get(event_name, None)
+            existing_timestamps = set(self._events[event_name])
             timestamps_to_remove = set(timestamps)
             remaining_timestamps = existing_timestamps - timestamps_to_remove
             if remaining_timestamps:
-                self._events[event_type.uid] = list(remaining_timestamps)
-                event_types_to_update.append(event_type)
+                self._events[event_name] = list(remaining_timestamps)
+                event_types_to_update.append(self._event_types_by_name[event_name])
                 continue
 
-            del self._events[event_type.uid]
+            del self._events[event_name]
             if remove_empty_types:
                 del self._event_types_by_name[event_name]
                 event_types_to_remove.append(event_type)
@@ -638,30 +903,67 @@ class EventsPlugin(neon_player.Plugin):
                 event_types_to_update.append(event_type)
 
         self.save_cached_json("events.json", self._events)
+        self._update_workspace_index()
+
         if event_types_to_remove:
             self._update_gui_for_event_types(event_types_to_remove=event_types_to_remove)
             self.changed.emit()
         for event_type in event_types_to_update:
             self._update_timeline_data(event_type)
 
-    def _on_event_name_changed(
-        self, old_name: str, new_name: str, event_type: EventType
-    ) -> None:
-        self._event_types_by_name[new_name] = event_type
-        del self._event_types_by_name[old_name]
-
-        if self.headless:
+    def _on_event_name_changed(self, old_name: str, new_name: str) -> None:
+        logging.info(f"Renaming event '{old_name}' to '{new_name}'")
+        event_type = self._event_types_by_name.pop(old_name, None)
+        if event_type is None:
+            logging.warning(f"Event type '{old_name}' not found for renaming")
             return
 
-        timeline = self.get_timeline()
-        plot_sorting_was_enabled = timeline.disable_plot_sorting()
+        if old_name in self._batch_rename_job:
+            return
 
-        self._remove_gui_for_event_name(old_name)
-        self._setup_gui_for_event_type(event_type)
-        self._update_timeline_data(event_type)
+        self._event_types_by_name[new_name] = event_type
+        self._rename_all_events_by_name(old_name, new_name)
+        if not self.headless:
+            timeline = self.get_timeline()
+            plot_sorting_was_enabled = timeline.disable_plot_sorting()
 
-        if plot_sorting_was_enabled:
-            timeline.enable_plot_sorting()
+            self._remove_gui_for_event_name(old_name)
+            self._setup_gui_for_event_type(event_type)
+            self._update_timeline_data(event_type)
+
+            if plot_sorting_was_enabled:
+                timeline.enable_plot_sorting()
+
+        if not self._consider_workspace:
+            return
+
+        _, recording_ids = self._count_events_across_workspace(old_name)
+        other_recording_ids = set(recording_ids) - {self.recording.id}
+        other_recordings = self.workspace.get_recordings_by_id(other_recording_ids)
+        if not other_recordings:
+            return
+
+        batch_job = self.job_manager.run_background_batch_action(
+            f"Rename events [{old_name} -> {new_name}]",
+            "EventsPlugin._rename_all_events_by_name",
+            args_generator=lambda _: [old_name, new_name],
+            recordings=other_recordings,
+            confirm_cancel=self.confirm_cancel_message(old_name)
+        )
+        batch_job.finished.connect(lambda: self._on_batch_rename_finished(new_name))
+        batch_job.canceled.connect(lambda: self._on_batch_rename_finished(new_name))
+        self._batch_rename_job[new_name] = batch_job
+
+    def _rename_all_events_by_name(self, old_name: str, new_name: str) -> None:
+        if old_name not in self._events:
+            return
+
+        self._events[new_name] = self._events.pop(old_name)
+        self.save_cached_json("events.json", self._events)
+        self._update_workspace_index()
+
+    def _on_batch_rename_finished(self, new_name: str) -> None:
+        del self._batch_rename_job[new_name]
 
     @action
     @action_params(
@@ -710,4 +1012,9 @@ class EventsPlugin(neon_player.Plugin):
             matching = recording.events[mask]
             if any(row["name"] == matching.event):
                 events_df.loc[index, "type"] = "recording"
+
         return events_df
+
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
+    def export_all_recordings(self, destination: Path = Path(".")) -> None:
+        run_export_across_recordings(self, destination)

@@ -9,6 +9,8 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import action
 from pupil_labs.neon_recording import NeonRecording
 
+from pupil_labs.neon_player.plugins.shared import run_export_across_recordings
+
 
 class BlinksPlugin(neon_player.Plugin):
     label = "Blinks"
@@ -17,11 +19,19 @@ class BlinksPlugin(neon_player.Plugin):
         if len(recording.blinks) == 0:
             return
 
+        if self.headless:
+            return
+
         self.get_timeline().add_timeline_broken_bar(
             "Blinks", self.recording.blinks[["start_time", "stop_time"]]
         )
+        if self.batch_mode_enabled:
+            self.add_dynamic_action("Export all recordings", self.export_all_recordings)
 
     def on_disabled(self) -> None:
+        if self.headless:
+            return
+
         self.get_timeline().remove_timeline_plot("Blinks")
 
     @action
@@ -47,3 +57,7 @@ class BlinksPlugin(neon_player.Plugin):
 
         export_file = destination / "blinks.csv"
         export_data.to_csv(export_file, index=False)
+
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
+    def export_all_recordings(self, destination: Path = Path(".")) -> None:
+        run_export_across_recordings(self, destination)

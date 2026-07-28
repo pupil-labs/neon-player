@@ -1,14 +1,17 @@
 import cv2
+import numpy as np
 import typing as T
-from pathlib import Path
 
+from pathlib import Path
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtGui import QColorConstants, QPainter, QIcon
+from pupil_labs.neon_recording import NeonRecording
 from qt_property_widgets.utilities import property_params, action, action_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
-from pupil_labs.neon_player.plugins.shared.video_export import BackgroundVideoExportMixin
-from pupil_labs.neon_player.job_manager import ProgressUpdate
+from pupil_labs.neon_player.plugins.shared import run_export_across_recordings, BackgroundVideoExportMixin
+from pupil_labs.neon_player.job_manager import BackgroundJob, ProgressUpdate
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
 
@@ -26,6 +29,10 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
         self._show_frame_index = False
         self._brightness = self.DEFAULT_BRIGHTNESS
         self._contrast = self.DEFAULT_CONTRAST
+
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
+        if not self.headless and self.batch_mode_enabled:
+            self.add_dynamic_action("Export all recordings", self.export_all_recordings)
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         if self.recording is None:
@@ -68,7 +75,7 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
         self.changed.emit()
 
     @property
-    @property_params(min=0, max=100)
+    @property_params(min=0, max=100, scope="recording")
     def brightness(self) -> int:
         return self._brightness
 
@@ -77,7 +84,7 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
         self._brightness = value
 
     @property
-    @property_params(min=0.0, max=3.0)
+    @property_params(min=0.0, max=3.0, scope="recording")
     def contrast(self) -> float:
         return self._contrast
 
@@ -94,7 +101,7 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
 
     @action
     @action_params(compact=True, icon=QIcon(str(asset_path("export.svg"))))
-    def export_raw_scene_video(self, destination: Path = Path()) -> None:
+    def export_raw_scene_video(self, destination: Path = Path()) -> BackgroundJob | None:
         app = neon_player.instance()
 
         if not app.headless:
@@ -102,7 +109,11 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
                 "Scene Video Export", "SceneRendererPlugin.bg_export", destination
             )
 
-        return self.bg_export(destination)
+        self.job_manager.run_in_foreground(self.bg_export(destination))
+
+    @action_params(compact=True, icon=QIcon(str(asset_path("export.svg"))))
+    def export_all_recordings(self, destination: Path = Path(".")) -> None:
+        run_export_across_recordings(self, destination, action_name="export_raw_scene_video")
 
     def render_for_export(self, painter: QPainter, time_in_recording: int) -> None:
         self.render(painter, time_in_recording)
@@ -116,3 +127,22 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
             output_video_filename="scene.mp4",
             output_timestamps_filename="scene_timestamps.csv"
         )
+
+    def bg_create_thumbnail(
+        self, width: int = 200, height: int = 150
+    ) -> T.Generator[ProgressUpdate, None, None]:
+        if self.recording is None:
+            return
+
+        try:
+            thumbnail_ts = self.recording.start_time + self.recording.duration // 2
+            thumbnail_frame = self.recording.scene.sample([thumbnail_ts], method="backward")[0]
+            thumbnail = cv2.resize(thumbnail_frame.bgr, (width, height), interpolation=cv2.INTER_AREA)
+        except NeonRecording.SensorError:
+            thumbnail = 128 * np.ones((height, width, 3), dtype=np.uint8)
+
+        cache_path = self.get_cache_path()
+        assert cache_path is not None
+        thumbnail_path = cache_path.parent / "thumbnail.png"
+        cv2.imwrite(str(thumbnail_path), thumbnail)
+        yield ProgressUpdate(1.0)

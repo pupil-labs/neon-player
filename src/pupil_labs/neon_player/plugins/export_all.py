@@ -1,4 +1,5 @@
 import json
+import time
 import logging
 from datetime import datetime
 from importlib.metadata import version
@@ -9,7 +10,15 @@ from PySide6.QtGui import QIcon
 from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
+from pupil_labs.neon_player.plugins.shared import run_export_across_recordings
 from pupil_labs.neon_recording import NeonRecording
+
+
+def _create_export_subfolder(destination: Path) -> Path:
+    timestamp_str = time.strftime("%Y-%m-%d_%H-%M-%S")
+    export_path = destination / f"{timestamp_str}_export"
+    export_path.mkdir(parents=True, exist_ok=True)
+    return export_path
 
 
 class ExportAllPlugin(neon_player.Plugin):
@@ -19,6 +28,10 @@ class ExportAllPlugin(neon_player.Plugin):
         super().__init__()
         self._export_meta_data = True
         self._export_camera_calibrations = True
+
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
+        if not self.headless and self.batch_mode_enabled:
+            self.add_dynamic_action("Export all recordings", self.export_all_recordings)
 
     @property
     def export_meta_data(self) -> bool:
@@ -38,11 +51,15 @@ class ExportAllPlugin(neon_player.Plugin):
 
     @neon_player.action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
-    def export_all_enabled_plugins(self, path: Path = Path(".")):
+    def export_all_enabled_plugins(self, path: Path = Path(".")) -> None:
         if self.recording is None:
             return
 
-        self.app.export_all(path)
+        export_path = _create_export_subfolder(path)
+        self._export_all_enabled_plugins(export_path)
+
+    def _export_all_enabled_plugins(self, export_path: Path) -> None:
+        self.app.export_all(export_path)
 
     @staticmethod
     def _prepare_info_export(recording: NeonRecording) -> dict:
@@ -107,6 +124,14 @@ class ExportAllPlugin(neon_player.Plugin):
             export_file = destination / "calibration.json"
             with export_file.open("w") as out_file:
                 json.dump(calibration, out_file)
+
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
+    def export_all_recordings(self, destination: Path = Path(".")) -> None:
+        run_export_across_recordings(
+            plugin=self,
+            destination=_create_export_subfolder(destination),
+            action_name="_export_all_enabled_plugins"
+        )
 
     def format_duration(self, duration_seconds: float) -> str:
         hours = int(duration_seconds // 3600)
