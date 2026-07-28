@@ -58,7 +58,6 @@ class BlinksPlugin(neon_player.Plugin):
         export_file = destination / "blinks.csv"
         export_data.to_csv(export_file, index=False)
 
-    @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export_all_recordings(self, destination: Path = Path(".")) -> None:
         run_export_across_recordings(self, destination)

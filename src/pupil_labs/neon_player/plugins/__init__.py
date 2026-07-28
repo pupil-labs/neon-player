@@ -94,7 +94,8 @@ class Plugin(PersistentPropertiesMixin, QObject):
         """
         Adds an action to the plugin's property form. Adding actions dynamically is not possible
         in plugin constructor, as the property form is not yet created at that point. Use this
-        method in `on_recording_loaded` or subsequent method calls.
+        method in `on_recording_loaded` or subsequent method calls, and remove the `@action`
+        decorator if using a method of the plugin class.
 
         Args:
             name: The name of the action.
