@@ -543,6 +543,9 @@ class NeonPlayerApp(QApplication):
         QTimer.singleShot(10, self.on_recording_load_complete)
 
     def on_recording_load_complete(self) -> None:
+        if self.headless or self.recording is None:
+            return
+
         self.loading_recording = False
         self.recording_loaded.emit(self.recording)
         logging.info(f"Loaded `{self.recording._rec_dir}`")
