@@ -419,11 +419,14 @@ class MainWindow(QMainWindow):
         self.recent_backdrop.hide()
         self.timeline_dock.show()
         self.settings_dock.show()
-        self.workspace_dock.show()
-        if not app.batch_mode_enabled:
-            self.workspace_sidebar.collapse()
         self.menuBar().show()
         self.statusBar().show()
+
+        self.workspace_dock.show()
+        if app.batch_mode_enabled:
+            self.workspace_sidebar.expand()
+        else:
+            self.workspace_sidebar.collapse()
 
     def on_recording_opened(self) -> None:
         QTimer.singleShot(1, self.timeline.reset_view)
