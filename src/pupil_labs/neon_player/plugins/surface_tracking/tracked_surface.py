@@ -27,7 +27,7 @@ from pupil_labs.neon_player.job_manager import BatchBackgroundJob
 from pupil_labs.neon_player.plugins.gaze import CircleViz, GazeVisualization
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
-from .ui import SurfaceEditWidget, SurfaceHandle, SurfaceViewWindow
+from .ui import SurfaceEditWidget, SurfaceHandle, SurfaceViewWindow, HeatmapViewWindow
 
 if TYPE_CHECKING:
     from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
@@ -141,6 +141,53 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
         return frame
 
 
+class HeatmapViewDisplayOptions(PersistentPropertiesMixin, QObject):
+    changed = Signal()
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._tracked_surface = None
+        self._smoothness = 0.35
+        self._opacity = 0.75
+        self._colormap = ColorMap.Jet
+
+    @property
+    @property_params(min=0, max=1)
+    def smoothness(self) -> float:
+        return self._smoothness
+
+    @smoothness.setter
+    def smoothness(self, value: float) -> None:
+        self._smoothness = value
+        self.changed.emit()
+        if self._tracked_surface is not None:
+            self._tracked_surface.heatmap_invalidated.emit()
+
+    @property
+    @property_params(min=0, max=1)
+    def opacity(self) -> float:
+        return self._opacity
+
+    @opacity.setter
+    def opacity(self, value: float) -> None:
+        self._opacity = value
+        self.changed.emit()
+
+    @property
+    def colormap(self) -> ColorMap:
+        return self._colormap
+
+    @colormap.setter
+    def colormap(self, value: ColorMap) -> None:
+        self._colormap = value
+        self.changed.emit()
+
+    @action
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
+    def export_heatmap(self, destination: Path = Path()):
+        self._tracked_surface.export_heatmap(destination)
+
+
 class TrackedSurface(PersistentPropertiesMixin, QObject):
     changed = Signal()
     locations_invalidated = Signal()
@@ -150,23 +197,24 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     heatmap_invalidated = Signal()
 
     label = "Surface"
+    current_version = 2
 
     def __init__(self) -> None:
         super().__init__()
         self._uid = ""
+        self._version = self.current_version
         self._name = ""
         self._markers = []
         self._can_edit = False
         self._preview_options = SurfaceViewDisplayOptions()
         self._preview_options._tracked_surface = self
         self._preview_options.changed.connect(self.changed.emit)
-        self._show_heatmap = False
-        self._heatmap_smoothness = 0.35
-        self._heatmap_alpha = 0.75
         self._heatmap = None
-        self._heatmap_color = ColorMap.Jet
-        self._defining_recording_id = ""
+        self._heatmap_options = HeatmapViewDisplayOptions()
+        self._heatmap_options._tracked_surface = self
+        self._heatmap_options.changed.connect(self.changed.emit)
         self._defining_frame_index = -1
+        self._reference_image: np.ndarray | None = None
 
         self.tracker_surface = None
         self.backup_tracker_surface = None
@@ -238,9 +286,28 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         return state
 
     @classmethod
+    def _convert_to_current_version(
+        cls: "TrackedSurface", state: dict[str, T.Any]
+    ) -> dict[str, T.Any]:
+        if state.get("version", 1) == cls.current_version:
+            return state
+
+        state["heatmap_options"] = {
+            "opacity": state.get("heatmap_alpha", 0.75),
+            "colormap": state.get("heatmap_color", ColorMap.Jet),
+            "smoothness": state.get("heatmap_smoothness", 0.35),
+        }
+        state["version"] = cls.current_version
+
+        return state
+
+    @classmethod
     def from_dict(cls: type["TrackedSurface"], state: dict[str, T.Any]) -> T.Any:
+        state = cls._convert_to_current_version(state)
+
         item = super().from_dict(state)
         item._preview_options._tracked_surface = item
+        item._heatmap_options._tracked_surface = item
         return item
 
     def cleanup_widgets(self):
@@ -284,6 +351,11 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     @defining_recording_id.setter
     def defining_recording_id(self, value: str) -> None:
         self._defining_recording_id = value
+
+    @property
+    @property_params(widget=None)
+    def version(self) -> int:
+        return self._version
 
     @property
     @property_params(widget=None)
@@ -400,41 +472,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         return self._can_edit
 
     @property
-    def show_heatmap(self) -> bool:
-        return self._show_heatmap
-
-    @show_heatmap.setter
-    def show_heatmap(self, value: bool) -> None:
-        self._show_heatmap = value
-
-    @property
-    @property_params(min=0, max=1)
-    def heatmap_smoothness(self) -> float:
-        return self._heatmap_smoothness
-
-    @heatmap_smoothness.setter
-    def heatmap_smoothness(self, value: float) -> None:
-        self._heatmap_smoothness = value
-        self.heatmap_invalidated.emit()
-
-    @property
-    @property_params(min=0, max=1)
-    def heatmap_alpha(self) -> float:
-        return self._heatmap_alpha
-
-    @heatmap_alpha.setter
-    def heatmap_alpha(self, value: float) -> None:
-        self._heatmap_alpha = value
-
-    @property
-    def heatmap_color(self) -> ColorMap:
-        return self._heatmap_color
-
-    @heatmap_color.setter
-    def heatmap_color(self, value: ColorMap) -> None:
-        self._heatmap_color = value
-
-    @property
     @property_params(widget=None)
     def uid(self) -> str:
         return self._uid
@@ -456,6 +493,15 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     @preview_options.setter
     def preview_options(self, value: SurfaceViewDisplayOptions) -> None:
         self._preview_options = value
+
+    @property
+    @property_params(widget=None)
+    def heatmap_options(self) -> HeatmapViewDisplayOptions:
+        return self._heatmap_options
+
+    @heatmap_options.setter
+    def heatmap_options(self, value: HeatmapViewDisplayOptions) -> None:
+        self._heatmap_options = value
 
     def map_points_by_time(self, points, timestamps):
         mapped_points = []
@@ -522,12 +568,16 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
     def export_heatmap(self, destination: Path = Path()):
         if self._heatmap is None:
+            logging.warning("No heatmap to export.")
             return
 
-        cv2.imwrite(
-            destination / f"{self.name}_heatmap.png",
-            cv2.applyColorMap(self._heatmap, self.heatmap_color.value),
-        )
+        image = QImage(QSize(*self.preview_options.render_size), QImage.Format.Format_RGB32)
+        painter = QPainter(image)
+        self.render_reference_image(painter)
+        self.render_heatmap(painter)
+        painter.end()
+
+        image.save(str(destination / f"{self.name}_heatmap.png"))
 
     def export_fixations(self, gazes, destination: Path = Path()):
         fixations_plugin = Plugin.get_instance_by_name("FixationsPlugin")
@@ -647,6 +697,39 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
             aggregation_dict = offset_aggregations if viz.use_offset else aggregations
             viz.render(painter, aggregation_dict[viz._aggregation])
+
+    def render_reference_image(self, painter: QPainter) -> None:
+        if self._reference_image is None:
+            return
+
+        reference_image = qimage_from_frame(self._reference_image)
+        painter.drawImage(0, 0, reference_image)
+
+    def render_heatmap(self, painter: QPainter) -> None:
+        if self._heatmap is None:
+            return
+
+        heatmap_image = cv2.resize(
+            self._heatmap,
+            tuple(self.preview_options.render_size),
+            interpolation=cv2.INTER_LANCZOS4
+        )
+        heatmap_image = cv2.applyColorMap(heatmap_image, self.heatmap_options.colormap.value)
+        heatmap_image = qimage_from_frame(heatmap_image)
+
+        painter.setOpacity(self.heatmap_options.opacity)
+        painter.drawImage(0, 0, heatmap_image)
+        painter.setOpacity(1.0)
+
+    @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("window-new"),
+    )
+    def view_heatmap(self) -> None:
+        self.heatmap_window = HeatmapViewWindow(self)
+        self.heatmap_window.show()
+        self.heatmap_window.resize(800, 400)
 
     @action
     @action_params(

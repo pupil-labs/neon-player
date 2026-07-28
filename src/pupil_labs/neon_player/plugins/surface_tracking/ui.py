@@ -8,7 +8,7 @@ from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
-from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
+from pupil_labs.neon_player.ui.video_render_widget import ScalingWidget, VideoRenderWidget
 
 if TYPE_CHECKING:
     from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import (
@@ -234,3 +234,55 @@ class SurfaceViewWindow(QSplitter):
         Plugin.get_instance_by_name("GazeDataPlugin").changed.connect(
             self.view_widget.refit_rect
         )
+
+
+class HeatmapViewWidget(ScalingWidget):
+    def __init__(
+        self,
+        surface: "TrackedSurface",
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+
+        self.surface = surface
+        self.surface.changed.connect(self.refit_rect)
+        self.surface.surface_location_changed.connect(self.update)
+
+        self.tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
+
+        self.refit_rect()
+
+    def refit_rect(self) -> None:
+        self.fit_rect(QSize(*self.surface.preview_options.render_size))
+        self.update()
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+
+        painter.fillRect(0, 0, self.width(), self.height(), Qt.GlobalColor.black)
+        self.transform_painter(painter)
+        self.surface.render_reference_image(painter)
+        self.surface.render_heatmap(painter)
+
+        painter.end()
+
+
+class HeatmapViewWindow(QSplitter):
+    def __init__(self, surface: "TrackedSurface") -> None:
+        super().__init__()
+
+        self.view_widget = HeatmapViewWidget(surface)
+        self.view_widget.setMinimumWidth(400)
+        self.addWidget(self.view_widget)
+
+        self.options_widget = PropertyForm(surface.heatmap_options)
+        self.options_widget.layout().setContentsMargins(5, 5, 5, 5)
+        self.options_container = QWidget()
+        self.options_container_layout = QVBoxLayout()
+        self.options_container.setLayout(self.options_container_layout)
+        self.options_container_layout.addWidget(self.options_widget)
+        self.options_container_layout.addStretch()
+
+        self.addWidget(self.options_container)
+
+        surface.changed.connect(self.view_widget.refit_rect)

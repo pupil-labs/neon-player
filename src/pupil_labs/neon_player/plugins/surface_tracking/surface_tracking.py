@@ -326,50 +326,6 @@ class SurfaceTrackingPlugin(Plugin):
             if surface.tracker_surface is None:
                 continue
 
-            show_heatmap = surface.show_heatmap and surface.heatmap_alpha > 0.0
-            if show_heatmap and surface._heatmap is not None and not surface.edit:
-                export_window = self.app.get_export_window()
-                if export_window[0] <= time_in_recording <= export_window[1]:
-                    scalar = np.float64([
-                        [1 / surface._heatmap.shape[1], 0.0, 0.0],
-                        [0.0, 1 / surface._heatmap.shape[0], 0.0],
-                        [0.0, 0.0, 1.0],
-                    ])
-
-                    heatmap_to_scene = location[1] @ scalar
-                    scene_size = self.recording.scene.width, self.recording.scene.height
-
-                    rgb_heatmap = cv2.applyColorMap(
-                        surface._heatmap, surface.heatmap_color.value
-                    )
-                    rgb_heatmap = cv2.cvtColor(rgb_heatmap, cv2.COLOR_BGR2RGB)
-                    undistorted_heatmap = cv2.warpPerspective(
-                        rgb_heatmap,
-                        heatmap_to_scene,
-                        scene_size,
-                    )
-                    undistorted_mask = cv2.warpPerspective(
-                        255
-                        * np.ones(
-                            (surface._heatmap.shape[0], surface._heatmap.shape[1]),
-                            dtype="uint8",
-                        ),
-                        heatmap_to_scene,
-                        scene_size,
-                    )
-
-                    # @TODO: use optimal matrix to have less edge truncation
-                    distorted_heatmap = self.camera.distort_image(undistorted_heatmap)
-                    distorted_mask = self.camera.distort_image(undistorted_mask)
-                    distorted_heatmap_rgba = np.dstack((
-                        distorted_heatmap,
-                        distorted_mask,
-                    ))
-
-                    painter.setOpacity(surface.heatmap_alpha)
-                    painter.drawImage(0, 0, qimage_from_frame(distorted_heatmap_rgba))
-                    painter.setOpacity(1.0)
-
             anchors = None
             if surface.edit and surface.handle_widgets:
                 try:
@@ -565,6 +521,23 @@ class SurfaceTrackingPlugin(Plugin):
             self.job_manager.run_in_foreground(self.bg_detect_surface_locations(surface.uid))
             self._load_surface_locations_cache(surface.uid)
 
+    def _get_surface_reference_image(self, surface: TrackedSurface) -> npt.NDArray[np.uint8]:
+        surface2image = self.surface_locations[surface.uid][surface.defining_frame_index][1]
+        defining_frame = self.recording.scene[surface.defining_frame_index].bgr
+
+        image = utils.crop_image(
+            defining_frame,
+            surface2image,
+            width=500,
+            height=None,
+        )
+
+        cache_path = self.get_cache_path(workspace=self.batch_mode_enabled)
+        cache_file = cache_path / f"{surface.uid}_reference.png"
+        cv2.imwrite(str(cache_file), image)
+
+        return image
+
     def _load_surface_locations_cache(self, surface_uid: str) -> None:
         surface = self.get_surface(surface_uid)
         cache_path = self.get_cache_path(workspace=self.batch_mode_enabled)
@@ -582,15 +555,7 @@ class SurfaceTrackingPlugin(Plugin):
             ]
 
             if surface.preview_options.render_size == [0, 0]:
-                surface2image = self.surface_locations[surface_uid][surface.defining_frame_index][1]
-
-                # set surface size
-                image = utils.crop_image(
-                    np.zeros((1, 1, 3), np.uint8),
-                    surface2image,
-                    width=500,
-                    height=None,
-                )
+                image = self._get_surface_reference_image(surface)
 
                 w, h = image.shape[1], image.shape[0]
                 if w % 2 != 0:
@@ -609,6 +574,7 @@ class SurfaceTrackingPlugin(Plugin):
             self.trigger_scene_update()
 
             self.attempt_load_surface_heatmap(surface_uid)
+            self.attempt_load_surface_reference_image(surface_uid)
 
     def _cleanup_surface_locations_cache(self, surface_uid: str) -> None:
         recordings_to_consider = [self.recording]
@@ -622,6 +588,10 @@ class SurfaceTrackingPlugin(Plugin):
             for file_name in files_to_consider:
                 file_path = locations_path / f"{surface_uid}_{file_name}"
                 remove_file_if_exists(file_path)
+
+        cache_path = self.get_cache_path(workspace=self.batch_mode_enabled)
+        reference_file = cache_path / f"{surface_uid}_reference.png"
+        remove_file_if_exists(reference_file)
 
     def add_visibility_timeline(self, surface):
         surf_viz_path = self.get_cache_path() / f"{surface.uid}_surface_visibility.pkl"
@@ -733,7 +703,7 @@ class SurfaceTrackingPlugin(Plugin):
         upper_pass = np.all(mapped_gazes <= 1.0, axis=1)
         surface_gazes = mapped_gazes[lower_pass & upper_pass]
 
-        val = 3 * (1 - surface._heatmap_smoothness)
+        val = 3 * (1 - surface.heatmap_options.smoothness)
         blur_factor = max((1 - val), 0)
         res_exponent = max(val, 0.35)
         resolution = int(10**res_exponent)
@@ -846,6 +816,17 @@ class SurfaceTrackingPlugin(Plugin):
         self.trigger_scene_update()
 
         self.attempt_load_surface_heatmap(surface_uid)
+
+    def attempt_load_surface_reference_image(self, surface_uid: str) -> None:
+        surface = self.get_surface(surface_uid)
+        cache_path = self.get_cache_path(workspace=self.batch_mode_enabled)
+        cache_file = cache_path / f"{surface_uid}_reference.png"
+
+        if not cache_file.exists():
+            self._get_surface_reference_image(surface)
+
+        surface._reference_image = cv2.imread(str(cache_file))
+        surface.changed.emit()
 
     @property
     def draw_marker_ids(self) -> bool:
