@@ -24,7 +24,8 @@ from pupil_labs.neon_player.utilities import (
     unproject_points,
 )
 from pupil_labs.neon_recording import NeonRecording
-from pupil_labs.neon_recording.timeseries import WornTimeseries
+from pupil_labs.neon_recording.timeseries import GazeTimeseries, WornTimeseries
+from pupil_labs.neon_recording.sample import match_ts
 
 
 class Aggregation(enum.Enum):
@@ -173,7 +174,10 @@ class GazeDataPlugin(neon_player.Plugin):
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
-        if self.recording is None:
+        export_window = self.app.get_export_window()
+        export_gazes, export_worn = self._prepare_export_data(self.recording, export_window)
+        if export_gazes is None:
+            logging.warning("No gaze data to export")
             return
 
         gaze = _prepare_gaze_export(
@@ -191,6 +195,37 @@ class GazeDataPlugin(neon_player.Plugin):
         gaze.to_csv(export_file, index=False)
 
         logging.info(f"Wrote {export_file}")
+
+    @staticmethod
+    def _prepare_export_data(
+        recording: NeonRecording, export_window: tuple[int, int]
+    ) -> tuple[GazeTimeseries | None, WornTimeseries | None]:
+        if recording is None:
+            return None, None
+
+        start_time, stop_time = export_window
+        gaze_start_mask = recording.gaze.time >= start_time
+        gaze_stop_mask = recording.gaze.time < stop_time
+        gaze_export_mask = gaze_start_mask & gaze_stop_mask
+        export_gazes = recording.gaze[gaze_export_mask]
+
+        worn_data = None
+        try:
+            worn_data = recording.worn
+        except NeonRecording.SensorError:
+            logging.warning("No worn data found")
+            worn_data = None
+
+        if worn_data is None:
+            return export_gazes, None
+
+        worn_indices = match_ts(export_gazes.time, worn_data.time)
+        matched = export_gazes.time == worn_data.time[worn_indices]
+        matched_indices = worn_indices[matched]
+        export_worn = np.full_like(export_gazes.time, np.nan, dtype=np.float64)
+        export_worn[matched] = worn_data.worn[matched_indices] / 255.0
+
+        return export_gazes, export_worn
 
     @property
     @property_params(min=-1, max=1, step=0.01, decimals=3)
@@ -539,6 +574,8 @@ def _prepare_gaze_export(
     if worn_data:
         export_worn = worn_data[start_mask & stop_mask]
         gaze["worn"] = export_worn.worn / 255
+    else:
+        logging.warning("No worn data to export")
 
     try:
         matched_fixation_ids = (

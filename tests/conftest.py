@@ -7,10 +7,20 @@ from unittest.mock import PropertyMock
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.timeseries import (
     EventTimeseries,
-    SceneVideoTimeseries
+    GazeTimeseries,
+    SceneVideoTimeseries,
+    WornTimeseries
 )
 
 from pupil_labs.neon_player.settings import GeneralSettings
+
+
+FIELD_CLASS_MAPPING = {
+    "events": EventTimeseries,
+    "gaze": GazeTimeseries,
+    "scene": SceneVideoTimeseries,
+    "worn": WornTimeseries,
+}
 
 
 @pytest.fixture(autouse=False)
@@ -26,10 +36,12 @@ def mock_neon_recording(tmp_path):
         # Mock properties of the recording as needed
         for key, value in kwargs.items():
             mock_value = value.copy() if hasattr(value, "copy") else value
-            if key == "events":
-                mock_value = EventTimeseries(recording=rec, data=value)
-            elif key == "scene":
-                mock_value = SceneVideoTimeseries(recording=rec, data=value)
+            if key in FIELD_CLASS_MAPPING:
+                mock_class = FIELD_CLASS_MAPPING[key]
+                mock_value = mock_class(recording=rec, data=value)
+
+            # Setup mock video resolution            
+            if key == "scene":
                 type(mock_value).width = 1600
                 type(mock_value).height = 1200
 
