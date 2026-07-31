@@ -4,9 +4,14 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QApplication
 from unittest.mock import PropertyMock
 
-from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.neon_recording import GazeTimeseries, NeonRecording
 from pupil_labs.neon_recording.timeseries.events import EventTimeseries
 
+
+FIELD_CLASS_MAPPING = {
+    "events": EventTimeseries,
+    "gaze": GazeTimeseries,
+}
 
 @pytest.fixture(autouse=False)
 def mock_neon_recording(tmp_path):
@@ -17,8 +22,9 @@ def mock_neon_recording(tmp_path):
         # Mock properties of the recording as needed
         for key, value in kwargs.items():
             mock_value = value.copy()
-            if key == "events":
-                mock_value = EventTimeseries(recording=rec, data=value)
+            if key in FIELD_CLASS_MAPPING:
+                cls = FIELD_CLASS_MAPPING[key]
+                mock_value = cls(recording=rec, data=value)
 
             setattr(type(rec), key, PropertyMock(return_value=mock_value))
 
