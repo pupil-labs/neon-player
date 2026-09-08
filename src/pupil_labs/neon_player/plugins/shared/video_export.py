@@ -26,6 +26,7 @@ import pupil_labs.video as plv
 from pupil_labs.neon_player.job_manager import ProgressUpdate
 from pupil_labs.neon_player.utilities import ndarray_from_qimage
 from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.neon_recording.timeseries.av.base_av import BaseAVFrame
 
 
 def _prepare_timestamps(
@@ -89,10 +90,10 @@ def bg_export_video(
 
     combined_timestamps = _prepare_timestamps(recording, export_window)
     with (destination / output_timestamps_filename).open("w") as ts_file:
-        writer = DictWriter(ts_file, fieldnames=["recording id", "timestamp [ns]"])
-        writer.writeheader()
+        csv_writer = DictWriter(ts_file, fieldnames=["recording id", "timestamp [ns]"])
+        csv_writer.writeheader()
         for ts in combined_timestamps:
-            writer.writerow({"recording id": recording.id, "timestamp [ns]": ts})
+            csv_writer.writerow({"recording id": recording.id, "timestamp [ns]": ts})
 
     frame_size = QSize(
         recording.scene.width or 1600, recording.scene.height or 1200
@@ -102,14 +103,17 @@ def bg_export_video(
     audio_frame_timestamps = recording.audio.time[
         (recording.audio.time >= start_time) & (recording.audio.time <= stop_time)
     ]
-    audio_iterator = iter(recording.audio.sample(audio_frame_timestamps))
-    audio_frame = next(audio_iterator)
+    audio_iterator = iter(recording.audio.sample(audio_frame_timestamps))  # type: ignore
+    audio_frame: BaseAVFrame | None = next(audio_iterator)
     audio_frame_idx = 0
 
     with plv.Writer(destination / output_video_filename) as writer:
 
-        def write_audio_frame():
+        def write_audio_frame() -> None:
             nonlocal audio_frame, audio_frame_idx
+
+            if audio_frame is None:
+                return
 
             audio_rel_ts = (audio_frame.time - start_time) / 1e9
             plv_audio_frame = plv.AudioFrame(
