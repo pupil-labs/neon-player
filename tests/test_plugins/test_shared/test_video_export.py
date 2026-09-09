@@ -10,7 +10,7 @@ from tests.mocks import mock_scene_timeseries
     "export_window", [(0, 100), (10, 100), (50, 100)]
 )
 def test_prepare_timestamps__export_window(export_window, mock_neon_recording):
-    scene = mock_scene_timeseries(np.arange(100, dtype=np.int64))
+    scene = mock_scene_timeseries(np.arange(101, dtype=np.int64))
     rec = mock_neon_recording(
         start_time=0,
         stop_time=100,
@@ -26,6 +26,12 @@ def test_prepare_timestamps__export_window(export_window, mock_neon_recording):
         "Expected timestamps to be within the export window"
     assert np.all(export_timestamps <= end_ts), \
         "Expected timestamps to be within the export window"
+    assert len(export_timestamps) == (end_ts - start_ts + 1), \
+        "Expected all suitable scene timestamps to be exported"
+
+    common = np.intersect1d(export_timestamps, rec.scene.time)
+    assert len(common) == len(export_timestamps), \
+        "Expected all timestamps to come from the scene video"
 
 
 @pytest.mark.parametrize(
