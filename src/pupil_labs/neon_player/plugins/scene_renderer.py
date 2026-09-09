@@ -7,12 +7,12 @@ from qt_property_widgets.utilities import property_params, action, action_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
-from pupil_labs.neon_player.plugins.shared.video_export import BackgroundVideoExportMixin
+from pupil_labs.neon_player.plugins.shared import bg_export_video
 from pupil_labs.neon_player.job_manager import ProgressUpdate
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
 
-class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
+class SceneRendererPlugin(Plugin):
     label = "Scene Renderer"
 
     DEFAULT_BRIGHTNESS = 0.0
@@ -108,7 +108,7 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
         self.render(painter, time_in_recording)
 
     def bg_export(self, destination: Path = Path()) -> T.Generator[ProgressUpdate, None, None]:
-        yield from self.bg_export_video(
+        yield from bg_export_video(
             recording=self.recording,
             export_window=self.app.get_export_window(),
             render_fn=self.render_for_export,
