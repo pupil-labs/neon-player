@@ -42,7 +42,7 @@ def _prepare_timestamps(
         step=1e9 // fps,
         dtype=np.int64
     )
-    gray_prologue = np.arange(
+    gray_epilogue = np.arange(
         recording.scene.time[-1] + 1e9 // fps,
         recording.stop_time,
         step=1e9 // fps,
@@ -51,7 +51,7 @@ def _prepare_timestamps(
     combined_timestamps = np.concatenate((
         gray_preamble,
         recording.scene.time,
-        gray_prologue,
+        gray_epilogue,
     ))
 
     # Filter timestamps according to the export window
