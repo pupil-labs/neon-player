@@ -28,12 +28,12 @@ dependencies = [
     "protobuf<6",
     "pupil-apriltags>=1.0.4.post11",
     "pupil-labs-marker-mapper>=1.0.0",
-    "pupil-labs-neon-recording>=2.1.5",
+    "pupil-labs-neon-recording>=2.1.6",
     "pupil-labs-video>=1.0.13",
     "pyobjc; sys_platform == 'darwin'",
     "pyqtgraph>=0.13.7",
     "pyside6>=6.10.2",
-    "qt-property-widgets",
+    "qt-property-widgets>=0.9.1",
     "scipy>=1.15.2",
     "setuptools>=78.1.0",
     "tqdm>=4.67.1",
@@ -81,9 +81,6 @@ dev-dependencies = [
     # YORE: EOL 3.10: Remove line.
     "tomli>=2.0; python_version < '3.11'",
 ]
-
-[tool.uv.sources]
-qt-property-widgets = { git = "https://github.com/domstoppable/qt-property-widgets" }
 
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]

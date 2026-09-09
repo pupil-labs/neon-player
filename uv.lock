@@ -1430,12 +1430,12 @@ requires-dist = [
     { name = "protobuf", specifier = "<6" },
     { name = "pupil-apriltags", specifier = ">=1.0.4.post11" },
     { name = "pupil-labs-marker-mapper", specifier = ">=1.0.0" },
-    { name = "pupil-labs-neon-recording", specifier = ">=2.1.5" },
+    { name = "pupil-labs-neon-recording", specifier = ">=2.1.6" },
     { name = "pupil-labs-video", specifier = ">=1.0.13" },
     { name = "pyobjc", marker = "sys_platform == 'darwin'" },
     { name = "pyqtgraph", specifier = ">=0.13.7" },
     { name = "pyside6", specifier = ">=6.10.2" },
-    { name = "qt-property-widgets", git = "https://github.com/domstoppable/qt-property-widgets" },
+    { name = "qt-property-widgets", specifier = ">=0.9.1" },
     { name = "scipy", specifier = ">=1.15.2" },
     { name = "setuptools", specifier = ">=78.1.0" },
     { name = "tqdm", specifier = ">=4.67.1" },
@@ -1469,7 +1469,7 @@ dev = [
 
 [[package]]
 name = "pupil-labs-neon-recording"
-version = "2.1.5"
+version = "2.1.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
@@ -1479,9 +1479,9 @@ dependencies = [
     { name = "pupil-labs-video" },
     { name = "universal-pathlib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/49/00/b445f01762ad43e7c9c6e8418c8cd1daca6e952f8e0bc68567030f47b5ea/pupil_labs_neon_recording-2.1.5.tar.gz", hash = "sha256:a2fce26e54320a8a941ba2e4016c6f0aa0d72cac2d4b2ff3fb54ff8448d07c13", size = 1361249, upload-time = "2026-07-09T12:23:32.559Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/86/11/b73b3088607508dde289999da475fd86bd8bfb0046a60985fe66f34b799e/pupil_labs_neon_recording-2.1.6.tar.gz", hash = "sha256:59c65d17ee3ed4e45eecee3b2a86bdb0d791ac41b8d908b70850a5f1e49a7041", size = 1361621, upload-time = "2026-09-03T10:28:54.477Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/65/a3/7ce73391dbc90eebcb592c06c3f0cd1efb997374dca22bcfebab7c3c6cfd/pupil_labs_neon_recording-2.1.5-py3-none-any.whl", hash = "sha256:55c00d4e7bd81763425ba376592955bdfd127befce7ed3897d99c68019308921", size = 28417, upload-time = "2026-07-09T12:23:31.143Z" },
+    { url = "https://files.pythonhosted.org/packages/f8/e5/b4c8db95a5f14aa757a0a6b4c94ba640b791eac89ff92842213cb1e9f63b/pupil_labs_neon_recording-2.1.6-py3-none-any.whl", hash = "sha256:56612aebfca0ba17768f0bce692d10deb0433a41679ed4ffdc5ee7b2f8c7277c", size = 28583, upload-time = "2026-09-03T10:28:52.98Z" },
 ]
 
 [[package]]
@@ -4526,10 +4526,14 @@ wheels = [
 
 [[package]]
 name = "qt-property-widgets"
-version = "0.0.0.post73.dev0+952c170"
-source = { git = "https://github.com/domstoppable/qt-property-widgets#952c170fa2cff67206e17ee7d4c75b4f3ed93b87" }
+version = "0.9.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyside6" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bb/06/634ca8da34406d252ad1a3730aa415db4f3462f8abacbd5cd86ecd179b9b/qt_property_widgets-0.9.1.tar.gz", hash = "sha256:d89391a6f22409bc0f11d3fac8d19b6755b7916554bc18441dc9e7397bd276eb", size = 82242, upload-time = "2026-08-28T04:58:12.93Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a8/3b/109a764095f2bf252f9386250f6fcb14e1dcc1815cf31f369e1187beba6a/qt_property_widgets-0.9.1-py3-none-any.whl", hash = "sha256:23ce04a084f2b39a1866b7bea3ea6d1befa21a2e51dcd8f48fb61da8a196daa0", size = 25829, upload-time = "2026-08-28T04:58:11.855Z" },
 ]
 
 [[package]]
