@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSpacerItem,
     QVBoxLayout,
+    QWidget
 )
 from qt_property_widgets.utilities import action_params, property_params
 
@@ -55,6 +56,13 @@ from pupil_labs.neon_player.utilities import (
 from .tracked_surface import TrackedSurface
 from .ui import MarkerEditWidget
 
+if T.TYPE_CHECKING:
+    from pupil_labs.neon_recording.timeseries import GazeTimeseries
+    from pupil_labs.neon_player.plugins.video_exporter import VideoExporter
+
+SurfaceData: T.TypeAlias = dict[str, T.Any]
+SurfaceLocation: T.TypeAlias = tuple[np.ndarray, np.ndarray]
+
 
 @dataclass
 class DetectedMarker:
@@ -63,12 +71,18 @@ class DetectedMarker:
 
 
 class SurfaceImportDialog(QDialog):
-    def __init__(self, surfaces_to_import, existing_surfaces, import_callback, parent=None):
+    def __init__(
+        self,
+        surfaces_to_import: list[SurfaceData],
+        existing_surfaces: list[TrackedSurface],
+        import_callback: T.Callable[[SurfaceData], None],
+        parent: QWidget | None = None
+    ):
         super().__init__(parent)
         self.surfaces_to_import = surfaces_to_import
         self.existing_surfaces = existing_surfaces
         self.import_callback = import_callback
-        self.importable_surfaces = []
+        self.importable_surfaces: list[SurfaceData] = []
 
         self.setWindowTitle("Import Surface Definitions")
         self.setMinimumWidth(600)
@@ -81,14 +95,14 @@ class SurfaceImportDialog(QDialog):
         layout.addLayout(self.surface_grid)
         self._populate_surface_grid()
 
-        spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        spacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
         layout.addItem(spacer)
 
         close_button = QPushButton("Close")
         close_button.clicked.connect(self.reject)
         layout.addWidget(close_button)
 
-    def _populate_surface_grid(self):
+    def _populate_surface_grid(self) -> None:
         self.surface_grid.addWidget(QLabel("<b>Name</b>"), 0, 0)
         self.surface_grid.addWidget(QLabel("<b>Status</b>"), 0, 1)
 
@@ -124,7 +138,7 @@ class SurfaceImportDialog(QDialog):
             )
             self.surface_grid.addWidget(import_button, row + 1, 2)
 
-    def on_import(self, surface_data, button):
+    def on_import(self, surface_data: SurfaceData, button: QPushButton) -> None:
         self.import_callback(surface_data)
         button.setText("Imported")
         button.setEnabled(False)
@@ -143,11 +157,11 @@ class SurfaceTrackingPlugin(Plugin):
         self._export_overlays = False
 
         self.markers_by_frame: list[list[DetectedMarker]] = []
-        self.surface_locations: dict[str, list] = {}
+        self.surface_locations: dict[str, list[SurfaceLocation | None]] = {}
 
         self._surfaces: list[TrackedSurface] = []
 
-        self.marker_edit_widgets = {}
+        self.marker_edit_widgets: dict[int, MarkerEditWidget] = {}
         self.header_action = ListPropertyAppenderAction("surfaces", "+ Add surface")
 
     def on_disabled(self) -> None:
@@ -241,7 +255,7 @@ class SurfaceTrackingPlugin(Plugin):
     def render(self, painter: QPainter, time_in_recording: int) -> None:  # noqa: C901
         self._update_displays()
         if not self._export_overlays:
-            exporter = Plugin.get_instance_by_name("VideoExporter")
+            exporter = T.cast("VideoExporter", Plugin.get_instance_by_name("VideoExporter"))
             if exporter is not None and exporter.is_exporting:
                 return
 
@@ -279,11 +293,11 @@ class SurfaceTrackingPlugin(Plugin):
             if show_heatmap and surface._heatmap is not None:
                 export_window = self.app.get_export_window()
                 if export_window[0] <= time_in_recording <= export_window[1]:
-                    scalar = np.float64([
+                    scalar = np.array([
                         [1 / surface._heatmap.shape[1], 0.0, 0.0],
                         [0.0, 1 / surface._heatmap.shape[0], 0.0],
                         [0.0, 0.0, 1.0],
-                    ])
+                    ], dtype=np.float64)
 
                     heatmap_to_scene = location[1] @ scalar
                     scene_size = self.recording.scene.width, self.recording.scene.height
@@ -349,7 +363,7 @@ class SurfaceTrackingPlugin(Plugin):
                 painter.setBrush(QColor("#000"))
                 pen = QPen(QColor("white"))
                 pen.setWidthF(5.0)
-                pen.setJoinStyle(Qt.RoundJoin)
+                pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
 
                 path = QPainterPath()
                 painter.setPen(pen)
@@ -363,7 +377,7 @@ class SurfaceTrackingPlugin(Plugin):
                 )
 
                 painter.drawPath(path)
-                painter.setPen(Qt.NoPen)
+                painter.setPen(Qt.PenStyle.NoPen)
                 painter.drawPath(path)
 
                 painter.setPen(old_pen)
@@ -372,8 +386,8 @@ class SurfaceTrackingPlugin(Plugin):
     def _distort_and_trace_surface(
         self,
         painter: QPainter,
-        anchors,
-        resolution=10,
+        anchors: np.ndarray,
+        resolution: int = 10,
     ) -> np.ndarray:
         points = insert_interpolated_points(anchors, resolution)
         points = self.camera.distort_points(points)
@@ -400,11 +414,11 @@ class SurfaceTrackingPlugin(Plugin):
     def _distort_and_draw_marker(
         self,
         painter: QPainter,
-        points,
-        marker_id,
-        resolution=10,
+        points: np.ndarray,
+        marker_id: int,
+        resolution: int = 10,
     ) -> None:
-        marker_id = str(marker_id)
+        marker_id_str = str(marker_id)
 
         if resolution > 0:
             points = self.camera.undistort_points(points)
@@ -428,22 +442,22 @@ class SurfaceTrackingPlugin(Plugin):
             painter.setBrush("#000")
             pen = QPen(QColor("#fff"))
             pen.setWidthF(5.0)
-            pen.setJoinStyle(Qt.RoundJoin)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(pen)
 
-            text_rect = painter.fontMetrics().boundingRect(marker_id)
+            text_rect = painter.fontMetrics().boundingRect(marker_id_str)
             center = np.mean(points[0:-1], axis=0)
 
             path = QPainterPath()
-            text_rect = painter.fontMetrics().boundingRect(marker_id)
+            text_rect = painter.fontMetrics().boundingRect(marker_id_str)
             path.addText(
                 int(center[0] - text_rect.width() / 2),
                 int(center[1] + text_rect.height() / 2) - 8,
                 painter.font(),
-                marker_id,
+                marker_id_str,
             )
             painter.drawPath(path)
-            painter.setPen(Qt.NoPen)
+            painter.setPen(Qt.PenStyle.NoPen)
             painter.drawPath(path)
 
             painter.setPen(old_pen)
@@ -454,7 +468,7 @@ class SurfaceTrackingPlugin(Plugin):
         for frame_markers in self.markers_by_frame:
             for marker in frame_markers:
                 if marker.tag_id not in self.marker_edit_widgets:
-                    widget = MarkerEditWidget(marker.tag_id)
+                    widget = MarkerEditWidget(str(marker.tag_id))
                     widget.setParent(self.app.main_window.video_widget)
                     widget.hide()
                     self.marker_edit_widgets[marker.tag_id] = widget
@@ -516,7 +530,7 @@ class SurfaceTrackingPlugin(Plugin):
                 if h % 2 != 0:
                     h -= 1
 
-                surface.preview_options.render_size = [w, h]
+                surface.preview_options.render_size = (w, h)
                 # emit a change signal to trigger a save
                 # delayed because it is otherwise ignored during load time
                 QTimer.singleShot(10, self.changed.emit)
@@ -528,7 +542,7 @@ class SurfaceTrackingPlugin(Plugin):
 
             self.attempt_load_surface_heatmap(surface_uid)
 
-    def add_visibility_timeline(self, surface):
+    def add_visibility_timeline(self, surface: TrackedSurface) -> None:
         surf_viz_path = self.get_cache_path() / f"{surface.uid}_surface_visibility.pkl"
         if not surf_viz_path.exists():
             return
@@ -541,7 +555,7 @@ class SurfaceTrackingPlugin(Plugin):
             f"Surface: {surface.name}", visibilities, color="#3273FF"
         )
 
-    def add_surface_gaze_timeline(self, surface):
+    def add_surface_gaze_timeline(self, surface: TrackedSurface) -> None:
         gaze_upon_file = self.get_cache_path() / f"{surface.uid}_gazes.pkl"
         if not gaze_upon_file.exists():
             return
@@ -552,7 +566,7 @@ class SurfaceTrackingPlugin(Plugin):
                 f"Surface Gaze: {surface.name}", pickle.load(f), color="#73F7FF"
             )
 
-    def attempt_load_surface_heatmap(self, surface_uid):
+    def attempt_load_surface_heatmap(self, surface_uid: str) -> None:
         cache_file = self.get_cache_path() / f"{surface_uid}_heatmap.png"
         if cache_file.exists():
             self._load_surface_heatmap(surface_uid)
@@ -716,7 +730,7 @@ class SurfaceTrackingPlugin(Plugin):
         return self._surfaces
 
     @surfaces.setter
-    def surfaces(self, value: list["TrackedSurface"]):  # noqa: C901
+    def surfaces(self, value: list["TrackedSurface"]) -> None:  # noqa: C901
         frame_idx = self.get_scene_idx_for_time()
         new_surfaces = [surface for surface in value if surface not in self._surfaces]
         removed_surfaces = [
@@ -803,12 +817,10 @@ class SurfaceTrackingPlugin(Plugin):
                 if other_surface != surface:
                     other_surface.edit = False
 
-            self.marker_editing_surface = surface
             for w in self.marker_edit_widgets.values():
                 w.set_surface(surface)
 
         else:
-            self.marker_editing_surface = None
             for w in self.marker_edit_widgets.values():
                 w.hide()
 
@@ -827,21 +839,21 @@ class SurfaceTrackingPlugin(Plugin):
 
         self._start_bg_surface_locator(surface)
 
-    def _start_bg_surface_locator(self, surface: "TrackedSurface", *args, **kwargs):
+    def _start_bg_surface_locator(self, surface: "TrackedSurface") -> None:
         job = self.job_manager.run_background_action(
             f"Detect Surface Locations [{surface.name}]",
             "SurfaceTrackingPlugin.bg_detect_surface_locations",
             surface.uid,
-            *args,
-            **kwargs,
         )
         surface.add_bg_job(job)
         job.finished.connect(lambda: self._load_surface_locations_cache(surface.uid))
 
-    def get_surface(self, uid: str):
+    def get_surface(self, uid: str) -> TrackedSurface:
         for s in self._surfaces:
             if s.uid == uid:
                 return s
+
+        raise ValueError(f"No surface with ID `{uid}` exist")
 
     def bg_detect_markers(self) -> T.Generator[ProgressUpdate, None, None]:
         logging.info("Detecting markers...")
@@ -1045,20 +1057,24 @@ class SurfaceTrackingPlugin(Plugin):
                 destination,
             )
 
-    def _get_gazes_in_export_window(self):
+    def _get_gazes_in_export_window(self) -> "GazeTimeseries":
         start_time, stop_time = self.app.get_export_window()
         start_mask = self.recording.gaze.time >= start_time
         stop_mask = self.recording.gaze.time <= stop_time
 
         return self.recording.gaze[start_mask & stop_mask]
 
-    def bg_export_surface_gazes(self, surface_uid: str, destination: Path):
+    def bg_export_surface_gazes(
+        self, surface_uid: str, destination: Path
+    ) -> T.Generator[ProgressUpdate, None, None]:
         gazes_in_window = self._get_gazes_in_export_window()
         surface = self.get_surface(surface_uid)
         surface.export_gazes(gazes_in_window, destination)
         yield ProgressUpdate(1.0)
 
-    def bg_export_surface_fixations(self, surface_uid: str, destination: Path):
+    def bg_export_surface_fixations(
+        self, surface_uid: str, destination: Path
+    ) -> T.Generator[ProgressUpdate, None, None]:
         try:
             gazes_in_window = self._get_gazes_in_export_window()
             surface = self.get_surface(surface_uid)
@@ -1069,7 +1085,9 @@ class SurfaceTrackingPlugin(Plugin):
                 "Failed to export surface fixations. Is fixation plugin enabled?"
             )
 
-    def bg_export_surface_positions(self, surface_uid: str, destination: Path):
+    def bg_export_surface_positions(
+        self, surface_uid: str, destination: Path
+    ) -> T.Generator[ProgressUpdate, None, None]:
         surface = self.get_surface(surface_uid)
         positions = _prepare_surface_positions_export(
             self.recording,
@@ -1081,15 +1099,16 @@ class SurfaceTrackingPlugin(Plugin):
         positions.to_csv(
             destination / f"surface_positions_{surface.name}.csv", index=False
         )
+        yield ProgressUpdate(1.0)
 
 
 def _prepare_surface_positions_export(
     recording: NeonRecording,
     export_window: tuple[int, int],
-    markers_by_frame: list[DetectedMarker],
-    surface_locations: list[tuple[np.ndarray, np.ndarray]],
+    markers_by_frame: list[list[DetectedMarker]],
+    surface_locations: list[SurfaceLocation | None],
     camera: Camera,
-):
+) -> pd.DataFrame:
     start_time, stop_time = export_window
     export_mask = np.logical_and(
         recording.scene.time >= start_time,
