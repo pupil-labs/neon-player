@@ -482,6 +482,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         gazes_on_surface = lower_pass & upper_pass
 
         gazes = pd.DataFrame({
+            "recording id": self.tracker_plugin.recording.info["recording_id"],
             "timestamp [ns]": gazes.time,
             "gaze detected on surface": gazes_on_surface,
             "gaze position on surface x [normalized]": mapped_gazes[:, 0],
@@ -513,7 +514,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         # drop unused columns
         fixation_data = fixation_data.drop(
             columns=[
-                "recording id",
                 "fixation x [px]",
                 "fixation y [px]",
                 "azimuth [deg]",
