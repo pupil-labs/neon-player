@@ -11,9 +11,11 @@ import av
 import cv2
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 import pupil_apriltags
 import pupil_labs.video as plv
 from dataclasses import dataclass
+from numpy.dtypes import StringDType
 from pupil_labs.camera import Camera, perspective_transform
 from pupil_labs.marker_mapper import Surface, utils
 from pupil_labs.marker_mapper.surface import normalized_corners
@@ -140,7 +142,7 @@ class SurfaceTrackingPlugin(Plugin):
         self._draw_names = True
         self._export_overlays = False
 
-        self.markers_by_frame: list[list] = []
+        self.markers_by_frame: list[list[DetectedMarker]] = []
         self.surface_locations: dict[str, list] = {}
 
         self._surfaces: list[TrackedSurface] = []
@@ -1009,6 +1011,19 @@ class SurfaceTrackingPlugin(Plugin):
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
         for surface in self._surfaces:
+            if surface.uid not in self.surface_locations:
+                jobs_running = ""
+                if len(surface.jobs) > 0:
+                    jobs_running = (
+                        " Please wait for the background job(s) to complete "
+                        "and try again."
+                    )
+                logging.warning(
+                    f"Surface locations are not available for surface `{surface.name}`, "
+                    f"skipping it in the export.{jobs_running}"
+                )
+                continue
+
             self.job_manager.run_background_action(
                 f"{surface.name} Gazes Export",
                 "SurfaceTrackingPlugin.bg_export_surface_gazes",
@@ -1019,6 +1034,13 @@ class SurfaceTrackingPlugin(Plugin):
             self.job_manager.run_background_action(
                 f"{surface.name} Fixations Export",
                 "SurfaceTrackingPlugin.bg_export_surface_fixations",
+                surface.uid,
+                destination,
+            )
+
+            self.job_manager.run_background_action(
+                f"{surface.name} Positions Export",
+                "SurfaceTrackingPlugin.bg_export_surface_positions",
                 surface.uid,
                 destination,
             )
@@ -1046,6 +1068,75 @@ class SurfaceTrackingPlugin(Plugin):
             logging.exception(
                 "Failed to export surface fixations. Is fixation plugin enabled?"
             )
+
+    def bg_export_surface_positions(self, surface_uid: str, destination: Path):
+        surface = self.get_surface(surface_uid)
+        positions = _prepare_surface_positions_export(
+            self.recording,
+            self.app.get_export_window(),
+            self.markers_by_frame,
+            self.surface_locations[surface_uid],
+            self.camera
+        )
+        positions.to_csv(
+            destination / f"surface_positions_{surface.name}.csv", index=False
+        )
+
+
+def _prepare_surface_positions_export(
+    recording: NeonRecording,
+    export_window: tuple[int, int],
+    markers_by_frame: list[DetectedMarker],
+    surface_locations: list[tuple[np.ndarray, np.ndarray]],
+    camera: Camera,
+):
+    start_time, stop_time = export_window
+    export_mask = np.logical_and(
+        recording.scene.time >= start_time,
+        recording.scene.time <= stop_time
+    )
+    export_indices = np.flatnonzero(export_mask)
+    num_indices = len(export_indices)
+
+    timestamps = np.zeros(num_indices, dtype=np.int64)
+    detected_markers = np.empty(num_indices, dtype=StringDType())
+    corner_coords = np.zeros((num_indices, normalized_corners().size), dtype=float)
+    for row_index, frame_index in enumerate(export_indices):
+        frame_markers = markers_by_frame[frame_index]
+        if not frame_markers:
+            continue
+
+        location = surface_locations[frame_index]
+        if not location:
+            continue
+
+        timestamps[row_index] = recording.scene.time[frame_index]
+
+        marker_ids = ";".join([str(m.tag_id) for m in frame_markers])
+        detected_markers[row_index] = marker_ids
+
+        anchors = perspective_transform(normalized_corners(), location[1])
+        anchors = camera.distort_points(anchors)
+
+        corner_coords[row_index, :] = anchors.flatten()
+
+    positions = {
+        "recording id": recording.info["recording_id"],
+        "timestamp [ns]": timestamps,
+        "detected marker IDs": detected_markers,
+    }
+
+    # NOTE: the order of names below should always match the output of
+    # `normalized_corners().flatten()`
+    corner_names = [
+        "tl x", "tl y", "tr x", "tr y", "br x", "br y", "bl x", "bl y"
+    ]
+    for name, coords in zip(corner_names, corner_coords.T):
+        positions[f"{name} [px]"] = coords
+
+    positions_df = pd.DataFrame(positions)
+    positions_df = positions_df[positions_df["timestamp [ns]"] > 0]
+    return positions_df
 
 
 def insert_interpolated_points(points: npt.NDArray, n_between: int = 10) -> npt.NDArray:
