@@ -1,4 +1,5 @@
 import contextlib
+import copy
 import logging
 import typing as T  # noqa: N812
 from enum import Enum
@@ -11,7 +12,7 @@ import pandas as pd
 from pupil_labs.camera import perspective_transform
 from pupil_labs.marker_mapper import utils
 from pupil_labs.marker_mapper.surface import normalized_corners
-from PySide6.QtCore import QObject, QSize, Signal
+from PySide6.QtCore import QObject, QSize, Signal, QTimer
 from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QFileDialog
 from qt_property_widgets.utilities import (
@@ -21,7 +22,7 @@ from qt_property_widgets.utilities import (
 )
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player import Plugin, action
+from pupil_labs.neon_player import Plugin, action, asset_path
 from pupil_labs.neon_player.plugins.gaze import CircleViz, GazeVisualization
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
@@ -166,6 +167,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._defining_frame_index = -1
 
         self.tracker_surface = None
+        self._edit_frame_idx = -1
 
         self._location = None
 
@@ -174,10 +176,11 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self.corner_positions = {}
         self.jobs = []
 
-        if neon_player.instance() is None:
+        app = neon_player.instance()
+        if app is None:
             return
 
-        neon_player.instance().export_window_changed.connect(
+        app.export_window_changed.connect(
             self.heatmap_invalidated.emit
         )
         self.locations_invalidated.connect(self.heatmap_invalidated.emit)
@@ -199,20 +202,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
     def __del__(self):
         self.cleanup_widgets()
-
-    def to_dict(
-        self,
-        include_class_name: bool = False,
-        condition: T.Callable[[dict], bool] | None = None,
-        recursive: bool = False
-    ) -> dict[str, T.Any]:
-        state = super().to_dict(
-            include_class_name=include_class_name,
-            condition=condition,
-            recursive=recursive
-        )
-        state["edit"] = False
-        return state
 
     @classmethod
     def from_dict(cls: type["TrackedSurface"], state: dict[str, T.Any]) -> T.Any:
@@ -237,10 +226,12 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             self.tracker_plugin.camera,
             self.location[0]
         )
+        self.update_current_location()
         self.locations_invalidated.emit()
 
     def remove_marker(self, marker_uid: str) -> None:
         self.tracker_surface.remove_marker(marker_uid)
+        self.update_current_location()
         self.locations_invalidated.emit()
 
     @property
@@ -323,7 +314,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
         self._name = name
 
-        if self.tracker_plugin:
+        if self.tracker_plugin and not self.tracker_plugin.headless:
+            self.edit_widget.set_surface_name(name)
             self.tracker_plugin.add_visibility_timeline(self)
             self.tracker_plugin.add_surface_gaze_timeline(self)
 
@@ -340,38 +332,67 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             self.location[0],
             camera
         )
+        self.update_current_location()
         self.locations_invalidated.emit()
 
+    def update_current_location(self) -> None:
+        markers = self.tracker_plugin.markers_by_frame[self.edit_frame_idx]
+        camera = self.tracker_plugin.camera
+
+        self.location = self.tracker_surface.localize(markers, camera)
+        self.tracker_plugin.trigger_scene_update()
+
     @property
+    @property_params(dont_encode=True)
     def edit(self) -> bool:
         return self._can_edit
 
     @edit.setter
     def edit(self, value: bool) -> None:
+        if self._can_edit == value:
+            return
+
         self._can_edit = value
         self.marker_edit_changed.emit()
 
         if not value:
             self.cleanup_widgets()
+            return
 
-        else:
-            app = neon_player.instance()
-            vrw = app.main_window.video_widget
+        if self.location is None:
+            logging.warning("Cannot edit surface when it is not visible in the current frame.")
+            return
 
-            corners = normalized_corners()
-            self.handle_widgets = {}
-            for corner in corners.tolist():
-                corner_tup = tuple(corner)
-                self.handle_widgets[corner_tup] = SurfaceHandle(self, corner_tup)
+        app = neon_player.instance()
+        if app.is_playing:
+            app.set_playback_state(False)
+        self._edit_frame_idx = self.tracker_plugin.get_scene_idx_for_time()
+        vrw = app.main_window.video_widget
 
-            for corner_id, w in self.handle_widgets.items():
-                w.setFixedSize(20, 20)
-                w.setParent(vrw)
-                w.position_changed.connect(
-                    lambda pos, corner=corner_id: self.on_corner_changed(corner, pos)
-                )
+        corners = normalized_corners()
+        self.handle_widgets = {}
+        for corner in corners.tolist():
+            corner_tup = tuple(corner)
+            self.handle_widgets[corner_tup] = SurfaceHandle(self, corner_tup)
 
-            self.update_handle_positions()
+        for corner_id, w in self.handle_widgets.items():
+            w.setFixedSize(20, 20)
+            w.setParent(vrw)
+            w.position_changed.connect(
+                lambda pos, corner=corner_id: self.on_corner_changed(corner, pos)
+            )
+
+        self.update_handle_positions()
+
+    @property
+    @property_params(dont_encode=True, widget=None)
+    def edit_frame_idx(self) -> int:
+        return self._edit_frame_idx
+
+    @edit_frame_idx.setter
+    def edit_frame_idx(self, value: int) -> None:
+        self._edit_frame_idx = value
+        self.update_current_location()
 
     @property
     def show_heatmap(self) -> bool:
