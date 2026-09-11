@@ -1117,6 +1117,7 @@ def _prepare_surface_positions_export(
     export_indices = np.flatnonzero(export_mask)
     num_indices = len(export_indices)
 
+    scene_size = (recording.scene.width, recording.scene.height)
     timestamps = np.zeros(num_indices, dtype=np.int64)
     detected_markers = np.empty(num_indices, dtype=StringDType())
     corner_coords = np.zeros((num_indices, normalized_corners().size), dtype=float)
@@ -1134,9 +1135,7 @@ def _prepare_surface_positions_export(
         marker_ids = ";".join([str(m.tag_id) for m in frame_markers])
         detected_markers[row_index] = marker_ids
 
-        anchors = perspective_transform(normalized_corners(), location[1])
-        anchors = camera.distort_points(anchors)
-
+        anchors = get_position_for_export(location, camera, scene_size)
         corner_coords[row_index, :] = anchors.flatten()
 
     positions = {
@@ -1156,6 +1155,22 @@ def _prepare_surface_positions_export(
     positions_df = pd.DataFrame(positions)
     positions_df = positions_df[positions_df["timestamp [ns]"] > 0]
     return positions_df
+
+
+def get_position_for_export(
+    location: SurfaceLocation,
+    camera: Camera,
+    scene_size: tuple[int, int]
+) -> np.ndarray:
+    corners = perspective_transform(normalized_corners(), location[1])
+    corners = camera.distort_points(corners)
+
+    max_value = np.tile(np.atleast_2d(scene_size), (len(corners), 1))
+    out_of_bounds = np.logical_or(corners < 0, corners > max_value)
+    corner_out_of_bounds = out_of_bounds.any(axis=1)
+    corners[corner_out_of_bounds, :] = np.nan
+
+    return corners
 
 
 def insert_interpolated_points(points: npt.NDArray, n_between: int = 10) -> npt.NDArray:
