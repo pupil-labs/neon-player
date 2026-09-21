@@ -49,3 +49,27 @@ def qapp_cls():
     MockNeonPlayerApp.toggle_plugin = NeonPlayerApp.toggle_plugin
 
     return MockNeonPlayerApp
+
+import sysconfig
+import subprocess
+from pathlib import Path
+
+@pytest.fixture(scope="session")
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+@pytest.fixture(scope="session")
+def native_extension(repo_root: Path) -> Path:
+    src = repo_root / "tests" / "fixtures" / "plugin_site" / "demo_pkg" / "native_missing.c"
+    out_dir = src.parent
+    suffix = sysconfig.get_config_var("EXT_SUFFIX")
+    if not suffix:
+        pytest.skip("Python EXT_SUFFIX is unavailable")
+    out = out_dir / f"native_missing{suffix}"
+    include = sysconfig.get_paths()["include"]
+    cmd = ["cc", "-shared", "-fPIC", f"-I{include}", str(src), "-o", str(out)]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+        pytest.skip(f"C compiler/native headers unavailable: {exc}")
+    return out
