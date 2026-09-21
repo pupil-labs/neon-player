@@ -1,5 +1,6 @@
 import argparse
 import importlib.util
+import importlib.abc
 import json
 import logging
 import os
@@ -306,7 +307,36 @@ class NeonPlayerApp(QApplication):
 
     def find_plugins(self, path: Path) -> None:
         sys.path.append(str(path))
-        sys.path.append(str(path / "site-packages"))
+        site_packages_path = str(path / "site-packages")
+        sys.path.append(site_packages_path)
+
+        # Passive MetaPathFinder hook
+        # Passively eavesdrops on import attempts to dynamically extend __path__
+        # of already-loaded Nuitka packages, right before their missing submodules are resolved.
+        class PassivePathExtensionHook(importlib.abc.MetaPathFinder):
+            def __init__(self, site_packages):
+                self.site_packages = site_packages
+                self._patched = set()
+
+            def find_spec(self, fullname, path, target=None):
+                if "." in fullname:
+                    parent = fullname.rsplit(".", 1)[0]
+                    if parent in sys.modules and parent not in self._patched:
+                        module = sys.modules[parent]
+                        if hasattr(module, "__path__") and isinstance(module.__path__, list):
+                            site_pkg_path = os.path.join(self.site_packages, parent.replace(".", os.sep))
+                            if os.path.isdir(site_pkg_path) and site_pkg_path not in module.__path__:
+                                module.__path__.append(site_pkg_path)
+                                if getattr(module, "__spec__", None) and isinstance(getattr(module.__spec__, "submodule_search_locations", None), list):
+                                    if site_pkg_path not in module.__spec__.submodule_search_locations:
+                                        module.__spec__.submodule_search_locations.append(site_pkg_path)
+                        self._patched.add(parent)
+                return None
+
+        # Ensure we don't add multiple hooks if find_plugins is called multiple times
+        sys.meta_path = [m for m in sys.meta_path if not type(m).__name__ == "PassivePathExtensionHook"]
+        sys.meta_path.insert(0, PassivePathExtensionHook(site_packages_path))
+
         logging.info(f"Searching for plugins in {path}")
         for d in path.iterdir():
             if d.is_file() and d.suffix != ".py":
@@ -329,8 +359,13 @@ class NeonPlayerApp(QApplication):
                 missing_dependencies = check_dependencies_for_plugin(d)
 
                 if missing_dependencies:
-                    dialog = PluginInstallationDialog(missing_dependencies, d.name)
-                    dialog.exec()
+                    if self.headless:
+                        logging.info(f"Installing dependencies for {d.name} headlessly...")
+                        for _ in install_dependencies(missing_dependencies):
+                            pass
+                    else:
+                        dialog = PluginInstallationDialog(missing_dependencies, d.name)
+                        dialog.exec()
 
                 logging.info(f"Importing plugin module {d}")
 

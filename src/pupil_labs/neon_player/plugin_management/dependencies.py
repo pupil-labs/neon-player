@@ -109,12 +109,24 @@ def install_dependencies(dependencies: list[str]) -> T.Generator[ProgressUpdate,
 
     pyver = sys.version_info
 
+    constraints_path = SITE_PACKAGES_DIR / "neon_player_constraints.txt"
+    try:
+        with open(constraints_path, "w") as f:
+            for dist in importlib.metadata.distributions():
+                name = dist.metadata.get("Name")
+                version = dist.version
+                if name and version:
+                    f.write(f"{name}=={version}\n")
+    except Exception as e:
+        logging.warning(f"Failed to generate constraints file: {e}")
+
     command = [
         uv_cmd,
         "pip",
         "install",
         f"--python={pyver.major}.{pyver.minor}.{pyver.micro}",
         f"--target={SITE_PACKAGES_DIR}",
+        "-c", str(constraints_path),
         *dependencies,
     ]
 
