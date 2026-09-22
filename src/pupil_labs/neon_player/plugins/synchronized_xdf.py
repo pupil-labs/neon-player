@@ -146,6 +146,7 @@ class XDFStream:
 
 class XDFMultimodalPlugin(Plugin):
     label = "XDF Multimodal"
+    _XDF_CACHE_VERSION = 2
     streams_changed = Signal()
     sync_events_changed = Signal()
 
@@ -425,7 +426,9 @@ class XDFMultimodalPlugin(Plugin):
             xdf_streams = [XDFStream.from_dict(s) for s in streams]
             xdf_streams = [s for s in xdf_streams if s.name]
 
-            marker_stream_names = [s.name for s in xdf_streams if s.is_marker_stream]
+            marker_stream_names = list(
+                dict.fromkeys(s.name for s in xdf_streams if s.is_marker_stream)
+            )
             non_marker_stream_names = [s.name for s in xdf_streams if s.is_data_stream]
             all_stream_names = [s.name for s in xdf_streams]
             if not marker_stream_names:
@@ -468,11 +471,14 @@ class XDFMultimodalPlugin(Plugin):
                             )
 
                 if stream.is_marker_stream:
-                    marker_stream_payloads[stream.name] = stream.markers
+                    # XDF may contain duplicate stream names. Combine their
+                    # payloads so a later empty stream cannot erase real markers.
+                    marker_stream_payloads.setdefault(stream.name, []).extend(stream.markers)
                     
                 yield ProgressUpdate(0.2 + (0.7 * (idx + 1) / n_streams))
 
             meta_payload = {
+                "cache_version": self._XDF_CACHE_VERSION,
                 "source_path": str(xdf_file.resolve()),
                 "available_stream_names": non_marker_stream_names or list(all_stream_names),
                 "available_marker_stream_names": marker_stream_names,
@@ -501,6 +507,9 @@ class XDFMultimodalPlugin(Plugin):
                 meta_payload = json.load(meta_fp)
 
             source_path = meta_payload.get("source_path", "")
+            if meta_payload.get("cache_version") != self._XDF_CACHE_VERSION:
+                logging.info("Ignoring old XDF cache metadata")
+                return False
             if source_path != str(self._xdf_path.resolve()):
                 logging.info("Ignoring stale XDF cache metadata for %s", source_path)
                 return False
