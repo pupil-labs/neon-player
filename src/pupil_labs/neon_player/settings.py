@@ -97,7 +97,7 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
         app = neon_player.instance()
         self._enabled_plugins = app.settings.default_plugins.copy() if app else {}
         self._plugin_states: dict[str, dict] = {}
-        self._export_window: tuple[int, int] = ()
+        self._export_window: tuple[int, int] = (-1, -1)
 
     @property
     @property_params(widget=None)
@@ -174,7 +174,7 @@ def load_recording_settings(
             recording.stop_time,
         )
 
-    if len(settings.export_window) != 2:
+    if len(settings.export_window) != 2 or any([el < 0 for el in settings.export_window]):
         logging.warning("Invalid export window in settings")
         settings.export_window = (
             recording.start_time,
