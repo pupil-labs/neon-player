@@ -10,6 +10,8 @@ from pupil_labs.neon_recording.timeseries import (
     SceneVideoTimeseries
 )
 
+from pupil_labs.neon_player.settings import GeneralSettings
+
 
 @pytest.fixture(autouse=False)
 def mock_neon_recording(tmp_path):
@@ -45,6 +47,8 @@ class MockNeonPlayerApp(QApplication):
         self.headless = True
         self.plugins_by_class = {}
         self.recording = None
+        self.settings = GeneralSettings()
+        self.settings.default_plugins = {"DefaultPlugin": True}
 
 
 @pytest.fixture(scope="session")
