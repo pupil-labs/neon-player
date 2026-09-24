@@ -43,7 +43,7 @@ from pupil_labs.neon_player.plugins import (
     video_exporter,  # noqa: F401
 )
 from pupil_labs.neon_player.history import RecordingHistory
-from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
+from pupil_labs.neon_player.settings import GeneralSettings, load_recording_settings
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
     PluginInstallationDialog,
@@ -382,36 +382,10 @@ class NeonPlayerApp(QApplication):
 
         self.main_window.on_recording_loaded(self.recording)
 
-        try:
-            settings_path = path / ".neon_player" / "settings.json"
-            if settings_path.exists():
-                logging.info(f"Loading recording settings from {settings_path}")
-                self.recording_settings = RecordingSettings.from_dict(
-                    json.loads(settings_path.read_text())
-                )
-
-                if len(self.recording_settings.export_window) != 2:
-                    logging.warning("Invalid export window in settings")
-                    self.recording_settings.export_window = (
-                        self.recording.start_time,
-                        self.recording.stop_time,
-                    )
-
-            else:
-                self.recording_settings = RecordingSettings()
-                self.recording_settings.export_window = (
-                    self.recording.start_time,
-                    self.recording.stop_time,
-                )
-
-        except Exception:
-            logging.exception("Failed to load settings")
-            self.recording_settings = RecordingSettings()
+        settings_path = path / ".neon_player" / "settings.json"
+        self.recording_settings = load_recording_settings(settings_path, self.recording)
         self.recording_settings.export_window_changed.connect(self.export_window_changed.emit)
-
-        logging.info(
-            "Recording settings loaded", self.recording_settings.enabled_plugins
-        )
+        logging.info("Recording settings loaded")
 
         if self.settings.skip_gray_frames_on_load:
             self.seek_to(self.recording.scene[0].time)
