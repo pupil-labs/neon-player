@@ -3,6 +3,7 @@ import typing
 import webbrowser
 from pathlib import Path
 
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import (
     QKeyCombination,
     Qt,
@@ -46,12 +47,14 @@ from qt_property_widgets.widgets import PropertyForm
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.ui import QtShortcutType
+from pupil_labs.neon_player.ui.changelog_dialog import ChangelogDialog
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
+from pupil_labs.neon_player.ui.update_pill import UpdatePill
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
+from pupil_labs.neon_player.updater import CheckUpdateThread
 from pupil_labs.neon_player.utilities import SlotDebouncer
-from pupil_labs.neon_recording import NeonRecording
 
 try:
     from pupil_labs.neon_player.ui.splash import Ui_Splash
@@ -144,7 +147,9 @@ class RecentWidget(QWidget):
         title_layout.addWidget(QLabel("<h2>Recently Opened</h2>"))
         title_layout.addStretch()
 
-        self.empty_history_label = QLabel("Recently opened recordings will appear here.")
+        self.empty_history_label = QLabel(
+            "Recently opened recordings will appear here."
+        )
         self.empty_history_label.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.empty_history_label.setSizePolicy(
             QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
@@ -476,6 +481,7 @@ class MainWindow(QMainWindow):
         self.register_action("&File/&Open recording", "Ctrl+o", self.on_open_action)
         self.register_action("&File/&Close recording", "Ctrl+w", app.unload)
         self.register_action("&File/&Global Settings", None, self.show_global_settings)
+        self.register_action("&File/&Changelog", None, self.open_changelog)
         self.register_action("&File/&Quit", "Ctrl+q", self.on_quit_action)
 
         self.register_action("&Tools/&Console", "Ctrl+Alt+c", self.console_window.show)
@@ -533,6 +539,56 @@ class MainWindow(QMainWindow):
         self.on_recording_closed()
         self.status_label.clicked.connect(self.console_window.show)
 
+        self.update_pill = UpdatePill(self)
+        self.statusBar().addPermanentWidget(self.update_pill)
+
+        self.check_update_thread: CheckUpdateThread | None = None
+        self._updater_settings_connected = False
+        QTimer.singleShot(0, self.check_updates_if_enabled)
+
+    def check_updates_if_enabled(self) -> None:
+        import contextlib
+        import sys
+
+        app = neon_player.instance()
+        if (
+            hasattr(app, "settings")
+            and hasattr(app.settings, "changed")
+            and not self._updater_settings_connected
+        ):
+            with contextlib.suppress(RuntimeError, TypeError):
+                app.settings.changed.connect(self.on_settings_changed_updater)
+                self._updater_settings_connected = True
+
+        should_check = (
+            getattr(app.settings, "check_for_updates", True)
+            or "--mock-update" in sys.argv
+        )
+
+        if should_check and self.check_update_thread is None:
+            self.check_update_thread = CheckUpdateThread()
+            self.check_update_thread.update_available.connect(self.on_update_available)
+            self.check_update_thread.start()
+
+    def on_settings_changed_updater(self) -> None:
+        app = neon_player.instance()
+        if not getattr(app.settings, "check_for_updates", True):
+            if hasattr(self, "update_pill"):
+                self.update_pill.hide()
+        elif self.check_update_thread is None:
+            self.check_updates_if_enabled()
+
+    def on_update_available(
+        self, tag_name: str, release_url: str, release_notes: str
+    ) -> None:
+        self.latest_release_notes = f"## {tag_name}\n\n{release_notes}\n\n---"
+        self.update_pill.show_update(tag_name, release_url)
+
+    def open_changelog(self) -> None:
+        notes = getattr(self, "latest_release_notes", None)
+        dlg = ChangelogDialog(notes, self)
+        dlg.exec()
+
     def reset_docks(self):
         docks_and_areas = {
             self.timeline_dock: Qt.DockWidgetArea.BottomDockWidgetArea,
@@ -557,7 +613,6 @@ class MainWindow(QMainWindow):
         self.timeline_dock.hide()
         self.settings_dock.hide()
         self.menuBar().hide()
-        self.statusBar().hide()
 
     def on_show_recent_action(self) -> None:
         self.recent_widget.update_recent_recordings()
