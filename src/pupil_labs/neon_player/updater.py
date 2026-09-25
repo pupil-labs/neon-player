@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class CheckUpdateThread(QThread):
-    update_available = Signal(str, str)  # tag_name, release_url
+    update_available = Signal(str, str, str)  # tag_name, release_url, release_notes
 
     def __init__(self, repo="pupil-labs/neon-player"):
         super().__init__()
@@ -27,6 +27,9 @@ class CheckUpdateThread(QThread):
                 self.update_available.emit(
                     "v99.99.99",
                     f"https://github.com/{self.repo}/releases",
+                    "### Mock Release v99.99.99\n\n"
+                    "- Example changelog entry.\n"
+                    "- Real-time Markdown rendering in Neon Player!",
                 )
                 return
 
@@ -68,7 +71,8 @@ class CheckUpdateThread(QThread):
             release_url = data.get(
                 "html_url", f"https://github.com/{self.repo}/releases"
             )
-            self.update_available.emit(tag_name, release_url)
+            release_notes = data.get("body", "")
+            self.update_available.emit(tag_name, release_url, release_notes)
         except urllib.error.URLError as e:
             logger.info(
                 "Could not check for updates (offline or unreachable: %s)", e.reason

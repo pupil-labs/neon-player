@@ -24,11 +24,12 @@ def test_check_update_thread_update_available(mock_get_version, mock_urlopen, qt
     with qtbot.waitSignal(thread.update_available, timeout=1000) as blocker:
         thread.run()
 
-    tag_name, release_url = blocker.args
+    tag_name, release_url, release_notes = blocker.args
     assert tag_name == "v2.0.0"
     assert (
         release_url == "https://github.com/pupil-labs/neon-player/releases/tag/v2.0.0"
     )
+    assert release_notes == ""
 
 
 @patch("urllib.request.urlopen")
@@ -65,6 +66,7 @@ def test_check_update_thread_mock_flag(qtbot):
     ):
         thread.run()
 
-    tag_name, release_url = blocker.args
+    tag_name, release_url, release_notes = blocker.args
     assert tag_name == "v99.99.99"
     assert "releases" in release_url
+    assert "Mock Release" in release_notes
