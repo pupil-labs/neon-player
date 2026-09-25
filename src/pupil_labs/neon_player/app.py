@@ -84,7 +84,18 @@ class NeonPlayerApp(QApplication):
         self.playback_start_anchor = 0
         self.current_ts = 0
         self.playback_speed_options = [
-            -4.0, -2.0, -1.0, -0.5, -0.25, -0.125, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0
+            -4.0,
+            -2.0,
+            -1.0,
+            -0.5,
+            -0.25,
+            -0.125,
+            0.125,
+            0.25,
+            0.5,
+            1.0,
+            2.0,
+            4.0,
         ]
         self.playback_speed = 1.0
 
@@ -106,6 +117,11 @@ class NeonPlayerApp(QApplication):
             "--job",
             nargs="+",
             default=None,
+        )
+        parser.add_argument(
+            "--mock-update",
+            action="store_true",
+            help="Force the mock update notification for testing",
         )
 
         self.args = parser.parse_args()
@@ -138,7 +154,9 @@ class NeonPlayerApp(QApplication):
             logging.exception("Failed to load settings")
 
         try:
-            self.recording_history = RecordingHistory.from_dict(self.load_recording_history())
+            self.recording_history = RecordingHistory.from_dict(
+                self.load_recording_history()
+            )
         except FileNotFoundError:
             logging.warning("Recording history file not found")
         except Exception:

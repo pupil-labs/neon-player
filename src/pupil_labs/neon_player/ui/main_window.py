@@ -49,7 +49,9 @@ from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
+from pupil_labs.neon_player.ui.update_pill import UpdatePill
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
+from pupil_labs.neon_player.updater import CheckUpdateThread
 from pupil_labs.neon_player.utilities import SlotDebouncer
 from pupil_labs.neon_recording import NeonRecording
 
@@ -144,7 +146,9 @@ class RecentWidget(QWidget):
         title_layout.addWidget(QLabel("<h2>Recently Opened</h2>"))
         title_layout.addStretch()
 
-        self.empty_history_label = QLabel("Recently opened recordings will appear here.")
+        self.empty_history_label = QLabel(
+            "Recently opened recordings will appear here."
+        )
         self.empty_history_label.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.empty_history_label.setSizePolicy(
             QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
@@ -533,6 +537,16 @@ class MainWindow(QMainWindow):
         self.on_recording_closed()
         self.status_label.clicked.connect(self.console_window.show)
 
+        self.update_pill = UpdatePill(self)
+        self.statusBar().addPermanentWidget(self.update_pill)
+
+        self.check_update_thread = CheckUpdateThread()
+        self.check_update_thread.update_available.connect(self.on_update_available)
+        self.check_update_thread.start()
+
+    def on_update_available(self, tag_name: str, release_url: str) -> None:
+        self.update_pill.show_update(tag_name, release_url)
+
     def reset_docks(self):
         docks_and_areas = {
             self.timeline_dock: Qt.DockWidgetArea.BottomDockWidgetArea,
@@ -557,7 +571,6 @@ class MainWindow(QMainWindow):
         self.timeline_dock.hide()
         self.settings_dock.hide()
         self.menuBar().hide()
-        self.statusBar().hide()
 
     def on_show_recent_action(self) -> None:
         self.recent_widget.update_recent_recordings()
