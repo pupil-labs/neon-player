@@ -3,6 +3,7 @@ import typing
 import webbrowser
 from pathlib import Path
 
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import (
     QKeyCombination,
     Qt,
@@ -54,7 +55,6 @@ from pupil_labs.neon_player.ui.update_pill import UpdatePill
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.updater import CheckUpdateThread
 from pupil_labs.neon_player.utilities import SlotDebouncer
-from pupil_labs.neon_recording import NeonRecording
 
 try:
     from pupil_labs.neon_player.ui.splash import Ui_Splash
@@ -542,9 +542,41 @@ class MainWindow(QMainWindow):
         self.update_pill = UpdatePill(self)
         self.statusBar().addPermanentWidget(self.update_pill)
 
-        self.check_update_thread = CheckUpdateThread()
-        self.check_update_thread.update_available.connect(self.on_update_available)
-        self.check_update_thread.start()
+        self.check_update_thread: CheckUpdateThread | None = None
+        self._updater_settings_connected = False
+        QTimer.singleShot(0, self.check_updates_if_enabled)
+
+    def check_updates_if_enabled(self) -> None:
+        import contextlib
+        import sys
+
+        app = neon_player.instance()
+        if (
+            hasattr(app, "settings")
+            and hasattr(app.settings, "changed")
+            and not self._updater_settings_connected
+        ):
+            with contextlib.suppress(RuntimeError, TypeError):
+                app.settings.changed.connect(self.on_settings_changed_updater)
+                self._updater_settings_connected = True
+
+        should_check = (
+            getattr(app.settings, "check_for_updates", True)
+            or "--mock-update" in sys.argv
+        )
+
+        if should_check and self.check_update_thread is None:
+            self.check_update_thread = CheckUpdateThread()
+            self.check_update_thread.update_available.connect(self.on_update_available)
+            self.check_update_thread.start()
+
+    def on_settings_changed_updater(self) -> None:
+        app = neon_player.instance()
+        if not getattr(app.settings, "check_for_updates", True):
+            if hasattr(self, "update_pill"):
+                self.update_pill.hide()
+        elif self.check_update_thread is None:
+            self.check_updates_if_enabled()
 
     def on_update_available(
         self, tag_name: str, release_url: str, release_notes: str

@@ -28,6 +28,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
 
     def __init__(self) -> None:
         super().__init__()
+        self._check_for_updates = True
         self._skip_gray_frames_on_load = True
         self._show_fps = False
 
@@ -41,6 +42,14 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
             "EventsPlugin": True,
             "ExportAllPlugin": True,
         })
+
+    @property
+    def check_for_updates(self) -> bool:
+        return self._check_for_updates
+
+    @check_for_updates.setter
+    def check_for_updates(self, value: bool) -> None:
+        self._check_for_updates = value
 
     @property
     def skip_gray_frames_on_load(self) -> bool:

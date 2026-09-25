@@ -70,3 +70,17 @@ def test_check_update_thread_mock_flag(qtbot):
     assert tag_name == "v99.99.99"
     assert "releases" in release_url
     assert "Mock Release" in release_notes
+
+
+def test_general_settings_check_for_updates():
+    from pupil_labs.neon_player.settings import GeneralSettings
+
+    settings = GeneralSettings()
+    assert settings.check_for_updates is True
+
+    settings.check_for_updates = False
+    assert settings.check_for_updates is False
+    assert settings.to_dict()["check_for_updates"] is False
+
+    loaded = GeneralSettings.from_dict({"check_for_updates": False})
+    assert loaded.check_for_updates is False
