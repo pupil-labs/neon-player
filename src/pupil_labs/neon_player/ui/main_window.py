@@ -54,7 +54,6 @@ from pupil_labs.neon_player.ui.notification_pill import UpdatePill, WhatsNewPill
 from importlib.metadata import version as get_version
 from importlib.metadata import PackageNotFoundError
 from packaging import version
-from pupil_labs.neon_player import __version__
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
 
