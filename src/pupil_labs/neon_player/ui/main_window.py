@@ -47,7 +47,6 @@ from qt_property_widgets.widgets import PropertyForm
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.ui import QtShortcutType
-from pupil_labs.neon_player.ui.changelog_dialog import ChangelogDialog
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
@@ -481,7 +480,7 @@ class MainWindow(QMainWindow):
         self.register_action("&File/&Open recording", "Ctrl+o", self.on_open_action)
         self.register_action("&File/&Close recording", "Ctrl+w", app.unload)
         self.register_action("&File/&Global Settings", None, self.show_global_settings)
-        self.register_action("&File/&Changelog", None, self.open_changelog)
+        self.register_action("&Help/Show release notes", None, self.open_release_notes)
         self.register_action("&File/&Quit", "Ctrl+q", self.on_quit_action)
 
         self.register_action("&Tools/&Console", "Ctrl+Alt+c", self.console_window.show)
@@ -584,10 +583,8 @@ class MainWindow(QMainWindow):
         self.latest_release_notes = f"## {tag_name}\n\n{release_notes}\n\n---"
         self.update_pill.show_update(tag_name, release_url)
 
-    def open_changelog(self) -> None:
-        notes = getattr(self, "latest_release_notes", None)
-        dlg = ChangelogDialog(notes, self)
-        dlg.exec()
+    def open_release_notes(self) -> None:
+        QDesktopServices.openUrl(QUrl("https://github.com/pupil-labs/neon-player/releases"))
 
     def reset_docks(self):
         docks_and_areas = {
