@@ -597,13 +597,17 @@ class MainWindow(QMainWindow):
             return
 
         box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
         box.setWindowTitle("Update Notification Dismissed")
         box.setText("You can always check for updates later or view release notes from the Help menu.")
         cb = QCheckBox("Disable automatic update checks on startup")
         box.setCheckBox(cb)
         box.exec()
 
-        if cb.isChecked():
+        checked = cb.isChecked()
+        box.deleteLater()
+
+        if checked:
             app.settings.check_for_updates = False
             if hasattr(app, "save_settings"):
                 app.save_settings()
