@@ -100,6 +100,6 @@ class UpdatePill(NotificationPill):
 
 class WhatsNewPill(NotificationPill):
     def __init__(self, parent=None):
-        # Using a distinct color (pleasant green) to differentiate from the update pill
-        super().__init__(color="#28a745", hover_color="#218838", icon_path=None, parent=parent)
-        self.label.setText("✨ See what's new!")
+        icon_path = os.path.join(os.path.dirname(__file__), "..", "assets", "sparkles.svg")
+        super().__init__(color="#6d7be0", hover_color="#5a66b9", icon_path=icon_path, parent=parent)
+        self.label.setText("See what's new!")

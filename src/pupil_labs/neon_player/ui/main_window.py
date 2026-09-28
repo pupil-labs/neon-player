@@ -632,7 +632,7 @@ class MainWindow(QMainWindow):
             last_read_parsed = version.parse(app.settings.last_read_release_notes_version or "0.0.0")
 
             if current_parsed > last_read_parsed:
-                self.whats_new_pill.show_pill("✨ See what's new!", "https://github.com/pupil-labs/neon-player/releases", "Open release notes on GitHub")
+                self.whats_new_pill.show_pill("See what's new!", "https://github.com/pupil-labs/neon-player/releases", "Open release notes on GitHub")
         except Exception:
             pass # Parsing error
 
