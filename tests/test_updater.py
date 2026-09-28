@@ -56,22 +56,6 @@ def test_check_update_thread_offline(mock_urlopen):
     thread.run()
 
 
-def test_check_update_thread_mock_flag(qtbot):
-    import sys
-
-    thread = CheckUpdateThread(repo="dummy/repo")
-    with (
-        patch.object(sys, "argv", ["neon-player", "--mock-update"]),
-        qtbot.waitSignal(thread.update_available, timeout=1000) as blocker,
-    ):
-        thread.run()
-
-    tag_name, release_url, release_notes = blocker.args
-    assert tag_name == "v99.99.99"
-    assert "releases" in release_url
-    assert "Mock Release" in release_notes
-
-
 def test_general_settings_check_for_updates():
     from pupil_labs.neon_player.settings import GeneralSettings
 

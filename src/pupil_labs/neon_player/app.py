@@ -119,11 +119,6 @@ class NeonPlayerApp(QApplication):
             nargs="+",
             default=None,
         )
-        parser.add_argument(
-            "--mock-update",
-            action="store_true",
-            help="Force the mock update notification for testing",
-        )
 
         self.args = parser.parse_args()
 

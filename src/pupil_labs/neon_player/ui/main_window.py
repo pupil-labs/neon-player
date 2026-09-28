@@ -557,9 +557,6 @@ class MainWindow(QMainWindow):
                 self._updater_settings_connected = True
 
         should_check = getattr(app.settings, "check_for_updates", True)
-        if "--mock-update" in sys.argv:
-            should_check = True
-
         if should_check and hasattr(app, "update_manager"):
             try:
                 app.update_manager.update_available.disconnect(self.on_update_available)

@@ -21,19 +21,6 @@ class CheckUpdateThread(QThread):
 
     def run(self):
         try:
-            import sys
-
-            if "--mock-update" in sys.argv:
-                logger.info("Forcing mock update notification via --mock-update flag")
-                self.update_available.emit(
-                    "v99.99.99",
-                    f"https://github.com/{self.github_client.repo}/releases",
-                    "### Mock Release v99.99.99\n\n"
-                    "- Example changelog entry.\n"
-                    "- Real-time Markdown rendering in Neon Player!",
-                )
-                return
-
             try:
                 curr_ver_str = get_version("pupil-labs-neon-player")
             except PackageNotFoundError:
