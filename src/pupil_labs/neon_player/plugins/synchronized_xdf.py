@@ -3,6 +3,7 @@ import json
 import numpy as np
 import pandas as pd
 import pyxdf
+import uuid
 
 from pathlib import Path
 from PySide6.QtCore import Signal
@@ -14,8 +15,8 @@ from qt_property_widgets.utilities import (
 )
 from qt_property_widgets.widgets import DynamicComboWidget
 from scipy.signal import butter, filtfilt
-from typing import Optional
-from collections.abc import Generator
+from typing import Any, Optional
+from collections.abc import Iterator
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, action
@@ -23,10 +24,45 @@ from pupil_labs.neon_player.job_manager import ProgressUpdate
 from pupil_labs.neon_recording import NeonRecording
 
 
+def first(info: dict[str, list[Any]], key: str, default: Any) -> Any:
+    """Pick the first value from a str-list mapping.
+
+    Most fields in the parsed XDF data contain one value which is wrapped
+    in a list. This function retrieves this value or returns a fallback one
+    if the key is not present in the mapping.
+    """
+    value = info.get(key)
+    if value is None:
+        return default
+
+    if not isinstance(value, list):
+        return value
+
+    return value[0]
+
+
+def escape_stream_name(stream_name: str) -> str:
+    """Escape the stream name to use it in names of cache files."""
+    return "".join(
+        c if c.isalnum() or c in ("-", "_") else "_"
+        for c in stream_name
+    )
+
+
+class XDFStreamError(Exception):
+    """Indicates that the parsed XDF data is not valid."""
+    ...
+
+
 class XDFStream:
-    """Parses and holds the data from a single XDF stream dict."""
+    """Parses and holds the data from a single XDF stream dict.
+
+    The reference specification is available at
+    https://github.com/sccn/xdf/wiki/Specifications.
+    """
 
     def __init__(self) -> None:
+        self.uid: str = ""
         self.name: str = ""
         self.type: str = ""
         self.type_display: str = ""
@@ -42,15 +78,23 @@ class XDFStream:
     def is_marker_stream(self) -> bool:
         return self._is_marker_stream
 
+    def raise_not_valid(self):
+        if self.channel_count < 0:
+            raise XDFStreamError("Channel count is missing or negative")
+
+        return True
+
     @classmethod
     def from_dict(cls, xdf_dict: dict) -> "XDFStream":
         stream = cls()
         info = xdf_dict.get("info", {})
-        stream.name = str(info.get("name", [""])[0])
-        stream.type_display = str(info.get("type", [""])[0]).strip()
+        stream.id = int(first(info, "id", -1))
+        stream.uid = str(first(info, "uid", uuid.uuid4()))
+        stream.name = str(first(info, "name", ""))
+        stream.type_display = str(first(info, "type", "")).strip()
         stream.type = stream.type_display.lower()
-        stream.channel_count = int(info.get("channel_count", [-1])[0])
-        stream.channel_format = str(info.get("channel_format", [""])[0]).strip().lower()
+        stream.channel_count = int(first(info, "channel_count", -1))
+        stream.channel_format = str(first(info, "channel_format", "")).strip().lower()
 
         stream._is_marker_stream = (
             stream.channel_format == "string"
@@ -74,7 +118,7 @@ class XDFStream:
     @staticmethod
     def _parse_stream_data(
         xdf_dict: dict,
-    ) -> "tuple[Optional[np.ndarray], Optional[np.ndarray], float]":
+    ) -> tuple[Optional[np.ndarray], Optional[np.ndarray], float]:
         time_series = xdf_dict.get("time_series")
         data = XDFStream._to_numeric(time_series)
 
@@ -95,7 +139,7 @@ class XDFStream:
         return data, timestamps, fs
 
     @staticmethod
-    def _to_numeric(time_series) -> "Optional[np.ndarray]":
+    def _to_numeric(time_series) -> Optional[np.ndarray]:
         if time_series is None:
             return None
         try:
@@ -113,7 +157,7 @@ class XDFStream:
         return data
 
     @staticmethod
-    def _parse_channel_names(xdf_dict: dict) -> "Optional[list[str]]":
+    def _parse_channel_names(xdf_dict: dict) -> Optional[list[str]]:
         desc = xdf_dict.get("info", {}).get("desc", [{}])[0]
         ch_list = desc.get("channels", [{}])[0].get("channel", [])
         if not ch_list:
@@ -132,6 +176,9 @@ class XDFStream:
 
     @staticmethod
     def _parse_markers(xdf_dict: dict) -> list[dict]:
+        if "time_stamps" not in xdf_dict or "time_series" not in xdf_dict:
+            return []
+
         markers = []
         for ts, marker in zip(xdf_dict["time_stamps"], xdf_dict["time_series"], strict=False):
             m_text = str(marker[0])
@@ -141,7 +188,12 @@ class XDFStream:
 
     @staticmethod
     def _parse_event_name(text: str) -> str:
-        return text.strip() # For now, just strip whitespace. Future improvements could parse JSON or other structured formats.
+        """Parse event names from strings.
+
+        For now, just strip whitespace. Future improvements could parse JSON
+        or other structured formats.
+        """
+        return text.strip()
 
 
 class XDFMultimodalPlugin(Plugin):
@@ -152,6 +204,8 @@ class XDFMultimodalPlugin(Plugin):
 
     def __init__(self) -> None:
         super().__init__()
+
+        self._state_initialized = False
         self._xdf_path: Path = Path("")
         self._available_stream_names: list[str] = []
         self._available_marker_stream_names: list[str] = []
@@ -255,7 +309,7 @@ class XDFMultimodalPlugin(Plugin):
             self.align_with_recording()
 
     @property
-    @property_params(label="Apply Bandpass 1-30 Hz (EEG-like streams)")
+    @property_params(label="Apply Bandpass 1-30 Hz")
     def apply_bandpass(self) -> bool:
         return self._apply_bandpass
 
@@ -281,6 +335,7 @@ class XDFMultimodalPlugin(Plugin):
 
         # Keep persisted file_path from settings. If it is still valid, reload it
         # automatically so the XDF opens together with the recording.
+        self._state_initialized = True
         if self._xdf_path.exists() and self._xdf_path.is_file():
             self.load_xdf()
         else:
@@ -338,15 +393,16 @@ class XDFMultimodalPlugin(Plugin):
         if was_sorting_enabled:
             timeline.enable_plot_sorting()
 
-    def _get_selected_stream_info_cache_file(self) -> Path:
-        safe_stream_name = "".join(
-            c if c.isalnum() or c in ("-", "_") else "_"
-            for c in self._data_stream_name
-        )
-        return self.get_cache_path() / f"xdf_stream_{safe_stream_name}.json"
-
     def _get_xdf_meta_cache_file(self) -> Path:
         return self.get_cache_path() / "xdf_selection_meta.json"
+
+    def _get_stream_info_cache_file(self, stream_name: str) -> Path:
+        safe_stream_name = escape_stream_name(stream_name)
+        return self.get_cache_path() / f"xdf_stream_{safe_stream_name}.json"
+
+    def _get_stream_data_cache_file(self, stream_name: str) -> Path:
+        safe_stream_name = escape_stream_name(stream_name)
+        return self.get_cache_path() / f"xdf_stream_{safe_stream_name}.npy"
 
     def _reset_loaded_xdf_state(self) -> None:
         self._stream_data = None
@@ -369,7 +425,12 @@ class XDFMultimodalPlugin(Plugin):
         self.channels = new_channels
 
     def load_xdf(self):
-        #Prevent overlapping loads
+        # Prevent attempts to load XDF while the plugin state is not fully
+        # initialized - i.e., file path is set but stream names are not
+        if not self._state_initialized:
+            return
+
+        # Prevent overlapping loads
         if self._xdf_load_job is not None:
             self._reload_after_job = True
             return
@@ -411,82 +472,80 @@ class XDFMultimodalPlugin(Plugin):
             return
         self._load_xdf_from_cache()
 
-    def _bg_load_xdf(
-        self,
-        xdf_path: str,
-        data_stream_name: str,
-        marker_stream_name: str,
-    ) -> Generator[ProgressUpdate, None, None]:
+    def _bg_load_xdf(self, xdf_path: str, data_stream_name: str) -> Iterator[ProgressUpdate]:
         try:
             xdf_file = Path(xdf_path)
             logging.info("Loading XDF in background: %s", xdf_file)
             yield ProgressUpdate(0.1)
 
             streams, _ = pyxdf.load_xdf(str(xdf_file))
-            xdf_streams = [XDFStream.from_dict(s) for s in streams]
-            xdf_streams = [s for s in xdf_streams if s.name]
+            xdf_streams = []
+            for s in streams:
+                xdf_stream = XDFStream.from_dict(s)
+                try:
+                    xdf_stream.raise_not_valid()
+                    xdf_streams.append(xdf_stream)
+                except XDFStreamError as e:
+                    logging.warning(
+                        f"Skipping XDF stream {xdf_stream.id} due to invalid data: {str(e)}"
+                    )
 
-            marker_stream_names = list(
-                dict.fromkeys(s.name for s in xdf_streams if s.is_marker_stream)
-            )
-            non_marker_stream_names = [s.name for s in xdf_streams if s.is_data_stream]
-            all_stream_names = [s.name for s in xdf_streams]
-            if not marker_stream_names:
-                marker_stream_names = list(all_stream_names)
+            marker_stream_names = [s.name for s in xdf_streams if s.is_marker_stream]
+            data_stream_names = [s.name for s in xdf_streams if s.is_data_stream]
 
             selected_data_stream: dict[str, object] | None = None
-            marker_stream_payloads: dict[str, list[dict]] = {}
+            marker_stream_payloads: dict[str, dict] = {}
             n_streams = len(xdf_streams)
 
             for idx, stream in enumerate(xdf_streams):
-                if data_stream_name and stream.name == data_stream_name:
-                    if stream.data is not None:
-                        safe_stream_name = "".join(
-                            c if c.isalnum() or c in ("-", "_") else "_"
-                            for c in data_stream_name
-                        )
-                        data_cache_file = self.get_cache_path() / f"xdf_stream_{safe_stream_name}.npy"
-                        data_cache_file.parent.mkdir(parents=True, exist_ok=True)
-
-                        # One NPY per selected data stream. First column is timestamps.
-                        stream_matrix = np.column_stack((stream.timestamps, stream.data))
-                        np.save(str(data_cache_file), stream_matrix.astype(np.float32))
-
-                        selected_data_stream = {
-                            "name": stream.name,
-                            "type_display": stream.type_display,
-                            "fs": stream.fs,
-                            "channel_names": stream.channel_names,
-                            "data_file": data_cache_file.name,
-                        }
-
-                        stream_info_cache_file = self.get_cache_path() / f"xdf_stream_{safe_stream_name}.json"
-                        with stream_info_cache_file.open("w", encoding="utf-8") as stream_meta_fp:
-                            json.dump(
-                                {
-                                    "source_path": str(xdf_file.resolve()),
-                                    **selected_data_stream,
-                                },
-                                stream_meta_fp,
-                            )
-
                 if stream.is_marker_stream:
-                    # XDF may contain duplicate stream names. Combine their
-                    # payloads so a later empty stream cannot erase real markers.
-                    marker_stream_payloads.setdefault(stream.name, []).extend(stream.markers)
-                    
+                    marker_stream_payloads[stream.uid] = stream.markers
+                    yield ProgressUpdate(0.2 + (0.7 * (idx + 1) / n_streams))
+                    continue
+
+                is_selected = data_stream_name and stream.name == data_stream_name
+                has_data = stream.data is not None
+                if not is_selected or not has_data:
+                    yield ProgressUpdate(0.2 + (0.7 * (idx + 1) / n_streams))
+                    continue
+
+                data_cache_file = self._get_stream_data_cache_file(data_stream_name)
+                data_cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+                # One NPY per selected data stream. First column is timestamps.
+                stream_matrix = np.column_stack((stream.timestamps, stream.data))
+                np.save(str(data_cache_file), stream_matrix.astype(np.float32))
+
+                selected_data_stream = {
+                    "name": stream.name,
+                    "type_display": stream.type_display,
+                    "fs": stream.fs,
+                    "channel_names": stream.channel_names,
+                    "data_file": data_cache_file.name,
+                }
+
+                info_cache_file = self._get_stream_info_cache_file(data_stream_name)
+                with info_cache_file.open("w", encoding="utf-8") as stream_meta_fp:
+                    json.dump(
+                        {
+                            "source_path": str(xdf_file.resolve()),
+                            **selected_data_stream,
+                        },
+                        stream_meta_fp,
+                    )
+
                 yield ProgressUpdate(0.2 + (0.7 * (idx + 1) / n_streams))
 
             meta_payload = {
                 "cache_version": self._XDF_CACHE_VERSION,
                 "source_path": str(xdf_file.resolve()),
-                "available_stream_names": non_marker_stream_names or list(all_stream_names),
+                "available_stream_names": data_stream_names,
                 "available_marker_stream_names": marker_stream_names,
                 "selected_data_stream": selected_data_stream,
                 "marker_stream_payloads": marker_stream_payloads,
             }
 
-            meta_cache_file = self.get_cache_path() / "xdf_selection_meta.json"
+            meta_cache_file = self._get_xdf_meta_cache_file()
             meta_cache_file.parent.mkdir(parents=True, exist_ok=True)
             with meta_cache_file.open("w", encoding="utf-8") as meta_fp:
                 json.dump(meta_payload, meta_fp)
@@ -660,7 +719,7 @@ class XDFMultimodalPlugin(Plugin):
                     break
             except Exception as exc:
                 logging.debug("Failed to extract events from source %s: %s", src_name, exc, exc_info=True)
-                
+
         if not neon_events:
             self._set_common_sync_events([])
             self._is_aligned = False
