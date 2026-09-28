@@ -9,10 +9,10 @@ from qt_property_widgets.utilities import action_params
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
 from pupil_labs.neon_player.job_manager import BackgroundJob
-from pupil_labs.neon_player.plugins.shared import BackgroundVideoExportMixin
+from pupil_labs.neon_player.plugins.shared import bg_export_video
 
 
-class VideoExporter(neon_player.Plugin, BackgroundVideoExportMixin):
+class VideoExporter(neon_player.Plugin):
     label = "Video Exporter"
 
     def __init__(self) -> None:
@@ -37,7 +37,7 @@ class VideoExporter(neon_player.Plugin, BackgroundVideoExportMixin):
         self.app.render_to(painter, time_in_recording)
 
     def bg_export(self, destination: Path = Path()) -> T.Generator:
-        yield from self.bg_export_video(
+        yield from bg_export_video(
             recording=self.recording,
             export_window=self.app.get_export_window(),
             render_fn=self.render_for_export,

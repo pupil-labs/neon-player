@@ -200,8 +200,17 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def __del__(self):
         self.cleanup_widgets()
 
-    def to_dict(self) -> dict[str, T.Any]:
-        state = super().to_dict()
+    def to_dict(
+        self,
+        include_class_name: bool = False,
+        condition: T.Callable[[dict], bool] | None = None,
+        recursive: bool = False
+    ) -> dict[str, T.Any]:
+        state = super().to_dict(
+            include_class_name=include_class_name,
+            condition=condition,
+            recursive=recursive
+        )
         state["edit"] = False
         return state
 

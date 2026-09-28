@@ -36,7 +36,6 @@ class FixationsPlugin(neon_player.Plugin):
 
         self._visualizations: list[FixationVisualization] = [ScanpathViz(), FixationCircleViz()]
 
-        self.gaze_plugin: GazeDataPlugin | None = None
         self.flow_dict: dict[int, dict[int, np.ndarray]] = {}
         self.header_action = ListPropertyAppenderAction("visualizations", "+ Add viz")
 
@@ -147,13 +146,12 @@ class FixationsPlugin(neon_player.Plugin):
             )
 
     def get_gaze_offset(self) -> tuple[float, float]:
-        if not self.gaze_plugin:
-            self.gaze_plugin = neon_player.Plugin.get_instance_by_name("GazeDataPlugin")
+        gaze_plugin = neon_player.Plugin.get_instance_by_name("GazeDataPlugin")
 
-        if not self.gaze_plugin:
+        if not gaze_plugin:
             return (0.0, 0.0)
 
-        return self.gaze_plugin.offset_x, self.gaze_plugin.offset_y
+        return gaze_plugin.offset_x, gaze_plugin.offset_y
 
     def on_disabled(self) -> None:
         self.get_timeline().remove_timeline_plot("Fixations")
@@ -390,8 +388,21 @@ class FixationVisualization(PersistentPropertiesMixin, QObject):
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.recording = recording
 
-    def to_dict(self, include_class_name: bool = True) -> dict:
-        return super().to_dict(include_class_name=include_class_name)
+    def to_dict(
+        self,
+        include_class_name: bool = False,
+        condition: T.Callable[[dict], bool] | None = None,
+        recursive: bool = False
+    ) -> dict:
+        state = super().to_dict(
+            include_class_name=include_class_name,
+            condition=condition,
+            recursive=recursive
+        )
+
+        # NOTE: Fixation visualizations require the class name to be loaded correctly
+        state["__class__"] = self.__class__.__name__
+        return state
 
     @property
     def use_offset(self) -> bool:

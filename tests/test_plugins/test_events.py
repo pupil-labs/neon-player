@@ -11,26 +11,8 @@ from pupil_labs.neon_player.plugins.events import (
     EventType,
     EventsPlugin
 )
-from pupil_labs.neon_recording.timeseries.events import EventArray
 
-
-def mock_event_timeseries(events_dict):
-    all_events = []
-    for event_name, timestamps in events_dict.items():
-        for ts in timestamps:
-             all_events.append((ts, event_name))
-    all_events = sorted(all_events, key=lambda x: x[0])
-
-    data = np.array([
-        np.void(
-            (ts, event_name),
-            dtype=[("time", np.int64), ("event", np.str_, 50)]
-        )
-        for ts, event_name in all_events
-    ])
-    data = data.view(EventArray)
-
-    return data
+from tests.mocks import mock_event_timeseries
 
 
 def test_events__load_events_from_recording(mock_neon_recording):
@@ -372,3 +354,31 @@ def test_events_plugin__prepare_events_export__source(mock_neon_recording):
     ):
         assert all(events_df[events_df["name"] == event_name]["type"] == source), \
             f"Expected all {event_name} events to be labeled as {source} in export"
+
+
+def test_events_plugin__to_dict__recursive(mock_neon_recording):
+    plugin, _ = _prepare_test_data(mock_neon_recording)
+    plugin_dict = plugin.to_dict(recursive=True)
+    plugin_rec = EventsPlugin.from_dict(plugin_dict)
+
+    for et_dict in plugin_dict["event_types"]:
+        assert isinstance(et_dict, dict), \
+            "Expected event types to be serialized as dicts in recursive mode"
+
+        event_name = et_dict["name"]
+        assert event_name in plugin._event_types_by_name, \
+            "Expected event name in serialized dict to match plugin event types"
+        assert event_name in plugin_rec._event_types_by_name, \
+            "Expected deserialized plugin to contain the same event types as the original"
+
+        et_rec = plugin_rec._event_types_by_name[event_name]
+        assert et_dict["uid"] == et_rec.uid, \
+            "Expected deserialized event type uid to match the original event type"
+        assert et_dict["shortcut"] == et_rec.shortcut, \
+            "Expected deserialized event type shortcut to match the original event type"
+
+
+def test_events_plugin__global_properties__to_dict__includes_class_name():
+    plugin = EventsPlugin()
+    plugin_dict = plugin.global_properties.to_dict()
+    assert plugin_dict["__class__"] == "EventsPluginGlobalProps"
