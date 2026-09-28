@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMenuBar,
-    QMessageBox,
+    QMessageBox, QCheckBox,
     QProgressBar,
     QPushButton,
     QScrollArea,
@@ -542,6 +542,7 @@ class MainWindow(QMainWindow):
         self.status_label.clicked.connect(self.console_window.show)
 
         self.update_pill = UpdatePill(self)
+        self.update_pill.dismissed.connect(self.prompt_disable_updates)
         self.statusBar().addPermanentWidget(self.update_pill)
 
         self.whats_new_pill = WhatsNewPill(self)
@@ -589,6 +590,23 @@ class MainWindow(QMainWindow):
     ) -> None:
         self.latest_release_notes = f"## {tag_name}\n\n{release_notes}\n\n---"
         self.update_pill.show_update(tag_name, release_url)
+
+    def prompt_disable_updates(self) -> None:
+        app = neon_player.instance()
+        if not hasattr(app, "settings"):
+            return
+
+        box = QMessageBox(self)
+        box.setWindowTitle("Update Notification Dismissed")
+        box.setText("You can always check for updates later or view release notes from the Help menu.")
+        cb = QCheckBox("Disable automatic update checks on startup")
+        box.setCheckBox(cb)
+        box.exec()
+
+        if cb.isChecked():
+            app.settings.check_for_updates = False
+            if hasattr(app, "save_settings"):
+                app.save_settings()
 
     def open_release_notes(self) -> None:
         QDesktopServices.openUrl(QUrl("https://github.com/pupil-labs/neon-player/releases"))
