@@ -88,7 +88,8 @@ class NotificationPill(QFrame):
 class UpdatePill(NotificationPill):
     def __init__(self, parent=None):
         icon_path = os.path.join(os.path.dirname(__file__), "..", "assets", "package.svg")
-        super().__init__(color="#6d7be0", hover_color="#5a66b9", icon_path=icon_path, parent=parent)
+        # Blue for update available
+        super().__init__(color="#007bff", hover_color="#0056b3", icon_path=icon_path, parent=parent)
 
     def show_update(self, version_tag: str, release_url: str):
         # We also want it accessible via self.release_url for backwards compat
@@ -101,5 +102,6 @@ class UpdatePill(NotificationPill):
 class WhatsNewPill(NotificationPill):
     def __init__(self, parent=None):
         icon_path = os.path.join(os.path.dirname(__file__), "..", "assets", "sparkles.svg")
-        super().__init__(color="#6d7be0", hover_color="#5a66b9", icon_path=icon_path, parent=parent)
+        # Purple for what's new
+        super().__init__(color="#6f42c1", hover_color="#59339d", icon_path=icon_path, parent=parent)
         self.label.setText("See what's new!")
