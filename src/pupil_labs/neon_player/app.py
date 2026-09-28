@@ -45,6 +45,7 @@ from pupil_labs.neon_player.plugins import (
 from pupil_labs.neon_player.history import RecordingHistory
 from pupil_labs.neon_player.settings import GeneralSettings, load_recording_settings
 from pupil_labs.neon_player.ui.main_window import MainWindow
+from pupil_labs.neon_player.updater import UpdateManager
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
     PluginInstallationDialog,
 )
@@ -129,6 +130,8 @@ class NeonPlayerApp(QApplication):
         self.progress_ipc_name = self.args.progress_ipc_name
 
         self.main_window = MainWindow()
+
+        self.update_manager = UpdateManager(parent=self)
 
         self.ipc_logger = IPCLogger()
         logging.info(
