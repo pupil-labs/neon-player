@@ -6,6 +6,7 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as get_version
 
 from packaging import version
+from pupil_labs.neon_player.clients.github import GithubAPIClient
 from PySide6.QtCore import QObject, QThread, Signal
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ class CheckUpdateThread(QThread):
 
     def __init__(self, repo="pupil-labs/neon-player"):
         super().__init__()
-        self.repo = repo
+        self.github_client = GithubAPIClient(repo)
 
     def run(self):
         try:
@@ -26,7 +27,7 @@ class CheckUpdateThread(QThread):
                 logger.info("Forcing mock update notification via --mock-update flag")
                 self.update_available.emit(
                     "v99.99.99",
-                    f"https://github.com/{self.repo}/releases",
+                    f"https://github.com/{self.github_client.repo}/releases",
                     "### Mock Release v99.99.99\n\n"
                     "- Example changelog entry.\n"
                     "- Real-time Markdown rendering in Neon Player!",
@@ -46,12 +47,7 @@ class CheckUpdateThread(QThread):
             except version.InvalidVersion:
                 current_version = version.parse("0.0.0")
 
-            url = f"https://api.github.com/repos/{self.repo}/releases/latest"
-            req = urllib.request.Request(
-                url, headers={"User-Agent": "Neon-Player-Updater"}
-            )
-            with urllib.request.urlopen(req, timeout=10) as response:  # noqa: S310
-                data = json.loads(response.read().decode())
+            data = self.github_client.get_latest_release()
 
             tag_name = data.get("tag_name", "v0.0.0")
             try:
@@ -69,7 +65,7 @@ class CheckUpdateThread(QThread):
                 return
 
             release_url = data.get(
-                "html_url", f"https://github.com/{self.repo}/releases"
+                "html_url", f"https://github.com/{self.github_client.repo}/releases"
             )
             release_notes = data.get("body", "")
             self.update_available.emit(tag_name, release_url, release_notes)
