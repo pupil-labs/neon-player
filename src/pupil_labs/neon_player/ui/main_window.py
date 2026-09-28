@@ -50,7 +50,11 @@ from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
-from pupil_labs.neon_player.ui.update_pill import UpdatePill
+from pupil_labs.neon_player.ui.notification_pill import UpdatePill, WhatsNewPill
+from importlib.metadata import version as get_version
+from importlib.metadata import PackageNotFoundError
+from packaging import version
+from pupil_labs.neon_player import __version__
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
 
@@ -540,6 +544,13 @@ class MainWindow(QMainWindow):
         self.update_pill = UpdatePill(self)
         self.statusBar().addPermanentWidget(self.update_pill)
 
+        self.whats_new_pill = WhatsNewPill(self)
+        self.whats_new_pill.clicked.connect(self.mark_notes_as_read)
+        self.whats_new_pill.dismissed.connect(self.mark_notes_as_read)
+        self.statusBar().addPermanentWidget(self.whats_new_pill)
+
+        QTimer.singleShot(0, self.check_whats_new_pill)
+
         self._updater_settings_connected = False
         QTimer.singleShot(0, self.check_updates_if_enabled)
 
@@ -581,6 +592,44 @@ class MainWindow(QMainWindow):
 
     def open_release_notes(self) -> None:
         QDesktopServices.openUrl(QUrl("https://github.com/pupil-labs/neon-player/releases"))
+
+    def check_whats_new_pill(self) -> None:
+        app = neon_player.instance()
+        if not hasattr(app, "settings"):
+            return
+
+        try:
+            current_ver = get_version("pupil-labs-neon-player")
+        except PackageNotFoundError:
+            try:
+                current_ver = get_version("pupil_labs.neon_player")
+            except PackageNotFoundError:
+                return  # We are in dev mode, don't show the pill
+
+        try:
+            current_parsed = version.parse(current_ver)
+            last_read_parsed = version.parse(app.settings.last_read_release_notes_version or "0.0.0")
+
+            if current_parsed > last_read_parsed:
+                self.whats_new_pill.show_pill("✨ See what's new!", "https://github.com/pupil-labs/neon-player/releases", "Open release notes on GitHub")
+        except Exception:
+            pass # Parsing error
+
+    def mark_notes_as_read(self) -> None:
+        self.whats_new_pill.hide()
+        app = neon_player.instance()
+        if hasattr(app, "settings"):
+            try:
+                current_ver = get_version("pupil-labs-neon-player")
+            except PackageNotFoundError:
+                try:
+                    current_ver = get_version("pupil_labs.neon_player")
+                except PackageNotFoundError:
+                    current_ver = "0.0.0"
+
+            app.settings.last_read_release_notes_version = current_ver
+            if hasattr(app, "save_settings"):
+                app.save_settings()
 
     def reset_docks(self):
         docks_and_areas = {

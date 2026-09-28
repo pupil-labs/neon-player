@@ -3,7 +3,7 @@ from unittest.mock import patch
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QDesktopServices
 
-from pupil_labs.neon_player.ui.update_pill import UpdatePill
+from pupil_labs.neon_player.ui.notification_pill import UpdatePill
 
 
 def test_update_pill_initial_state(qtbot):
