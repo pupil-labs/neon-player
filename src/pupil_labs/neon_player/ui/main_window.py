@@ -61,7 +61,7 @@ try:
     from pupil_labs.neon_player.ui.splash import Ui_Splash
 
     Ui_Class, QtBaseClass = Ui_Splash, QWidget
-except Exception:
+except ImportError:
     logging.warning("splash.ui is not compiled.")
     Ui_Class, QtBaseClass = loadUiType(str(asset_path("splash.ui")))
 
@@ -633,7 +633,7 @@ class MainWindow(QMainWindow):
 
             if current_parsed > last_read_parsed:
                 self.whats_new_pill.show_pill("See what's new!", "https://github.com/pupil-labs/neon-player/releases", "Open release notes on GitHub")
-        except Exception:
+        except version.InvalidVersion:
             pass # Parsing error
 
     def mark_notes_as_read(self) -> None:

@@ -2,7 +2,7 @@
 
 set -e
 
-VERSION=$(uv run python -c "from importlib.metadata import version; print(version('pupil_labs.neon_player'))")
+VERSION=$(uv run python -c "from importlib.metadata import version; print(version('pupil_labs.neon_player'))" 2>/dev/null)
 VERSION_SIMPLE=$(echo "$VERSION" | awk -F. '{print $1"."$2"."$3}' | grep -Eo '^[0-9\.]*')
 
 echo "Build $VERSION ($VERSION_SIMPLE) for $OSTYPE"
@@ -52,6 +52,8 @@ uv run -m nuitka src/pupil_labs/neon_player \
     --include-module=cmath \
     --include-module=zoneinfo \
     --include-module=av.sidedata.encparams \
+    --include-distribution-metadata=pupil_labs.neon_player \
+    --include-distribution-metadata=pupil-labs-neon-player \
     --include-module=pandas._libs._cyutility \
     --include-qt-plugins=multimedia
 
