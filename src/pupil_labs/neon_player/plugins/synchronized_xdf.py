@@ -17,7 +17,7 @@ from qt_property_widgets.utilities import (
 )
 from qt_property_widgets.widgets import DynamicComboWidget
 from scipy.signal import butter, filtfilt
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 from collections.abc import Iterator
 
 from pupil_labs import neon_player
@@ -89,7 +89,7 @@ class XDFStream(PersistentPropertiesMixin):
 
     @property
     @property_params(dont_encode=True)
-    def display_name(self):
+    def display_name(self) -> str:
         return self.name or self.uid
 
     @property
@@ -121,16 +121,19 @@ class XDFStream(PersistentPropertiesMixin):
     def loaded(self) -> bool:
         return self._loaded
 
-    def raise_not_valid(self):
+    def raise_not_valid(self) -> None:
         if self.channel_count < 0:
             raise XDFStreamError("Channel count is missing or negative")
 
         if not self.channel_format:
             raise XDFStreamError("Channel format is missing or empty")
 
-        return True
-
-    def to_dict(self, include_class_name = False, condition = None, recursive = False):
+    def to_dict(
+        self,
+        include_class_name: bool = False,
+        condition: Callable[[dict], bool] | None = None,
+        recursive: bool = False
+    ) -> dict[str, Any]:
         state = super().to_dict(include_class_name, condition, recursive)
 
         # NOTE: class name is required to restore whether it is a marker or a data stream
@@ -159,7 +162,7 @@ class XDFStream(PersistentPropertiesMixin):
 
 
 class MarkerXDFStream(XDFStream):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._is_marker_stream = True
         self.markers: dict[str, list[float]] = {}
@@ -186,9 +189,9 @@ class MarkerXDFStream(XDFStream):
     @staticmethod
     def _parse_markers(xdf_dict: dict) -> dict[str, list[float]]:
         if "time_stamps" not in xdf_dict or "time_series" not in xdf_dict:
-            return []
+            return {}
 
-        markers = {}
+        markers: dict[str, list[float]] = {}
         for ts, marker in zip(xdf_dict["time_stamps"], xdf_dict["time_series"]):
             name = MarkerXDFStream._parse_event_name(str(marker[0]))
             if name not in markers:
@@ -214,7 +217,7 @@ class MarkerXDFStream(XDFStream):
 
 
 class DataXDFStream(XDFStream):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._is_marker_stream = False
         self.data: np.ndarray | None = None
@@ -242,7 +245,7 @@ class DataXDFStream(XDFStream):
         self.data = stream_matrix[:, 1:].astype(np.float32)
         self._loaded = True
 
-    def raise_not_valid(self):
+    def raise_not_valid(self) -> None:
         super().raise_not_valid()
         if self.data is None:
             raise XDFStreamError("Failed to parse stream data")
@@ -254,7 +257,7 @@ class DataXDFStream(XDFStream):
         stream = cls()
         stream.parse_info(info)
         stream.data, stream.timestamps, stream.fs = cls._parse_stream_data(xdf_dict)
-        if np.any(np.diff(stream.timestamps) < 0):
+        if stream.timestamps and np.any(np.diff(stream.timestamps) < 0):
             logging.warning(
                 f"Timestamps of the XDF stream {stream.display_name} are not "
                 f"increasingly monotonically, sorting the timestamps"
@@ -432,7 +435,7 @@ class XDFMultimodalPlugin(Plugin):
         self._data_stream = self._streams_by_uid.get(self._data_stream_uid)
         if self._state_initialized and self.file_path_valid and self._data_stream:
             self._load_data_stream_from_cache()
-            self.update_timeline()
+            self._update_timeline_data()
 
     @property
     @property_params(widget=None, dont_encode=True)
@@ -525,7 +528,7 @@ class XDFMultimodalPlugin(Plugin):
 
         self._apply_bandpass = value
         if self._state_initialized and self.data_stream:
-            self.update_timeline()
+            self._update_timeline_data()
 
     @property
     @property_params(label="Channel Selection")
@@ -559,15 +562,9 @@ class XDFMultimodalPlugin(Plugin):
         # self._channel_names = []
         # self._channels = {}
         # self._is_aligned = False
-        if self.headless:
-            return
-
         self._clear_timeline_tracks()
 
     def on_disabled(self) -> None:
-        if self.headless:
-            return
-
         self._clear_timeline_tracks()
 
     def _set_available_sync_events(self, event_names: list[str]) -> None:
@@ -853,6 +850,14 @@ class XDFMultimodalPlugin(Plugin):
         self._is_aligned = True
         self.update_timeline()
 
+    def update_timeline(self):
+        if self.headless or not self.recording:
+            return
+
+        self._clear_timeline_tracks()
+        self._update_timeline_markers()
+        self._update_timeline_data()
+
     def _clear_timeline_tracks(self) -> None:
         if self.headless:
             return
@@ -871,14 +876,6 @@ class XDFMultimodalPlugin(Plugin):
     def _get_data_stream_group_title(self) -> str:
         stream_type = self.data_stream.type.strip()
         return f"XDF - {stream_type}" if stream_type else "XDF - Data Stream"
-
-    def update_timeline(self):
-        if self.headless or not self.recording:
-            return
-
-        self._clear_timeline_tracks()
-        self._update_timeline_markers()
-        self._update_timeline_data()
 
     def _update_timeline_markers(self) -> None:
         if not self.marker_stream or not self.marker_stream.markers:
