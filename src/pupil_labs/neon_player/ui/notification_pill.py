@@ -103,5 +103,5 @@ class WhatsNewPill(NotificationPill):
     def __init__(self, parent=None):
         icon_path = os.path.join(os.path.dirname(__file__), "..", "assets", "sparkles.svg")
         # Purple for what's new
-        super().__init__(color="#6f42c1", hover_color="#59339d", icon_path=icon_path, parent=parent)
+        super().__init__(color="#6d7be0", hover_color="#5a66b9", icon_path=icon_path, parent=parent)
         self.label.setText("See what's new!")
