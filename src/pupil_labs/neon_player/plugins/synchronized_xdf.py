@@ -22,6 +22,7 @@ from collections.abc import Iterator
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, action
 from pupil_labs.neon_player.job_manager import ProgressUpdate
+from pupil_labs.neon_player.plugins.events import _load_events_from_recording
 from pupil_labs.neon_recording import NeonRecording
 
 
@@ -42,12 +43,9 @@ def first(info: dict[str, list[Any]], key: str, default: Any) -> Any:
     return value[0]
 
 
-def escape_stream_name(stream_name: str) -> str:
-    """Escape the stream name to use it in names of cache files."""
-    return "".join(
-        c if c.isalnum() or c in ("-", "_") else "_"
-        for c in stream_name
-    )
+def apply_offset(xdf_timestamps: np.ndarray, offset_ns: int) -> np.ndarray:
+    """Apply offset to convert XDF timestamps to Neon ones."""
+    return (np.array(xdf_timestamps) * 1e9).astype(np.int64) + offset_ns
 
 
 class XDFStreamError(Exception):
@@ -66,19 +64,12 @@ class XDFStream(PersistentPropertiesMixin):
         self.xdf_id: int = -1
         self._uid: str = ""
         self._name: str = ""
-        self.type: str = ""
-        self.type_display: str = ""
-        self.nominal_rate: int = 0
+        self._type: str = ""
+        self._fs: float = 0.0
         self.channel_count: int = -1
         self.channel_format: str = ""
         self._is_marker_stream: bool = False
         self._loaded: bool = False
-
-    def __eq__(self, value: Any) -> bool:
-        if not isinstance(value, self.__class__):
-            return False
-
-        return self.uid == value.uid and self.loaded == value.loaded
 
     @property
     def uid(self) -> str:
@@ -102,12 +93,28 @@ class XDFStream(PersistentPropertiesMixin):
         return self.name or self.uid
 
     @property
+    def type(self) -> str:
+        return self._type
+
+    @type.setter
+    def type(self, value: str) -> None:
+        self._type = value
+
+    @property
     def is_marker_stream(self) -> bool:
         return self._is_marker_stream
 
     @is_marker_stream.setter
     def is_marker_stream(self, value: bool) -> None:
         self._is_marker_stream = value
+
+    @property
+    def fs(self) -> float:
+        return self._fs
+
+    @fs.setter
+    def fs(self, value: float) -> None:
+        self._fs = value
 
     @property
     @property_params(dont_encode=True)
@@ -134,9 +141,8 @@ class XDFStream(PersistentPropertiesMixin):
         self.xdf_id = int(first(info, "id", -1))
         self._uid = str(first(info, "uid", uuid.uuid4()))
         self._name = str(first(info, "name", "<No name>"))
-        self.type_display = str(first(info, "type", "")).strip()
-        self.type = self.type_display.lower()
-        self.nominal_rate = int(first(info, "nominal_rate", 0))
+        self._type = str(first(info, "type", "")).strip()
+        self._fs = int(first(info, "nominal_rate", 0))
         self.channel_count = int(first(info, "channel_count", -1))
         self.channel_format = str(first(info, "channel_format", "")).strip().lower()
 
@@ -154,7 +160,7 @@ class MarkerXDFStream(XDFStream):
     def __init__(self):
         super().__init__()
         self._is_marker_stream = True
-        self.markers: list[dict[str, str]] = []
+        self.markers: dict[str, list[float]] = {}
 
     def load_markers(self, marker_cache_file: Path) -> None:
         if not marker_cache_file.exists():
@@ -176,15 +182,23 @@ class MarkerXDFStream(XDFStream):
         return stream
 
     @staticmethod
-    def _parse_markers(xdf_dict: dict) -> list[dict]:
+    def _parse_markers(xdf_dict: dict) -> dict[str, list[float]]:
         if "time_stamps" not in xdf_dict or "time_series" not in xdf_dict:
             return []
 
-        markers = []
-        for ts, marker in zip(xdf_dict["time_stamps"], xdf_dict["time_series"], strict=False):
-            m_text = str(marker[0])
-            m_name = MarkerXDFStream._parse_event_name(m_text)
-            markers.append({"timestamp": ts, "name": m_name, "raw": m_text})
+        markers = {}
+        for ts, marker in zip(xdf_dict["time_stamps"], xdf_dict["time_series"]):
+            name = MarkerXDFStream._parse_event_name(str(marker[0]))
+            if name not in markers:
+                markers[name] = []
+
+            try:
+                timestamp = float(ts)
+                markers[name].append(timestamp)
+            except ValueError:
+                logging.warning(
+                    f"Could not parse marker timestamp {ts}, skipping the marker {marker}"
+                )
         return markers
 
     @staticmethod
@@ -260,17 +274,21 @@ class DataXDFStream(XDFStream):
             return None, None, 0.0
 
         timestamps = np.asarray(xdf_dict["time_stamps"], dtype=np.float64)
-        fs = float(xdf_dict["info"]["nominal_srate"][0])
+        fs = float(first(xdf_dict["info"], "nominal_srate", 0.0))
 
-        if (not np.isfinite(fs)) or fs <= 0:
-            if len(timestamps) > 2:
-                dt = np.diff(timestamps)
-                dt = dt[np.isfinite(dt) & (dt > 0)]
-                fs = 1.0 / float(np.median(dt)) if len(dt) > 0 else 0.0
-            else:
-                fs = 0.0
+        if not np.isfinite(fs) or fs <= 0:
+            fs = DataXDFStream._get_fs_from_timestamps(timestamps)
 
         return data, timestamps, fs
+
+    @staticmethod
+    def _get_fs_from_timestamps(timestamps: np.ndarray) -> float:
+        if len(timestamps) < 2:
+            return 0.0
+
+        dt = np.diff(timestamps)
+        dt = dt[np.isfinite(dt) & (dt > 0)]
+        return 1.0 / float(np.median(dt)) if len(dt) > 0 else 0.0
 
     @staticmethod
     def _to_numeric(time_series) -> Optional[np.ndarray]:
@@ -324,24 +342,21 @@ class XDFMultimodalPlugin(Plugin):
         self._available_data_streams: list[tuple[str, DataXDFStream]] = []
         self._available_marker_streams: list[tuple[str, MarkerXDFStream]] = []
         self._streams_by_uid: dict[str, XDFStream] = {}
-        self._available_sync_events: list[str] = []
         self._data_stream_uid: str | None = None
         self._data_stream: DataXDFStream | None = None
         self._marker_stream_uid: str | None = None
         self._marker_stream: MarkerXDFStream | None = None
-        self._selected_sync_event: str = ""
+        self._available_sync_events: list[str] = []
+        self._neon_events: dict[str, list[int]] = {}
+        self._sync_event: str = ""
         self._apply_bandpass: bool = False
         self._channels: dict[str, bool] = {}  # channel name -> enabled
 
-        self._offset_s: float = 0.0
+        self._offset_ns: int = 0
         self._is_aligned: bool = False
         self._xdf_load_job = None
         self._reload_after_job = False
         self._active_channel_row_names: list[str] = []
-
-    def _get_data_stream_group_title(self) -> str:
-        stream_type = self.data_stream.type_display.strip()
-        return f"XDF - {stream_type}" if stream_type else "XDF - Data Stream"
 
     @property
     @property_params(label="File Path (.xdf)")
@@ -370,12 +385,6 @@ class XDFMultimodalPlugin(Plugin):
     @property_params(widget=None, dont_encode=True)
     def file_path_valid(self) -> bool:
         return self._xdf_path.exists() and self._xdf_path.is_file()
-
-    def _get_stream_by_uid(self, uid: str | None) -> XDFStream | None:
-        if uid is None:
-            return None
-
-        return self._streams_by_uid.get(uid)
 
     def _rebuild_stream_uid_mapping(self) -> None:
         self._streams_by_uid = {}
@@ -414,8 +423,9 @@ class XDFMultimodalPlugin(Plugin):
             return
 
         self._data_stream_uid = value
-        self._data_stream = self._get_stream_by_uid(self._data_stream_uid)
-        if self._state_initialized and self.file_path_valid:
+        self._data_stream = self._streams_by_uid.get(self._data_stream_uid)
+        if self._state_initialized and self.file_path_valid and self._data_stream:
+            self._load_data_stream_from_cache()
             self.update_timeline()
 
     @property
@@ -455,8 +465,10 @@ class XDFMultimodalPlugin(Plugin):
             return
 
         self._marker_stream_uid = value
-        self._marker_stream = self._get_stream_by_uid(self._marker_stream_uid)
-        if self._state_initialized and self.file_path_valid:
+        self._marker_stream = self._streams_by_uid.get(self._marker_stream_uid)
+        if self._state_initialized and self.file_path_valid and self._marker_stream:
+            self._load_marker_stream_from_cache()
+            self._update_events()
             self.align_with_recording()
 
     @property
@@ -465,24 +477,35 @@ class XDFMultimodalPlugin(Plugin):
         return self._marker_stream
 
     @property
+    @property_params(widget=None)
+    def available_sync_events(self) -> list[str]:
+        return self._available_sync_events
+
+    @available_sync_events.setter
+    def available_sync_events(self, value: list[str]) -> None:
+        self._available_sync_events = value
+        self.sync_events_changed.emit()
+
+    @property
     @property_params(
         label="Sync Event",
         widget=DynamicComboWidget,
-        options_source="_available_sync_events",
+        options_source="available_sync_events",
         options_changed_signal="sync_events_changed",
     )
-    def common_sync_events(self) -> str:
-        return self._selected_sync_event
+    def sync_event(self) -> str:
+        return self._sync_event
 
-    @common_sync_events.setter
-    def common_sync_events(self, value: str | None) -> None:
+    @sync_event.setter
+    def sync_event(self, value: str | None) -> None:
         clean_value = str(value or "").strip()
-        if self._selected_sync_event != clean_value:
-            self._selected_sync_event = clean_value
-            self._is_aligned = False
+        if self._sync_event == clean_value:
+            return
 
-            if self._state_initialized:
-                self.align_with_recording()
+        self._sync_event = clean_value
+        self._is_aligned = False
+        if self._state_initialized and self.marker_stream:
+            self.align_with_recording()
 
     @property
     @property_params(label="Apply Bandpass 1-30 Hz")
@@ -491,10 +514,12 @@ class XDFMultimodalPlugin(Plugin):
 
     @apply_bandpass.setter
     def apply_bandpass(self, value: bool) -> None:
-        if self._apply_bandpass != value:
-            self._apply_bandpass = value
-            if self._state_initialized:
-                self.update_timeline()
+        if self._apply_bandpass == value:
+            return
+
+        self._apply_bandpass = value
+        if self._state_initialized and self.data_stream:
+            self.update_timeline()
 
     @property
     @property_params(label="Channel Selection")
@@ -513,14 +538,12 @@ class XDFMultimodalPlugin(Plugin):
 
         # Keep persisted file_path from settings. If it is still valid, reload it
         # automatically so the XDF opens together with the recording.
-        if self._xdf_path.exists() and self._xdf_path.is_file():
+        if self.file_path_valid:
             self.load_xdf()
             return
 
-        self._available_data_streams = []
-
+        self.file_path = None
         self._reset_loaded_xdf_state()
-        # self._available_marker_stream_names = []
         # self._available_sync_events = []
         # self.streams_changed.emit()
         # self.sync_events_changed.emit()
@@ -530,50 +553,30 @@ class XDFMultimodalPlugin(Plugin):
         # self._channel_names = []
         # self._channels = {}
         # self._is_aligned = False
-        if not self.headless:
-            self._clear_timeline_tracks()
+        if self.headless:
+            return
 
-    def on_disabled(self) -> None:
         self._clear_timeline_tracks()
 
-    def _set_common_sync_events(self, event_names: list[str]) -> None:
+    def on_disabled(self) -> None:
+        if self.headless:
+            return
+
+        self._clear_timeline_tracks()
+
+    def _set_available_sync_events(self, event_names: list[str]) -> None:
         unique_names = sorted({name for name in event_names if name})
-        selected = self._selected_sync_event if self._selected_sync_event in unique_names else ""
+        selected = self._sync_event if self._sync_event in unique_names else ""
         if not selected and unique_names:
             selected = unique_names[0]
 
-        changed = (unique_names != self._available_sync_events) or (selected != self._selected_sync_event)
+        changed = (unique_names != self._available_sync_events) or (selected != self._sync_event)
         self._available_sync_events = unique_names
-        self._selected_sync_event = selected
+        self._sync_event = selected
         self.sync_events_changed.emit()
 
         if changed:
             self.changed.emit()
-
-    def _clear_timeline_tracks(self) -> None:
-        if self.headless:
-            return
-
-        timeline = self.get_timeline()
-        was_sorting_enabled = timeline.disable_plot_sorting()
-
-        channel_row_names = [
-            f"{self._get_data_stream_group_title()} - {channel_name}"
-            for channel_name in getattr(self.data_stream, "channel_names", [])
-        ]
-
-        for row_name in (
-            *self._active_channel_row_names,
-            *channel_row_names,
-            "Data Stream",
-            "XDF Markers",
-        ):
-            timeline.remove_timeline_plot(row_name)
-
-        self._active_channel_row_names = []
-
-        if was_sorting_enabled:
-            timeline.enable_plot_sorting()
 
     def _get_xdf_cache_file(self) -> Path:
         return self.get_cache_path() / "xdf_file_cache.json"
@@ -591,18 +594,18 @@ class XDFMultimodalPlugin(Plugin):
         self.marker_stream_uid = None
         self._channels = {}
 
-    def _restore_channel_selection(self, channel_names: list[str]) -> None:
-        self._channel_names = list(channel_names)
+    def _update_channel_selection(self) -> None:
+        if not self.data_stream.loaded:
+            self.channels = {}
+            return
+
         previous_channels = dict(self._channels)
         new_channels: dict[str, bool] = {}
-        for idx, ch_name in enumerate(self._channel_names):
-            if previous_channels:
-                new_channels[ch_name] = previous_channels.get(ch_name, False)
-            else:
-                new_channels[ch_name] = idx == 0
+        for idx, ch_name in enumerate(self.data_stream.channel_names):
+            new_channels[ch_name] = previous_channels.get(ch_name, idx == 0)
         self.channels = new_channels
 
-    def load_xdf(self):
+    def load_xdf(self) -> None:
         # Prevent attempts to load XDF while the plugin state is not fully
         # initialized - i.e., file path is set but stream names are not
         if not self._state_initialized:
@@ -625,17 +628,13 @@ class XDFMultimodalPlugin(Plugin):
         if self.headless:
             return
 
-        # NOTE: below, `None` is passed instead of stream UID if the stream was not
-        # selected to have a non-empty argument. On the receiving side, it is parsed
-        # as string which does not correspond to any valid UID
         self._reload_after_job = False
         self._xdf_load_job = self.job_manager.run_background_action(
             "Loading XDF streams",
             "XDFMultimodalPlugin._bg_load_xdf",
             self._xdf_path,
         )
-        if self._xdf_load_job is not None:
-            self._xdf_load_job.finished.connect(self._on_xdf_load_finished)
+        self._xdf_load_job.finished.connect(self._on_xdf_load_finished)
 
     def _on_xdf_load_finished(self) -> None:
         self._xdf_load_job = None
@@ -706,7 +705,7 @@ class XDFMultimodalPlugin(Plugin):
         data_cache_file = self._get_data_stream_cache_file(stream.uid)
         data_cache_file.parent.mkdir(parents=True, exist_ok=True)
 
-        # One NPY per selected data stream. First column is timestamps.
+        # One NPY per data stream. First column is timestamps.
         stream_matrix = np.column_stack((stream.timestamps, stream.data))
         np.save(str(data_cache_file), stream_matrix.astype(np.float32))
 
@@ -722,9 +721,36 @@ class XDFMultimodalPlugin(Plugin):
 
             self.streams_changed.emit()
             self.changed.emit()
-            return True
         except Exception as e:
             logging.exception(f"Failed to load XDF from cache. Error: {str(e)}")
+            return False
+
+        self._update_events()
+        self.align_with_recording()
+        return True
+
+    def _load_data_stream_from_cache(self) -> None:
+        data_cache_file = self._get_data_stream_cache_file(self._data_stream.uid)
+        try:
+            self.data_stream.load_data(data_cache_file)
+            self._update_channel_selection()
+        except XDFStreamError as e:
+            logging.error(
+                f"Failed to load cached data for the XDF stream "
+                f"{self.data_stream.display_name}"
+            )
+            self.data_stream_uid = None
+
+    def _load_marker_stream_from_cache(self) -> None:
+        marker_cache_file = self._get_marker_stream_cache_file(self._marker_stream.uid)
+        try:
+            self._marker_stream.load_markers(marker_cache_file)
+        except XDFStreamError as e:
+            logging.error(
+                f"Failed to load cached markers for the XDF stream "
+                f"{self._marker_stream.display_name}"
+            )
+            self._marker_stream = None
             return False
 
     def _load_xdf_from_cache(self, *, log_missing: bool = True) -> bool:
@@ -764,281 +790,209 @@ class XDFMultimodalPlugin(Plugin):
             self.marker_stream_uid = None
         self._available_marker_streams = cached_marker_streams.values()
 
-        if self.data_stream:
-            data_cache_file = self._get_data_stream_cache_file(self._data_stream.uid)
-            try:
-                self.data_stream.load_data(data_cache_file)
-                # self._restore_channel_selection(
-                #     list(selected_data_stream.get("channel_names", []))
-                # )
-            except XDFStreamError as e:
-                logging.error(
-                    f"Failed to load cached data for the XDF stream "
-                    f"{self.data_stream.display_name}"
-                )
-                self.data_stream = None
+        if self.data_stream_uid:
+            self._load_data_stream_from_cache()
+            if not self.data_stream:
                 return False
 
-        if self._marker_stream:
-            marker_cache_file = self._get_marker_stream_cache_file(self._marker_stream.uid)
-            try:
-                self._marker_stream.load_markers(marker_cache_file)
-            except XDFStreamError as e:
-                logging.error(
-                    f"Failed to load cached markers for the XDF stream "
-                    f"{self._marker_stream.display_name}"
-                )
-                self._marker_stream = None
+        if self.marker_stream_uid:
+            self._load_marker_stream_from_cache()
+            if not self.marker_stream:
                 return False
 
-        self.align_with_recording()
         return True
 
-    def _get_neon_ev_info(self, ev) -> tuple[str, Optional[float]]:
-        name_keys = ("event", "name", "text")
-        time_keys = ("time", "timestamp", "timestamp_ns")
-
-        if isinstance(ev, dict):
-            raw_name = str(next((ev[k] for k in name_keys if k in ev), str(ev)))
-            ts_ns = next((ev[k] for k in time_keys if k in ev), None)
-        else:
-            raw_name = str(next((getattr(ev, k) for k in name_keys if hasattr(ev, k)), str(ev)))
-            ts_ns = next((getattr(ev, k) for k in time_keys if hasattr(ev, k)), None)
-
-        return MarkerXDFStream._parse_event_name(raw_name), ts_ns
-
-    def align_with_recording(self) -> None:
-        if not self.recording or not self._marker_stream or not self._marker_stream.markers:
-            self._set_common_sync_events([])
-            self._is_aligned = False
-            self.update_timeline()
-            return
-
-        neon_events = []
-        sources = [
-            ("recording.events", getattr(self.recording, "events", None)),
-        ]
+    def _update_events(self) -> None:
         ep = Plugin.get_instance_by_name("EventsPlugin")
         if ep:
-            mapped_ep_events: list[dict[str, object]] = []
-            try:
-                event_id_name_mapping: dict[object, str] = {
-                    et.uid: et.name
-                    for et in getattr(ep, "event_types", [])
-                    if getattr(et, "uid", None) is not None and getattr(et, "name", None)
-                }
+            self._neon_events = ep.events
+        else:
+            _, self._neon_events = _load_events_from_recording(self.recording)
 
-                ep_events = getattr(ep, "events", None)
-                if isinstance(ep_events, dict):
-                    for event_id, timestamps in ep_events.items():
-                        event_name = event_id_name_mapping.get(event_id)
-                        if event_name is None:
-                            continue
-                        for ts_ns in timestamps:
-                            if ts_ns is None:
-                                continue
-                            mapped_ep_events.append(
-                                {
-                                    "name": str(event_name),
-                                    "timestamp_ns": int(ts_ns),
-                                }
-                            )
-            except Exception:
-                logging.exception("Failed to decode EventsPlugin.events")
+        neon_event_names = set(self._neon_events.keys())
+        xdf_marker_names = set(self.marker_stream.markers.keys())
+        common_names = neon_event_names & xdf_marker_names
+        self.available_sync_events = common_names
 
-            if mapped_ep_events:
-                sources.append(("EventsPlugin.events(mapped)", mapped_ep_events))
-            else:
-                sources.append(("EventsPlugin.events", getattr(ep, "events", None)))
-
-        for src_name, src_val in sources:
-            if src_val is None:
-                continue
-            try:
-                extracted = list(src_val) if not hasattr(src_val, "samples") else list(src_val.samples)
-                if len(extracted) > 0:
-                    neon_events = extracted
-                    break
-            except Exception as exc:
-                logging.debug("Failed to extract events from source %s: %s", src_name, exc, exc_info=True)
-
-        if not neon_events:
-            self._set_common_sync_events([])
-            self._is_aligned = False
-            self.update_timeline()
-            return
-
-        # Find Recording Bounds from events as primary source
-        self._rec_begin_ns = self.recording.start_time
-        self._rec_end_ns = self._rec_begin_ns + getattr(self.recording, "duration_ns", 0)
-
-        for n_ev in neon_events:
-            n_name, n_ts = self._get_neon_ev_info(n_ev)
-            if n_ts is None: continue
-            if n_name.lower() == "recording.begin":
-                self._rec_begin_ns = n_ts
-            elif n_name.lower() == "recording.end":
-                self._rec_end_ns = n_ts
-
-        neon_name_map: dict[str, str] = {}
-        for ev in neon_events:
-            ev_name, _ = self._get_neon_ev_info(ev)
-            if ev_name:
-                neon_name_map.setdefault(ev_name.lower(), ev_name)
-
-        xdf_name_map: dict[str, str] = {}
-        for marker in self._marker_stream.markers:
-            marker_name = marker.get("name")
-            if marker_name:
-                xdf_name_map.setdefault(marker_name.lower(), marker_name)
-
-        common_names = sorted(
-            xdf_name_map[name_lower]
-            for name_lower in set(neon_name_map).intersection(xdf_name_map)
-        )
-        self._set_common_sync_events(common_names)
-
-        target_sync = self._selected_sync_event.strip().lower()
-
-        # If no common sync event is selected, don't try to align.
-        if not target_sync:
-            logging.warning("No common sync event selected. Skipping alignment.")
-            self._is_aligned = False
-            self.update_timeline()
-            return
-
-        for n_ev in neon_events:
-            n_name, n_ts = self._get_neon_ev_info(n_ev)
-            if n_ts is None: continue
-            if n_name.lower() == target_sync:
-                for x_m in self._marker_stream.markers:
-                    if x_m["name"].lower() == target_sync:
-                        self._offset_s = x_m["timestamp"] - (n_ts * 1e-9)
-                        self._is_aligned = True
-                        logging.info(
-                            f"Aligned using first occurrence of '{target_sync}'. Offset: {self._offset_s:.4f}s. "
-                            "Note: if multiple events with this name exist, only the first is used for sync."
-                        )
-                        self.update_timeline()
-                        return
-
-        for n_ev in neon_events:
-            n_name, n_ts = self._get_neon_ev_info(n_ev)
-            if n_ts is None or n_name.lower() in ["recording.begin", "recording.end"]: continue
-            for x_m in self._marker_stream.markers:
-                if x_m["name"].lower() == n_name.lower():
-                    self._offset_s = x_m["timestamp"] - (n_ts * 1e-9)
-                    self._is_aligned = True
-                    logging.info(f"Aligned using common marker '{n_name}'. Offset: {self._offset_s:.4f}s")
-                    self.update_timeline()
-                    return
-
+    def _reset_aligned_state(self) -> None:
         self._is_aligned = False
         self.update_timeline()
+
+    def align_with_recording(self) -> None:
+        if not self.recording:
+            return
+
+        if not self._sync_event:
+            logging.warning("No common sync event selected. Skipping alignment.")
+            self._reset_aligned_state()
+            return
+
+        neon_timestamps = self._neon_events[self._sync_event]
+        xdf_timestamps = self.marker_stream.markers[self._sync_event]
+
+        if len(neon_timestamps) > 1:
+            logging.warning(
+                f"Found multiple occurrences of the '{self._sync_event}' event "
+                f"in Neon Player. Using the first one for alignment."
+            )
+        neon_timestamp = neon_timestamps[0]
+
+        if len(xdf_timestamps) > 1:
+            logging.warning(
+                f"Found multiple occurrences of the '{self._sync_event}' marker "
+                f"in XDF data. Using the first one for alignment."
+            )
+        xdf_timestamp = int(xdf_timestamps[0] * 1e9)
+
+        self._offset_ns = neon_timestamp - xdf_timestamp
+        logging.info(
+            f"Aligned Neon and XDF data using the `{self._sync_event}` event.\n"
+            f"\tXDF timestamp:  {xdf_timestamp} ns\n"
+            f"\tNeon timestamp: {neon_timestamp} ns\n"
+            f"\tOffset:         {self._offset_ns} ns."
+        )
+        self._is_aligned = True
+        self.update_timeline()
+
+    def _clear_timeline_tracks(self) -> None:
+        if self.headless:
+            return
+
+        timeline = self.get_timeline()
+        was_sorting_enabled = timeline.disable_plot_sorting()
+
+        channel_row_names = [
+            f"{self._get_data_stream_group_title()} - {channel_name}"
+            for channel_name in getattr(self.data_stream, "channel_names", [])
+        ]
+
+        for row_name in (
+            *self._active_channel_row_names,
+            *channel_row_names,
+            "Data Stream",
+            "XDF Markers",
+        ):
+            timeline.remove_timeline_plot(row_name)
+
+        self._active_channel_row_names = []
+
+        if was_sorting_enabled:
+            timeline.enable_plot_sorting()
+
+    def _get_data_stream_group_title(self) -> str:
+        stream_type = self.data_stream.type.strip()
+        return f"XDF - {stream_type}" if stream_type else "XDF - Data Stream"
 
     def update_timeline(self):
         if self.headless or not self.recording:
             return
 
+        self._clear_timeline_tracks()
+        self._update_timeline_markers()
+        self._update_timeline_data()
+
+    def _update_timeline_markers(self) -> None:
+        if not self.marker_stream.markers:
+            return
+
+        timeline = self.get_timeline()
+        was_sorting_enabled = timeline.disable_plot_sorting()
+
+        # Filter and plot markers that fall within the recording
+        for name, timestamps in self.marker_stream.markers.items():
+            offset_timestamps = apply_offset(timestamps, self._offset_ns)
+            timeline_row_name = f"XDF Markers - {name}"
+            plot_item = timeline.get_timeline_plot(timeline_row_name, True)
+            if not plot_item.items:
+                timeline.add_timeline_scatter(timeline_row_name, [])
+
+            y = np.zeros_like(offset_timestamps)
+            plot_item.items[0].setData(offset_timestamps, y)
+
+        if was_sorting_enabled:
+            timeline.enable_plot_sorting()
+
+    def _update_timeline_data(self) -> None:
+        if not self._data_stream or not self._is_aligned:
+            return
+
         timeline = self.get_timeline()
 
-        # Clear all previously drawn rows before potentially drawing new content.
-        self._clear_timeline_tracks()
+        # 1. Convert XDF timestamps to Neon clock (nanoseconds)
+        neon_ts = (self._data_stream.timestamps * 1e9).astype(np.int64) - self._offset_ns
 
-        if getattr(self._data_stream, "loaded", False) and self._is_aligned:
-            # 1. Convert XDF timestamps to Neon clock (nanoseconds)
-            neon_ts = ((self._data_stream.timestamps - self._offset_s) * 1e9).astype(np.int64)
+        # 2. Filter data to fit within the recording bounds
+        mask = (neon_ts >= self.recording.start_time) & (neon_ts <= self.recording.stop_time)
 
-            # 2. Filter data to fit within the recording bounds
-            mask = (neon_ts >= self._rec_begin_ns) & (neon_ts <= self._rec_end_ns)
+        if not np.any(mask):
+            logging.warning("No data found within recording bounds.")
+            return
 
-            if not np.any(mask):
-                logging.warning("No data found within recording bounds.")
-                return
+        plot_ts = neon_ts[mask]
+        plot_data = self._data_stream.data[mask]
 
-            plot_ts = neon_ts[mask]
-            plot_data = self._data_stream.data[mask]
+        selected_names = [
+            n for n in self._data_stream.channel_names
+            if self._channels.get(n, False)
+        ]
 
-            selected_names = [
-                n for n in self._data_stream.channel_names
-                if self._channels.get(n, False)
-            ]
+        if selected_names:
+            indices = [self._data_stream.channel_names.index(n) for n in selected_names]
 
-            if selected_names:
-                indices = [self._data_stream.channel_names.index(n) for n in selected_names]
+            # Extract and clean data
+            data = plot_data[:, indices].astype(np.float32)
+            data = np.nan_to_num(data, nan=0.0)
 
-                # Extract and clean data
-                data = plot_data[:, indices].astype(np.float32)
-                data = np.nan_to_num(data, nan=0.0)
+            # Optional EEG-style filter for streams where that makes sense.
+            if self._apply_bandpass and self._data_stream.fs > 0:
+                nyq = 0.5 * self._data_stream.fs
+                low, high = 1.0 / nyq, 30.0 / nyq
+                # Simple bandpass 1-30Hz
+                b, a = butter(4, [max(0.001, low), min(0.999, high)], btype='band')
+                data = filtfilt(b, a, data, axis=0)
+            elif self._apply_bandpass and self._data_stream.fs <= 0:
+                logging.warning(
+                    "Bandpass filtering is enabled, but sample rate is invalid (%.3f Hz). Skipping filter.",
+                    self._stream_fs,
+                )
 
-                # Optional EEG-style filter for streams where that makes sense.
-                if self._apply_bandpass and self._data_stream.fs > 0:
-                    nyq = 0.5 * self._data_stream.fs
-                    low, high = 1.0 / nyq, 30.0 / nyq
-                    # Simple bandpass 1-30Hz
-                    b, a = butter(4, [max(0.001, low), min(0.999, high)], btype='band')
-                    data = filtfilt(b, a, data, axis=0)
-                elif self._apply_bandpass and self._data_stream.fs <= 0:
-                    logging.warning(
-                        "Bandpass filtering is enabled, but sample rate is invalid (%.3f Hz). Skipping filter.",
-                        self._stream_fs,
-                    )
+            # 4. Normalize (Center the data around 0)
+            data = data - np.nanmean(data, axis=0)
 
-                # 4. Normalize (Center the data around 0)
-                data = data - np.nanmean(data, axis=0)
+            # 6. Plot each channel in its own subplot under the XDF group prefix.
+            plotted_row_names: list[str] = []
+            for i, name in enumerate(selected_names):
+                channel_data = data[:, i]
+                plot_data_matrix = np.column_stack((plot_ts, channel_data))
+                row_name = f"{self._get_data_stream_group_title()} - {name}"
+                plotted_row_names.append(row_name)
 
-                # 6. Plot each channel in its own subplot under the XDF group prefix.
-                plotted_row_names: list[str] = []
-                for i, name in enumerate(selected_names):
-                    channel_data = data[:, i]
-                    plot_data_matrix = np.column_stack((plot_ts, channel_data))
-                    row_name = f"{self._get_data_stream_group_title()} - {name}"
-                    plotted_row_names.append(row_name)
+                plot_item = timeline.add_timeline_plot(
+                    timeline_row_name=row_name,
+                    data=plot_data_matrix,
+                    plot_name="",
+                )
+                if plot_item is not None:
+                    plot_item.preferred_height_2d = 60
+                    plot_item.adjust_size()
+                    plot_item.getViewBox().enableAutoRange(y=True)
 
-                    plot_item = timeline.add_timeline_plot(
-                        timeline_row_name=row_name,
-                        data=plot_data_matrix,
-                        plot_name="",
-                    )
-                    if plot_item is not None:
-                        plot_item.preferred_height_2d = 60
-                        plot_item.adjust_size()
-                        plot_item.getViewBox().enableAutoRange(y=True)
+            self._active_channel_row_names = plotted_row_names
 
-                self._active_channel_row_names = plotted_row_names
-
-            # Update the status bars on the timeline
-            start_ns = int(plot_ts[0])
-            end_ns = int(plot_ts[-1])
-            timeline.add_timeline_broken_bar(
-                "Data Stream",
-                [(start_ns, end_ns)],
-                "",
-                "#00FFFF",
-            )
-
-            if self._marker_stream.markers:
-                # Filter and plot markers that fall within the recording
-                marker_segs = []
-                for m in self._marker_stream.markers:
-                    m_ts_ns = int((m["timestamp"] - self._offset_s) * 1e9)
-                    if self._rec_begin_ns <= m_ts_ns <= self._rec_end_ns:
-                        # 100ms duration for visibility
-                        marker_segs.append((m_ts_ns, m_ts_ns + 100_000_000))
-
-                if marker_segs:
-                    timeline.add_timeline_broken_bar(
-                        "XDF Markers",
-                        marker_segs,
-                        "",
-                        "#FFCC00",
-                    )
-        self.changed.emit()
+        # Update the status bars on the timeline
+        start_ns = int(plot_ts[0])
+        end_ns = int(plot_ts[-1])
+        timeline.add_timeline_broken_bar(
+            "Data Stream",
+            [(start_ns, end_ns)],
+            "",
+            "#00FFFF",
+        )
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
-        if self._stream_data is None or not self._is_aligned:
+        if not self._data_stream or not self._is_aligned:
             logging.warning("Cannot export: no aligned data available.")
             return
 
@@ -1070,20 +1024,33 @@ class XDFMultimodalPlugin(Plugin):
             return
 
         logging.info("--- NEON EVENTS ---")
-        evs = getattr(self.recording, "events", [])
-        for e in evs:
-            name, ts = self._get_neon_ev_info(e)
+        evs = []
+        for event_name, timestamps in self._neon_events.items():
+            for ts in timestamps:
+                evs.append((event_name, ts))
+        for name, ts in evs:
             logging.info(f"Neon: '{name}' @ {ts}")
         logging.info("--- XDF MARKERS ---")
-        for m in self._xdf_markers:
-            logging.info(f"XDF: '{m['name']}' @ {m['timestamp']}")
+        evs = []
+        for marker_name, timestamps in self.marker_stream.markers.items():
+            offset_timestamps = apply_offset(timestamps, self._offset_ns)
+            for ts, offset_ts in zip(timestamps, offset_timestamps):
+                evs.append((marker_name, ts, offset_ts))
+        for name, ts, offset_ts in evs:
+            logging.info(f"XDF: '{name}' @ {offset_ts} (ts={ts})")
 
     @action
     @action_params(compact=True, icon=QIcon.fromTheme("edit-select-all"), label="Enable All")
     def enable_all_channels(self) -> None:
-        self.channels = {name: True for name in self._channel_names}
+        if not self.data_stream.loaded:
+            return
+
+        self.channels = {name: True for name in self.data_stream.channel_names}
 
     @action
     @action_params(compact=True, icon=QIcon.fromTheme("edit-clear"), label="Disable All")
     def disable_all_channels(self) -> None:
-        self.channels = {name: False for name in self._channel_names}
+        if not self.data_stream.loaded:
+            return
+
+        self.channels = {name: False for name in self.data_stream.channel_names}
