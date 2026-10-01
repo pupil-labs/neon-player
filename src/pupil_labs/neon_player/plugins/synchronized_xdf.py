@@ -323,8 +323,11 @@ class XDFMultimodalPlugin(Plugin):
         self._xdf_path: Path = Path("")
         self._available_data_streams: list[tuple[str, DataXDFStream]] = []
         self._available_marker_streams: list[tuple[str, MarkerXDFStream]] = []
+        self._streams_by_uid: dict[str, XDFStream] = {}
         self._available_sync_events: list[str] = []
+        self._data_stream_uid: str | None = None
         self._data_stream: DataXDFStream | None = None
+        self._marker_stream_uid: str | None = None
         self._marker_stream: MarkerXDFStream | None = None
         self._selected_sync_event: str = ""
         self._apply_bandpass: bool = False
@@ -368,43 +371,98 @@ class XDFMultimodalPlugin(Plugin):
     def file_path_valid(self) -> bool:
         return self._xdf_path.exists() and self._xdf_path.is_file()
 
+    def _get_stream_by_uid(self, uid: str | None) -> XDFStream | None:
+        if uid is None:
+            return None
+
+        return self._streams_by_uid.get(uid)
+
+    def _rebuild_stream_uid_mapping(self) -> None:
+        self._streams_by_uid = {}
+        for s in [*self.available_data_streams, *self.available_marker_streams]:
+            self._streams_by_uid[s.uid] = s
+
+    @property
+    @property_params(widget=None)
+    def available_data_streams(self) -> list[DataXDFStream]:
+        return self._available_data_streams
+
+    @available_data_streams.setter
+    def available_data_streams(self, value: list[DataXDFStream]) -> None:
+        self._available_data_streams = value
+        self._rebuild_stream_uid_mapping()
+        self.streams_changed.emit()
+
+    @property
+    @property_params(widget=None, dont_encode=True)
+    def available_data_stream_options(self) -> list[tuple[str, str]]:
+        return [(s.display_name, s.uid) for s in self.available_data_streams]
+
     @property
     @property_params(
         label="Data Stream",
         widget=DynamicComboWidget,
-        options_source="_available_data_streams",
+        options_source="available_data_stream_options",
         options_changed_signal="streams_changed",
     )
-    def data_stream(self) -> DataXDFStream:
-        return self._data_stream
+    def data_stream_uid(self) -> str:
+        return self._data_stream_uid
 
-    @data_stream.setter
-    def data_stream(self, value: DataXDFStream | None) -> None:
-        if self._data_stream == value:
+    @data_stream_uid.setter
+    def data_stream_uid(self, value: str | None) -> None:
+        if self._data_stream_uid == value:
             return
 
-        self._data_stream = value
-        if self._state_initialized:
+        self._data_stream_uid = value
+        self._data_stream = self._get_stream_by_uid(self._data_stream_uid)
+        if self._state_initialized and self.file_path_valid:
             self.update_timeline()
+
+    @property
+    @property_params(widget=None, dont_encode=True)
+    def data_stream(self) -> DataXDFStream | None:
+        return self._data_stream
+
+    @property
+    @property_params(widget=None)
+    def available_marker_streams(self) -> list[MarkerXDFStream]:
+        return self._available_marker_streams
+
+    @available_marker_streams.setter
+    def available_marker_streams(self, value: list[MarkerXDFStream]) -> None:
+        self._available_marker_streams = value
+        self._rebuild_stream_uid_mapping()
+        self.streams_changed.emit()
+
+    @property
+    @property_params(widget=None, dont_encode=True)
+    def available_marker_stream_options(self) -> list[tuple[str, MarkerXDFStream]]:
+        return [(s.display_name, s.uid) for s in self.available_marker_streams]
 
     @property
     @property_params(
         label="Marker Stream",
         widget=DynamicComboWidget,
-        options_source="_available_marker_streams",
+        options_source="available_marker_stream_options",
         options_changed_signal="streams_changed",
     )
-    def marker_stream(self) -> MarkerXDFStream:
-        return self._marker_stream
+    def marker_stream_uid(self) -> str:
+        return self._marker_stream_uid
 
-    @marker_stream.setter
-    def marker_stream(self, value: MarkerXDFStream | None) -> None:
-        if self._marker_stream == value:
+    @marker_stream_uid.setter
+    def marker_stream_uid(self, value: str | None) -> None:
+        if self._marker_stream_uid == value:
             return
 
-        self._marker_stream = value
-        if self._state_initialized:
+        self._marker_stream_uid = value
+        self._marker_stream = self._get_stream_by_uid(self._marker_stream_uid)
+        if self._state_initialized and self.file_path_valid:
             self.align_with_recording()
+
+    @property
+    @property_params(widget=None, dont_encode=True)
+    def marker_stream(self) -> MarkerXDFStream | None:
+        return self._marker_stream
 
     @property
     @property_params(
@@ -501,7 +559,7 @@ class XDFMultimodalPlugin(Plugin):
 
         channel_row_names = [
             f"{self._get_data_stream_group_title()} - {channel_name}"
-            for channel_name in self.data_stream.channel_names
+            for channel_name in getattr(self.data_stream, "channel_names", [])
         ]
 
         for row_name in (
@@ -517,8 +575,8 @@ class XDFMultimodalPlugin(Plugin):
         if was_sorting_enabled:
             timeline.enable_plot_sorting()
 
-    def _get_xdf_meta_cache_file(self) -> Path:
-        return self.get_cache_path() / "xdf_selection_meta.json"
+    def _get_xdf_cache_file(self) -> Path:
+        return self.get_cache_path() / "xdf_file_cache.json"
 
     def _get_marker_stream_cache_file(self, stream_uid: str) -> Path:
         return self.get_cache_path() / f"xdf_marker_stream_{stream_uid}.json"
@@ -529,8 +587,8 @@ class XDFMultimodalPlugin(Plugin):
     def _reset_loaded_xdf_state(self) -> None:
         self._available_data_streams = []
         self._available_marker_streams = []
-        self.data_stream = None
-        self.marker_stream = None
+        self.data_stream_uid = None
+        self.marker_stream_uid = None
         self._channels = {}
 
     def _restore_channel_selection(self, channel_names: list[str]) -> None:
@@ -627,7 +685,7 @@ class XDFMultimodalPlugin(Plugin):
                 "marker_streams": marker_streams,
             }
 
-            meta_cache_file = self._get_xdf_meta_cache_file()
+            meta_cache_file = self._get_xdf_cache_file()
             meta_cache_file.parent.mkdir(parents=True, exist_ok=True)
             with meta_cache_file.open("w", encoding="utf-8") as meta_fp:
                 json.dump(meta_payload, meta_fp)
@@ -653,7 +711,7 @@ class XDFMultimodalPlugin(Plugin):
         np.save(str(data_cache_file), stream_matrix.astype(np.float32))
 
     def _attempt_load_xdf_from_cache(self, *, log_missing: bool = True) -> bool:
-        meta_cache_file = self._get_xdf_meta_cache_file()
+        meta_cache_file = self._get_xdf_cache_file()
         if not meta_cache_file.exists():
             logging.debug("XDF cache metadata file not found: %s", meta_cache_file)
             return False
@@ -670,7 +728,7 @@ class XDFMultimodalPlugin(Plugin):
             return False
 
     def _load_xdf_from_cache(self, *, log_missing: bool = True) -> bool:
-        meta_cache_file = self._get_xdf_meta_cache_file()
+        meta_cache_file = self._get_xdf_cache_file()
         with meta_cache_file.open("r", encoding="utf-8") as meta_fp:
             meta_payload = json.load(meta_fp)
 
@@ -695,20 +753,16 @@ class XDFMultimodalPlugin(Plugin):
             xdf_stream = XDFStream.from_dict(cached_stream)
             cached_data_streams[xdf_stream.uid] = xdf_stream
         if self.data_stream and self.data_stream.uid not in cached_data_streams:
-            self.data_stream = None
-        self._available_data_streams = [
-            (s.name, s.uid) for s in cached_data_streams.values()
-        ]
+            self.data_stream_uid = None
+        self._available_data_streams = cached_data_streams.values()
 
         cached_marker_streams = {}
         for cached_stream in meta_payload.get("marker_streams", []):
             xdf_stream = XDFStream.from_dict(cached_stream)
             cached_marker_streams[xdf_stream.uid] = xdf_stream
         if self.marker_stream and self.marker_stream.uid not in cached_marker_streams:
-            self.marker_stream = None
-        self._available_marker_streams = [
-            (s.name, s.uid) for s in cached_marker_streams.values()
-        ]
+            self.marker_stream_uid = None
+        self._available_marker_streams = cached_marker_streams.values()
 
         if self.data_stream:
             data_cache_file = self._get_data_stream_cache_file(self._data_stream.uid)
@@ -754,7 +808,7 @@ class XDFMultimodalPlugin(Plugin):
         return MarkerXDFStream._parse_event_name(raw_name), ts_ns
 
     def align_with_recording(self) -> None:
-        if not self.recording or not self._marker_stream.markers:
+        if not self.recording or not self._marker_stream or not self._marker_stream.markers:
             self._set_common_sync_events([])
             self._is_aligned = False
             self.update_timeline()
@@ -891,7 +945,7 @@ class XDFMultimodalPlugin(Plugin):
         # Clear all previously drawn rows before potentially drawing new content.
         self._clear_timeline_tracks()
 
-        if self._data_stream.loaded and self._is_aligned:
+        if getattr(self._data_stream, "loaded", False) and self._is_aligned:
             # 1. Convert XDF timestamps to Neon clock (nanoseconds)
             neon_ts = ((self._data_stream.timestamps - self._offset_s) * 1e9).astype(np.int64)
 
