@@ -433,9 +433,18 @@ class XDFMultimodalPlugin(Plugin):
 
         self._data_stream_uid = value
         self._data_stream = self._streams_by_uid.get(self._data_stream_uid)
-        if self._state_initialized and self.file_path_valid and self._data_stream:
-            self._load_data_stream_from_cache()
-            self._update_timeline_data()
+        should_load = self._state_initialized and self.file_path_valid and self._data_stream
+        if not should_load:
+            return
+
+        if not self._load_data_stream_from_cache():
+            logging.warning(
+                f"Could not load XDF data from cache, re-building the cache"
+            )
+            self._clear_cache()
+            self.load_xdf()
+
+        self._update_timeline_data()
 
     @property
     @property_params(widget=None, dont_encode=True)
@@ -475,10 +484,19 @@ class XDFMultimodalPlugin(Plugin):
 
         self._marker_stream_uid = value
         self._marker_stream = self._streams_by_uid.get(self._marker_stream_uid)
-        if self._state_initialized and self.file_path_valid and self._marker_stream:
-            self._load_marker_stream_from_cache()
-            self._update_events()
-            self.align_with_recording()
+        should_load = self._state_initialized and self.file_path_valid and self._marker_stream
+        if not should_load:
+            return
+
+        if not self._load_marker_stream_from_cache():
+            logging.warning(
+                f"Could not load marker data from cache, re-building the cache"
+            )
+            self._clear_cache()
+            self.load_xdf()
+
+        self._update_events()
+        self.align_with_recording()
 
     @property
     @property_params(widget=None, dont_encode=True)
@@ -614,11 +632,15 @@ class XDFMultimodalPlugin(Plugin):
         if not self._state_initialized:
             return
 
+        # Prevent launching multiple background jobs
+        if self._xdf_load_job is not None:
+            self._xdf_load_job.cancel()
+
         # Fast path: if this xdf stream is already cached, load it instantly.
         if self._attempt_load_xdf_from_cache(log_missing=False):
             return
 
-        logging.info("Could not load XDF data from cache, re-building the cache")
+        logging.info("Could not load XDF data from cache")
         self._reset_loaded_xdf_state()
 
         # In headless mode, either load the cached data or proceed with the
@@ -626,6 +648,7 @@ class XDFMultimodalPlugin(Plugin):
         if self.headless:
             return
 
+        logging.info("Re-building the cache in the background")
         self._xdf_load_job = self.job_manager.run_background_action(
             "Loading XDF streams",
             "XDFMultimodalPlugin._bg_load_xdf",
@@ -635,7 +658,13 @@ class XDFMultimodalPlugin(Plugin):
 
     def _on_xdf_load_finished(self) -> None:
         self._xdf_load_job = None
-        self._attempt_load_xdf_from_cache()
+        if not self._attempt_load_xdf_from_cache():
+            logging.error(
+                f"Failed to load the XDF data from cache after the "
+                f"background job completed, clearing the cache"
+            )
+            self._clear_cache()
+            self.file_path = None
 
     def _bg_load_xdf(self, xdf_path: str) -> Iterator[ProgressUpdate]:
         try:
@@ -690,8 +719,9 @@ class XDFMultimodalPlugin(Plugin):
         yield ProgressUpdate(1.0)
 
     def _prepare_marker_stream_cache(self, stream: XDFStream) -> None:
-        info_cache_file = self._get_marker_stream_cache_file(stream.uid)
-        with info_cache_file.open("w", encoding="utf-8") as stream_meta_fp:
+        marker_cache_file = self._get_marker_stream_cache_file(stream.uid)
+        marker_cache_file.parent.mkdir(parents=True, exist_ok=True)
+        with marker_cache_file.open("w", encoding="utf-8") as stream_meta_fp:
             json.dump(stream.markers, stream_meta_fp)
 
     def _prepare_data_stream_cache(self, stream: XDFStream) -> None:
@@ -720,30 +750,35 @@ class XDFMultimodalPlugin(Plugin):
         return True
 
     def _clear_cache(self) -> None:
-        shutil.rmtree(self.get_cache_path())
+        cache_folder = self.get_cache_path()
+        if not cache_folder.exists():
+            return
 
-    def _load_data_stream_from_cache(self) -> None:
+        shutil.rmtree(cache_folder)
+
+    def _load_data_stream_from_cache(self) -> bool:
         data_cache_file = self._get_data_stream_cache_file(self._data_stream.uid)
         try:
             self.data_stream.load_data(data_cache_file)
             self._update_channel_selection()
+            return True
         except XDFStreamError as e:
             logging.error(
                 f"Failed to load cached data for the XDF stream "
                 f"{self.data_stream.display_name}"
             )
-            self.data_stream_uid = None
+            return False
 
-    def _load_marker_stream_from_cache(self) -> None:
+    def _load_marker_stream_from_cache(self) -> bool:
         marker_cache_file = self._get_marker_stream_cache_file(self._marker_stream.uid)
         try:
             self._marker_stream.load_markers(marker_cache_file)
+            return True
         except XDFStreamError as e:
             logging.error(
                 f"Failed to load cached markers for the XDF stream "
-                f"{self._marker_stream.display_name}"
+                f"{self._marker_stream.display_name}. Reason: {str(e)}"
             )
-            self._marker_stream = None
             return False
 
     def _load_xdf_from_cache(self, *, log_missing: bool = True) -> bool:
@@ -751,7 +786,6 @@ class XDFMultimodalPlugin(Plugin):
         with meta_cache_file.open("r", encoding="utf-8") as meta_fp:
             meta_payload = json.load(meta_fp)
 
-        source_path = meta_payload.get("source_path", "")
         if meta_payload.get("cache_version") != self._XDF_CACHE_VERSION:
             logging.debug(
                 "Cached data needs to be re-built due to an outdated format"
@@ -759,6 +793,7 @@ class XDFMultimodalPlugin(Plugin):
             self._clear_cache()
             return False
 
+        source_path = meta_payload.get("source_path", "")
         if source_path != str(self._xdf_path.resolve()):
             logging.debug(
                 "Cached data corresponds to a different XDF file, so the "
@@ -771,7 +806,7 @@ class XDFMultimodalPlugin(Plugin):
         for cached_stream in meta_payload.get("data_streams", []):
             xdf_stream = XDFStream.from_dict(cached_stream)
             cached_data_streams[xdf_stream.uid] = xdf_stream
-        if self.data_stream and self.data_stream.uid not in cached_data_streams:
+        if self.data_stream_uid and self.data_stream_uid not in cached_data_streams:
             self.data_stream_uid = None
         self.available_data_streams = list(cached_data_streams.values())
 
@@ -779,7 +814,7 @@ class XDFMultimodalPlugin(Plugin):
         for cached_stream in meta_payload.get("marker_streams", []):
             xdf_stream = XDFStream.from_dict(cached_stream)
             cached_marker_streams[xdf_stream.uid] = xdf_stream
-        if self.marker_stream and self.marker_stream.uid not in cached_marker_streams:
+        if self.marker_stream_uid and self.marker_stream_uid not in cached_marker_streams:
             self.marker_stream_uid = None
         self.available_marker_streams = list(cached_marker_streams.values())
 
@@ -798,6 +833,7 @@ class XDFMultimodalPlugin(Plugin):
     def _update_events(self) -> None:
         if not self.marker_stream or not self.marker_stream.markers:
             self.available_sync_events = []
+            return
 
         ep = Plugin.get_instance_by_name("EventsPlugin")
         if ep:
