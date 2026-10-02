@@ -367,6 +367,19 @@ class XDFMultimodalPlugin(Plugin):
         self._xdf_load_job = None
         self._active_timeline_row_names: set[str] = set()
 
+    def _reset_loaded_xdf_state(self) -> None:
+        self.data_stream_uid = None
+        self.marker_stream_uid = None
+        self.available_data_streams = []
+        self.available_marker_streams = []
+        self._streams_by_uid = {}
+        self._reset_aligned_state()
+
+    def _reset_aligned_state(self) -> None:
+        self._is_aligned = False
+        self._offset_ns = 0
+        self.update_timeline()
+
     @property
     @property_params(label="File Path (.xdf)")
     def file_path(self) -> FilePath:
@@ -375,18 +388,12 @@ class XDFMultimodalPlugin(Plugin):
 
     @file_path.setter
     def file_path(self, value: FilePath | None) -> None:
-        p = Path(str(value)) if value else Path("")
-
-        # Allow clearing the field programmatically.
-        if str(p) in ("", "."):
-            if self._xdf_path != Path(""):
-                self._xdf_path = Path("")
+        new_path = Path("") if value is None else value
+        if new_path == self._xdf_path:
             return
 
-        if p == self._xdf_path:
-            return
-
-        self._xdf_path = p
+        self._xdf_path = new_path
+        self._reset_loaded_xdf_state()
         if self.file_path_valid:
             self.load_xdf()
 
@@ -435,6 +442,7 @@ class XDFMultimodalPlugin(Plugin):
         self._data_stream = self._streams_by_uid.get(self._data_stream_uid)
         should_load = self._state_initialized and self.file_path_valid and self._data_stream
         if not should_load:
+            self._update_channel_selection()
             return
 
         if not self._load_data_stream_from_cache():
@@ -486,6 +494,7 @@ class XDFMultimodalPlugin(Plugin):
         self._marker_stream = self._streams_by_uid.get(self._marker_stream_uid)
         should_load = self._state_initialized and self.file_path_valid and self._marker_stream
         if not should_load:
+            self._update_events()
             return
 
         if not self._load_marker_stream_from_cache():
@@ -495,7 +504,6 @@ class XDFMultimodalPlugin(Plugin):
             self._clear_cache()
             self.load_xdf()
 
-        self._update_events()
         self.align_with_recording()
 
     @property
@@ -608,15 +616,8 @@ class XDFMultimodalPlugin(Plugin):
     def _get_data_stream_cache_file(self, stream_uid: str) -> Path:
         return self.get_cache_path() / f"xdf_data_stream_{stream_uid}.npy"
 
-    def _reset_loaded_xdf_state(self) -> None:
-        self._available_data_streams = []
-        self._available_marker_streams = []
-        self.data_stream_uid = None
-        self.marker_stream_uid = None
-        self._channels = {}
-
     def _update_channel_selection(self) -> None:
-        if not self.data_stream.loaded:
+        if not self.data_stream or not self.data_stream.loaded:
             self.channels = {}
             return
 
@@ -773,6 +774,7 @@ class XDFMultimodalPlugin(Plugin):
         marker_cache_file = self._get_marker_stream_cache_file(self._marker_stream.uid)
         try:
             self._marker_stream.load_markers(marker_cache_file)
+            self._update_events()
             return True
         except XDFStreamError as e:
             logging.error(
@@ -845,10 +847,6 @@ class XDFMultimodalPlugin(Plugin):
         xdf_marker_names = set(self.marker_stream.markers.keys())
         common_names = neon_event_names & xdf_marker_names
         self.available_sync_events = common_names
-
-    def _reset_aligned_state(self) -> None:
-        self._is_aligned = False
-        self.update_timeline()
 
     def align_with_recording(self) -> None:
         if not self.recording:
