@@ -1,10 +1,11 @@
 site_name: "Pupil Labs Neon Player"
 site_description: ""
-site_url: "https://pupil-labs.github.io/pl-neon-player"
-repo_url: "https://github.com/pupil-labs/pl-neon-player"
-repo_name: "pupil-labs/pl-neon-player"
+site_url: "https://pupil-labs.github.io/neon-player"
+repo_url: "https://github.com/pupil-labs/neon-player"
+repo_name: "pupil-labs/neon-player"
 site_dir: "site"
-watch: [mkdocs.yml, README.md, CONTRIBUTING.md, src/pupil_labs/neon_player]
+watch:
+  [mkdocs.yml, README.md, CONTRIBUTING.md, src/pupil_labs/neon_player, docs]
 edit_uri: edit/main/docs/
 
 validation:
@@ -16,10 +17,15 @@ nav:
   - Home:
       - Overview: index.md
       - License: license.md
-  - API reference: modules.md
-  - Development:
-      - Contributing: contributing.md
-      - Coverage report: coverage.md
+  - Plugin development:
+      - Getting started: howto/getting_started.md
+      - Anatomy of a plugin: howto/anatomy.md
+      - Plugin lifecycle: howto/lifecycle.md
+      - Components: howto/components.md
+  - API reference:
+      - Plugin API: api/plugin.md
+      - Property parameters: api/properties.md
+      - Action parameters: api/actions.md
 
 theme:
   name: material
@@ -107,6 +113,7 @@ plugins:
         python:
           inventories:
             - https://docs.python.org/3/objects.inv
+            - https://pupil-labs.github.io/pl-neon-recording/latest/objects.inv
           paths: [src]
           options:
             docstring_options:
@@ -144,8 +151,6 @@ extra:
       link: https://github.com/pupil-labs
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/pupil-labs-neon-player/
-    - icon: assets/logomark.svg
-      link: https://pupil-labs.com/
     - icon: fontawesome/brands/discord
       link: https://pupil-labs.com/chat
     - icon: logomark

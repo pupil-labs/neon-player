@@ -44,6 +44,8 @@ class GlobalPluginProperties(PersistentPropertiesMixin):
 
 
 class Plugin(PersistentPropertiesMixin, QObject):
+    """Base class for all Neon Player plugins."""
+
     changed = Signal()
     known_classes: T.ClassVar[list] = []
     global_properties: T.ClassVar[GlobalPluginProperties | None] = None
@@ -102,6 +104,17 @@ class Plugin(PersistentPropertiesMixin, QObject):
             Plugin.known_classes.append(cls)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
+        """This method is called for all plugins while the recording is loading.
+
+        Override this method to finalize the initialization of the plugin for a given
+        recording: e.g., create necessary timeline plots or load data from cache.
+        Note that values of all properties that aren't explicitly marked with the
+        `dont_encode=True` parameter are already restored from the last session
+        by the time `on_recording_loaded` is called.
+
+        Args:
+            recording: Neon recording that is currently being opened in Neon Player.
+        """
         pass
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
@@ -179,6 +192,12 @@ class Plugin(PersistentPropertiesMixin, QObject):
     @property
     @property_params(widget=None, dont_encode=True)
     def recording(self) -> NeonRecording | None:
+        """Access the currently opened Neon recording.
+
+        Returns:
+            recording: Currently opened recording. If no recording is opened,
+                `None` is returned.
+        """
         return neon_player.instance().recording
 
     @property
