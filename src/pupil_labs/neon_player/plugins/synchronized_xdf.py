@@ -381,7 +381,12 @@ class XDFMultimodalPlugin(Plugin):
         self.update_timeline()
 
     @property
-    @property_params(label="File Path (.xdf)")
+    @property_params(
+        label="File Path (.xdf)",
+        # XXX: pending qt-property-widgets update
+        # dialog_title="Open an XDF file",
+        # file_filter="XDF files (*.xdf)"
+    )
     def file_path(self) -> FilePath:
         # Returning None keeps FilePathWidget visually empty.
         return FilePath(self._xdf_path) if self._xdf_path != Path("") else None
