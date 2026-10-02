@@ -1,6 +1,6 @@
 import pytest
 
-from pupil_labs.neon_player.plugins.synchronized_xdf import XDFStream, first
+from pupil_labs.neon_player.plugins.xdf import XDFStream, first
 
 
 # All values are wrapped in the list in the output of pyxdf.load_xdf

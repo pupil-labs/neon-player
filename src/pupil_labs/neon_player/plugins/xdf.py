@@ -338,8 +338,8 @@ class DataXDFStream(XDFStream):
         return [f"Ch{i+1}" for i in range(max(0, channel_count))]
 
 
-class XDFMultimodalPlugin(Plugin):
-    label = "XDF Multimodal"
+class XDFPlugin(Plugin):
+    label = "XDF Stream"
     _XDF_CACHE_VERSION = 3
     streams_changed = Signal()
     sync_events_changed = Signal()
