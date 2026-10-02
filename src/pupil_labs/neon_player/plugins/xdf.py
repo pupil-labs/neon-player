@@ -44,8 +44,13 @@ def first(xdf_dict: dict[str, list[Any]], key: str, default: Any) -> Any:
     return value[0]
 
 
+def estimate_offset_ns(xdf_timestamp: float, neon_timestamp: int) -> int:
+    """Estimate the offset that aligns XDF timestamps with the Neon ones."""
+    return neon_timestamp - int(xdf_timestamp * 1e9)
+
+
 def apply_offset(xdf_timestamps: np.ndarray, offset_ns: int) -> np.ndarray:
-    """Apply offset to convert XDF timestamps to Neon ones."""
+    """Apply offset to align XDF timestamps with the Neon ones."""
     return (np.array(xdf_timestamps) * 1e9).astype(np.int64) + offset_ns
 
 
@@ -523,7 +528,7 @@ class XDFPlugin(Plugin):
 
     @available_sync_events.setter
     def available_sync_events(self, value: list[str]) -> None:
-        self._available_sync_events = value
+        self._available_sync_events = sorted(value)
         self.sync_events_changed.emit()
 
     @property
@@ -877,12 +882,12 @@ class XDFPlugin(Plugin):
                 f"Found multiple occurrences of the '{self._sync_event}' marker "
                 f"in XDF data. Using the first one for alignment."
             )
-        xdf_timestamp = int(xdf_timestamps[0] * 1e9)
+        xdf_timestamp = xdf_timestamps[0]
 
-        self._offset_ns = neon_timestamp - xdf_timestamp
+        self._offset_ns = estimate_offset_ns(xdf_timestamp, neon_timestamp)
         logging.info(
             f"Aligned Neon and XDF data using the `{self._sync_event}` event.\n"
-            f"\tXDF timestamp:  {xdf_timestamp} ns\n"
+            f"\tXDF timestamp:  {int(xdf_timestamp * 1e9)} ns\n"
             f"\tNeon timestamp: {neon_timestamp} ns\n"
             f"\tOffset:         {self._offset_ns} ns."
         )

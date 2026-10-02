@@ -1,6 +1,11 @@
 import pytest
 
-from pupil_labs.neon_player.plugins.xdf import XDFStream, first
+from pupil_labs.neon_player.plugins.xdf import (
+    XDFStream,
+    apply_offset,
+    estimate_offset_ns,
+    first
+)
 
 
 # All values are wrapped in the list in the output of pyxdf.load_xdf
@@ -39,3 +44,13 @@ def test_xdf_stream_from_xdf_dict(stream_info, stream_type, is_marker_stream):
 )
 def test_first(info, key, default, expected):
     assert first(info, key, default) == expected
+
+
+def test_estimate_apply_offset():
+    xdf_timestamp_s = 1.1
+    neon_timestamp_ns = int(1.2 * 1e9)
+
+    offset_ns = estimate_offset_ns(xdf_timestamp_s, neon_timestamp_ns)
+    assert offset_ns == 100000000
+
+    assert apply_offset(xdf_timestamp_s, offset_ns) == neon_timestamp_ns
