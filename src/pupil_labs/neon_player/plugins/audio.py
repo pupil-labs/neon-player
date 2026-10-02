@@ -148,6 +148,9 @@ class AudioPlugin(neon_player.Plugin):
         self.on_speed_changed(self.app.playback_speed)
         self.on_playback_state_changed(self.app.is_playing)
 
+        if self.headless:
+            return
+
         # load the audio data into a numpy array
         _, audio_data = wavfile.read(str(self.cache_file))
         timestamps = np.arange(len(audio_data)) / self.recording.audio.rate
