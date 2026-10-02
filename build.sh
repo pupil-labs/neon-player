@@ -2,7 +2,7 @@
 
 set -e
 
-VERSION=$(uv run python -c "from importlib.metadata import version; print(version('pupil_labs.neon_player'))")
+VERSION=$(uv run python -c "from importlib.metadata import version; print(version('pupil_labs.neon_player'))" 2>/dev/null)
 VERSION_SIMPLE=$(echo "$VERSION" | awk -F. '{print $1"."$2"."$3}' | grep -Eo '^[0-9\.]*')
 
 echo "Build $VERSION ($VERSION_SIMPLE) for $OSTYPE"
@@ -15,6 +15,9 @@ if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]] || [[ "$OSTYPE" == "c
     UV_PATH=$UV_PATH.exe
 fi
 
+DIST_INFO_DIR=$(ls -d .venv/lib/python*/site-packages/pupil_labs_neon_player*.dist-info | head -n 1)
+DIST_INFO_NAME=$(basename "$DIST_INFO_DIR")
+echo "Found metadata directory: $DIST_INFO_NAME"
 uv run -m nuitka src/pupil_labs/neon_player \
     --assume-yes-for-downloads \
     --user-package-configuration-file=package-configs.yml \
@@ -52,6 +55,7 @@ uv run -m nuitka src/pupil_labs/neon_player \
     --include-module=cmath \
     --include-module=zoneinfo \
     --include-module=av.sidedata.encparams \
+    --include-data-dir="${DIST_INFO_DIR}=${DIST_INFO_NAME}" \
     --include-module=pandas._libs._cyutility \
     --include-qt-plugins=multimedia
 
@@ -68,7 +72,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     mkdir dmg
     ln -s /Applications dmg/Applications
-    mv neon_player.app "dmg/Neon Player.app"
+    mv "Neon Player.app" "dmg/Neon Player.app" 2>/dev/null || mv neon_player.app "dmg/Neon Player.app" 2>/dev/null || true
     hdiutil create -fs HFS+J -volname "Install Neon Player $VERSION" -srcfolder dmg -ov -format UDZO "neon-player-$VERSION.dmg"
 
 elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
