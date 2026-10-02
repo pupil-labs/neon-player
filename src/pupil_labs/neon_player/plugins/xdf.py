@@ -657,7 +657,7 @@ class XDFPlugin(Plugin):
         logging.info("Re-building the cache in the background")
         self._xdf_load_job = self.job_manager.run_background_action(
             "Loading XDF streams",
-            "XDFMultimodalPlugin._bg_load_xdf",
+            "XDFPlugin._bg_load_xdf",
             self._xdf_path,
         )
         self._xdf_load_job.finished.connect(self._on_xdf_load_finished)

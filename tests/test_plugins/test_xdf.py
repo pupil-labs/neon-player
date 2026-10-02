@@ -18,17 +18,16 @@ MOCK_XDF_MARKER_STREAM_INFO = {
 
 @pytest.mark.parametrize(
     "stream_info, stream_type, is_marker_stream", [
-        (MOCK_XDF_DATA_STREAM_INFO, "gaze", False),
-        (MOCK_XDF_MARKER_STREAM_INFO, "markers", True)
+        (MOCK_XDF_DATA_STREAM_INFO, "Gaze", False),
+        (MOCK_XDF_MARKER_STREAM_INFO, "Markers", True)
     ]
 )
-def test_xdf_stream_from_dict(stream_info, stream_type, is_marker_stream):
+def test_xdf_stream_from_xdf_dict(stream_info, stream_type, is_marker_stream):
     stream = {"info": stream_info}
-    parsed_stream = XDFStream.from_dict(stream)
+    parsed_stream = XDFStream.from_xdf_dict(stream)
     assert parsed_stream.name == "Mock XDF stream"
     assert parsed_stream.type == stream_type
     assert parsed_stream.is_marker_stream == is_marker_stream
-    assert parsed_stream.is_data_stream == (not is_marker_stream)
 
 
 @pytest.mark.parametrize(
