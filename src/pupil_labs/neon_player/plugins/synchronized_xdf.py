@@ -257,7 +257,7 @@ class DataXDFStream(XDFStream):
         stream = cls()
         stream.parse_info(info)
         stream.data, stream.timestamps, stream.fs = cls._parse_stream_data(xdf_dict)
-        if stream.timestamps and np.any(np.diff(stream.timestamps) < 0):
+        if stream.timestamps is not None and np.any(np.diff(stream.timestamps) < 0):
             logging.warning(
                 f"Timestamps of the XDF stream {stream.display_name} are not "
                 f"increasingly monotonically, sorting the timestamps"
@@ -1029,7 +1029,7 @@ class XDFMultimodalPlugin(Plugin):
             logging.info(f"XDF: '{name}' @ {offset_ts} (ts={ts})")
 
     @action
-    @action_params(compact=True, icon=QIcon.fromTheme("edit-select-all"), label="Enable All")
+    @action_params(compact=True, icon=QIcon.fromTheme("edit-select-all"))
     def enable_all_channels(self) -> None:
         if not self.data_stream.loaded:
             return
@@ -1037,7 +1037,7 @@ class XDFMultimodalPlugin(Plugin):
         self.channels = {name: True for name in self.data_stream.channel_names}
 
     @action
-    @action_params(compact=True, icon=QIcon.fromTheme("edit-clear"), label="Disable All")
+    @action_params(compact=True, icon=QIcon.fromTheme("edit-clear"))
     def disable_all_channels(self) -> None:
         if not self.data_stream.loaded:
             return
