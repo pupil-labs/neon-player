@@ -564,7 +564,7 @@ class XDFPlugin(Plugin):
 
         self._apply_bandpass = value
         if self._state_initialized and self.data_stream:
-            self._update_timeline_data()
+            self._update_timeline()
 
     @property
     @property_params(label="Channel Selection")
