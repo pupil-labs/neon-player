@@ -3,7 +3,7 @@ import typing as T
 import cv2
 import numpy as np
 from pyqtgraph.functions import imageToArray
-from PySide6.QtCore import QTimer, Signal
+from PySide6.QtCore import QTimer, SignalInstance
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QMenu
 
@@ -72,7 +72,7 @@ def unproject_points(
 
     if normalize:
         # normalize vector length to 1
-        points_3d /= np.linalg.norm(points_3d, axis=1)[:, np.newaxis]  # type: ignore
+        points_3d /= np.linalg.norm(points_3d, axis=1)[:, np.newaxis]
 
     return points_3d
 
@@ -140,25 +140,25 @@ def get_scene_intrinsics(recording: NeonRecording) -> tuple[np.ndarray, np.ndarr
 
 
 class SignalDebouncer:
-    _signal_debouncer_map: T.ClassVar[dict[Signal, "SignalDebouncer"]] = {}
+    _signal_debouncer_map: T.ClassVar[dict[SignalInstance, "SignalDebouncer"]] = {}
 
     @staticmethod
-    def debounce(signal: Signal, delay: float = 1.5, *args):
+    def debounce(signal: SignalInstance, delay: float = 1.5, *args: T.Any) -> None:
         if signal not in SignalDebouncer._signal_debouncer_map:
             SignalDebouncer._signal_debouncer_map[signal] = SignalDebouncer(signal)
 
         debouncer = SignalDebouncer._signal_debouncer_map[signal]
         debouncer.args = args
-        debouncer.timer.start(delay * 1000)
+        debouncer.timer.start(int(delay * 1000))
 
-    def __init__(self, signal: Signal):
+    def __init__(self, signal: SignalInstance) -> None:
         self.signal = signal
         self.timer = QTimer()
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self._emit)
-        self.args = []
+        self.args: T.Any = []
 
-    def _emit(self):
+    def _emit(self) -> None:
         self.signal.emit(*self.args)
         del SignalDebouncer._signal_debouncer_map[self.signal]
 
@@ -167,29 +167,29 @@ class SlotDebouncer:
     _connections: T.ClassVar[dict[T.Callable, "SlotDebouncer"]] = {}
 
     @staticmethod
-    def debounce(signal: Signal, slot: T.Callable, delay: float = 3.5):
+    def debounce(signal: SignalInstance, slot: T.Callable, delay: float = 3.5) -> None:
         if slot not in SlotDebouncer._connections:
             SlotDebouncer._connections[slot] = SlotDebouncer(slot)
 
         debouncer = SlotDebouncer._connections[slot]
         debouncer.add_signal(signal)
-        debouncer.timer.setInterval(delay * 1000)
+        debouncer.timer.setInterval(int(delay * 1000))
 
-    def __init__(self, slot: T.Callable):
-        self.signals = []
+    def __init__(self, slot: T.Callable) -> None:
+        self.signals: list[SignalInstance] = []
 
         self.slot = slot
         self.timer = QTimer()
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self._do_call)
 
-    def add_signal(self, signal: Signal):
+    def add_signal(self, signal: SignalInstance) -> None:
         self.signals.append(signal)
         signal.connect(self.on_signal)
 
-    def on_signal(self, *args):
+    def on_signal(self, *args: T.Any) -> None:
         self.args = args
         self.timer.start()
 
-    def _do_call(self):
+    def _do_call(self) -> None:
         self.slot(*self.args)
