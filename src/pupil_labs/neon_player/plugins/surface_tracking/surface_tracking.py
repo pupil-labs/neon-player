@@ -513,7 +513,7 @@ class SurfaceTrackingPlugin(Plugin):
                 for location in data
             ]
 
-            if surface.preview_options.render_size == [0, 0]:
+            if surface.preview_options.render_size == (0, 0):
                 surface2image = self.surface_locations[surface_uid][surface.defining_frame_index][1]
 
                 # set surface size
@@ -853,7 +853,7 @@ class SurfaceTrackingPlugin(Plugin):
             if s.uid == uid:
                 return s
 
-        raise ValueError(f"No surface with ID `{uid}` exist")
+        raise ValueError(f"No surface with ID `{uid}` exists")
 
     def bg_detect_markers(self) -> T.Generator[ProgressUpdate, None, None]:
         logging.info("Detecting markers...")
@@ -1166,7 +1166,7 @@ def get_position_for_export(
     corners = camera.distort_points(corners)
 
     max_value = np.tile(np.atleast_2d(scene_size), (len(corners), 1))
-    out_of_bounds = np.logical_or(corners < 0, corners > max_value)
+    out_of_bounds = np.logical_or(corners < 0, corners >= max_value)
     corner_out_of_bounds = out_of_bounds.any(axis=1)
     corners[corner_out_of_bounds, :] = np.nan
 
