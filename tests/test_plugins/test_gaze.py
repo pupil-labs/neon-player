@@ -1,4 +1,15 @@
-from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin, CircleViz, CrosshairViz
+import numpy as np
+import pytest
+
+from pupil_labs.neon_player.plugins.gaze import (
+    CircleViz,
+    CrosshairViz,
+    GazeDataPlugin,
+    apply_offset,
+    _prepare_gaze_export
+)
+
+from tests.mocks import mock_gaze_timeseries, mock_scene_timeseries
 
 
 def test_circle_viz_parameter_capping_not_required():
@@ -17,7 +28,7 @@ def test_circle_viz_parameter_capping_required():
     assert viz._applied_stroke_width == 70
 
 
-def test_gaze_plugin__to_dict__viz_have_class_names(qapp, mock_neon_recording):
+def test_gaze_plugin_to_dict_viz_have_class_names(qapp, mock_neon_recording):
     qapp.recording = mock_neon_recording()
 
     plugin = GazeDataPlugin()
@@ -26,3 +37,48 @@ def test_gaze_plugin__to_dict__viz_have_class_names(qapp, mock_neon_recording):
 
     assert state["visualizations"][0]["__class__"] == "CircleViz"
     assert state["visualizations"][1]["__class__"] == "CrosshairViz"
+
+
+@pytest.mark.parametrize(
+    "offset, expected_gaze",
+    [
+        ((0.0, 0.0), (300.0, 400.0)),
+        ((0.01, 0.0), (316.0, 400.0)),
+        ((0.0, 0.01), (300.0, 412.0)),
+        ((0.01, 0.01), (316.0, 412.0)),
+    ]
+)
+def test_apply_offset(offset, expected_gaze, mock_neon_recording):
+    timestamps = np.array([1, 2, 3])
+    gaze_x = np.array([300, 300, 300], dtype=np.float64)
+    gaze_y = np.array([400, 400, 400], dtype=np.float64)
+    gaze = mock_gaze_timeseries(timestamps, gaze_x, gaze_y)
+    recording = mock_neon_recording(
+        scene=mock_scene_timeseries([1, 2, 3]),
+    )
+    corrected_gazes = apply_offset(recording, gaze.point, offset)
+
+    # NOTE: assuming 1600x1200 resolution of the scene video
+    expected_x, expected_y = expected_gaze
+    assert np.allclose(corrected_gazes[:, 0], expected_x), \
+        "Offset correction for gaze x-coordinate is not applied correctly"
+    assert np.allclose(corrected_gazes[:, 1], expected_y), \
+        "Offset correction for gaze x-coordinate is not applied correctly"
+
+
+def test_prepare_gaze_export_gaze_offset(mock_neon_recording):
+    timestamps = np.array([1, 2, 3])
+    gaze_x = np.array([300, 300, 300], dtype=np.float64)
+    gaze_y = np.array([400, 400, 400], dtype=np.float64)
+    recording = mock_neon_recording(
+        gaze=mock_gaze_timeseries(timestamps, gaze_x, gaze_y),
+        scene=mock_scene_timeseries([1, 2, 3]),
+        info={"recording_id": "mock"}
+    )
+
+    gaze_offset = (0.01, 0.01)
+    gaze_df = _prepare_gaze_export(recording, None, (0, 4), gaze_offset)
+
+    # NOTE: assuming 1600x1200 resolution of the scene video
+    assert np.allclose(gaze_df["gaze x [px]"].values, 316.0)
+    assert np.allclose(gaze_df["gaze y [px]"].values, 412.0)

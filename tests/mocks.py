@@ -1,6 +1,7 @@
 import numpy as np
 
 from pupil_labs.neon_recording.timeseries.events import EventArray
+from pupil_labs.neon_recording.timeseries.gaze import GazeArray
 
 
 def mock_event_timeseries(events_dict):
@@ -18,6 +19,19 @@ def mock_event_timeseries(events_dict):
         for ts, event_name in all_events
     ])
     data = data.view(EventArray)
+
+    return data
+
+
+def mock_gaze_timeseries(timestamps, xs, ys):
+    data = np.array([
+        np.void(
+            (ts, x, y),
+            dtype=[("time", np.int64), ("point_x", np.float64), ("point_y", np.float64)]
+        )
+        for ts, x, y in zip(timestamps, xs, ys)
+    ])
+    data = data.view(GazeArray)
 
     return data
 
