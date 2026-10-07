@@ -1,10 +1,12 @@
 from enum import Flag, auto
 
-from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QPainter
-from qt_property_widgets.utilities import property_params
+from PySide6.QtCore import QPointF, QRectF, Qt, QSize
+from PySide6.QtGui import QColor, QPainter, QPaintEvent
+from pupil_labs.neon_recording import NeonRecording
+from qt_property_widgets.utilities import property_params, action_params
 
 from pupil_labs import neon_player
+from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
 
@@ -14,6 +16,32 @@ class ModifyDirection(Flag):
     BOTTOM = auto()
     LEFT = auto()
     MOVE = auto()
+
+
+class EyeViewWidget(VideoRenderWidget):
+    def __init__(
+        self,
+        recording: NeonRecording,
+    ) -> None:
+        super().__init__()
+        self.recording = recording
+        self.refit_rect()
+        self.plugin.app.position_changed.connect(self.update)
+
+    @property
+    def plugin(self):
+        return neon_player.Plugin.get_instance_by_name("EyeOverlayPlugin")
+
+    def refit_rect(self) -> None:
+        self.fit_rect(QSize(self.recording.eye.width, self.recording.eye.height))
+        self.update()
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.fillRect(0, 0, self.width(), self.height(), Qt.GlobalColor.black)
+        self.transform_painter(painter)
+        self.plugin.render_simple(painter, neon_player.instance().current_ts)
+        painter.end()
 
 
 class EyeOverlayPlugin(neon_player.Plugin):
@@ -266,3 +294,23 @@ class EyeOverlayPlugin(neon_player.Plugin):
     @border_color.setter
     def border_color(self, value: QColor) -> None:
         self._border_color = value
+
+    @neon_player.action
+    @action_params(compact=True)
+    def add_panel(self) -> None:
+        eye_widget = EyeViewWidget(self.recording)
+        eye_widget.setMinimumWidth(200)
+        self.app.main_window.panel_container.add_panel(
+            eye_widget, "Eye video"
+        )
+
+    def render_simple(self, painter: QPainter, time_in_recording: int) -> None:
+        if self.recording is None:
+            return
+
+        eye_frame = self.recording.eye.sample([time_in_recording])[0]
+        if abs(time_in_recording - eye_frame.time) / 1e9 > 1 / 30:
+            return
+
+        image = qimage_from_frame(eye_frame.gray)
+        painter.drawImage(QPointF(0, 0), image)
