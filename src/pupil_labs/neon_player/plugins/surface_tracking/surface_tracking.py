@@ -1135,7 +1135,7 @@ def _prepare_surface_positions_export(
         marker_ids = ";".join([str(m.tag_id) for m in frame_markers])
         detected_markers[row_index] = marker_ids
 
-        anchors = get_position_for_export(location, camera, scene_size)
+        anchors = _get_position_for_export(location, camera, scene_size)
         corner_coords[row_index, :] = anchors.flatten()
 
     positions = {
@@ -1157,7 +1157,7 @@ def _prepare_surface_positions_export(
     return positions_df
 
 
-def get_position_for_export(
+def _get_position_for_export(
     location: SurfaceLocation,
     camera: Camera,
     scene_size: tuple[int, int]
