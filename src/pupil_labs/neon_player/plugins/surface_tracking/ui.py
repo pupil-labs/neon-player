@@ -149,10 +149,6 @@ class SurfaceViewWidget(VideoRenderWidget):
 
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
-        if self.tracker_plugin.is_time_gray() or self.surface.location is None:
-            painter.fillRect(0, 0, self.width(), self.height(), Qt.GlobalColor.gray)
-            return
-
         painter.fillRect(0, 0, self.width(), self.height(), Qt.GlobalColor.black)
         self.transform_painter(painter)
         self.surface.render(painter, neon_player.instance().current_ts)
