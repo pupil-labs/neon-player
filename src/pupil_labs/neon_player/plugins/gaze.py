@@ -492,11 +492,11 @@ def apply_offset(
         return gazes
 
     offset_x, offset_y = offset
-    offset = np.array([
+    offset_pixels = np.array([
         offset_x * recording.scene.width,
         offset_y * recording.scene.height,
     ])
-    return gazes + offset
+    return gazes + offset_pixels
 
 
 def _prepare_gaze_export(
@@ -504,7 +504,7 @@ def _prepare_gaze_export(
     worn_data: WornTimeseries | None,
     export_window: tuple[int, int],
     gaze_offset: tuple[float, float],
-):
+) -> pd.DataFrame:
     start_time, stop_time = export_window
     start_mask = recording.gaze.time >= start_time
     stop_mask = recording.gaze.time <= stop_time
