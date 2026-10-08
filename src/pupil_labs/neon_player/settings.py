@@ -1,7 +1,12 @@
+import json
+import logging
+
+from pathlib import Path
 from PySide6.QtCore import QObject, Signal
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 
 from pupil_labs import neon_player
+from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_player import GlobalPluginProperties, Plugin
 
 
@@ -89,9 +94,10 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self._enabled_plugins = neon_player.instance().settings.default_plugins.copy()
+        app = neon_player.instance()
+        self._enabled_plugins = app.settings.default_plugins.copy() if app else {}
         self._plugin_states: dict[str, dict] = {}
-        self._export_window: tuple[int, int] = ()
+        self._export_window: tuple[int, int] = (-1, -1)
 
     @property
     @property_params(widget=None)
@@ -145,3 +151,34 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
         for kls in Plugin.known_classes:
             if kls.__name__ not in state["enabled_plugins"]:
                 self._enabled_plugins[kls.__name__] = False
+
+
+def load_recording_settings(
+    settings_path: Path, recording: NeonRecording
+) -> RecordingSettings:
+    settings = None
+    if settings_path.exists():
+        try:
+            logging.info(f"Loading recording settings from {settings_path}")
+            settings = RecordingSettings.from_dict(
+                json.loads(settings_path.read_text())
+            )
+        except Exception as e:
+            logging.exception(f"Failed to load settings: {str(e)}")
+
+    if settings is None:
+        logging.info(f"Using default recording settings")
+        settings = RecordingSettings()
+        settings.export_window = (
+            recording.start_time,
+            recording.stop_time,
+        )
+
+    if len(settings.export_window) != 2 or any([el < 0 for el in settings.export_window]):
+        logging.warning("Invalid export window in settings")
+        settings.export_window = (
+            recording.start_time,
+            recording.stop_time,
+        )
+
+    return settings
