@@ -183,6 +183,10 @@ class GazeDataPlugin(neon_player.Plugin):
             self.offset
         )
 
+        if gaze.empty:
+            logging.warning("No gaze data are present in the export window")
+            return
+
         export_file = destination / "gaze.csv"
         gaze.to_csv(export_file, index=False)
 
@@ -510,10 +514,12 @@ def _prepare_gaze_export(
     stop_mask = recording.gaze.time <= stop_time
 
     export_gazes = recording.gaze[start_mask & stop_mask]
+    if not len(export_gazes):
+        return pd.DataFrame()
+
     export_gaze_points = apply_offset(recording, export_gazes.point, gaze_offset)
 
     scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(recording)
-
     spherical_coords = cart_to_spherical(
         unproject_points(
             export_gaze_points,
