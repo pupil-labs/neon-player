@@ -6,7 +6,6 @@ from pupil_labs.neon_player.plugins.gaze import (
     CrosshairViz,
     GazeDataPlugin,
     apply_offset,
-    find_ranged_index,
     _prepare_gaze_export
 )
 
@@ -99,15 +98,3 @@ def test_prepare_gaze_export_gaze_offset(mock_neon_recording):
     # NOTE: assuming 1600x1200 resolution of the scene video
     assert np.allclose(gaze_df["gaze x [px]"].values, 316.0)
     assert np.allclose(gaze_df["gaze y [px]"].values, 412.0)
-
-
-def test_find_ranged_index():
-    #                   fix1              fix2
-    #                   <--->             <---->
-    gaze_ts = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
-    fixation_start = np.array([0, 6])
-    fixation_stop = np.array([2, 8])
-    expected = np.array([0, 0, -1, -1, -1, -1, 1, 1, -1])
-
-    result = find_ranged_index(gaze_ts, fixation_start, fixation_stop)
-    assert np.array_equal(result, expected)
