@@ -19,6 +19,10 @@ def mock_neon_recording(tmp_path):
         # Use a temporary folder to initialize mock NeonRecording
         rec = NeonRecording(tmp_path)
 
+        # Add some mock properties by default if not explicitly provided
+        if "info" not in kwargs:
+            kwargs["info"] = {"recording_id": "mock"}
+
         # Mock properties of the recording as needed
         for key, value in kwargs.items():
             mock_value = value.copy() if hasattr(value, "copy") else value
