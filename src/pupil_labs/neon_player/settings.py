@@ -109,6 +109,7 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
     def export_window(self, value: tuple[int, int]) -> None:
         self._export_window = value
         self.export_window_changed.emit()
+        self.changed.emit()
 
     @property
     @property_params(label_lookup=plugin_label_lookup)
