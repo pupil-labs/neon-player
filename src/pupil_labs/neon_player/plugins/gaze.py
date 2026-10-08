@@ -196,37 +196,6 @@ class GazeDataPlugin(neon_player.Plugin):
 
         logging.info(f"Wrote {export_file}")
 
-    @staticmethod
-    def _prepare_export_data(
-        recording: NeonRecording, export_window: tuple[int, int]
-    ) -> tuple[GazeTimeseries | None, WornTimeseries | None]:
-        if recording is None:
-            return None, None
-
-        start_time, stop_time = export_window
-        gaze_start_mask = recording.gaze.time >= start_time
-        gaze_stop_mask = recording.gaze.time < stop_time
-        gaze_export_mask = gaze_start_mask & gaze_stop_mask
-        export_gazes = recording.gaze[gaze_export_mask]
-
-        worn_data = None
-        try:
-            worn_data = recording.worn
-        except NeonRecording.SensorError:
-            logging.warning("No worn data found")
-            worn_data = None
-
-        if worn_data is None:
-            return export_gazes, None
-
-        worn_indices = match_ts(export_gazes.time, worn_data.time)
-        matched = export_gazes.time == worn_data.time[worn_indices]
-        matched_indices = worn_indices[matched]
-        export_worn = np.full_like(export_gazes.time, np.nan, dtype=np.float64)
-        export_worn[matched] = worn_data.worn[matched_indices] / 255.0
-
-        return export_gazes, export_worn
-
     @property
     @property_params(min=-1, max=1, step=0.01, decimals=3)
     def offset_x(self) -> float:
@@ -572,8 +541,7 @@ def _prepare_gaze_export(
         "elevation [deg]": spherical_coords[1],
     })
     if worn_data:
-        export_worn = worn_data[start_mask & stop_mask]
-        gaze["worn"] = export_worn.worn / 255
+        gaze["worn"] = _prepare_worn_export(export_gazes, worn_data)
     else:
         logging.warning("No worn data to export")
 
@@ -606,3 +574,12 @@ def _prepare_gaze_export(
         logging.warning("Failed to match blinks")
 
     return gaze
+
+
+def _prepare_worn_export(gazes: GazeTimeseries, worn: WornTimeseries) -> np.ndarray:
+    gaze_in_worn_idx = match_ts(gazes.time, worn.time)
+    matched = gazes.time == worn.time[gaze_in_worn_idx]
+    matched_indices = gaze_in_worn_idx[matched]
+    export_worn = np.full_like(gazes.time, np.nan, dtype=np.float64)
+    export_worn[matched] = worn.worn[matched_indices] / 255.0
+    return export_worn
