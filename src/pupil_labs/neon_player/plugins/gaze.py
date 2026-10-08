@@ -24,7 +24,8 @@ from pupil_labs.neon_player.utilities import (
     unproject_points,
 )
 from pupil_labs.neon_recording import NeonRecording
-from pupil_labs.neon_recording.timeseries import WornTimeseries
+from pupil_labs.neon_recording.timeseries import GazeTimeseries, WornTimeseries
+from pupil_labs.neon_recording.sample import match_ts
 
 
 class Aggregation(enum.Enum):
@@ -537,8 +538,9 @@ def _prepare_gaze_export(
         "elevation [deg]": spherical_coords[1],
     })
     if worn_data:
-        export_worn = worn_data[start_mask & stop_mask]
-        gaze["worn"] = export_worn.worn / 255
+        gaze["worn"] = _prepare_worn_export(export_gazes, worn_data)
+    else:
+        logging.warning("No worn data to export")
 
     try:
         matched_fixation_ids = (
@@ -569,3 +571,12 @@ def _prepare_gaze_export(
         logging.warning("Failed to match blinks")
 
     return gaze
+
+
+def _prepare_worn_export(gazes: GazeTimeseries, worn: WornTimeseries) -> np.ndarray:
+    gaze_in_worn_idx = match_ts(gazes.time, worn.time)
+    matched = gazes.time == worn.time[gaze_in_worn_idx]
+    matched_indices = gaze_in_worn_idx[matched]
+    export_worn = np.full_like(gazes.time, np.nan, dtype=np.float64)
+    export_worn[matched] = worn.worn[matched_indices] / 255.0
+    return export_worn
