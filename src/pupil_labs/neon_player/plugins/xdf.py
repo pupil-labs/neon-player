@@ -564,7 +564,7 @@ class XDFPlugin(Plugin):
 
         self._apply_bandpass = value
         if self._state_initialized and self.data_stream:
-            self._update_timeline()
+            self.update_timeline()
 
     @property
     @property_params(label="Channel Selection")
@@ -645,6 +645,7 @@ class XDFPlugin(Plugin):
 
         # Prevent launching multiple background jobs
         if self._xdf_load_job is not None:
+            self._xdf_load_job.finished.disconnect()
             self._xdf_load_job.cancel()
 
         # Fast path: if this xdf stream is already cached, load it instantly.
