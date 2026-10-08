@@ -91,6 +91,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
 class RecordingSettings(PersistentPropertiesMixin, QObject):
     changed = Signal()
     export_window_changed = Signal()
+    plugins_changed = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -108,7 +109,6 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
     def export_window(self, value: tuple[int, int]) -> None:
         self._export_window = value
         self.export_window_changed.emit()
-        self.changed.emit()
 
     @property
     @property_params(label_lookup=plugin_label_lookup)
@@ -122,6 +122,7 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
     @enabled_plugins.setter
     def enabled_plugins(self, value: dict[str, bool]) -> None:
         self._enabled_plugins = value.copy()
+        self.plugins_changed.emit()
 
     @property
     @property_params(widget=None)
