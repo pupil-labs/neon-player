@@ -28,8 +28,10 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
 
     def __init__(self) -> None:
         super().__init__()
+        self._check_for_updates = True
         self._skip_gray_frames_on_load = True
         self._show_fps = False
+        self._last_read_release_notes_version = ""
 
         plugin_names = [k.__name__ for k in Plugin.known_classes]
         plugin_names.sort()
@@ -41,6 +43,14 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
             "EventsPlugin": True,
             "ExportAllPlugin": True,
         })
+
+    @property
+    def check_for_updates(self) -> bool:
+        return self._check_for_updates
+
+    @check_for_updates.setter
+    def check_for_updates(self, value: bool) -> None:
+        self._check_for_updates = value
 
     @property
     def skip_gray_frames_on_load(self) -> bool:
@@ -57,6 +67,16 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
     @show_fps.setter
     def show_fps(self, value: bool) -> None:
         self._show_fps = value
+
+    @property
+    @property_params(widget=None)
+    def last_read_release_notes_version(self) -> str:
+        return self._last_read_release_notes_version
+
+    @last_read_release_notes_version.setter
+    def last_read_release_notes_version(self, value: str) -> None:
+        self._last_read_release_notes_version = value
+
 
     @property
     def default_plugins(self) -> dict[str, bool]:

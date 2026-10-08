@@ -45,6 +45,7 @@ from pupil_labs.neon_player.plugins import (
 from pupil_labs.neon_player.history import RecordingHistory
 from pupil_labs.neon_player.settings import GeneralSettings, load_recording_settings
 from pupil_labs.neon_player.ui.main_window import MainWindow
+from pupil_labs.neon_player.updater import UpdateManager
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
     PluginInstallationDialog,
 )
@@ -84,7 +85,18 @@ class NeonPlayerApp(QApplication):
         self.playback_start_anchor = 0
         self.current_ts = 0
         self.playback_speed_options = [
-            -4.0, -2.0, -1.0, -0.5, -0.25, -0.125, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0
+            -4.0,
+            -2.0,
+            -1.0,
+            -0.5,
+            -0.25,
+            -0.125,
+            0.125,
+            0.25,
+            0.5,
+            1.0,
+            2.0,
+            4.0,
         ]
         self.playback_speed = 1.0
 
@@ -114,6 +126,8 @@ class NeonPlayerApp(QApplication):
 
         self.main_window = MainWindow()
 
+        self.update_manager = UpdateManager(parent=self)
+
         self.ipc_logger = IPCLogger()
         logging.info(
             f"{self.applicationName()} v{self.applicationVersion()} starting up"
@@ -138,7 +152,9 @@ class NeonPlayerApp(QApplication):
             logging.exception("Failed to load settings")
 
         try:
-            self.recording_history = RecordingHistory.from_dict(self.load_recording_history())
+            self.recording_history = RecordingHistory.from_dict(
+                self.load_recording_history()
+            )
         except FileNotFoundError:
             logging.warning("Recording history file not found")
         except Exception:
