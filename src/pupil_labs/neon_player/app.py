@@ -394,7 +394,7 @@ class NeonPlayerApp(QApplication):
 
         QTimer.singleShot(0, self.toggle_plugins_by_settings)
         QTimer.singleShot(10, self.on_recording_load_complete)
-        self.recording_settings.changed.connect(self.toggle_plugins_by_settings)
+        self.recording_settings.plugins_changed.connect(self.toggle_plugins_by_settings)
         SlotDebouncer.debounce(self.recording_settings.changed, self.save_settings)
 
     def on_recording_load_complete(self) -> None:
