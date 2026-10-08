@@ -174,10 +174,7 @@ class GazeDataPlugin(neon_player.Plugin):
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
-        export_window = self.app.get_export_window()
-        export_gazes, export_worn = self._prepare_export_data(self.recording, export_window)
-        if export_gazes is None:
-            logging.warning("No gaze data to export")
+        if self.recording is None:
             return
 
         gaze = _prepare_gaze_export(
