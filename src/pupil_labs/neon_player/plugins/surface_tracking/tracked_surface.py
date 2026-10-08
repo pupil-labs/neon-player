@@ -22,7 +22,7 @@ from qt_property_widgets.utilities import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, action
-from pupil_labs.neon_player.plugins.gaze import CircleViz, GazeVisualization
+from pupil_labs.neon_player.plugins.gaze import CircleViz, GazeVisualization, apply_offset
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
 from .ui import SurfaceHandle, SurfaceViewWindow
@@ -467,10 +467,11 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             )
             return
 
-        offset_gazes = gazes.point + np.array([
-            gaze_plugin.offset_x * gaze_plugin.recording.scene.width,
-            gaze_plugin.offset_y * gaze_plugin.recording.scene.height,
-        ])
+        offset_gazes = apply_offset(
+            self.tracker_plugin.recording,
+            gazes.point,
+            gaze_plugin.offset
+        )
 
         return self.map_points_by_time(offset_gazes, gazes.time)
 

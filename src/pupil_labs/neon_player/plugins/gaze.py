@@ -116,10 +116,7 @@ class GazeDataPlugin(neon_player.Plugin):
 
         samples = self.get_gazes_for_scene(scene_idx)
         gazes = samples.point
-        offset_gazes = gazes + np.array([
-            self._offset_x * self.recording.scene.width,
-            self._offset_y * self.recording.scene.height,
-        ])
+        offset_gazes = apply_offset(self.recording, gazes, self.offset)
 
         try:
             worns = self.worn_data.sample(samples.time).worn
@@ -179,63 +176,16 @@ class GazeDataPlugin(neon_player.Plugin):
         if self.recording is None:
             return
 
-        start_time, stop_time = self.app.get_export_window()
-        start_mask = self.recording.gaze.time >= start_time
-        stop_mask = self.recording.gaze.time <= stop_time
-
-        export_gazes = self.recording.gaze[start_mask & stop_mask]
-
-        scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(
-            self.recording
+        gaze = _prepare_gaze_export(
+            self.recording,
+            self.worn_data,
+            self.app.get_export_window(),
+            self.offset
         )
 
-        spherical_coords = cart_to_spherical(
-            unproject_points(
-                export_gazes.point,
-                scene_camera_matrix,
-                scene_distortion_coefficients,
-            )
-        )
-
-        gaze = pd.DataFrame({
-            "recording id": self.recording.info["recording_id"],
-            "timestamp [ns]": export_gazes.time,
-            "gaze x [px]": export_gazes.point[:, 0],
-            "gaze y [px]": export_gazes.point[:, 1],
-            "azimuth [deg]": spherical_coords[2],
-            "elevation [deg]": spherical_coords[1],
-        })
-        if self.worn_data:
-            export_worn = self.worn_data[start_mask & stop_mask]
-            gaze["worn"] = export_worn.worn / 255
-
-        try:
-            matched_fixation_ids = (
-                find_ranged_index(
-                    export_gazes.time,
-                    self.recording.fixations.start_time,
-                    self.recording.fixations.stop_time,
-                )
-                + 1
-            )
-            gaze["fixation id"] = matched_fixation_ids
-            gaze["fixation id"] = gaze["fixation id"].replace(0, None)
-        except Exception:
-            logging.warning("Failed to match fixations")
-
-        try:
-            matched_blink_ids = (
-                find_ranged_index(
-                    export_gazes.time,
-                    self.recording.blinks.start_time,
-                    self.recording.blinks.stop_time,
-                )
-                + 1
-            )
-            gaze["blink id"] = matched_blink_ids
-            gaze["blink id"] = gaze["blink id"].replace(0, None)
-        except Exception:
-            logging.warning("Failed to match blinks")
+        if gaze.empty:
+            logging.warning("No gaze data are present in the export window")
+            return
 
         export_file = destination / "gaze.csv"
         gaze.to_csv(export_file, index=False)
@@ -261,6 +211,11 @@ class GazeDataPlugin(neon_player.Plugin):
     def offset_y(self, value: float) -> None:
         self._offset_y = value
         self.offset_changed.emit()
+
+    @property
+    @property_params(widget=None, dont_encode=True)
+    def offset(self) -> tuple[float, float]:
+        return (self._offset_x, self._offset_y)
 
     @property
     @property_params(
@@ -525,3 +480,92 @@ class CrosshairViz(GazeVisualization):
     @draw_dot.setter
     def draw_dot(self, value: bool) -> None:
         self._draw_dot = value
+
+
+def apply_offset(
+    recording: NeonRecording,
+    gazes: np.ndarray,
+    offset: tuple[float, float]
+) -> np.ndarray:
+    exit_conditions = [
+        recording is None,
+        recording.scene.width is None,
+        recording.scene.height is None
+    ]
+    if any(exit_conditions):
+        return gazes
+
+    offset_x, offset_y = offset
+    offset_pixels = np.array([
+        offset_x * recording.scene.width,
+        offset_y * recording.scene.height,
+    ])
+    return gazes + offset_pixels
+
+
+def _prepare_gaze_export(
+    recording: NeonRecording,
+    worn_data: WornTimeseries | None,
+    export_window: tuple[int, int],
+    gaze_offset: tuple[float, float],
+) -> pd.DataFrame:
+    start_time, stop_time = export_window
+    start_mask = recording.gaze.time >= start_time
+    stop_mask = recording.gaze.time <= stop_time
+
+    export_gazes = recording.gaze[start_mask & stop_mask]
+    if not len(export_gazes):
+        return pd.DataFrame()
+
+    export_gaze_points = apply_offset(recording, export_gazes.point, gaze_offset)
+
+    scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(recording)
+    spherical_coords = cart_to_spherical(
+        unproject_points(
+            export_gaze_points,
+            scene_camera_matrix,
+            scene_distortion_coefficients,
+        )
+    )
+
+    gaze = pd.DataFrame({
+        "recording id": recording.info["recording_id"],
+        "timestamp [ns]": export_gazes.time,
+        "gaze x [px]": export_gaze_points[:, 0],
+        "gaze y [px]": export_gaze_points[:, 1],
+        "azimuth [deg]": spherical_coords[2],
+        "elevation [deg]": spherical_coords[1],
+    })
+    if worn_data:
+        export_worn = worn_data[start_mask & stop_mask]
+        gaze["worn"] = export_worn.worn / 255
+
+    try:
+        matched_fixation_ids = (
+            find_ranged_index(
+                export_gazes.time,
+                recording.fixations.start_time,
+                recording.fixations.stop_time,
+            )
+            + 1
+        )
+        gaze["fixation id"] = matched_fixation_ids
+        gaze["fixation id"] = gaze["fixation id"].replace(0, None)
+    except Exception:
+        logging.warning("Failed to match fixations")
+
+    try:
+        matched_blink_ids = (
+            find_ranged_index(
+                export_gazes.time,
+                recording.blinks.start_time,
+                recording.blinks.stop_time,
+            )
+            + 1
+        )
+        gaze["blink id"] = matched_blink_ids
+        gaze["blink id"] = gaze["blink id"].replace(0, None)
+    except Exception:
+        logging.warning("Failed to match blinks")
+
+    return gaze

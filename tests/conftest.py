@@ -26,6 +26,8 @@ def mock_neon_recording(tmp_path):
                 mock_value = EventTimeseries(recording=rec, data=value)
             elif key == "scene":
                 mock_value = SceneVideoTimeseries(recording=rec, data=value)
+                type(mock_value).width = 1600
+                type(mock_value).height = 1200
 
             setattr(type(rec), key, PropertyMock(return_value=mock_value))
 
