@@ -11,6 +11,10 @@
 
 # Run from source
 
+Keep a checkout of `pyside6-docking` beside this repository (at
+`../pyside6-docking`). `uv sync` installs it as an editable development dependency.
+The supported Python versions are 3.11 through 3.14.
+
 ```bash
 uv venv .venv
 source .venv/bin/activate # on Windows use `.venv/Scripts/activate`

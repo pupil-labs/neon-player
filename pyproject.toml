@@ -4,7 +4,7 @@ description = ""
 authors = [{ name = "Pupil Labs GmbH", email = "info@pupil-labs.com" }]
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = ">=3.11, <4.0"
+requires-python = ">=3.11, <3.15"
 keywords = []
 dynamic = ["version"]
 classifiers = [
@@ -33,6 +33,7 @@ dependencies = [
     "pyobjc; sys_platform == 'darwin'",
     "pyqtgraph>=0.13.7",
     "pyside6>=6.10.2",
+    "pyside6-docking>=0.1.0.dev0",
     "qt-property-widgets>=0.9.1",
     "scipy>=1.15.2",
     "setuptools>=78.1.0",
@@ -85,6 +86,9 @@ dev-dependencies = [
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]
 build-backend = "hatchling.build"
+
+[tool.uv.sources]
+pyside6-docking = { path = "../pyside6-docking", editable = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

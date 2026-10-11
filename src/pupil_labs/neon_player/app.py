@@ -154,6 +154,7 @@ class NeonPlayerApp(QApplication):
             os.chdir(Path.home())
 
         self.aboutToQuit.connect(self.unload)
+        self.aboutToQuit.connect(self.main_window.video_workspace.dispose)
 
     def run_jobs(self, job):
         plugin_name, action_name = job[0].split(".")

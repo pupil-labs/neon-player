@@ -42,6 +42,7 @@ from PySide6.QtWidgets import (
 )
 from qt_property_widgets.expander import ExpanderList
 from qt_property_widgets.widgets import PropertyForm
+from pyside6_docking import DockFeatures, DockManager, DockWidget
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
@@ -428,6 +429,11 @@ class MainWindow(QMainWindow):
         self.splash_widget.recent_button.clicked.connect(self.on_show_recent_action)
 
         self.video_widget = VideoRenderWidget()
+        self.video_workspace = DockManager(self)
+        self.scene_panel = DockWidget(
+            "scene-video", "Scene video", self.video_widget, features=DockFeatures.NONE
+        )
+        self.video_workspace.add_dock(self.scene_panel)
 
         self.recent_widget = RecentWidget()
         self.recent_widget.back_button.clicked.connect(self.on_show_splash_action)
@@ -436,7 +442,7 @@ class MainWindow(QMainWindow):
         central_widget = QWidget(self)
         central_widget.setLayout(self.greeting_switcher)
         self.greeting_switcher.addWidget(self.splash_widget)
-        self.greeting_switcher.addWidget(self.video_widget)
+        self.greeting_switcher.addWidget(self.video_workspace)
         self.greeting_switcher.addWidget(self.recent_widget)
         self.setCentralWidget(central_widget)
 
