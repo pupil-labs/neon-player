@@ -537,6 +537,8 @@ class MainWindow(QMainWindow):
         self.status_label.clicked.connect(self.console_window.show)
 
     def reset_docks(self):
+        self.video_workspace.reset_layout()
+        neon_player.instance().save_settings(force=True)
         docks_and_areas = {
             self.timeline_dock: Qt.DockWidgetArea.BottomDockWidgetArea,
             self.settings_dock: Qt.DockWidgetArea.RightDockWidgetArea,

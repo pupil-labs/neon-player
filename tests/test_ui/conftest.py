@@ -76,6 +76,7 @@ def run_player(tmp_path):
                 app.recording_settings.enabled_plugins = {}
                 app.recording_settings.plugins_changed.connect(app.toggle_plugins_by_settings)
                 window.on_recording_loaded(recording)
+                window.timeline.on_recording_loaded(recording)
                 window.on_recording_opened()
                 try:
                     pass

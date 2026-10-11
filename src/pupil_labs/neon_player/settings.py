@@ -30,6 +30,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
         super().__init__()
         self._skip_gray_frames_on_load = True
         self._show_fps = False
+        self._video_workspace_layout: dict = {}
 
         plugin_names = [k.__name__ for k in Plugin.known_classes]
         plugin_names.sort()
@@ -41,6 +42,15 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
             "EventsPlugin": True,
             "ExportAllPlugin": True,
         })
+
+    @property
+    @property_params(widget=None)
+    def video_workspace_layout(self) -> dict:
+        return self._video_workspace_layout
+
+    @video_workspace_layout.setter
+    def video_workspace_layout(self, value: dict) -> None:
+        self._video_workspace_layout = value.copy() if isinstance(value, dict) else {}
 
     @property
     def skip_gray_frames_on_load(self) -> bool:

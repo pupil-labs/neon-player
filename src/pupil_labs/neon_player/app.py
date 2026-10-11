@@ -137,6 +137,10 @@ class NeonPlayerApp(QApplication):
         except Exception:
             logging.exception("Failed to load settings")
 
+        self.main_window.video_workspace.load_preference(self.settings.video_workspace_layout)
+        if not self.headless:
+            SlotDebouncer.debounce(self.main_window.video_workspace.layout_changed, self.save_settings)
+
         try:
             self.recording_history = RecordingHistory.from_dict(self.load_recording_history())
         except FileNotFoundError:
@@ -199,6 +203,8 @@ class NeonPlayerApp(QApplication):
             return
 
         try:
+            if not self.headless:
+                self.settings.video_workspace_layout = self.main_window.video_workspace.save_preference()
             settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
             settings_path.parent.mkdir(parents=True, exist_ok=True)
             data = self.settings.to_dict()

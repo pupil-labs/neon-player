@@ -1,13 +1,23 @@
 """Video panel registration and ownership shared by Neon Player plugins."""
 
 from collections.abc import Callable
+from copy import deepcopy
+import logging
 from dataclasses import dataclass
 from typing import cast
 
 from PySide6.QtCore import QRectF, QTimer
 from PySide6.QtGui import QShowEvent
 from PySide6.QtWidgets import QWidget
-from pyside6_docking import DockFeatures, DockManager, DockPosition, DockWidget
+from pyside6_docking import (
+    DockError,
+    DockFeatures,
+    DockManager,
+    DockPosition,
+    DockWidget,
+)
+
+from .workspace_layout import layout_ids, reconcile_layout
 
 
 @dataclass
@@ -15,6 +25,9 @@ class _Panel:
     dock: DockWidget
     on_close: Callable[[], None]
     initial_overlay: QRectF | None = None
+    position: DockPosition = DockPosition.RIGHT
+    relative_to: str = "scene-video"
+    default_overlay: QRectF | None = None
 
 
 class VideoWorkspace(DockManager):
@@ -25,7 +38,12 @@ class VideoWorkspace(DockManager):
         )
         self.add_dock(self.scene_panel)
         self._panels: dict[str, _Panel] = {}
+        self._remembered: dict = {}
+        self._changing = False
+        self._restore_pending = False
+        self._preference_disposed = False
         self.dock_removed.connect(self._on_panel_removed)
+        self.layout_changed.connect(self._remember_layout)
 
     def register_panel(
         self,
@@ -45,13 +63,21 @@ class VideoWorkspace(DockManager):
         target = self.get_dock(relative_to)
         if target is None:
             raise ValueError(f"Unknown placement target: {relative_to}")
-        dock = DockWidget(panel_id, title, content, features=features)
-        self.add_dock(dock, position, relative_to=target)
-        self._panels[panel_id] = _Panel(dock, on_close, overlay)
-        if overlay is not None:
-            self.overlay_dock(panel_id, relative_to)
-            if self.isVisible():
-                self._apply_initial_overlays()
+        self._remember_layout()
+        self._changing = True
+        try:
+            dock = DockWidget(panel_id, title, content, features=features)
+            self.add_dock(dock, position, relative_to=target)
+            self._panels[panel_id] = _Panel(
+                dock, on_close, overlay, position, relative_to, overlay
+            )
+            if overlay is not None:
+                self.overlay_dock(panel_id, relative_to)
+        finally:
+            self._changing = False
+        self._restore_pending = True
+        if self.isVisible():
+            self._apply_initial_overlays()
         return dock
 
     def showEvent(self, event: QShowEvent) -> None:
@@ -63,9 +89,13 @@ class VideoWorkspace(DockManager):
     def _apply_initial_overlays(self) -> None:
         if not self.isVisible():
             return
-        pending = {panel_id: panel for panel_id, panel in self._panels.items()
-                   if panel.initial_overlay is not None}
+        pending = {
+            panel_id: panel
+            for panel_id, panel in self._panels.items()
+            if panel.initial_overlay is not None
+        }
         if not pending:
+            self._restore_preference()
             return
         # Use the public schema-2 restore contract; plugin code never needs to
         # manipulate framework-created widgets or share layout ownership.
@@ -75,21 +105,112 @@ class VideoWorkspace(DockManager):
             panel = pending.get(str(placement["dock_id"]))
             if panel is not None and panel.initial_overlay is not None:
                 rect = panel.initial_overlay
-                placement.update(x=rect.x(), y=rect.y(),
-                                 width=rect.width(), height=rect.height())
-        self.restore_layout(layout)
-        for panel in pending.values():
-            panel.initial_overlay = None
+                placement.update(
+                    x=rect.x(), y=rect.y(), width=rect.width(), height=rect.height()
+                )
+        self._changing = True
+        try:
+            self.restore_layout(layout)
+            for panel in pending.values():
+                panel.initial_overlay = None
+        finally:
+            self._changing = False
+        self._restore_preference()
+
+    def load_preference(self, layout: dict) -> None:
+        """Accept global settings without activating any plugin."""
+        self._remembered = deepcopy(layout)
+        self._restore_pending = True
+        if self.isVisible():
+            self._apply_initial_overlays()
+
+    def save_preference(self) -> dict:
+        """Capture live geometry while retaining temporarily absent panels."""
+        if not self._preference_disposed:
+            self._remember_layout()
+        return deepcopy(self._remembered)
+
+    def _remember_layout(self) -> None:
+        if self._changing or self._restore_pending or self._preference_disposed:
+            return
+        live = self.save_layout()
+        try:
+            self._remembered = (
+                reconcile_layout(
+                    live,
+                    self._remembered,
+                    layout_ids(live) | layout_ids(self._remembered),
+                )
+                if self._remembered
+                else live
+            )
+        except (
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            OverflowError,
+            RecursionError,
+        ):
+            self._remembered = live
+
+    def _restore_preference(self) -> None:
+        if not self._restore_pending:
+            return
+        self._changing = True
+        try:
+            if self._remembered:
+                defaults = self.save_layout()
+                restored = reconcile_layout(
+                    self._remembered, defaults, layout_ids(defaults)
+                )
+                self.restore_layout(restored)
+        except (
+            DockError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            OverflowError,
+            RecursionError,
+        ) as error:
+            logging.warning("Using default video workspace layout: %s", error)
+            self._remembered = {}
+        finally:
+            self._changing = False
+            self._restore_pending = False
+        self._remember_layout()
+
+    def reset_layout(self) -> None:
+        """Reset live panels and discard preferences for absent panels."""
+        self._remembered = {}
+        self._restore_pending = False
+        self._changing = True
+        try:
+            for panel_id, panel in self._panels.items():
+                self.dock(panel_id, panel.position, relative_to=panel.relative_to)
+                if panel.default_overlay is not None:
+                    self.overlay_dock(panel_id, panel.relative_to)
+                    panel.initial_overlay = panel.default_overlay
+        finally:
+            self._changing = False
+        self._apply_initial_overlays()
+        self._remember_layout()
 
     def unregister_panel(self, panel_id: str) -> None:
         """Remove a plugin panel without interpreting teardown as user close."""
+        self._remember_layout()
         panel = self._panels.pop(panel_id, None)
         if panel is None:
             return
-        if self.get_dock(panel_id) is not None:
-            self.remove_dock(panel_id)
-        panel.dock.dispose()
-        panel.dock.deleteLater()
+        self._changing = True
+        try:
+            if self.get_dock(panel_id) is not None:
+                self.remove_dock(panel_id)
+            panel.dock.dispose()
+            panel.dock.deleteLater()
+        finally:
+            self._changing = False
 
     def _on_panel_removed(self, panel_id: str) -> None:
         panel = self._panels.get(panel_id)
@@ -106,5 +227,8 @@ class VideoWorkspace(DockManager):
         QTimer.singleShot(0, self, notify_owner)
 
     def dispose(self) -> None:
+        if not self._preference_disposed:
+            self._remember_layout()
+        self._preference_disposed = True
         self._panels.clear()
         super().dispose()
