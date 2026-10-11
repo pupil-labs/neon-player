@@ -184,5 +184,5 @@ class VideoRenderWidget(ScalingWidget):
         painter = QPainter(self)
         self.transform_painter(painter)
 
-        neon_player.instance().render_to(painter)
+        neon_player.instance().render_to(painter, for_display=True)
         painter.end()

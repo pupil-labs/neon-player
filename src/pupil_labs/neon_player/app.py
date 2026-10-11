@@ -535,7 +535,9 @@ class NeonPlayerApp(QApplication):
         scene_idx = match_ts([t], self.recording.scene.time, method, tolerance)[0]
         return -1 if np.isnan(scene_idx) else scene_idx
 
-    def render_to(self, painter: QPainter, ts: int | None = None) -> None:
+    def render_to(
+        self, painter: QPainter, ts: int | None = None, *, for_display: bool = False
+    ) -> None:
         if ts is None:
             ts = self.current_ts
 
@@ -547,7 +549,10 @@ class NeonPlayerApp(QApplication):
         )
 
         for plugin in self.plugins:
-            plugin.render(painter, ts)
+            if for_display:
+                plugin.render_for_display(painter, ts)
+            else:
+                plugin.render(painter, ts)
             painter.setBrush(brush)
             painter.setPen(pen)
             painter.setFont(font)

@@ -107,6 +107,9 @@ class Plugin(PersistentPropertiesMixin, QObject):
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         pass
 
+    def render_for_display(self, painter: QPainter, time_in_recording: int) -> None:
+        self.render(painter, time_in_recording)
+
     def on_disabled(self) -> None:
         pass
 

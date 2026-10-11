@@ -42,7 +42,6 @@ from PySide6.QtWidgets import (
 )
 from qt_property_widgets.expander import ExpanderList
 from qt_property_widgets.widgets import PropertyForm
-from pyside6_docking import DockFeatures, DockManager, DockWidget
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
@@ -51,6 +50,7 @@ from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
+from pupil_labs.neon_player.ui.video_workspace import VideoWorkspace
 from pupil_labs.neon_player.utilities import SlotDebouncer
 from pupil_labs.neon_recording import NeonRecording
 
@@ -429,11 +429,8 @@ class MainWindow(QMainWindow):
         self.splash_widget.recent_button.clicked.connect(self.on_show_recent_action)
 
         self.video_widget = VideoRenderWidget()
-        self.video_workspace = DockManager(self)
-        self.scene_panel = DockWidget(
-            "scene-video", "Scene video", self.video_widget, features=DockFeatures.NONE
-        )
-        self.video_workspace.add_dock(self.scene_panel)
+        self.video_workspace = VideoWorkspace(self.video_widget, self)
+        self.scene_panel = self.video_workspace.scene_panel
 
         self.recent_widget = RecentWidget()
         self.recent_widget.back_button.clicked.connect(self.on_show_splash_action)

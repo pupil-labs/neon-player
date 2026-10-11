@@ -114,7 +114,8 @@ def test_scene_video_workspace_keeps_application_navigation(tmp_path):
                 window.video_widget.source_size, window.video_widget.scale,
                 window.video_widget.offset,
             )
-            assert pixel_at_scene(40, 30) == "#ffffff"  # legacy eye overlay
+            # Eye presentation now belongs to its plugin panel, not this scene.
+            assert pixel_at_scene(40, 30) == "#ff0000"
             app.current_ts = 30_000_000
             window.set_time_in_recording(app.current_ts)
             app.processEvents()

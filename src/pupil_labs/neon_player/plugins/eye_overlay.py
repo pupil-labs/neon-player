@@ -1,19 +1,11 @@
-from enum import Flag, auto
-
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF
 from PySide6.QtGui import QColor, QPainter
 from qt_property_widgets.utilities import property_params
 
 from pupil_labs import neon_player
+from pupil_labs.neon_player.ui.eye_video_widget import EyeVideoWidget
 from pupil_labs.neon_player.utilities import qimage_from_frame
-
-
-class ModifyDirection(Flag):
-    TOP = auto()
-    RIGHT = auto()
-    BOTTOM = auto()
-    LEFT = auto()
-    MOVE = auto()
+from pupil_labs.neon_recording import NeonRecording
 
 
 class EyeOverlayPlugin(neon_player.Plugin):
@@ -21,145 +13,57 @@ class EyeOverlayPlugin(neon_player.Plugin):
 
     def __init__(self) -> None:
         super().__init__()
-
         self.render_layer = 9
-
         self._offset_x = 0.02
         self._offset_y = 0.02
         self._scale = 1.0
         self._opacity = 1.0
-
         self._border_width = 3
         self._border_color = QColor("#aaaaaa")
+        self._eye_video: EyeVideoWidget | None = None
 
-        self._mouse_mode = ModifyDirection(0)
-        self._drag_position = None
-        self.start_geometry = QRectF()
-        self.video_widget = self.app.main_window.video_widget
-        self.video_widget.mouse_moved.connect(self.on_mouse_moved)
-        self.video_widget.mouse_pressed.connect(self.on_mouse_pressed)
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
+        if self.app.headless or recording.eye is None:
+            return
+        eye_width, eye_height = recording.eye.width, recording.eye.height
+        scene_width, scene_height = recording.scene.width, recording.scene.height
+        if not eye_width or not eye_height or not scene_width or not scene_height:
+            return
+        self._eye_video = EyeVideoWidget()
+        width = min(0.9, eye_width / scene_width)
+        height = min(0.9, eye_height / scene_height + 0.08)
+        self.app.main_window.video_workspace.register_panel(
+            "eye-video", "Eye video", self._eye_video,
+            on_close=self._on_panel_closed,
+            overlay=QRectF(0.02, 0.02, width, height),
+        )
+        self.app.position_changed.connect(self._update_eye_video)
+        self._update_eye_video(self.app.current_ts)
 
-    def on_mouse_pressed(self, event) -> None:
-        self._drag_position = self.video_widget.map_point(event.pos())
-        self.start_geometry = self.get_rect()
+    def _update_eye_video(self, ts: int) -> None:
+        if self._eye_video is not None:
+            self._eye_video.set_frame(self.recording, ts)
 
-    def on_mouse_moved(self, event) -> None:
-        if event.buttons() == Qt.LeftButton:
-            self.on_drag(event)
-        else:
-            self.on_hover(event)
+    def _on_panel_closed(self) -> None:
+        if self.app.plugins_by_class.get(self.__class__.__name__) is not self:
+            return
+        settings = self.app.recording_settings
+        settings.enabled_plugins = {
+            **settings.enabled_plugins, self.__class__.__name__: False,
+        }
 
-    def align(self, rect, corner):
-        v = getattr(self.start_geometry, corner)()
-        getattr(rect, f"move{corner.title()}")(v)
+    def on_disabled(self) -> None:
+        if self._eye_video is None:
+            return
+        self.app.position_changed.disconnect(self._update_eye_video)
+        self.app.main_window.video_workspace.unregister_panel("eye-video")
+        self._eye_video.deleteLater()
+        self._eye_video = None
 
-    def on_drag(self, event) -> None:
-        mapped_pos = self.video_widget.map_point(event.pos())
-        offset = mapped_pos - self._drag_position
-
-        scene = self.recording.scene
-        eye = self.recording.eye
-
-        if self._mouse_mode == ModifyDirection.MOVE:
-            proposed_x = self.offset_x + offset.x() / scene.width
-            proposed_y = self.offset_y + offset.y() / scene.height
-
-            max_x = 1 - (self._scale * eye.width) / scene.width
-            max_y = 1 - (self._scale * eye.height) / scene.height
-
-            proposed_x = max(0, min(max_x, proposed_x))
-            proposed_y = max(0, min(max_y, proposed_y))
-
-            self.offset_x = proposed_x
-            self.offset_y = proposed_y
-            self._drag_position = mapped_pos
-
-        else:
-            rect = QRectF(self.start_geometry)
-            fix_y = False
-
-            aligns = []
-            if self._mouse_mode & ModifyDirection.LEFT:
-                aligns.append("right")
-                rect.setLeft(max(0, rect.left() + offset.x()))
-                fix_y = True
-            elif self._mouse_mode & ModifyDirection.RIGHT:
-                aligns.append("left")
-                fix_y = True
-                rect.setRight(min(scene.width, rect.right() + offset.x()))
-
-            if self._mouse_mode & ModifyDirection.TOP:
-                aligns.append("bottom")
-                rect.setTop(max(0, rect.top() + offset.y()))
-            elif self._mouse_mode & ModifyDirection.BOTTOM:
-                aligns.append("top")
-                rect.setBottom(min(scene.height, rect.bottom() + offset.y()))
-
-            if fix_y:
-                max_scale = (scene.height - rect.top()) / eye.height
-                self.scale = min(max_scale, max(0.2, rect.width() / eye.width))
-                rect.setHeight(self.scale * eye.height)
-            else:
-                max_scale = (scene.width - rect.left()) / eye.width
-                self.scale = min(max_scale, max(0.2, rect.height() / eye.height))
-                rect.setWidth(self.scale * eye.width)
-
-            for a in aligns:
-                self.align(rect, a)
-
-            self.offset_x = rect.left() / scene.width
-            self.offset_y = rect.top() / scene.height
-
-        self.changed.emit()
-        self.video_widget.update()
-
-    def on_hover(self, event) -> None:
-        edge_margin = 20
-
-        pos = self.video_widget.map_point(event.pos())
-        rect = self.get_rect()
-
-        if rect.contains(pos):
-            self._mouse_mode = ModifyDirection(0)
-            if pos.x() < rect.left() + edge_margin:
-                self._mouse_mode |= ModifyDirection.LEFT
-            elif pos.x() > rect.right() - edge_margin:
-                self._mouse_mode |= ModifyDirection.RIGHT
-
-            if pos.y() < rect.top() + edge_margin:
-                self._mouse_mode |= ModifyDirection.TOP
-            elif pos.y() > rect.bottom() - edge_margin:
-                self._mouse_mode |= ModifyDirection.BOTTOM
-
-            if self._mouse_mode == ModifyDirection(0):
-                self._mouse_mode = ModifyDirection.MOVE
-        else:
-            self._mouse_mode = ModifyDirection(0)
-
-        self._update_cursor()
-
-    def _update_cursor(self):
-        if self._mouse_mode == ModifyDirection(0):
-            self.video_widget.unsetCursor()
-
-        else:
-            tl = self._mouse_mode == (ModifyDirection.TOP | ModifyDirection.LEFT)
-            br = self._mouse_mode == (ModifyDirection.BOTTOM | ModifyDirection.RIGHT)
-            tr = self._mouse_mode == (ModifyDirection.TOP | ModifyDirection.RIGHT)
-            bl = self._mouse_mode == (ModifyDirection.BOTTOM | ModifyDirection.LEFT)
-
-            if tl or br:
-                self.video_widget.setCursor(Qt.SizeFDiagCursor)
-            elif tr or bl:
-                self.video_widget.setCursor(Qt.SizeBDiagCursor)
-            elif self._mouse_mode in (ModifyDirection.LEFT, ModifyDirection.RIGHT):
-                self.video_widget.setCursor(Qt.SizeHorCursor)
-            elif self._mouse_mode in (ModifyDirection.TOP, ModifyDirection.BOTTOM):
-                self.video_widget.setCursor(Qt.SizeVerCursor)
-            else:
-                self.video_widget.setCursor(Qt.SizeAllCursor)
-
-        self.video_widget.update()
+    def render_for_display(self, painter: QPainter, time_in_recording: int) -> None:
+        # The eye panel owns onscreen presentation. render() remains the legacy
+        # export composition, independent of the workspace arrangement.
+        pass
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         if self.recording is None:
@@ -196,14 +100,6 @@ class EyeOverlayPlugin(neon_player.Plugin):
             image,
         )
 
-        if self._mouse_mode != ModifyDirection(0):
-            pen = painter.pen()
-            pen.setWidth(7)
-            pen.setColor("#6D7BE0")
-            painter.setPen(pen)
-            painter.setBrush(Qt.GlobalColor.transparent)
-            painter.drawRect(self.get_rect().adjusted(0, 0, -1, -1))
-
         painter.setOpacity(1.0)
 
     def get_rect(self) -> QRectF:
@@ -215,7 +111,7 @@ class EyeOverlayPlugin(neon_player.Plugin):
         )
 
     @property
-    @property_params(widget=None)
+    @property_params(label="Export horizontal position", min=0, max=1, step=0.01)
     def offset_x(self) -> float:
         return self._offset_x
 
@@ -224,7 +120,7 @@ class EyeOverlayPlugin(neon_player.Plugin):
         self._offset_x = value
 
     @property
-    @property_params(widget=None)
+    @property_params(label="Export vertical position", min=0, max=1, step=0.01)
     def offset_y(self) -> float:
         return self._offset_y
 
@@ -233,7 +129,7 @@ class EyeOverlayPlugin(neon_player.Plugin):
         self._offset_y = value
 
     @property
-    @property_params(widget=None)
+    @property_params(label="Export scale", min=0.2, max=10, step=0.1)
     def scale(self) -> float:
         return self._scale
 
@@ -242,7 +138,7 @@ class EyeOverlayPlugin(neon_player.Plugin):
         self._scale = value
 
     @property
-    @property_params(min=0, max=1, step=0.01, decimals=3)
+    @property_params(label="Export opacity", min=0, max=1, step=0.01, decimals=3)
     def opacity(self) -> float:
         return self._opacity
 
@@ -251,7 +147,7 @@ class EyeOverlayPlugin(neon_player.Plugin):
         self._opacity = value
 
     @property
-    @property_params(min=0, max=100)
+    @property_params(label="Export border width", min=0, max=100)
     def border_width(self) -> int:
         return self._border_width
 
@@ -260,6 +156,7 @@ class EyeOverlayPlugin(neon_player.Plugin):
         self._border_width = value
 
     @property
+    @property_params(label="Export border color")
     def border_color(self) -> QColor:
         return self._border_color
 
