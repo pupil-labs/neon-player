@@ -1,6 +1,7 @@
 from PySide6.QtCore import QPointF, QRectF
 from PySide6.QtGui import QColor, QPainter
 from qt_property_widgets.utilities import property_params
+from pyside6_docking import DockFeatures
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.ui.eye_video_widget import EyeVideoWidget
@@ -35,6 +36,7 @@ class EyeOverlayPlugin(neon_player.Plugin):
         self.app.main_window.video_workspace.register_panel(
             "eye-video", "Eye video", self._eye_video,
             on_close=self._on_panel_closed,
+            features=DockFeatures.ALL,
             overlay=QRectF(0.02, 0.02, width, height),
         )
         self.app.position_changed.connect(self._update_eye_video)

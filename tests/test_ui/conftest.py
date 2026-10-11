@@ -34,9 +34,15 @@ def run_player(tmp_path):
                 width, height = 640, 480
                 time = np.array([0, 30_000_000], dtype=np.int64)
 
+                def __len__(self):
+                    return len(self.time)
+
+                def __getitem__(self, index):
+                    return SimpleNamespace(time=int(self.time[index]))
+
                 def sample(self, timestamps, method="backward"):
                     return [SimpleNamespace(
-                        bgr=np.full((480, 640, 3), (0, 0, 255), dtype=np.uint8),
+                        bgr=np.full((480, 640, 3), (0, 0, 255) if timestamps[0] == 0 else (0, 255, 0), dtype=np.uint8),
                         width=640, height=480, idx=0,
                     )]
 
@@ -82,6 +88,6 @@ def run_player(tmp_path):
             capture_output=True, text=True, timeout=45,
             env={**os.environ, "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"]},
         )
-        assert result.returncode == 0, result.stdout + result.stderr
+        assert result.returncode == 0 and "Traceback (most recent call last)" not in result.stderr, result.stdout + result.stderr
 
     return run

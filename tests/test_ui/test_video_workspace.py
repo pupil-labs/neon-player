@@ -97,6 +97,9 @@ def test_scene_video_workspace_keeps_application_navigation(tmp_path):
                 widget = window.video_widget
                 widget.repaint()
                 QTest.qWait(50)
+                window.activateWindow()
+                window.raise_()
+                assert QTest.qWaitForWindowActive(window)
                 image = window.screen().grabWindow(window.winId()).toImage()
                 assert not image.isNull()
                 ratio = image.devicePixelRatio()

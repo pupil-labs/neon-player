@@ -726,6 +726,10 @@ class MainWindow(QMainWindow):
 
         if shortcut is not None:
             action.setShortcut(shortcut)
+            if menu_path.replace("&", "") == "Playback":
+                # Reuse playback actions with floating video-window focus,
+                # including actions registered later by plugins.
+                action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
 
         if on_triggered is not None:
             action.triggered.connect(on_triggered)
