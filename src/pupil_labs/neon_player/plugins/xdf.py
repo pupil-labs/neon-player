@@ -65,13 +65,8 @@ def parse_markers(xdf_dict: dict) -> dict[str, list[float]]:
         if name not in markers:
             markers[name] = []
 
-        try:
-            timestamp = float(ts)
-            markers[name].append(timestamp)
-        except ValueError:
-            logging.warning(
-                f"Could not parse marker timestamp {ts}, skipping the marker {marker}"
-            )
+        timestamp = float(ts)
+        markers[name].append(timestamp)
     return markers
 
 
@@ -80,7 +75,6 @@ def get_fs_from_timestamps(timestamps: np.ndarray) -> float:
         return 0.0
 
     dt = np.diff(timestamps)
-    dt = dt[np.isfinite(dt) & (dt > 0)]
     return 1.0 / float(np.median(dt)) if len(dt) > 0 else 0.0
 
 
@@ -1087,7 +1081,7 @@ class XDFPlugin(Plugin):
             logging.info(f"Neon: '{name}' @ {neon_ts}")
 
         logging.info("--- XDF MARKERS ---")
-        if not self.marker_stream or not self.marker_stream.loaded:
+        if not self.marker_stream or not self.marker_stream.markers:
             logging.info("No XDF markers are present")
             return
 

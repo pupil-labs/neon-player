@@ -90,6 +90,34 @@ def test_xdf_stream_from_xdf_dict_parse_data_fallback_channel_names():
     assert xdf_stream.channel_names == ["Ch1"]
 
 
+def test_marker_xdf_stream_load_save(tmp_path):
+    xdf_dict = {
+        "info": MOCK_XDF_MARKER_STREAM_INFO,
+        **MOCK_XDF_MARKERS
+    }
+    xdf_stream = MarkerXDFStream.from_xdf_dict(xdf_dict)
+
+    cache_path = tmp_path / "xdf_markers.json"
+    xdf_stream.save_markers(cache_path)
+    xdf_stream.load_markers(cache_path)
+    assert len(xdf_stream.markers) == 2
+
+
+def test_data_xdf_stream_load_save(tmp_path):
+    xdf_dict = {
+        "info": MOCK_XDF_DATA_STREAM_INFO,
+        "time_stamps": np.array([1.0, 2.0, 3.0]),
+        "time_series": np.array([0.0, 1.0, 0.0]),
+    }
+    xdf_stream = DataXDFStream.from_xdf_dict(xdf_dict)
+
+    cache_path = tmp_path / "xdf_data.npz"
+    xdf_stream.save_data(cache_path)
+    xdf_stream.load_data(cache_path)
+    assert xdf_stream.data.shape == (3, 1)
+    assert xdf_stream.timestamps.size == 3
+
+
 @pytest.mark.parametrize(
     "info, key, default, expected", [
         ({}, "key", 1, 1),
