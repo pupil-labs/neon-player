@@ -40,7 +40,7 @@ def mock_neon_recording(tmp_path):
                 mock_class = FIELD_CLASS_MAPPING[key]
                 mock_value = mock_class(recording=rec, data=value)
 
-            # Setup mock video resolution            
+            # Setup mock video resolution
             if key == "scene":
                 type(mock_value).width = 1600
                 type(mock_value).height = 1200
