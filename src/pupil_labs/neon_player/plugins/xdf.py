@@ -146,13 +146,13 @@ class XDFStream(PersistentPropertiesMixin):
         return state
 
     def parse_info(self, info: dict[str, list[Any]]) -> None:
-        self.xdf_id = int(first(info, "id", -1))
-        self._uid = str(first(info, "uid", uuid.uuid4()))
+        self.xdf_id = int(first(info, "stream_id", -1))
+        self.uid = str(first(info, "uid", uuid.uuid4()))
         # NOTE: according to the specification, the 'name' attribute is not mandatory
         # but should be present most of the times for interpretability purposes
-        self._name = str(first(info, "name", "<No name>"))
-        self._type = str(first(info, "type", "")).strip()
-        self._fs = int(first(info, "nominal_rate", 0))
+        self.name = str(first(info, "name", "<No name>"))
+        self.type = str(first(info, "type", "")).strip()
+        self.fs = float(first(info, "nominal_srate", 0.0))
         self.channel_count = int(first(info, "channel_count", -1))
         self.channel_format = str(first(info, "channel_format", "")).strip().lower()
 

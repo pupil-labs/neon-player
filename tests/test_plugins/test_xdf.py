@@ -1,6 +1,8 @@
 import pytest
 
 from pupil_labs.neon_player.plugins.xdf import (
+    DataXDFStream,
+    MarkerXDFStream,
     XDFStream,
     apply_offset,
     estimate_offset_ns,
@@ -8,31 +10,54 @@ from pupil_labs.neon_player.plugins.xdf import (
 )
 
 
-# All values are wrapped in the list in the output of pyxdf.load_xdf
+# Original values are wrapped in the list in the output of pyxdf.load_xdf
 MOCK_XDF_DATA_STREAM_INFO = {
+    "stream_id": 1,
+    "uid": ["uid"],
     "name": ["Mock XDF stream"],
     "type": ["Gaze"],
+    "nominal_srate": ["250.0"],
+    "channel_count": ["10"],
     "channel_format": ["float32"],
 }
 MOCK_XDF_MARKER_STREAM_INFO = {
+    "stream_id": 1,
+    "uid": ["uid"],
     "name": ["Mock XDF stream"],
     "type": ["Markers"],
+    "nominal_srate": ["0.0"],
+    "channel_count": ["1"],
     "channel_format": ["string"],
 }
 
 
 @pytest.mark.parametrize(
-    "stream_info, stream_type, is_marker_stream", [
-        (MOCK_XDF_DATA_STREAM_INFO, "Gaze", False),
-        (MOCK_XDF_MARKER_STREAM_INFO, "Markers", True)
+    "stream_info, stream_type, fs, channel_count, channel_format", [
+        (MOCK_XDF_DATA_STREAM_INFO, "Gaze", 250.0, 10, "float32"),
+        (MOCK_XDF_MARKER_STREAM_INFO, "Markers", 0.0, 1, "string")
     ]
 )
-def test_xdf_stream_from_xdf_dict(stream_info, stream_type, is_marker_stream):
-    stream = {"info": stream_info}
-    parsed_stream = XDFStream.from_xdf_dict(stream)
-    assert parsed_stream.name == "Mock XDF stream"
-    assert parsed_stream.type == stream_type
-    assert parsed_stream.is_marker_stream == is_marker_stream
+def test_xdf_stream_parse_info(stream_info, stream_type, fs, channel_count, channel_format):
+    xdf_stream = XDFStream()
+    xdf_stream.parse_info(stream_info)
+    assert xdf_stream.xdf_id == 1
+    assert xdf_stream.uid == "uid"
+    assert xdf_stream.name == "Mock XDF stream"
+    assert xdf_stream.type == stream_type
+    assert xdf_stream.fs == fs
+    assert xdf_stream.channel_count == channel_count
+    assert xdf_stream.channel_format == channel_format
+
+
+@pytest.mark.parametrize(
+    "stream_info, expected_type", [
+        (MOCK_XDF_DATA_STREAM_INFO, DataXDFStream),
+        (MOCK_XDF_MARKER_STREAM_INFO, MarkerXDFStream)
+    ]
+)
+def test_xdf_stream_from_xdf_dict_reroute(stream_info, expected_type):
+    xdf_dict = {"info": stream_info}
+    assert isinstance(XDFStream.from_xdf_dict(xdf_dict), expected_type)
 
 
 @pytest.mark.parametrize(
