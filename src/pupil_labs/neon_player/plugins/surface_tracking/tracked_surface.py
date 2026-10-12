@@ -25,7 +25,7 @@ from pupil_labs.neon_player import Plugin, action
 from pupil_labs.neon_player.plugins.gaze import CircleViz, GazeVisualization, apply_offset
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
-from .ui import SurfaceHandle, SurfaceViewWindow
+from .ui import SurfaceHandle
 
 if TYPE_CHECKING:
     from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
@@ -172,7 +172,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
         self._location = None
 
-        self.preview_window = None
         self.handle_widgets = {}
         self.corner_positions = {}
         self.jobs = []
@@ -432,7 +431,9 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
     @preview_options.setter
     def preview_options(self, value: SurfaceViewDisplayOptions) -> None:
+        self._preview_options.changed.disconnect(self.changed.emit)
         self._preview_options = value
+        self._preview_options.changed.connect(self.changed.emit)
 
     def map_points_by_time(self, points, timestamps):
         mapped_points = []
@@ -628,9 +629,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         icon=QIcon.fromTheme("window-new"),
     )
     def view_surface(self) -> None:
-        self.preview_window = SurfaceViewWindow(self)
-        self.preview_window.show()
-        self.preview_window.resize(800, 400)
+        self.view_requested.emit(self)
 
     @action
     @action_params(

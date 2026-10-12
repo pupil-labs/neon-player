@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass
 from typing import cast
 
-from PySide6.QtCore import QRectF, QTimer
+from PySide6.QtCore import QRectF, Qt, QTimer
 from PySide6.QtGui import QShowEvent
 from PySide6.QtWidgets import QWidget
 from pyside6_docking import (
@@ -211,6 +211,36 @@ class VideoWorkspace(DockManager):
             panel.dock.deleteLater()
         finally:
             self._changing = False
+
+    def reveal_panel(self, panel_id: str) -> None:
+        """Reveal and focus a panel without changing its placement or tab order."""
+        dock = self.get_dock(panel_id)
+        if dock is None:
+            raise ValueError(f"Unknown panel: {panel_id}")
+        self.show_dock(panel_id)
+        # The docking API exposes tab activation through its layout snapshot.
+        layout = cast(dict, self.save_layout())
+        target_id = next(
+            (entry["parent_id"] for entry in layout.get("overlays", [])
+             if entry["dock_id"] == panel_id),
+            panel_id,
+        )
+        nodes = [layout["main"], *(entry["root"] for entry in layout["floating"])]
+        while nodes:
+            node = nodes.pop()
+            if node is None:
+                continue
+            if node["type"] == "tabs":
+                if target_id in node["docks"]:
+                    node["active"] = target_id
+                    break
+            else:
+                nodes.extend(node["children"])
+        self.restore_layout(layout)
+        window = dock.window()
+        window.raise_()
+        window.activateWindow()
+        dock.content.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def _on_panel_removed(self, panel_id: str) -> None:
         panel = self._panels.get(panel_id)

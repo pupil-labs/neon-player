@@ -43,7 +43,7 @@ def run_player(tmp_path):
                 def sample(self, timestamps, method="backward"):
                     return [SimpleNamespace(
                         bgr=np.full((480, 640, 3), (0, 0, 255) if timestamps[0] == 0 else (0, 255, 0), dtype=np.uint8),
-                        width=640, height=480, idx=0,
+                        width=640, height=480, idx=0, time=timestamps[0],
                     )]
 
             class EyeFrames:

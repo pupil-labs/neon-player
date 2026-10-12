@@ -159,7 +159,7 @@ class SurfaceViewWidget(VideoRenderWidget):
         painter.end()
 
 
-class SurfaceViewWindow(QSplitter):
+class SurfaceViewPanel(QSplitter):
     def __init__(self, surface: "TrackedSurface") -> None:
         super().__init__()
 
@@ -176,9 +176,6 @@ class SurfaceViewWindow(QSplitter):
         self.options_container_layout.addStretch()
 
         self.addWidget(self.options_container)
-
-        surface.preview_options.changed.connect(surface.changed.emit)
-        surface.changed.connect(self.view_widget.refit_rect)
 
         Plugin.get_instance_by_name("GazeDataPlugin").changed.connect(
             self.view_widget.refit_rect

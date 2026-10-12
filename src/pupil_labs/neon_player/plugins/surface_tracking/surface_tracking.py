@@ -42,6 +42,7 @@ from PySide6.QtWidgets import (
     QWidget
 )
 from qt_property_widgets.utilities import action_params, property_params
+from pyside6_docking import DockFeatures
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action
@@ -54,7 +55,7 @@ from pupil_labs.neon_player.utilities import (
 )
 
 from .tracked_surface import TrackedSurface
-from .ui import MarkerEditWidget
+from .ui import MarkerEditWidget, SurfaceViewPanel
 
 if T.TYPE_CHECKING:
     from pupil_labs.neon_recording.timeseries import GazeTimeseries
@@ -160,9 +161,39 @@ class SurfaceTrackingPlugin(Plugin):
         self.surface_locations: dict[str, list[SurfaceLocation | None]] = {}
 
         self._surfaces: list[TrackedSurface] = []
+        self._surface_views: dict[str, SurfaceViewPanel] = {}
 
         self.marker_edit_widgets: dict[int, MarkerEditWidget] = {}
         self.header_action = ListPropertyAppenderAction("surfaces", "+ Add surface")
+
+    def view_surface(self, surface: TrackedSurface) -> None:
+        if self.app.headless or surface not in self.surfaces:
+            return
+        workspace = self.app.main_window.video_workspace
+        panel_id = f"surface-view:{surface.uid}"
+        if surface.uid in self._surface_views:
+            if workspace.get_dock(panel_id) is not None:
+                workspace.reveal_panel(panel_id)
+                return
+            # A user close may still be waiting for its queued owner callback.
+            self.close_surface_view(surface.uid)
+        view = SurfaceViewPanel(surface)
+        workspace.register_panel(
+            panel_id, f"Surface: {surface.name}", view,
+            on_close=lambda: self.close_surface_view(surface.uid),
+            features=DockFeatures.ALL,
+        )
+        self._surface_views[surface.uid] = view
+        workspace.reveal_panel(panel_id)
+
+    def close_surface_view(self, surface_uid: str) -> None:
+        view = self._surface_views.pop(surface_uid, None)
+        if view is None:
+            return
+        self.app.main_window.video_workspace.unregister_panel(
+            f"surface-view:{surface_uid}"
+        )
+        view.deleteLater()
 
     def on_disabled(self) -> None:
         self.get_timeline().remove_timeline_plot("Marker visibility")
@@ -174,6 +205,8 @@ class SurfaceTrackingPlugin(Plugin):
             marker_widget.hide()
 
         for surface in self._surfaces:
+            self.close_surface_view(surface.uid)
+            surface.view_requested.disconnect(self.view_surface)
             surface.marker_edit_changed.disconnect()
             surface.locations_invalidated.disconnect()
             surface.cleanup_widgets()
@@ -754,6 +787,7 @@ class SurfaceTrackingPlugin(Plugin):
         self._surfaces = value
 
         for surface in new_surfaces:
+            surface.view_requested.connect(self.view_surface)
             if surface.uid == "":
                 surface.uid = str(uuid.uuid4())
 
@@ -785,6 +819,8 @@ class SurfaceTrackingPlugin(Plugin):
                 self._start_bg_surface_locator(surface)
 
         for surface in removed_surfaces:
+            self.close_surface_view(surface.uid)
+            surface.view_requested.disconnect(self.view_surface)
             if surface.edit:
                 for marker_widget in self.marker_edit_widgets.values():
                     marker_widget.hide()
