@@ -75,6 +75,54 @@ def parse_markers(xdf_dict: dict) -> dict[str, list[float]]:
     return markers
 
 
+def get_fs_from_timestamps(timestamps: np.ndarray) -> float:
+    if len(timestamps) < 2:
+        return 0.0
+
+    dt = np.diff(timestamps)
+    dt = dt[np.isfinite(dt) & (dt > 0)]
+    return 1.0 / float(np.median(dt)) if len(dt) > 0 else 0.0
+
+
+def parse_stream_data(
+    xdf_dict: dict,
+) -> tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    """Parse XDF stream data."""
+    if "time_series" not in xdf_dict or "time_stamps" not in xdf_dict:
+        return None, None
+
+    # NOTE: pyxdf returns a data array that has its dtype set according
+    # to the declared channel format, timestamps should be float64
+    data = xdf_dict["time_series"]
+    timestamps = xdf_dict["time_stamps"]
+
+    if data.ndim == 1:
+        data = data.reshape(-1, 1)
+
+    return data, timestamps
+
+
+def parse_channel_names(info: dict) -> Optional[list[str]]:
+    """Parses channel names for data streams.
+
+    Expected location: info > desc > channels > channel (one entry per channel).
+    """
+    desc = first(info, "desc", {})
+    channels = first(desc, "channels", {})
+    ch_list = channels.get("channel", [])
+    if not ch_list:
+        return None
+
+    channel_names = []
+    for i, ch in enumerate(ch_list):
+        channel_names.append(str(first(ch, "label", f"Ch{i+1}")))
+    return channel_names
+
+
+def fallback_channel_names(channel_count: int) -> list[str]:
+    return [f"Ch{i+1}" for i in range(max(0, channel_count))]
+
+
 def estimate_offset_ns(xdf_timestamp: float, neon_timestamp: int) -> int:
     """Estimate the offset that aligns XDF timestamps with the Neon ones."""
     return neon_timestamp - int(xdf_timestamp * 1e9)
@@ -214,6 +262,13 @@ class MarkerXDFStream(XDFStream):
         except Exception as e:
             raise XDFStreamError("Failed to load markers from cache")
 
+    def save_markers(self, marker_cache_file: Path) -> None:
+        try:
+            with marker_cache_file.open("w", encoding="utf-8") as stream_meta_fp:
+                json.dump(self.markers, stream_meta_fp)
+        except Exception as e:
+            logging.warning(f"Failed to save markers for stream {self.display_name}")
+
     @classmethod
     def from_xdf_dict(cls, xdf_dict: dict) -> "MarkerXDFStream":
         stream = cls()
@@ -252,6 +307,11 @@ class DataXDFStream(XDFStream):
         self.data = stream_matrix[:, 1:].astype(np.float32)
         self._loaded = True
 
+    def save_data(self, data_cache_file: Path) -> None:
+        # One NPY per data stream. First column is timestamps.
+        stream_matrix = np.column_stack((self.timestamps, self.data))
+        np.save(str(data_cache_file), stream_matrix.astype(np.float32))
+
     def raise_not_valid(self) -> None:
         super().raise_not_valid()
         if self.data is None:
@@ -263,88 +323,30 @@ class DataXDFStream(XDFStream):
 
         stream = cls()
         stream.parse_info(info)
-        stream.data, stream.timestamps, stream.fs = cls._parse_stream_data(xdf_dict)
+        stream.data, stream.timestamps = parse_stream_data(xdf_dict)
+        stream.channel_names = parse_channel_names(info)
+
+        if stream.data is None or stream.timestamps is None:
+            stream._loaded = True
+            return stream
+
         if stream.timestamps is not None and np.any(np.diff(stream.timestamps) < 0):
             logging.warning(
                 f"Timestamps of the XDF stream {stream.display_name} are not "
                 f"increasingly monotonically, sorting the timestamps"
             )
-            stream.timestamps.sort()
+            order = stream.timestamps.argsort()
+            stream.timestamps = stream.timestamps[order]
+            stream.data = stream.data[order, :]
 
-        parsed_channel_names = cls._parse_channel_names(info)
-        if parsed_channel_names is not None:
-            stream.channel_names = parsed_channel_names
-        else:
-            n_channels = stream.data.shape[1] if stream.data is not None else stream.channel_count
-            stream.channel_names = cls._fallback_channel_names(n_channels)
+        if not np.isfinite(stream.fs) or stream.fs <= 0:
+            stream.fs = get_fs_from_timestamps(stream.timestamps)
+
+        if stream.channel_names is None:
+            stream.channel_names = fallback_channel_names(stream.data.shape[1])
+
         stream._loaded = True
-
         return stream
-
-    @staticmethod
-    def _parse_stream_data(
-        xdf_dict: dict,
-    ) -> tuple[Optional[np.ndarray], Optional[np.ndarray], float]:
-        time_series = xdf_dict.get("time_series")
-        data = DataXDFStream._to_numeric(time_series)
-
-        if data is None:
-            return None, None, 0.0
-
-        timestamps = np.asarray(xdf_dict["time_stamps"], dtype=np.float64)
-        fs = float(first(xdf_dict["info"], "nominal_srate", 0.0))
-        if not np.isfinite(fs) or fs <= 0:
-            fs = DataXDFStream._get_fs_from_timestamps(timestamps)
-
-        return data, timestamps, fs
-
-    @staticmethod
-    def _get_fs_from_timestamps(timestamps: np.ndarray) -> float:
-        if len(timestamps) < 2:
-            return 0.0
-
-        dt = np.diff(timestamps)
-        dt = dt[np.isfinite(dt) & (dt > 0)]
-        return 1.0 / float(np.median(dt)) if len(dt) > 0 else 0.0
-
-    @staticmethod
-    def _to_numeric(time_series) -> Optional[np.ndarray]:
-        if time_series is None:
-            return None
-        try:
-            data = np.asarray(time_series, dtype=np.float32)
-        except Exception:
-            try:
-                data = np.array(
-                    [[float(v) for v in sample] for sample in time_series],
-                    dtype=np.float32,
-                )
-            except Exception:
-                return None
-        if data.ndim == 1:
-            data = data.reshape(-1, 1)
-        return data
-
-    @staticmethod
-    def _parse_channel_names(info: dict) -> Optional[list[str]]:
-        """Parses channel names for data streams.
-
-        Expected location: info > desc > channels > channel (one entry per channel).
-        """
-        desc = first(info, "desc", {})
-        channels = first(desc, "channels", {})
-        ch_list = channels.get("channel", [])
-        if not ch_list:
-            return None
-
-        channel_names = []
-        for i, ch in enumerate(ch_list):
-            channel_names.append(str(first(ch, "label", f"Ch{i+1}")))
-        return channel_names
-
-    @staticmethod
-    def _fallback_channel_names(channel_count: int) -> list[str]:
-        return [f"Ch{i+1}" for i in range(max(0, channel_count))]
 
 
 class XDFPlugin(Plugin):
@@ -723,19 +725,15 @@ class XDFPlugin(Plugin):
         logging.info(f"Created cache files for {n_streams} XDF streams")
         yield ProgressUpdate(1.0)
 
-    def _prepare_marker_stream_cache(self, stream: XDFStream) -> None:
+    def _prepare_marker_stream_cache(self, stream: MarkerXDFStream) -> None:
         marker_cache_file = self._get_marker_stream_cache_file(stream.uid)
         marker_cache_file.parent.mkdir(parents=True, exist_ok=True)
-        with marker_cache_file.open("w", encoding="utf-8") as stream_meta_fp:
-            json.dump(stream.markers, stream_meta_fp)
+        stream.save_markers(marker_cache_file)
 
-    def _prepare_data_stream_cache(self, stream: XDFStream) -> None:
+    def _prepare_data_stream_cache(self, stream: DataXDFStream) -> None:
         data_cache_file = self._get_data_stream_cache_file(stream.uid)
         data_cache_file.parent.mkdir(parents=True, exist_ok=True)
-
-        # One NPY per data stream. First column is timestamps.
-        stream_matrix = np.column_stack((stream.timestamps, stream.data))
-        np.save(str(data_cache_file), stream_matrix.astype(np.float32))
+        stream.save_data(data_cache_file)
 
     def _attempt_load_xdf_from_cache(self, *, log_missing: bool = True) -> bool:
         meta_cache_file = self._get_xdf_cache_file()

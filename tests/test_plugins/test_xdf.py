@@ -7,8 +7,10 @@ from pupil_labs.neon_player.plugins.xdf import (
     XDFStream,
     apply_offset,
     estimate_offset_ns,
+    fallback_channel_names,
     first,
-    parse_markers
+    parse_markers,
+    parse_channel_names
 )
 
 
@@ -31,6 +33,10 @@ MOCK_XDF_MARKER_STREAM_INFO = {
     "channel_count": ["1"],
     "channel_format": ["string"],
 }
+MOCK_XDF_MARKERS = {
+    "time_stamps": np.array([1.0, 2.0, 3.0], dtype=np.float64),
+    "time_series": [["first"], ["second"], ["first"]]
+}
 
 
 @pytest.mark.parametrize(
@@ -51,15 +57,37 @@ def test_xdf_stream_parse_info(stream_info, stream_type, fs, channel_count, chan
     assert xdf_stream.channel_format == channel_format
 
 
-@pytest.mark.parametrize(
-    "stream_info, expected_type", [
-        (MOCK_XDF_DATA_STREAM_INFO, DataXDFStream),
-        (MOCK_XDF_MARKER_STREAM_INFO, MarkerXDFStream)
-    ]
-)
-def test_xdf_stream_from_xdf_dict_reroute(stream_info, expected_type):
-    xdf_dict = {"info": stream_info}
-    assert isinstance(XDFStream.from_xdf_dict(xdf_dict), expected_type)
+def test_xdf_stream_from_xdf_dict_parses_markers():
+    xdf_dict = {
+        "info": MOCK_XDF_MARKER_STREAM_INFO,
+        **MOCK_XDF_MARKERS
+    }
+    xdf_stream = XDFStream.from_xdf_dict(xdf_dict)
+    assert isinstance(xdf_stream, MarkerXDFStream)
+    assert len(xdf_stream.markers) == 2
+
+
+def test_xdf_stream_from_xdf_dict_parse_data_out_of_order_ts():
+    xdf_dict = {
+        "info": MOCK_XDF_DATA_STREAM_INFO,
+        "time_stamps": np.array([1.0, 3.0, 2.0]),
+        "time_series": np.array([0.0, 0.0, 1.0]),
+    }
+    xdf_stream = XDFStream.from_xdf_dict(xdf_dict)
+    assert isinstance(xdf_stream, DataXDFStream)
+    assert np.allclose(xdf_stream.timestamps, [1.0, 2.0, 3.0])
+    assert np.allclose(np.squeeze(xdf_stream.data), [0.0, 1.0, 0.0])
+
+
+def test_xdf_stream_from_xdf_dict_parse_data_fallback_channel_names():
+    xdf_dict = {
+        "info": MOCK_XDF_DATA_STREAM_INFO,
+        "time_stamps": np.array([1.0, 3.0, 2.0]),
+        "time_series": np.array([0.0, 0.0, 1.0]),
+    }
+    xdf_stream = XDFStream.from_xdf_dict(xdf_dict)
+    assert isinstance(xdf_stream, DataXDFStream)
+    assert xdf_stream.channel_names == ["Ch1"]
 
 
 @pytest.mark.parametrize(
@@ -74,14 +102,40 @@ def test_first(info, key, default, expected):
 
 
 def test_parse_markers():
-    xdf_dict = {
-        "time_stamps": np.array([1.0, 2.0, 3.0], dtype=np.float64),
-        "time_series": [["first"], ["second"], ["first"]]
-    }
-    markers = parse_markers(xdf_dict)
+    markers = parse_markers(MOCK_XDF_MARKERS)
     assert len(markers) == 2
     assert markers["first"] == [1.0, 3.0]
     assert markers["second"] == [2.0]
+
+
+def test_parse_channel_names():
+    info_dict = {
+        "desc": [
+            {
+                "channels": [
+                    {
+                        "channel": [
+                            {
+                                "label": "A1",
+                            },
+                            {
+                                "label": "A2",
+                            },
+                            {
+                                "label": "A3"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+    channel_names = parse_channel_names(info_dict)
+    assert channel_names == ["A1", "A2", "A3"]
+
+
+def test_fallback_channel_names():
+    assert fallback_channel_names(3) == ["Ch1", "Ch2", "Ch3"]
 
 
 def test_estimate_apply_offset():
