@@ -17,7 +17,7 @@ from qt_property_widgets.utilities import (
 )
 from qt_property_widgets.widgets import DynamicComboWidget
 from scipy.signal import butter, filtfilt
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Literal, Optional
 from collections.abc import Iterator
 
 from pupil_labs import neon_player
@@ -282,6 +282,8 @@ class DataXDFStream(XDFStream):
     def __init__(self) -> None:
         super().__init__()
         self._is_marker_stream = False
+
+        # Expected format: samples x channels
         self.data: np.ndarray | None = None
         self.timestamps: np.ndarray | None = None
         self._channel_names: list[str] = []
@@ -299,18 +301,13 @@ class DataXDFStream(XDFStream):
         if not data_cache_file.exists():
             raise XDFStreamError(f"Data cache file does not exist")
 
-        stream_matrix = np.load(str(data_cache_file))
-        if not stream_matrix.ndim == 2 or stream_matrix.shape[1] < 2:
-            raise XDFStreamError("Invalid cached stream matrix")
-
-        self.timestamps = stream_matrix[:, 0].astype(np.float64)
-        self.data = stream_matrix[:, 1:].astype(np.float32)
+        with np.load(str(data_cache_file)) as cache:
+            self.data = cache["data"]
+            self.timestamps = cache["timestamps"]
         self._loaded = True
 
     def save_data(self, data_cache_file: Path) -> None:
-        # One NPY per data stream. First column is timestamps.
-        stream_matrix = np.column_stack((self.timestamps, self.data))
-        np.save(str(data_cache_file), stream_matrix.astype(np.float32))
+        np.savez(str(data_cache_file), data=self.data, timestamps=self.timestamps)
 
     def raise_not_valid(self) -> None:
         super().raise_not_valid()
@@ -351,7 +348,7 @@ class DataXDFStream(XDFStream):
 
 class XDFPlugin(Plugin):
     label = "XDF Stream"
-    _XDF_CACHE_VERSION = 3
+    _XDF_CACHE_VERSION = 4
     streams_changed = Signal()
     sync_events_changed = Signal()
 
@@ -376,7 +373,10 @@ class XDFPlugin(Plugin):
         self._offset_ns: int = 0
         self._is_aligned: bool = False
         self._xdf_load_job = None
-        self._active_timeline_row_names: set[str] = set()
+        self._active_timeline_row_names: dict[str, set[str]] = {
+            "markers": set(),
+            "data": set(),
+        }
 
     def _reset_loaded_xdf_state(self) -> None:
         self.data_stream_uid = None
@@ -467,7 +467,7 @@ class XDFPlugin(Plugin):
             self._clear_cache()
             self.load_xdf()
 
-        self._update_timeline_data()
+        self.update_timeline(markers=False)
 
     @property
     @property_params(widget=None, dont_encode=True)
@@ -510,6 +510,7 @@ class XDFPlugin(Plugin):
         should_load = self._state_initialized and self.file_path_valid and self._marker_stream
         if not should_load:
             self._update_events()
+            self._reset_aligned_state()
             return
 
         if not self._load_marker_stream_from_cache():
@@ -519,6 +520,7 @@ class XDFPlugin(Plugin):
             self._clear_cache()
             self.load_xdf()
 
+        self._update_events()
         self.align_with_recording()
 
     @property
@@ -596,7 +598,7 @@ class XDFPlugin(Plugin):
         self._reset_loaded_xdf_state()
 
     def on_disabled(self) -> None:
-        self._clear_timeline_tracks()
+        self.clear_timeline()
 
     def _set_available_sync_events(self, event_names: list[str]) -> None:
         unique_names = sorted({name for name in event_names if name})
@@ -619,7 +621,7 @@ class XDFPlugin(Plugin):
         return self.get_cache_path() / f"xdf_marker_stream_{stream_uid}.json"
 
     def _get_data_stream_cache_file(self, stream_uid: str) -> Path:
-        return self.get_cache_path() / f"xdf_data_stream_{stream_uid}.npy"
+        return self.get_cache_path() / f"xdf_data_stream_{stream_uid}.npz"
 
     def _update_channel_selection(self) -> None:
         if not self.data_stream or not self.data_stream.loaded:
@@ -768,7 +770,7 @@ class XDFPlugin(Plugin):
         except XDFStreamError as e:
             logging.error(
                 f"Failed to load cached data for the XDF stream "
-                f"{self.data_stream.display_name}"
+                f"{self.data_stream.display_name}. Reason: {str(e)}"
             )
             return False
 
@@ -776,7 +778,6 @@ class XDFPlugin(Plugin):
         marker_cache_file = self._get_marker_stream_cache_file(self._marker_stream.uid)
         try:
             self._marker_stream.load_markers(marker_cache_file)
-            self._update_events()
             return True
         except XDFStreamError as e:
             logging.error(
@@ -886,28 +887,33 @@ class XDFPlugin(Plugin):
         self._is_aligned = True
         self.update_timeline()
 
-    def update_timeline(self):
+    def update_timeline(self, markers=True, data=True):
         if self.headless or not self.recording:
-            return
-
-        self._clear_timeline_tracks()
-        self._update_timeline_markers()
-        self._update_timeline_data()
-
-    def _clear_timeline_tracks(self) -> None:
-        if self.headless:
             return
 
         timeline = self.get_timeline()
         was_sorting_enabled = timeline.disable_plot_sorting()
 
-        for row_name in self._active_timeline_row_names:
-            timeline.remove_timeline_plot(row_name)
-
-        self._active_timeline_row_names.clear()
+        if markers:
+            self._clear_timeline_tracks(kind="markers")
+            self._update_timeline_markers()
+        if data:
+            self._clear_timeline_tracks(kind="data")
+            self._update_timeline_data()
 
         if was_sorting_enabled:
             timeline.enable_plot_sorting()
+
+    def clear_timeline(self):
+        self._clear_timeline_tracks(kind="markers")
+        self._clear_timeline_tracks(kind="data")
+
+    def _clear_timeline_tracks(self, kind: Literal["markers", "data"]) -> None:
+        timeline = self.get_timeline()
+        for row_name in self._active_timeline_row_names[kind]:
+            timeline.remove_timeline_plot(row_name)
+
+        self._active_timeline_row_names[kind].clear()
 
     def _get_data_stream_group_title(self) -> str:
         stream_type = self.data_stream.type.strip()
@@ -918,7 +924,6 @@ class XDFPlugin(Plugin):
             return
 
         timeline = self.get_timeline()
-        was_sorting_enabled = timeline.disable_plot_sorting()
 
         # Filter and plot markers that fall within the recording
         for name, timestamps in self.marker_stream.markers.items():
@@ -930,10 +935,7 @@ class XDFPlugin(Plugin):
 
             y = np.zeros_like(offset_timestamps)
             plot_item.items[0].setData(offset_timestamps, y)
-            self._active_timeline_row_names.add(timeline_row_name)
-
-        if was_sorting_enabled:
-            timeline.enable_plot_sorting()
+            self._active_timeline_row_names["markers"].add(timeline_row_name)
 
     def _update_timeline_data(self) -> None:
         if not self._data_stream or not self._is_aligned:
@@ -941,10 +943,10 @@ class XDFPlugin(Plugin):
 
         timeline = self.get_timeline()
 
-        # 1. Convert XDF timestamps to Neon clock (nanoseconds)
+        # Convert XDF timestamps to Neon clock (nanoseconds)
         offset_ts = apply_offset(self._data_stream.timestamps, self._offset_ns)
 
-        # 2. Filter data to fit within the recording bounds
+        # Filter data to fit within the recording bounds
         mask = (offset_ts >= self.recording.start_time) & (offset_ts <= self.recording.stop_time)
 
         if not np.any(mask):
@@ -961,7 +963,7 @@ class XDFPlugin(Plugin):
             [(plot_ts[0], plot_ts[-1])],
             color="#00FFFF",
         )
-        self._active_timeline_row_names.add(data_stream_row_name)
+        self._active_timeline_row_names["data"].add(data_stream_row_name)
 
         selected_names = [
             n for n in self.data_stream.channel_names
@@ -971,7 +973,10 @@ class XDFPlugin(Plugin):
         if not selected_names:
             return
 
-        indices = [self.data_stream.channel_names.index(n) for n in selected_names]
+        indices = [
+            idx for idx, n in enumerate(self.data_stream.channel_names)
+            if self._channels.get(n, False)
+        ]
 
         # Extract and clean data
         data = plot_data[:, indices].astype(np.float32)
@@ -990,10 +995,7 @@ class XDFPlugin(Plugin):
                 f"({self.data_stream.fs:.3f} Hz). Skipping filter."
             )
 
-        # 4. Normalize (Center the data around 0)
-        data = data - np.nanmean(data, axis=0)
-
-        # 6. Plot each channel in its own subplot under the XDF group prefix.
+        # Plot each channel in its own subplot under the XDF group prefix.
         plotted_row_names: set[str] = set()
         for i, name in enumerate(selected_names):
             channel_data = data[:, i]
@@ -1011,7 +1013,7 @@ class XDFPlugin(Plugin):
                 plot_item.adjust_size()
                 plot_item.getViewBox().enableAutoRange(y=True)
 
-        self._active_timeline_row_names |= plotted_row_names
+        self._active_timeline_row_names["data"] |= plotted_row_names
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
