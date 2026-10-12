@@ -186,6 +186,14 @@ class SurfaceTrackingPlugin(Plugin):
         self._surface_views[surface.uid] = view
         workspace.reveal_panel(panel_id)
 
+    def on_surface_name_changed(self, surface: TrackedSurface) -> None:
+        if self.app.headless or surface.uid not in self._surface_views:
+            return
+        workspace = self.app.main_window.video_workspace
+        panel_id = f"surface-view:{surface.uid}"
+        if workspace.get_dock(panel_id) is not None:
+            workspace.set_dock_title(panel_id, f"Surface: {surface.name}")
+
     def close_surface_view(self, surface_uid: str) -> None:
         view = self._surface_views.pop(surface_uid, None)
         if view is None:
@@ -207,6 +215,7 @@ class SurfaceTrackingPlugin(Plugin):
         for surface in self._surfaces:
             self.close_surface_view(surface.uid)
             surface.view_requested.disconnect(self.view_surface)
+            surface.name_changed.disconnect(self.on_surface_name_changed)
             surface.marker_edit_changed.disconnect()
             surface.locations_invalidated.disconnect()
             surface.cleanup_widgets()
@@ -788,6 +797,7 @@ class SurfaceTrackingPlugin(Plugin):
 
         for surface in new_surfaces:
             surface.view_requested.connect(self.view_surface)
+            surface.name_changed.connect(self.on_surface_name_changed)
             if surface.uid == "":
                 surface.uid = str(uuid.uuid4())
 
@@ -821,6 +831,7 @@ class SurfaceTrackingPlugin(Plugin):
         for surface in removed_surfaces:
             self.close_surface_view(surface.uid)
             surface.view_requested.disconnect(self.view_surface)
+            surface.name_changed.disconnect(self.on_surface_name_changed)
             if surface.edit:
                 for marker_widget in self.marker_edit_widgets.values():
                     marker_widget.hide()

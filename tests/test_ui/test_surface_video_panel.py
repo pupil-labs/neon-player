@@ -1,5 +1,7 @@
 from textwrap import dedent
 
+import pytest
+
 
 SETUP_SURFACES = dedent('''
     from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import TrackedSurface
@@ -188,4 +190,63 @@ def test_restored_surface_controls_update_after_panel_reopens(run_player):
         view = workspace.get_dock("surface-view:surface-a").content.view_widget
         assert view.source_size == QSize(800, 600)
         assert changed.count() == 1
+    '''))
+
+
+@pytest.mark.parametrize("placement", ["docked", "tabbed", "floating"])
+def test_surface_rename_updates_existing_panel_without_rearranging(run_player, placement):
+    run_player(SETUP_SURFACES + f"\nplacement = {placement!r}\n" + dedent('''
+        from pyside6_docking import DockPosition
+        from PySide6.QtWidgets import QAbstractButton, QTabBar
+
+        surface = surfaces[0]
+        surface.view_surface()
+        if placement == "tabbed":
+            surfaces[1].view_surface()
+            workspace.dock("surface-view:surface-b", DockPosition.CENTER,
+                           relative_to="surface-view:surface-a")
+        elif placement == "floating":
+            workspace.float_dock("surface-view:surface-a")
+        QTest.qWait(50)
+        panel = workspace.get_dock("surface-view:surface-a")
+        content, parent = panel.content, panel.parentWidget()
+        before = workspace.save_layout()
+        surface.name = "Work desk"
+        QTest.qWait(50)
+        assert workspace.get_dock("surface-view:surface-a") is panel
+        assert panel.title == "Surface: Work desk"
+        assert panel.content is content and panel.parentWidget() is parent
+        assert workspace.save_layout() == before
+        tabs = next(bar for bar in content.window().findChildren(QTabBar)
+                    if any(bar.tabData(i) == "surface-view:surface-a"
+                           for i in range(bar.count())))
+        index = next(i for i in range(tabs.count())
+                     if tabs.tabData(i) == "surface-view:surface-a")
+        assert tabs.tabText(index) == "Surface: Work desk"
+        assert any(button.accessibleName() == "Close Surface: Work desk"
+                   for button in tabs.findChildren(QAbstractButton))
+        if placement == "floating":
+            assert content.window().windowTitle() == "Surface: Work desk"
+
+        # The existing duplicate-name validation must also protect the panel title.
+        surface.name = "Wall"
+        assert surface.name == "Work desk"
+        assert panel.title == "Surface: Work desk"
+    '''))
+
+
+def test_closed_surface_rename_uses_current_title_when_reopened(run_player):
+    run_player(SETUP_SURFACES + dedent('''
+        surface = surfaces[0]
+        surface.view_surface()
+        workspace.remove_dock("surface-view:surface-a")
+        # Rename while the queued close callback is still pending.
+        surface.name = "Work desk"
+        QTest.qWait(50)
+        surface.name = "New desk"
+        assert workspace.get_dock("surface-view:surface-a") is None
+        surface.view_surface()
+        assert workspace.get_dock("surface-view:surface-a").title == "Surface: New desk"
+        surface.name = "Final desk"
+        assert workspace.get_dock("surface-view:surface-a").title == "Surface: Final desk"
     '''))

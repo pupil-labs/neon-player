@@ -147,6 +147,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     locations_invalidated = Signal()
     surface_location_changed = Signal()
     view_requested = Signal(object)
+    name_changed = Signal(object)
     marker_edit_changed = Signal()
     heatmap_invalidated = Signal()
 
@@ -310,6 +311,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
     @name.setter
     def name(self, name: str) -> None:
+        if name == self._name:
+            return
         if self.tracker_plugin:
             other_surfaces = [
                 s for s in self.tracker_plugin.surfaces
@@ -328,6 +331,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         if self.tracker_plugin:
             self.tracker_plugin.add_visibility_timeline(self)
             self.tracker_plugin.add_surface_gaze_timeline(self)
+
+        self.name_changed.emit(self)
 
     def on_corner_changed(self, corner_id, pos) -> None:
         camera = Plugin.get_instance_by_name("SurfaceTrackingPlugin").camera
