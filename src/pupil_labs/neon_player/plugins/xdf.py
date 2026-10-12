@@ -44,6 +44,37 @@ def first(xdf_dict: dict[str, list[Any]], key: str, default: Any) -> Any:
     return value[0]
 
 
+def parse_event_name(text: str) -> str:
+    """Parse event names from strings.
+
+    For now, just strip whitespace. Future improvements could parse JSON
+    or other structured formats.
+    """
+    return text.strip()
+
+
+def parse_markers(xdf_dict: dict) -> dict[str, list[float]]:
+    """Parse and group markers from an XDF stream."""
+    if "time_stamps" not in xdf_dict or "time_series" not in xdf_dict:
+        return {}
+
+    markers: dict[str, list[float]] = {}
+    for ts, marker in zip(xdf_dict["time_stamps"], xdf_dict["time_series"]):
+        marker_to_parse = marker[0] if isinstance(marker, list) else str(marker)
+        name = parse_event_name(marker_to_parse)
+        if name not in markers:
+            markers[name] = []
+
+        try:
+            timestamp = float(ts)
+            markers[name].append(timestamp)
+        except ValueError:
+            logging.warning(
+                f"Could not parse marker timestamp {ts}, skipping the marker {marker}"
+            )
+    return markers
+
+
 def estimate_offset_ns(xdf_timestamp: float, neon_timestamp: int) -> int:
     """Estimate the offset that aligns XDF timestamps with the Neon ones."""
     return neon_timestamp - int(xdf_timestamp * 1e9)
@@ -187,38 +218,9 @@ class MarkerXDFStream(XDFStream):
     def from_xdf_dict(cls, xdf_dict: dict) -> "MarkerXDFStream":
         stream = cls()
         stream.parse_info(xdf_dict.get("info", {}))
-        stream.markers = cls._parse_markers(xdf_dict)
+        stream.markers = parse_markers(xdf_dict)
         stream._loaded = True
         return stream
-
-    @staticmethod
-    def _parse_markers(xdf_dict: dict) -> dict[str, list[float]]:
-        if "time_stamps" not in xdf_dict or "time_series" not in xdf_dict:
-            return {}
-
-        markers: dict[str, list[float]] = {}
-        for ts, marker in zip(xdf_dict["time_stamps"], xdf_dict["time_series"]):
-            name = MarkerXDFStream._parse_event_name(str(marker[0]))
-            if name not in markers:
-                markers[name] = []
-
-            try:
-                timestamp = float(ts)
-                markers[name].append(timestamp)
-            except ValueError:
-                logging.warning(
-                    f"Could not parse marker timestamp {ts}, skipping the marker {marker}"
-                )
-        return markers
-
-    @staticmethod
-    def _parse_event_name(text: str) -> str:
-        """Parse event names from strings.
-
-        For now, just strip whitespace. Future improvements could parse JSON
-        or other structured formats.
-        """
-        return text.strip()
 
 
 class DataXDFStream(XDFStream):
@@ -325,17 +327,19 @@ class DataXDFStream(XDFStream):
 
     @staticmethod
     def _parse_channel_names(info: dict) -> Optional[list[str]]:
+        """Parses channel names for data streams.
+
+        Expected location: info > desc > channels > channel (one entry per channel).
+        """
         desc = first(info, "desc", {})
         channels = first(desc, "channels", {})
         ch_list = channels.get("channel", [])
         if not ch_list:
-            ch_list = desc.get("channel", [])
-        if not ch_list:
             return None
+
         channel_names = []
         for i, ch in enumerate(ch_list):
-            label_value = ch.get("label", [ch.get("name", [f"Ch{i+1}"])[0]])[0]
-            channel_names.append(str(label_value))
+            channel_names.append(str(first(ch, "label", f"Ch{i+1}")))
         return channel_names
 
     @staticmethod
@@ -588,16 +592,6 @@ class XDFPlugin(Plugin):
 
         self.file_path = None
         self._reset_loaded_xdf_state()
-        # self._available_sync_events = []
-        # self.streams_changed.emit()
-        # self.sync_events_changed.emit()
-        # self._stream_data = None
-        # self._stream_ts = None
-        # self._xdf_markers = []
-        # self._channel_names = []
-        # self._channels = {}
-        # self._is_aligned = False
-        self._clear_timeline_tracks()
 
     def on_disabled(self) -> None:
         self._clear_timeline_tracks()

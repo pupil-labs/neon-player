@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from pupil_labs.neon_player.plugins.xdf import (
@@ -6,7 +7,8 @@ from pupil_labs.neon_player.plugins.xdf import (
     XDFStream,
     apply_offset,
     estimate_offset_ns,
-    first
+    first,
+    parse_markers
 )
 
 
@@ -69,6 +71,17 @@ def test_xdf_stream_from_xdf_dict_reroute(stream_info, expected_type):
 )
 def test_first(info, key, default, expected):
     assert first(info, key, default) == expected
+
+
+def test_parse_markers():
+    xdf_dict = {
+        "time_stamps": np.array([1.0, 2.0, 3.0], dtype=np.float64),
+        "time_series": [["first"], ["second"], ["first"]]
+    }
+    markers = parse_markers(xdf_dict)
+    assert len(markers) == 2
+    assert markers["first"] == [1.0, 3.0]
+    assert markers["second"] == [2.0]
 
 
 def test_estimate_apply_offset():
