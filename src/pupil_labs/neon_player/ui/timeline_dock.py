@@ -514,6 +514,25 @@ class TimeLineDock(QWidget):
         if self.plot_sorting_enabled:
             self.sort_plots()
 
+    def rename_timeline_plot(self, old_name: str, new_name: str) -> None:
+        """Rename an existing row without reloading or replacing its plotted data."""
+        if old_name == new_name or old_name not in self.timeline_plots:
+            return
+        if new_name in self.timeline_plots:
+            raise ValueError(f"Timeline row already exists: {new_name}")
+
+        plot = self.timeline_plots.pop(old_name)
+        self.timeline_plots[new_name] = plot
+        plot.row_name = new_name
+        legend = self.timeline_legends.pop(old_name)
+        self.timeline_legends[new_name] = legend
+        legend.parentItem().getItem(0, 0).setText(new_name)
+        if old_name in self.data_point_actions:
+            self.data_point_actions[new_name] = self.data_point_actions.pop(old_name)
+
+        if self.plot_sorting_enabled:
+            self.sort_plots()
+
     def remove_timeline_series(self, plot_name: str, series_name: str) -> None:
         if plot_name not in self.timeline_plots:
             return

@@ -322,15 +322,13 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
                 logging.error(f"There is already a surface named {name}")
                 return
 
-            timeline = self.tracker_plugin.get_timeline()
-            timeline.remove_timeline_plot(f"Surface: {self._name}")
-            timeline.remove_timeline_plot(f"Surface Gaze: {self._name}")
-
+        old_name = self._name
         self._name = name
 
         if self.tracker_plugin:
-            self.tracker_plugin.add_visibility_timeline(self)
-            self.tracker_plugin.add_surface_gaze_timeline(self)
+            timeline = self.tracker_plugin.get_timeline()
+            timeline.rename_timeline_plot(f"Surface: {old_name}", f"Surface: {name}")
+            timeline.rename_timeline_plot(f"Surface Gaze: {old_name}", f"Surface Gaze: {name}")
 
         self.name_changed.emit(self)
 

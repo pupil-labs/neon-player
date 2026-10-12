@@ -250,3 +250,58 @@ def test_closed_surface_rename_uses_current_title_when_reopened(run_player):
         surface.name = "Final desk"
         assert workspace.get_dock("surface-view:surface-a").title == "Surface: Final desk"
     '''))
+
+
+def test_typing_surface_name_preserves_timeline_data_and_updates_labels(run_player):
+    run_player(SETUP_SURFACES + dedent('''
+        import pickle
+        from PySide6.QtWidgets import QLineEdit
+
+        surface = surfaces[0]
+        surface.view_surface()
+        timeline = window.timeline
+        cache = plugin.get_cache_path()
+        cache.mkdir(parents=True, exist_ok=True)
+        cached_tracks = {
+            "surface_visibility.pkl": [(0, 10_000_000), (20_000_000, 30_000_000)],
+            "gazes.pkl": [(0, 5_000_000)],
+        }
+        for suffix, data in cached_tracks.items():
+            (cache / f"{surface.uid}_{suffix}").write_bytes(pickle.dumps(data))
+        plugin.add_visibility_timeline(surface)
+        plugin.add_surface_gaze_timeline(surface)
+        plots = [timeline.get_timeline_plot(f"{prefix}Desk")
+                 for prefix in ("Surface: ", "Surface Gaze: ")]
+        series = [tuple(plot.items) for plot in plots]
+        legends = [timeline.timeline_legends[f"{prefix}Desk"]
+                   for prefix in ("Surface: ", "Surface Gaze: ")]
+        labels = [legend.parentItem().getItem(0, 0) for legend in legends]
+        QTest.qWait(50)
+        ranges = [plot.viewRange() for plot in plots]
+        # A rename changes presentation only; cached data need not be available.
+        for suffix in cached_tracks:
+            (cache / f"{surface.uid}_{suffix}").unlink()
+        name_edit = next(edit for edit in window.findChildren(QLineEdit)
+                         if edit.text() == "Desk")
+        name_edit.selectAll()
+        for character, expected in zip("Table", ("T", "Ta", "Tab", "Tabl", "Table")):
+            QTest.keyClicks(name_edit, character)
+            assert surface.name == expected
+            for i, prefix in enumerate(("Surface: ", "Surface Gaze: ")):
+                name = f"{prefix}{expected}"
+                assert timeline.get_timeline_plot(name) is plots[i]
+                assert tuple(plots[i].items) == series[i]
+                assert plots[i].row_name == name
+                assert timeline.timeline_legends[name] is legends[i]
+                assert labels[i].text == name
+                assert np.allclose(plots[i].viewRange(), ranges[i]), (plots[i].viewRange(), ranges[i])
+            assert workspace.get_dock("surface-view:surface-a").title == f"Surface: {expected}"
+        for prefix in ("Surface: ", "Surface Gaze: "):
+            assert timeline.get_timeline_plot(f"{prefix}Desk") is None
+
+        name_edit.setText("Wall")
+        assert surface.name == "Table"
+        assert timeline.get_timeline_plot("Surface: Table") is plots[0]
+        assert labels[0].text == "Surface: Table"
+        assert workspace.get_dock("surface-view:surface-a").title == "Surface: Table"
+    '''))
