@@ -73,7 +73,8 @@ class AudioPlugin(neon_player.Plugin):
             self.sync_position()
 
     def sync_position(self) -> None:
-        if not self.recording_has_audio:
+        if not self.recording or not self.recording_has_audio:
+            self.has_audio_at_ts = False
             return
 
         position = self.app.current_ts
@@ -147,6 +148,9 @@ class AudioPlugin(neon_player.Plugin):
         self.player.setSource(QUrl.fromLocalFile(str(self.cache_file)))
         self.on_speed_changed(self.app.playback_speed)
         self.on_playback_state_changed(self.app.is_playing)
+
+        if self.headless:
+            return
 
         # load the audio data into a numpy array
         _, audio_data = wavfile.read(str(self.cache_file))

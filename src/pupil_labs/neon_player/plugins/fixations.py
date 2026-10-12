@@ -19,7 +19,7 @@ from qt_property_widgets.utilities import (
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
 from pupil_labs.neon_player.job_manager import ProgressUpdate
-from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
+from pupil_labs.neon_player.plugins.gaze import apply_offset
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.utilities import (
     cart_to_spherical,
@@ -151,7 +151,7 @@ class FixationsPlugin(neon_player.Plugin):
         if not gaze_plugin:
             return (0.0, 0.0)
 
-        return gaze_plugin.offset_x, gaze_plugin.offset_y
+        return gaze_plugin.offset
 
     def on_disabled(self) -> None:
         self.get_timeline().remove_timeline_plot("Fixations")
@@ -168,10 +168,11 @@ class FixationsPlugin(neon_player.Plugin):
         fixations = self.recording.fixations[start_mask & stop_mask]
         fixation_ids = fixations_ids[start_mask & stop_mask]
 
-        offset = self.get_gaze_offset()
-        offset *= np.array([self.recording.scene.width, self.recording.scene.height])
-
-        offset_means = fixations.mean_gaze_point + offset
+        offset_means = apply_offset(
+            self.recording,
+            fixations.mean_gaze_point,
+            self.get_gaze_offset()
+        )
 
         scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(
             self.recording
@@ -451,18 +452,18 @@ class FixationCircleViz(FixationVisualization):
         font.setPointSize(self._font_size)
         painter.setFont(font)
 
-        offset = [0.0, 0.0]
-
-        if self._use_offset:
-            if self.recording.scene.width:
-                offset[0] = gaze_offset[0] * self.recording.scene.width
-            if self.recording.scene.height:
-                offset[1] = gaze_offset[1] * self.recording.scene.height
+        offset_mean_gaze_points = apply_offset(
+            self.recording,
+            fixations.mean_gaze_point,
+            gaze_offset if self._use_offset else (0.0, 0.0)
+        )
 
         width = self.recording.scene.width
         height = self.recording.scene.height
 
-        for fixation_id, fixation in zip(fixation_ids, fixations):
+        for fixation_id, fixation, offset_mean_gaze_point in zip(
+            fixation_ids, fixations, offset_mean_gaze_points
+        ):
             is_active = (fixation.start_time <= time_in_recording) and (
                 fixation.stop_time > time_in_recording
             )
@@ -476,11 +477,11 @@ class FixationCircleViz(FixationVisualization):
                     continue
 
                 of_x, of_y = frame_offsets[internal_fidx]
-                cx = fixation.mean_gaze_point[0] + offset[0] - of_x
-                cy = fixation.mean_gaze_point[1] + offset[1] - of_y
+                cx = offset_mean_gaze_point[0] - of_x
+                cy = offset_mean_gaze_point[1] - of_y
             else:
-                cx = fixation.mean_gaze_point[0] + offset[0]
-                cy = fixation.mean_gaze_point[1] + offset[1]
+                cx = offset_mean_gaze_point[0]
+                cy = offset_mean_gaze_point[1]
 
             if not (0 <= cx <= width and 0 <= cy <= height):
                 continue
@@ -569,19 +570,19 @@ class ScanpathViz(FixationVisualization):
         font.setPointSize(self._font_size)
         painter.setFont(font)
 
-        offset = [0.0, 0.0]
-
-        if self._use_offset:
-            if self.recording.scene.width:
-                offset[0] = gaze_offset[0] * self.recording.scene.width
-            if self.recording.scene.height:
-                offset[1] = gaze_offset[1] * self.recording.scene.height
+        offset_mean_gaze_points = apply_offset(
+            self.recording,
+            fixations.mean_gaze_point,
+            gaze_offset if self._use_offset else (0.0, 0.0)
+        )
 
         width = self.recording.scene.width
         height = self.recording.scene.height
         previous_center = None
 
-        for fixation_id, fixation in zip(fixation_ids, fixations):
+        for fixation_id, fixation, offset_mean_gaze_point in zip(
+            fixation_ids, fixations, offset_mean_gaze_points
+        ):
             internal_fidx = fixation_id - 1
 
             if self._adjust_for_optic_flow:
@@ -589,11 +590,11 @@ class ScanpathViz(FixationVisualization):
                     continue
 
                 of_x, of_y = frame_offsets[internal_fidx]
-                cx = fixation.mean_gaze_point[0] + offset[0] - of_x
-                cy = fixation.mean_gaze_point[1] + offset[1] - of_y
+                cx = offset_mean_gaze_point[0] - of_x
+                cy = offset_mean_gaze_point[1] - of_y
             else:
-                cx = fixation.mean_gaze_point[0] + offset[0]
-                cy = fixation.mean_gaze_point[1] + offset[1]
+                cx = offset_mean_gaze_point[0]
+                cy = offset_mean_gaze_point[1]
 
             center = QPointF(cx, cy)
 
