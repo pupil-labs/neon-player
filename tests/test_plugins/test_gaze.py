@@ -72,7 +72,7 @@ def test_prepare_gaze_export_respects_export_window(mock_neon_recording):
     gaze_y = np.array([400, 400, 400], dtype=np.float64)
     recording = mock_neon_recording(
         gaze=mock_gaze_timeseries(timestamps, gaze_x, gaze_y),
-        scene=mock_scene_timeseries([1, 2, 3]),
+        scene=mock_scene_timeseries(timestamps),
         info={"recording_id": "mock"}
     )
     export_window = (5, 7)  # contains no gaze timestamps
@@ -88,7 +88,7 @@ def test_prepare_gaze_export_applies_gaze_offset(mock_neon_recording):
     gaze_y = np.array([400, 400, 400], dtype=np.float64)
     recording = mock_neon_recording(
         gaze=mock_gaze_timeseries(timestamps, gaze_x, gaze_y),
-        scene=mock_scene_timeseries([1, 2, 3]),
+        scene=mock_scene_timeseries(timestamps),
         info={"recording_id": "mock"}
     )
 
@@ -101,12 +101,14 @@ def test_prepare_gaze_export_applies_gaze_offset(mock_neon_recording):
 
 
 def test_prepare_export_data_no_worn_data(mock_neon_recording):
+    timestamps = np.arange(5)
     mock_gaze = mock_gaze_timeseries(
-        timestamps=np.arange(5),
+        timestamps=timestamps,
         xs=np.arange(5),
         ys=np.arange(5)
     )
-    recording = mock_neon_recording(gaze=mock_gaze)
+    mock_scene = mock_scene_timeseries(timestamps)
+    recording = mock_neon_recording(gaze=mock_gaze, scene=mock_scene)
     gaze = _prepare_gaze_export(recording, None, (0.5, 3.5), (0.0, 0.0))
     assert len(gaze) == 3
     assert "worn" not in gaze.columns
@@ -117,8 +119,9 @@ def test_prepare_export_data_with_worn_data(mock_neon_recording):
     timestamps = np.arange(5)
     mock_gaze = mock_gaze_timeseries(timestamps, xs=np.arange(5), ys=np.arange(5))
     mock_worn = mock_worn_timeseries(timestamps[:-1], worn=[255, 255, 0, 255])
+    mock_scene = mock_scene_timeseries(timestamps)
 
-    recording = mock_neon_recording(gaze=mock_gaze, worn=mock_worn)
+    recording = mock_neon_recording(gaze=mock_gaze, worn=mock_worn, scene=mock_scene)
     gaze = _prepare_gaze_export(recording, recording.worn, (0.5, 4.5), (0.0, 0.0))
     assert len(gaze) == 4
 
