@@ -1350,15 +1350,15 @@ wheels = [
 
 [[package]]
 name = "pupil-labs-camera"
-version = "1.1.0"
+version = "1.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
     { name = "opencv-python" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/64/73/9d763de609619fbe4edd63af955a116e9abacd8d5454927505508ae06c02/pupil_labs_camera-1.1.0.tar.gz", hash = "sha256:537d74f38884993eba20f5de672618512e28e605f57809e2840d9ec39deefce3", size = 1592816, upload-time = "2025-12-19T13:48:40.985Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4c/3c/2dd77dc52009886dacd6edcb44da2c7cd941be60685bf55a8165fc867743/pupil_labs_camera-1.2.1.tar.gz", hash = "sha256:29cbff5b9c7b31d7e034be8086ceeb5e71d24ed681257625ec97156981781c6f", size = 1708922, upload-time = "2026-09-01T10:19:29.036Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/88/df/a4649fb73bfeb5499fb3930597dbb528f733684d730826473a84a4abee4f/pupil_labs_camera-1.1.0-py3-none-any.whl", hash = "sha256:ab2b132f07261ef069bcfc3565c95ba09383dbddf7e477ad7f7fa6155764199d", size = 184585, upload-time = "2025-12-19T13:48:39.374Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/ec/8fbc0895c4ecfb529d7b9b77fb436434aa50a06b13a5b2683d43ff8e0cd7/pupil_labs_camera-1.2.1-py3-none-any.whl", hash = "sha256:b3f66bba702ea1a029a7baace5871a9614dfa06489f5b6f9814c24c2ae32e0b0", size = 185602, upload-time = "2026-09-01T10:19:27.315Z" },
 ]
 
 [[package]]
@@ -1441,13 +1441,13 @@ requires-dist = [
     { name = "protobuf", specifier = "<6" },
     { name = "pupil-apriltags", specifier = ">=1.0.4.post11" },
     { name = "pupil-labs-marker-mapper", specifier = ">=1.0.0" },
-    { name = "pupil-labs-neon-recording", specifier = ">=2.1.6" },
+    { name = "pupil-labs-neon-recording", specifier = "==2.1.6" },
     { name = "pupil-labs-video", specifier = ">=1.0.13" },
     { name = "pyobjc", marker = "sys_platform == 'darwin'" },
     { name = "pyqtgraph", specifier = ">=0.13.7" },
     { name = "pyside6", specifier = ">=6.10.2" },
     { name = "pyxdf", specifier = ">=1.17.5" },
-    { name = "qt-property-widgets", specifier = ">=0.9.1" },
+    { name = "qt-property-widgets", specifier = ">=0.10.0" },
     { name = "scipy", specifier = ">=1.15.2" },
     { name = "setuptools", specifier = ">=78.1.0" },
     { name = "tqdm", specifier = ">=4.67.1" },
@@ -4551,14 +4551,14 @@ wheels = [
 
 [[package]]
 name = "qt-property-widgets"
-version = "0.9.1"
+version = "0.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyside6" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bb/06/634ca8da34406d252ad1a3730aa415db4f3462f8abacbd5cd86ecd179b9b/qt_property_widgets-0.9.1.tar.gz", hash = "sha256:d89391a6f22409bc0f11d3fac8d19b6755b7916554bc18441dc9e7397bd276eb", size = 82242, upload-time = "2026-08-28T04:58:12.93Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/87/fb/0450fb26962a1df426e3be07a1a85037f959f142fd0dac097c0b67ecb23d/qt_property_widgets-0.10.0.tar.gz", hash = "sha256:ae596f8cf89d9258de6e8549cda1da9a32f8e2c1bc433ca71eff6193275bc1d9", size = 85868, upload-time = "2026-10-07T11:04:13.063Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a8/3b/109a764095f2bf252f9386250f6fcb14e1dcc1815cf31f369e1187beba6a/qt_property_widgets-0.9.1-py3-none-any.whl", hash = "sha256:23ce04a084f2b39a1866b7bea3ea6d1befa21a2e51dcd8f48fb61da8a196daa0", size = 25829, upload-time = "2026-08-28T04:58:11.855Z" },
+    { url = "https://files.pythonhosted.org/packages/e7/0b/59da2a4e70f55cff9ff47839511587cf198b37c46d20014cba82dde08970/qt_property_widgets-0.10.0-py3-none-any.whl", hash = "sha256:979a67022190257bd3438b6e7b7cac21553cc9075bd732841fda35e3e1df4179", size = 28413, upload-time = "2026-10-07T11:04:11.697Z" },
 ]
 
 [[package]]
