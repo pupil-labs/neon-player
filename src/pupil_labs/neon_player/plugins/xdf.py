@@ -388,9 +388,8 @@ class XDFPlugin(Plugin):
     @property
     @property_params(
         label="File Path (.xdf)",
-        # XXX: pending qt-property-widgets update
-        # dialog_title="Open an XDF file",
-        # file_filter="XDF files (*.xdf)"
+        dialog_title="Open an XDF file",
+        file_filter="XDF files (*.xdf)"
     )
     def file_path(self) -> FilePath:
         # Returning None keeps FilePathWidget visually empty.
