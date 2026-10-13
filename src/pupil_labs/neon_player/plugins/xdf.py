@@ -339,6 +339,11 @@ class DataXDFStream(XDFStream):
 
         if not stream.channel_names:
             stream.channel_names = fallback_channel_names(stream.data.shape[1])
+        elif len(set(stream.channel_names)) != len(stream.channel_names):
+            logging.warning(
+                f"Channel names of the XDF stream {stream.display_name} "
+                f"contain duplicates: {stream.channel_names}"
+            )
 
         stream._loaded = True
         return stream
@@ -985,7 +990,7 @@ class XDFPlugin(Plugin):
 
         selected_names = [
             n for n in self.data_stream.channel_names
-            if self._channels.get(n, False)
+            if self.channels.get(n, False)
         ]
 
         if not selected_names:
@@ -993,7 +998,7 @@ class XDFPlugin(Plugin):
 
         indices = [
             idx for idx, n in enumerate(self.data_stream.channel_names)
-            if self._channels.get(n, False)
+            if self.channels.get(n, False)
         ]
 
         # Extract and clean data
