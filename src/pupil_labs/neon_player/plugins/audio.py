@@ -73,7 +73,8 @@ class AudioPlugin(neon_player.Plugin):
             self.sync_position()
 
     def sync_position(self) -> None:
-        if not self.recording_has_audio:
+        if not self.recording or not self.recording_has_audio:
+            self.has_audio_at_ts = False
             return
 
         position = self.app.current_ts

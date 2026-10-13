@@ -22,13 +22,13 @@ from qt_property_widgets.utilities import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, action
-from pupil_labs.neon_player.plugins.gaze import CircleViz, GazeVisualization
+from pupil_labs.neon_player.plugins.gaze import CircleViz, GazeVisualization, apply_offset
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
 from .ui import SurfaceHandle, SurfaceViewWindow
 
 if TYPE_CHECKING:
-    from pupil_labs.neon_player.plugins.sufrace_tracking.surface_tracking import (
+    from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
         SurfaceTrackingPlugin,
     )
 
@@ -67,15 +67,18 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
         self._visualizations: list[GazeVisualization] = [
             CircleViz(),
         ]
-        self._render_size = [0, 0]
+        self._render_size = (0, 0)
 
     @property
     @property_params(widget=None)
-    def render_size(self) -> list[int]:
+    def render_size(self) -> tuple[int, int]:
         return self._render_size
 
     @render_size.setter
-    def render_size(self, value: list[int]) -> None:
+    def render_size(self, value: tuple[int, int]) -> None:
+        if len(value) != 2:
+            raise ValueError("Expected render size to have exactly 2 values")
+
         self._render_size = value
         self.changed.emit()
 
@@ -467,10 +470,11 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             )
             return
 
-        offset_gazes = gazes.point + np.array([
-            gaze_plugin.offset_x * gaze_plugin.recording.scene.width,
-            gaze_plugin.offset_y * gaze_plugin.recording.scene.height,
-        ])
+        offset_gazes = apply_offset(
+            self.tracker_plugin.recording,
+            gazes.point,
+            gaze_plugin.offset
+        )
 
         return self.map_points_by_time(offset_gazes, gazes.time)
 
@@ -482,6 +486,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         gazes_on_surface = lower_pass & upper_pass
 
         gazes = pd.DataFrame({
+            "recording id": self.tracker_plugin.recording.info["recording_id"],
             "timestamp [ns]": gazes.time,
             "gaze detected on surface": gazes_on_surface,
             "gaze position on surface x [normalized]": mapped_gazes[:, 0],
@@ -513,7 +518,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         # drop unused columns
         fixation_data = fixation_data.drop(
             columns=[
-                "recording id",
                 "fixation x [px]",
                 "fixation y [px]",
                 "azimuth [deg]",

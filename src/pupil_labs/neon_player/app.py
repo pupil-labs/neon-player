@@ -41,6 +41,7 @@ from pupil_labs.neon_player.plugins import (
     scene_renderer,  # noqa: F401
     surface_tracking,  # noqa: F401
     video_exporter,  # noqa: F401
+    xdf,  # noqa: F401
 )
 from pupil_labs.neon_player.history import RecordingHistory
 from pupil_labs.neon_player.settings import GeneralSettings, load_recording_settings
@@ -394,7 +395,7 @@ class NeonPlayerApp(QApplication):
 
         QTimer.singleShot(0, self.toggle_plugins_by_settings)
         QTimer.singleShot(10, self.on_recording_load_complete)
-        self.recording_settings.changed.connect(self.toggle_plugins_by_settings)
+        self.recording_settings.plugins_changed.connect(self.toggle_plugins_by_settings)
         SlotDebouncer.debounce(self.recording_settings.changed, self.save_settings)
 
     def on_recording_load_complete(self) -> None:
