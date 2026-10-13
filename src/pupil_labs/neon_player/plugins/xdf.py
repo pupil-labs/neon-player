@@ -452,7 +452,10 @@ class XDFPlugin(Plugin):
             return
 
         self._data_stream_uid = value
-        self._data_stream = self._data_streams_by_uid.get(self._data_stream_uid)
+        self._data_stream = (
+            self._data_streams_by_uid.get(self._data_stream_uid)
+            if self._data_stream_uid is not None else None
+        )
         should_load = self._state_initialized and self.file_path_valid and self._data_stream
         if not should_load:
             self._update_channel_selection()
@@ -465,7 +468,7 @@ class XDFPlugin(Plugin):
             self._clear_cache()
             self.load_xdf()
 
-        self.update_timeline(markers=False)
+        self._update_channel_selection()
 
     @property
     @property_params(widget=None, dont_encode=True)
@@ -504,7 +507,10 @@ class XDFPlugin(Plugin):
             return
 
         self._marker_stream_uid = value
-        self._marker_stream = self._marker_streams_by_uid.get(self._marker_stream_uid)
+        self._marker_stream = (
+            self._marker_streams_by_uid.get(self._marker_stream_uid)
+            if self._marker_stream_uid is not None else None
+        )
         should_load = self._state_initialized and self.file_path_valid and self._marker_stream
         if not should_load:
             self._update_events()
@@ -569,7 +575,7 @@ class XDFPlugin(Plugin):
 
         self._apply_bandpass = value
         if self._state_initialized and self.data_stream:
-            self.update_timeline()
+            self.update_timeline(markers=False)
 
     @property
     @property_params(label="Channel Selection")
@@ -580,7 +586,7 @@ class XDFPlugin(Plugin):
     def channels(self, value: dict[str, bool]) -> None:
         self._channels = value
         if self._state_initialized:
-            self.update_timeline()
+            self.update_timeline(markers=False)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         # State is fully initialized by now, allow loading XDF data from now on
@@ -644,7 +650,7 @@ class XDFPlugin(Plugin):
             self._xdf_load_job.cancel()
 
         # Fast path: if this xdf stream is already cached, load it instantly.
-        if self._attempt_load_xdf_from_cache(log_missing=False):
+        if self._attempt_load_xdf_from_cache():
             return
 
         logging.info("Could not load XDF data from cache")
@@ -737,21 +743,22 @@ class XDFPlugin(Plugin):
         data_cache_file.parent.mkdir(parents=True, exist_ok=True)
         stream.save_data(data_cache_file)
 
-    def _attempt_load_xdf_from_cache(self, *, log_missing: bool = True) -> bool:
+    def _attempt_load_xdf_from_cache(self) -> bool:
         meta_cache_file = self._get_xdf_cache_file()
         if not meta_cache_file.exists():
             logging.debug("XDF cache metadata file not found: %s", meta_cache_file)
             return False
 
         try:
-            if not self._load_xdf_from_cache(log_missing=log_missing):
+            if not self._load_xdf_from_cache():
                 return False
+
+            self._update_events()
+            self.align_with_recording()
         except Exception as e:
             logging.exception(f"Failed to load XDF from cache. Error: {str(e)}")
             return False
 
-        self._update_events()
-        self.align_with_recording()
         return True
 
     def _clear_cache(self) -> None:
@@ -768,7 +775,6 @@ class XDFPlugin(Plugin):
         data_cache_file = self._get_data_stream_cache_file(self.data_stream.uid)
         try:
             self.data_stream.load_data(data_cache_file)
-            self._update_channel_selection()
             return True
         except XDFStreamError as e:
             logging.error(
@@ -792,7 +798,7 @@ class XDFPlugin(Plugin):
             )
             return False
 
-    def _load_xdf_from_cache(self, *, log_missing: bool = True) -> bool:
+    def _load_xdf_from_cache(self) -> bool:
         meta_cache_file = self._get_xdf_cache_file()
         with meta_cache_file.open("r", encoding="utf-8") as meta_fp:
             meta_payload = json.load(meta_fp)
@@ -815,7 +821,7 @@ class XDFPlugin(Plugin):
 
         cached_data_streams = {}
         for cached_stream in meta_payload.get("data_streams", []):
-            xdf_stream = XDFStream.from_dict(cached_stream)
+            xdf_stream = DataXDFStream.from_dict(cached_stream)
             cached_data_streams[xdf_stream.uid] = xdf_stream
         if self.data_stream_uid and self.data_stream_uid not in cached_data_streams:
             self.data_stream_uid = None
@@ -823,21 +829,17 @@ class XDFPlugin(Plugin):
 
         cached_marker_streams = {}
         for cached_stream in meta_payload.get("marker_streams", []):
-            xdf_stream = XDFStream.from_dict(cached_stream)
+            xdf_stream = MarkerXDFStream.from_dict(cached_stream)
             cached_marker_streams[xdf_stream.uid] = xdf_stream
         if self.marker_stream_uid and self.marker_stream_uid not in cached_marker_streams:
             self.marker_stream_uid = None
         self.available_marker_streams = list(cached_marker_streams.values())
 
-        if self.data_stream_uid:
-            self._load_data_stream_from_cache()
-            if not self.data_stream:
-                return False
+        if self.data_stream_uid and not self._load_data_stream_from_cache():
+            return False
 
-        if self.marker_stream_uid:
-            self._load_marker_stream_from_cache()
-            if not self.marker_stream:
-                return False
+        if self.marker_stream_uid and not self._load_marker_stream_from_cache():
+            return False
 
         return True
 
