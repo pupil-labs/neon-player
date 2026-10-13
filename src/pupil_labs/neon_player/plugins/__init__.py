@@ -117,16 +117,42 @@ class Plugin(PersistentPropertiesMixin, QObject):
         """
         pass
 
-    def render(self, painter: QPainter, time_in_recording: int) -> None:
+    def on_disabled(self) -> None:
+        """This method is called whenever a plugin is disabled.
+
+        Override this method to clean up any UI elements added by the plugin (e.g.,
+        timeline plots). The corresponding section in the plugin settings sidebar
+        will be removed automatically.
+        """
         pass
 
-    def on_disabled(self) -> None:
+    def render(self, painter: QPainter, time_in_recording: int) -> None:
+        """This method is called whenever the scene video viewport is rendered.
+
+        Override this method to add overlays on top of the scene video.
+
+        Args:
+            painter: The painter object the can be used to display elements on
+                the canvas. Note that the painter is transformed to the coordinate
+                system of the scene video (i.e., has the resolution of 1600x1200px).
+            time_in_recording: The current timestamp of the playhead.
+        """
         pass
 
     def trigger_scene_update(self) -> None:
+        """Request an update of the scene video viewport.
+
+        If the video playback is paused, changes to the rendered content may not
+        be displayed immediately. Use this method to trigger a scene update explicitly.
+        """
         self.app.main_window.video_widget.update()
 
     def get_timeline(self) -> TimeLineDock:
+        """Access the timeline.
+
+        Returns:
+            timeline: The timeline controller that allows adding / removing plots.
+        """
         return self.app.main_window.timeline
 
     def user_confirm(self, title: str, message: str) -> bool:
@@ -134,6 +160,15 @@ class Plugin(PersistentPropertiesMixin, QObject):
         return reply == QMessageBox.StandardButton.Yes
 
     def get_cache_path(self) -> Path:
+        """Get the path to the plugin cache folder.
+
+        The returned location is the recommended place to store cache files (e.g.,
+        the result of long-running tasks) without interfering with the original
+        recording files or cache of other plugins.
+
+        Returns:
+            path: Path to the plugin cache folder.
+        """
         if self.recording is None:
             return None
 
@@ -141,6 +176,14 @@ class Plugin(PersistentPropertiesMixin, QObject):
         return cache_dir / self.__class__.__name__
 
     def load_cached_json(self, filename: str) -> T.Any:
+        """Load a JSON file from the cache folder.
+
+        Args:
+            filename: Name of the file in the cache folder.
+
+        Returns:
+            contents: File contents.
+        """
         if self.recording is None:
             return None
 
@@ -153,6 +196,12 @@ class Plugin(PersistentPropertiesMixin, QObject):
             return json.load(f)
 
     def save_cached_json(self, filename: str, data: T.Any) -> None:
+        """Save data to a JSON file in the cache folder.
+
+        Args:
+            filename: Name of the file in the cache folder.
+            data: Data to be saved.
+        """
         if self.recording is None:
             return
 
@@ -203,16 +252,37 @@ class Plugin(PersistentPropertiesMixin, QObject):
     @property
     @property_params(widget=None, dont_encode=True)
     def app(self) -> "NeonPlayerApp":
+        """Access the Neon Player application instance.
+
+        Returns:
+            app: The Neon Player application instance, if one is launched.
+        """
         return neon_player.instance()
 
     @property
     @property_params(widget=None, dont_encode=True)
     def headless(self) -> bool:
+        """Detect if Neon Player is running in headless mode.
+
+        Headless mode is used for background jobs and/or CLI-based usage
+        of Neon Player.
+
+        Returns:
+            headless: `True` if running in headless mode.
+        """
         return self.app is None or self.app.headless
 
     @property
     @property_params(widget=None, dont_encode=True)
     def job_manager(self) -> "JobManager":
+        """Access the background job manager.
+
+        Job manager allows launching long-running tasks in the background
+        to avoid blocking the UI while the task is running.
+
+        Returns:
+            job_manager: The job manager instance.
+        """
         return neon_player.instance().job_manager
 
     @staticmethod

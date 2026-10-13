@@ -26,6 +26,12 @@ nav:
       - Plugin API: api/plugin.md
       - Property parameters: api/properties.md
       - Action parameters: api/actions.md
+      - Player components:
+          - Application: api/player/app.md
+          - Job manager: api/player/job_manager.md
+          - Timeline: api/player/timeline.md
+  - Examples of plugins:
+      - Widgets demo: examples/demo_widgets.md
 
 theme:
   name: material
@@ -113,6 +119,7 @@ plugins:
         python:
           inventories:
             - https://docs.python.org/3/objects.inv
+            - https://doc.qt.io/qtforpython-6/objects.inv
             - https://pupil-labs.github.io/pl-neon-recording/latest/objects.inv
           paths: [src]
           options:
