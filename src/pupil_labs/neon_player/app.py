@@ -41,6 +41,7 @@ from pupil_labs.neon_player.plugins import (
     scene_renderer,  # noqa: F401
     surface_tracking,  # noqa: F401
     video_exporter,  # noqa: F401
+    xdf,  # noqa: F401
 )
 from pupil_labs.neon_player.history import RecordingHistory
 from pupil_labs.neon_player.settings import GeneralSettings, load_recording_settings
