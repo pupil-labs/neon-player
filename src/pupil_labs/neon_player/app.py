@@ -44,9 +44,9 @@ from pupil_labs.neon_player.plugins import (
     xdf,  # noqa: F401
 )
 from pupil_labs.neon_player.history import RecordingHistory
+from pupil_labs.neon_player.managers.update import UpdateManager
 from pupil_labs.neon_player.settings import GeneralSettings, load_recording_settings
 from pupil_labs.neon_player.ui.main_window import MainWindow
-from pupil_labs.neon_player.updater import UpdateManager
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
     PluginInstallationDialog,
 )
@@ -127,8 +127,6 @@ class NeonPlayerApp(QApplication):
 
         self.main_window = MainWindow()
 
-        self.update_manager = UpdateManager(parent=self)
-
         self.ipc_logger = IPCLogger()
         logging.info(
             f"{self.applicationName()} v{self.applicationVersion()} starting up"
@@ -161,6 +159,11 @@ class NeonPlayerApp(QApplication):
         except Exception:
             logging.exception("Failed to load recording history")
         self.recording_history.changed.connect(self.save_history)
+
+        self.update_manager = UpdateManager(parent=self)
+        self.update_manager.update_available.connect(self.main_window.on_update_available)
+        if self.settings.check_for_updates:
+            QTimer.singleShot(0, self.update_manager.check_for_updates)
 
         if self.args.job and self.args.recording:
             self.load(Path(self.args.recording))

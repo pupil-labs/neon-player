@@ -11,7 +11,6 @@ class NotificationPill(QFrame):
     def __init__(self, color="#6d7be0", hover_color="#5a66b9", icon_path=None, parent=None):
         super().__init__(parent)
         self.action_url = ""
-        # Create a unique object name so styles apply independently if needed
         self.setObjectName("NotificationPill")
         self.setFixedHeight(28)
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
@@ -97,11 +96,3 @@ class UpdatePill(NotificationPill):
         text = f"There is a new update available {version_tag}"
         tooltip = f"Open {version_tag} on GitHub ({release_url})"
         self.show_pill(text, release_url, tooltip)
-
-
-class WhatsNewPill(NotificationPill):
-    def __init__(self, parent=None):
-        icon_path = os.path.join(os.path.dirname(__file__), "..", "assets", "sparkles.svg")
-        # Purple for what's new
-        super().__init__(color="#6d7be0", hover_color="#5a66b9", icon_path=icon_path, parent=parent)
-        self.label.setText("See what's new!")

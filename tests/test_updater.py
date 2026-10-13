@@ -3,7 +3,7 @@ import urllib.error
 import urllib.request
 from unittest.mock import MagicMock, patch
 
-from pupil_labs.neon_player.updater import CheckUpdateThread
+from pupil_labs.neon_player.managers.update import CheckUpdateThread
 
 
 @patch("urllib.request.urlopen")

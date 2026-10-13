@@ -50,10 +50,7 @@ from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
-from pupil_labs.neon_player.ui.notification_pill import UpdatePill, WhatsNewPill
-from importlib.metadata import version as get_version
-from importlib.metadata import PackageNotFoundError
-from packaging import version
+from pupil_labs.neon_player.ui.notification_pill import UpdatePill
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
 
@@ -455,9 +452,13 @@ class MainWindow(QMainWindow):
         self.job_progress_bar = QProgressBar()
         self.job_progress_bar.hide()
         self.job_progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.update_pill = UpdatePill(self)
+        self.update_pill.dismissed.connect(self.prompt_disable_updates)
+        self.update_pill.hide()
 
         self.statusBar().addWidget(self.status_label, stretch=5)
         self.statusBar().addWidget(self.job_progress_bar, stretch=1)
+        self.statusBar().addWidget(self.update_pill)
         app.job_manager.updated.connect(self.update_job_status)
 
         self.log_status_handler = StatusBarLogHandler(self.status_label)
@@ -478,11 +479,11 @@ class MainWindow(QMainWindow):
             "&Help/&Online Documentation", on_triggered=self.on_documentation_action
         )
         self.register_action("&Help/&About", on_triggered=self.on_about_action)
+        self.register_action("&Help/&Show release notes", None, self.open_release_notes)
 
         self.register_action("&File/&Open recording", "Ctrl+o", self.on_open_action)
         self.register_action("&File/&Close recording", "Ctrl+w", app.unload)
         self.register_action("&File/&Global Settings", None, self.show_global_settings)
-        self.register_action("&Help/Show release notes", None, self.open_release_notes)
         self.register_action("&File/&Quit", "Ctrl+q", self.on_quit_action)
 
         self.register_action("&Tools/&Console", "Ctrl+Alt+c", self.console_window.show)
@@ -540,61 +541,24 @@ class MainWindow(QMainWindow):
         self.on_recording_closed()
         self.status_label.clicked.connect(self.console_window.show)
 
-        self.update_pill = UpdatePill(self)
-        self.update_pill.dismissed.connect(self.prompt_disable_updates)
-        self.statusBar().addPermanentWidget(self.update_pill)
+    def reset_docks(self):
+        docks_and_areas = {
+            self.timeline_dock: Qt.DockWidgetArea.BottomDockWidgetArea,
+            self.settings_dock: Qt.DockWidgetArea.RightDockWidgetArea,
+        }
 
-        self.whats_new_pill = WhatsNewPill(self)
-        self.whats_new_pill.clicked.connect(self.mark_notes_as_read)
-        self.whats_new_pill.dismissed.connect(self.mark_notes_as_read)
-        self.statusBar().addPermanentWidget(self.whats_new_pill)
-
-        QTimer.singleShot(0, self.check_whats_new_pill)
-
-        self._updater_settings_connected = False
-        QTimer.singleShot(0, self.check_updates_if_enabled)
-
-    def check_updates_if_enabled(self) -> None:
-        import contextlib
-
-        app = neon_player.instance()
-        if (
-            not self._updater_settings_connected
-            and hasattr(app, "settings")
-            and hasattr(app.settings, "changed")
-        ):
-            with contextlib.suppress(RuntimeError, TypeError):
-                app.settings.changed.connect(self.on_settings_changed_updater)
-                self._updater_settings_connected = True
-
-        should_check = getattr(app.settings, "check_for_updates", True)
-        if should_check and hasattr(app, "update_manager"):
-            try:
-                app.update_manager.update_available.disconnect(self.on_update_available)
-            except (TypeError, RuntimeError):
-                pass
-            app.update_manager.update_available.connect(self.on_update_available)
-            app.update_manager.check_for_updates()
-
-    def on_settings_changed_updater(self) -> None:
-        app = neon_player.instance()
-        if not getattr(app.settings, "check_for_updates", True):
-            if hasattr(self, "update_pill"):
-                self.update_pill.hide()
-        else:
-            self.check_updates_if_enabled()
+        for dock, area in docks_and_areas.items():
+            self.addDockWidget(area, dock)
+            dock.setFloating(False)
+            dock.show()
 
     def on_update_available(
         self, tag_name: str, release_url: str, release_notes: str
     ) -> None:
-        self.latest_release_notes = f"## {tag_name}\n\n{release_notes}\n\n---"
         self.update_pill.show_update(tag_name, release_url)
+        self.statusBar().show()
 
     def prompt_disable_updates(self) -> None:
-        app = neon_player.instance()
-        if not hasattr(app, "settings"):
-            return
-
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Information)
         box.setWindowTitle("Update Notification Dismissed")
@@ -606,62 +570,11 @@ class MainWindow(QMainWindow):
         checked = cb.isChecked()
         box.deleteLater()
 
-        if checked:
-            app.settings.check_for_updates = False
-            if hasattr(app, "save_settings"):
-                app.save_settings()
-
-    def open_release_notes(self) -> None:
-        QDesktopServices.openUrl(QUrl("https://github.com/pupil-labs/neon-player/releases"))
-
-    def check_whats_new_pill(self) -> None:
-        app = neon_player.instance()
-        if not hasattr(app, "settings"):
+        if not checked:
             return
 
-        try:
-            current_ver = get_version("pupil-labs-neon-player")
-        except PackageNotFoundError:
-            try:
-                current_ver = get_version("pupil_labs.neon_player")
-            except PackageNotFoundError:
-                return  # We are in dev mode, don't show the pill
-
-        try:
-            current_parsed = version.parse(current_ver)
-            last_read_parsed = version.parse(app.settings.last_read_release_notes_version or "0.0.0")
-
-            if current_parsed > last_read_parsed:
-                self.whats_new_pill.show_pill("See what's new!", "https://github.com/pupil-labs/neon-player/releases", "Open release notes on GitHub")
-        except version.InvalidVersion:
-            pass # Parsing error
-
-    def mark_notes_as_read(self) -> None:
-        self.whats_new_pill.hide()
         app = neon_player.instance()
-        if hasattr(app, "settings"):
-            try:
-                current_ver = get_version("pupil-labs-neon-player")
-            except PackageNotFoundError:
-                try:
-                    current_ver = get_version("pupil_labs.neon_player")
-                except PackageNotFoundError:
-                    current_ver = "0.0.0"
-
-            app.settings.last_read_release_notes_version = current_ver
-            if hasattr(app, "save_settings"):
-                app.save_settings()
-
-    def reset_docks(self):
-        docks_and_areas = {
-            self.timeline_dock: Qt.DockWidgetArea.BottomDockWidgetArea,
-            self.settings_dock: Qt.DockWidgetArea.RightDockWidgetArea,
-        }
-
-        for dock, area in docks_and_areas.items():
-            self.addDockWidget(area, dock)
-            dock.setFloating(False)
-            dock.show()
+        app.settings.check_for_updates = False
 
     def on_recording_opened(self):
         self.greeting_switcher.setCurrentIndex(1)
@@ -676,6 +589,8 @@ class MainWindow(QMainWindow):
         self.timeline_dock.hide()
         self.settings_dock.hide()
         self.menuBar().hide()
+        if not self.update_pill.isVisible():
+            self.statusBar().hide()
 
     def on_show_recent_action(self) -> None:
         self.recent_widget.update_recent_recordings()
@@ -757,6 +672,9 @@ class MainWindow(QMainWindow):
 
     def on_documentation_action(self) -> None:
         webbrowser.open("https://docs.pupil-labs.com/neon/neon-player/")
+
+    def open_release_notes(self) -> None:
+        webbrowser.open("https://github.com/pupil-labs/neon-player/releases")
 
     def on_about_action(self) -> None:
         app = neon_player.instance()
