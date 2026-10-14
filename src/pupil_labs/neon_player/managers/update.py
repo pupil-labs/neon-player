@@ -15,8 +15,17 @@ GITHUB_OWNER = "pupil-labs"
 GITHUB_REPO = "neon-player"
 
 
+def app_version() -> version.Version:
+    try:
+        v = version.parse(get_version("pupil-labs-neon-player"))
+    except (PackageNotFoundError, version.InvalidVersion):
+        v = version.parse("0.0.0")
+
+    return v
+
+
 class CheckUpdateThread(QThread):
-    update_available = Signal(str, str, str)  # tag_name, release_url, release_notes
+    update_available = Signal(str, str)
 
     def __init__(self):
         super().__init__()
@@ -34,11 +43,8 @@ class CheckUpdateThread(QThread):
             logger.warning("Failed to check for updates", exc_info=True)
             return
 
-        try:
-            current_version = version.parse(get_version("pupil-labs-neon-player"))
-        except (PackageNotFoundError, version.InvalidVersion):
-            current_version = version.parse("0.0.0")
-        logging.debug(f"Currently installed NP: {current_version}")
+        current_version = app_version()
+        logging.debug(f"Currently installed NP: v{current_version}")
 
         tag_name = data.get("tag_name", "v0.0.0")
         try:
@@ -46,29 +52,30 @@ class CheckUpdateThread(QThread):
         except version.InvalidVersion:
             logger.warning("Invalid release tag version: %s", tag_name)
             return
-        logging.debug(f"Latest available NP: {latest_version}")
+        logging.debug(f"Latest available NP: v{latest_version}")
 
         if latest_version <= current_version:
             logger.info(
-                "App is up to date (current: %s, latest: %s)",
+                "App is up to date (current: v%s, latest: v%s)",
                 current_version,
                 latest_version,
             )
             return
 
-        logger.info(f"A new update is available: {latest_version}")
+        logger.info(f"A new update is available: v{latest_version}")
         release_url = data.get(
             "html_url", f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/releases"
         )
-        release_notes = data.get("body", "No release notes found.")
-        self.update_available.emit(tag_name, release_url, release_notes)
+        self.update_available.emit(tag_name, release_url)
 
 
 class UpdateManager(QObject):
-    update_available = Signal(str, str, str)  # tag_name, release_url, release_notes
+    update_available = Signal(str, str)
+    notes_available = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.app = parent
         self._release_notes: dict[version.Version, str] = {}
         self.thread = CheckUpdateThread()
         self.thread.update_available.connect(self.update_available.emit)
@@ -81,18 +88,23 @@ class UpdateManager(QObject):
         title: str = "Release notes",
         min_version: version.Version | None = None
     ) -> str:
-        all_releases = sorted(
+        releases = sorted(
             self._release_notes.items(), key=lambda el: el[0], reverse=True
         )
+        if min_version is not None:
+            releases = list(filter(lambda el: el[0] > min_version, releases))
+
+        if not releases:
+            return ""
+
         result = f"# {title}\n"
-        for version_tag, notes in all_releases:
+        for version_tag, notes in releases:
             result += f"## v{str(version_tag)}\n{notes}\n"
 
         return result
 
-    def load_release_notes(self) -> None:
+    def load_release_notes(self, latest_read_version: str) -> None:
         for path in changelog_path().iterdir():
-            print(path, path.suffix)
             if not path.is_file() or not path.suffix == ".md":
                 continue
 
@@ -102,4 +114,13 @@ class UpdateManager(QObject):
 
             self._release_notes[version_tag] = notes
 
-        print(self._release_notes)
+        read_version = version.parse(latest_read_version)
+        unread_notes = self.get_release_notes(
+            title="What's Changed",
+            min_version=read_version
+        )
+        if not unread_notes:
+            return
+
+        logging.debug(f"Release notes were not read since {read_version}")
+        self.notes_available.emit(unread_notes)

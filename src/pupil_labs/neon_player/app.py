@@ -44,7 +44,7 @@ from pupil_labs.neon_player.plugins import (
     xdf,  # noqa: F401
 )
 from pupil_labs.neon_player.history import RecordingHistory
-from pupil_labs.neon_player.managers.update import UpdateManager
+from pupil_labs.neon_player.managers.update import UpdateManager, app_version
 from pupil_labs.neon_player.settings import GeneralSettings, load_recording_settings
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
@@ -161,8 +161,9 @@ class NeonPlayerApp(QApplication):
         self.recording_history.changed.connect(self.save_history)
 
         self.update_manager = UpdateManager(parent=self)
-        self.update_manager.load_release_notes()
         self.update_manager.update_available.connect(self.main_window.on_update_available)
+        self.update_manager.notes_available.connect(self.main_window.show_release_notes)
+        self.update_manager.load_release_notes(self.settings.last_read_release_notes_version)
         if self.settings.check_for_updates:
             QTimer.singleShot(0, self.update_manager.check_for_updates)
 
@@ -416,6 +417,7 @@ class NeonPlayerApp(QApplication):
         QTimer.singleShot(0, self.toggle_plugins_by_settings)
         QTimer.singleShot(10, self.on_recording_load_complete)
         self.recording_settings.plugins_changed.connect(self.toggle_plugins_by_settings)
+        SlotDebouncer.debounce(self.settings.changed, self.save_settings)
         SlotDebouncer.debounce(self.recording_settings.changed, self.save_settings)
 
     def on_recording_load_complete(self) -> None:
@@ -606,3 +608,10 @@ class NeonPlayerApp(QApplication):
 
         self.recording_settings.export_window = export_window
         self.main_window.timeline.set_export_window(export_window)
+
+    @property
+    def version(self) -> str:
+        return app_version().base_version
+
+    def update_read_release_notes(self) -> None:
+        self.settings.last_read_release_notes_version = str(self.version)

@@ -93,6 +93,6 @@ class UpdatePill(NotificationPill):
     def show_update(self, version_tag: str, release_url: str):
         # We also want it accessible via self.release_url for backwards compat
         self.release_url = release_url
-        text = f"There is a new update available {version_tag}"
-        tooltip = f"Open {version_tag} on GitHub ({release_url})"
+        text = f"There is a new update available: v{version_tag}"
+        tooltip = f"Open v{version_tag} release on GitHub ({release_url})"
         self.show_pill(text, release_url, tooltip)

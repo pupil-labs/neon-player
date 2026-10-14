@@ -31,7 +31,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
         self._check_for_updates = True
         self._skip_gray_frames_on_load = True
         self._show_fps = False
-        self._last_read_release_notes_version = ""
+        self._last_read_release_notes_version = "0.0.0"
 
         plugin_names = [k.__name__ for k in Plugin.known_classes]
         plugin_names.sort()
@@ -76,7 +76,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
     @last_read_release_notes_version.setter
     def last_read_release_notes_version(self, value: str) -> None:
         self._last_read_release_notes_version = value
-
+        self.changed.emit()
 
     @property
     def default_plugins(self) -> dict[str, bool]:

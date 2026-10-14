@@ -480,7 +480,7 @@ class MainWindow(QMainWindow):
             "&Help/&Online Documentation", on_triggered=self.on_documentation_action
         )
         self.register_action("&Help/&About", on_triggered=self.on_about_action)
-        self.register_action("&Help/&Show release notes", None, self.open_release_notes)
+        self.register_action("&Help/&Show release notes", None, self.show_release_notes)
 
         self.register_action("&File/&Open recording", "Ctrl+o", self.on_open_action)
         self.register_action("&File/&Close recording", "Ctrl+w", app.unload)
@@ -553,9 +553,7 @@ class MainWindow(QMainWindow):
             dock.setFloating(False)
             dock.show()
 
-    def on_update_available(
-        self, tag_name: str, release_url: str, release_notes: str
-    ) -> None:
+    def on_update_available(self, tag_name: str, release_url: str) -> None:
         self.update_pill.show_update(tag_name, release_url)
         self.statusBar().show()
 
@@ -674,12 +672,15 @@ class MainWindow(QMainWindow):
     def on_documentation_action(self) -> None:
         webbrowser.open("https://docs.pupil-labs.com/neon/neon-player/")
 
-    def open_release_notes(self) -> None:
-        notes = neon_player.instance().update_manager.get_release_notes()
+    def show_release_notes(self, notes: str | None = None) -> None:
+        app = neon_player.instance()
+        if notes is None:
+            notes = app.update_manager.get_release_notes()
 
         dialog = ReleaseNotesDialog(self)
         dialog.set_markdown(notes)
-        dialog.show()
+        dialog.finished.connect(app.update_read_release_notes)
+        dialog.open()
 
     def on_about_action(self) -> None:
         app = neon_player.instance()
