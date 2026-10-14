@@ -11,7 +11,7 @@ class ReleaseNotesDialog(QDialog):
     def __init__(self, parent: QWidget | None = None, markdown: str = ""):
         super().__init__(parent)
         self.setWindowTitle("Release Notes")
-        self.resize(640, 480)
+        self.resize(800, 600)
 
         self.markdown_view = QTextBrowser(self)
         self.markdown_view.setMarkdown(markdown)

@@ -477,10 +477,11 @@ class MainWindow(QMainWindow):
         )
 
         self.register_action(
-            "&Help/&Online Documentation", on_triggered=self.on_documentation_action
+            "&Help/&Online documentation", on_triggered=self.on_documentation_action
         )
         self.register_action("&Help/&About", on_triggered=self.on_about_action)
-        self.register_action("&Help/&Show release notes", None, self.show_release_notes)
+        self.register_action("&Help/&Show release notes", None, self.on_release_notes_action)
+        self.register_action("&Help/&Check for updates", None, self.on_check_updates_action)
 
         self.register_action("&File/&Open recording", "Ctrl+o", self.on_open_action)
         self.register_action("&File/&Close recording", "Ctrl+w", app.unload)
@@ -671,6 +672,12 @@ class MainWindow(QMainWindow):
 
     def on_documentation_action(self) -> None:
         webbrowser.open("https://docs.pupil-labs.com/neon/neon-player/")
+
+    def on_check_updates_action(self) -> None:
+        webbrowser.open("https://github.com/pupil-labs/neon-player/releases/")
+
+    def on_release_notes_action(self) -> None:
+        self.show_release_notes()
 
     def show_release_notes(self, notes: str | None = None) -> None:
         app = neon_player.instance()
