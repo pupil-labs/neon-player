@@ -20,6 +20,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtUiTools import loadUiType
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QDockWidget,
     QFileDialog,
@@ -30,7 +31,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMenuBar,
-    QMessageBox, QCheckBox,
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QScrollArea,

@@ -26,17 +26,18 @@ def app_version() -> version.Version:
 class CheckUpdateThread(QThread):
     update_available = Signal(str, str)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.github_client = GithubAPIClient()
 
-    def run(self):
+    def run(self) -> None:
         try:
             data = self.github_client.get_latest_release(GITHUB_OWNER, GITHUB_REPO)
-        except ConnectionError:
-            logger.info(
+        except GithubAPIClient.FailedRequest as e:
+            logger.warning(
                 "Could not check for updates (the app is offline, or "
-                "the GitHub release API is unreachable)"
+                "the request to the GitHub release API has failed). "
+                f"Error: {str(e)}"
             )
             return
         except Exception:
@@ -69,15 +70,15 @@ class UpdateManager(QObject):
     update_available = Signal(str, str)
     notes_available = Signal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self.app = parent
         self._release_notes: dict[version.Version, str] = {}
-        self.thread = CheckUpdateThread()
-        self.thread.update_available.connect(self.update_available.emit)
+        self.update_thread = CheckUpdateThread()
+        self.update_thread.update_available.connect(self.update_available.emit)
 
-    def check_for_updates(self):
-        self.thread.start()
+    def check_for_updates(self) -> None:
+        self.update_thread.start()
 
     def get_release_notes(
         self,
