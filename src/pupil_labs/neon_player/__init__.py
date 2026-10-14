@@ -43,7 +43,10 @@ def is_frozen() -> bool:
 
 
 def changelog_path() -> Path:
-    return resources.files(__package__).joinpath("changelog")
+    if is_frozen():
+        return resources.files(__package__).joinpath("changelog")
+
+    return Path(__file__).parents[3] / "docs" / "changelog"
 
 
 __all__ = [
