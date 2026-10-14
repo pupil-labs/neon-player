@@ -1,9 +1,17 @@
 import webbrowser
 
 from pathlib import Path
-from PySide6.QtCore import Qt, QObject, QSize, Signal
+from PySide6.QtCore import Qt, QSize, Signal
 from PySide6.QtGui import QIcon, QCursor
-from PySide6.QtWidgets import QFrame, QWidget, QHBoxLayout, QPushButton, QToolButton
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QFrame,
+    QHBoxLayout,
+    QMessageBox,
+    QPushButton,
+    QToolButton,
+    QWidget,
+)
 
 from pupil_labs.neon_player import asset_path
 
@@ -116,8 +124,33 @@ class NotificationPill(QFrame):
 class UpdatePill(NotificationPill):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(icon_path=asset_path("package.svg"), parent=parent)
+        self.version_tag = ""
 
     def show_update(self, version_tag: str, release_url: str) -> None:
+        self.version_tag = version_tag
         text = f"There is a new update available: v{version_tag}"
         tooltip = f"Open v{version_tag} release on GitHub ({release_url})"
         self.show_pill(text, release_url, tooltip)
+
+
+class DisableUpdatesPrompt(QMessageBox):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+
+        self.setIcon(QMessageBox.Icon.Information)
+        self.setWindowTitle("Update Notification Dismissed")
+        self.setText(
+            "You can always check for updates later or view release notes "
+            "from the Help menu."
+        )
+        self.cb = QCheckBox("Disable automatic update checks on startup")
+        self.setCheckBox(self.cb)
+
+    @property
+    def user_confirmed(self) -> bool:
+        self.exec()
+
+        result = self.cb.isChecked()
+        self.deleteLater()
+
+        return result

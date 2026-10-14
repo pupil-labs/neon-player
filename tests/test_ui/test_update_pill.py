@@ -1,8 +1,8 @@
 from unittest.mock import patch
 
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import Qt
 
-from pupil_labs.neon_player.ui.notification_pill import UpdatePill
+from pupil_labs.neon_player.ui.update_notification import UpdatePill
 
 
 def test_update_pill_hidden_by_default(qtbot):
@@ -37,7 +37,7 @@ def test_update_pill_dismiss(qtbot):
     assert pill.isHidden()
 
 
-@patch("pupil_labs.neon_player.ui.notification_pill.webbrowser.open")
+@patch("pupil_labs.neon_player.ui.update_notification.webbrowser.open")
 def test_update_pill_action_click_opens_url(mock_open_url, qtbot):
     pill = UpdatePill()
     qtbot.addWidget(pill)

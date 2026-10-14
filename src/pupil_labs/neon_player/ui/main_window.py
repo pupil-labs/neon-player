@@ -20,7 +20,6 @@ from PySide6.QtGui import (
 )
 from PySide6.QtUiTools import loadUiType
 from PySide6.QtWidgets import (
-    QCheckBox,
     QDialog,
     QDockWidget,
     QFileDialog,
@@ -52,7 +51,7 @@ from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.release_notes import ReleaseNotesDialog
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
-from pupil_labs.neon_player.ui.notification_pill import UpdatePill
+from pupil_labs.neon_player.ui.update_notification import UpdatePill, DisableUpdatesPrompt
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
 
@@ -560,21 +559,13 @@ class MainWindow(QMainWindow):
         self.statusBar().show()
 
     def prompt_disable_updates(self) -> None:
-        box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Information)
-        box.setWindowTitle("Update Notification Dismissed")
-        box.setText("You can always check for updates later or view release notes from the Help menu.")
-        cb = QCheckBox("Disable automatic update checks on startup")
-        box.setCheckBox(cb)
-        box.exec()
+        app = neon_player.instance()
+        app.settings.last_displayed_update_version = self.update_pill.version_tag
 
-        checked = cb.isChecked()
-        box.deleteLater()
-
-        if not checked:
+        prompt = DisableUpdatesPrompt(self)
+        if not prompt.user_confirmed:
             return
 
-        app = neon_player.instance()
         app.settings.check_for_updates = False
 
     def on_recording_opened(self):

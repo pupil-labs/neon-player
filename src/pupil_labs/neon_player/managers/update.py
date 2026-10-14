@@ -26,8 +26,9 @@ def app_version() -> version.Version:
 class CheckUpdateThread(QThread):
     update_available = Signal(str, str)
 
-    def __init__(self) -> None:
+    def __init__(self, last_displayed_update_version: str) -> None:
         super().__init__()
+        self.last_displayed_update_version = version.parse(last_displayed_update_version)
         self.github_client = GithubAPIClient()
 
     def run(self) -> None:
@@ -59,6 +60,10 @@ class CheckUpdateThread(QThread):
             logger.info("Neon Player is up to date")
             return
 
+        if latest_version <= self.last_displayed_update_version:
+            logger.debug(f"Update v{latest_version} was already presented")
+            return
+
         logger.info(f"A new release of Neon Player is available: v{latest_version}")
         release_url = data.get(
             "html_url", f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/releases"
@@ -74,7 +79,7 @@ class UpdateManager(QObject):
         super().__init__(parent)
         self.app = parent
         self._release_notes: dict[version.Version, str] = {}
-        self.update_thread = CheckUpdateThread()
+        self.update_thread = CheckUpdateThread(self.app.settings.last_displayed_update_version)
         self.update_thread.update_available.connect(self.update_available.emit)
 
     def check_for_updates(self) -> None:
