@@ -12,12 +12,15 @@ class GithubAPIClient:
 
     def _get_json(self, url: str) -> Any:
         logging.debug(f"Retrieving {url}")
-        response = requests.get(
-            url,
-            headers=self.headers,
-            timeout=self.timeout_seconds
-        )
-        return response.json()
+        try:
+            response = requests.get(
+                url,
+                headers=self.headers,
+                timeout=self.timeout_seconds
+            )
+            return response.json()
+        except requests.ConnectionError as e:
+            raise ConnectionError from e
 
     def get_latest_release(self, owner: str, repo: str) -> dict:
         return self._get_json(f"{self.base_url}/repos/{owner}/{repo}/releases/latest")

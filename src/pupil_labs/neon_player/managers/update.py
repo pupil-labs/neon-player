@@ -1,5 +1,4 @@
 import logging
-import urllib.error
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as get_version
 
@@ -34,9 +33,10 @@ class CheckUpdateThread(QThread):
     def run(self):
         try:
             data = self.github_client.get_latest_release(GITHUB_OWNER, GITHUB_REPO)
-        except urllib.error.URLError as e:
+        except ConnectionError:
             logger.info(
-                "Could not check for updates (offline or unreachable: %s)", e.reason
+                "Could not check for updates (the app is offline, or "
+                "the GitHub release API is unreachable)"
             )
             return
         except Exception:
@@ -55,14 +55,10 @@ class CheckUpdateThread(QThread):
         logging.debug(f"Latest available NP: v{latest_version}")
 
         if latest_version <= current_version:
-            logger.info(
-                "App is up to date (current: v%s, latest: v%s)",
-                current_version,
-                latest_version,
-            )
+            logger.info("Neon Player is up to date")
             return
 
-        logger.info(f"A new update is available: v{latest_version}")
+        logger.info(f"A new release of Neon Player is available: v{latest_version}")
         release_url = data.get(
             "html_url", f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/releases"
         )
