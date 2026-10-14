@@ -27,6 +27,7 @@ uv run -m nuitka src/pupil_labs/neon_player \
     --remove-output \
     --python-flag=isolated \
     --include-data-dir=./src/pupil_labs/neon_player/assets=pupil_labs/neon_player/assets \
+    --include-data-dir=./src/pupil_labs/neon_player/changelog=pupil_labs/neon_player/changelog \
     --include-data-files="$UV_PATH"=uv \
     --nofollow-import-to=uv \
     --macos-create-app-bundle \

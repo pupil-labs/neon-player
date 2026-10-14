@@ -48,6 +48,7 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
+from pupil_labs.neon_player.ui.release_notes import ReleaseNotesDialog
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.notification_pill import UpdatePill
@@ -674,7 +675,11 @@ class MainWindow(QMainWindow):
         webbrowser.open("https://docs.pupil-labs.com/neon/neon-player/")
 
     def open_release_notes(self) -> None:
-        webbrowser.open("https://github.com/pupil-labs/neon-player/releases")
+        notes = neon_player.instance().update_manager.get_release_notes()
+
+        dialog = ReleaseNotesDialog(self)
+        dialog.set_markdown(notes)
+        dialog.show()
 
     def on_about_action(self) -> None:
         app = neon_player.instance()

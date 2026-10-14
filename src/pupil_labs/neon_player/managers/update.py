@@ -4,6 +4,7 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as get_version
 
 from packaging import version
+from pupil_labs.neon_player import changelog_path
 from pupil_labs.neon_player.clients.github import GithubAPIClient
 from PySide6.QtCore import QObject, QThread, Signal
 
@@ -68,8 +69,37 @@ class UpdateManager(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._release_notes: dict[version.Version, str] = {}
         self.thread = CheckUpdateThread()
         self.thread.update_available.connect(self.update_available.emit)
 
     def check_for_updates(self):
         self.thread.start()
+
+    def get_release_notes(
+        self,
+        title: str = "Release notes",
+        min_version: version.Version | None = None
+    ) -> str:
+        all_releases = sorted(
+            self._release_notes.items(), key=lambda el: el[0], reverse=True
+        )
+        result = f"# {title}\n"
+        for version_tag, notes in all_releases:
+            result += f"## v{str(version_tag)}\n{notes}\n"
+
+        return result
+
+    def load_release_notes(self) -> None:
+        for path in changelog_path().iterdir():
+            print(path, path.suffix)
+            if not path.is_file() or not path.suffix == ".md":
+                continue
+
+            version_tag = version.parse(path.stem.lstrip("v"))
+            with open(path, "r") as f:
+                notes = f.read()
+
+            self._release_notes[version_tag] = notes
+
+        print(self._release_notes)

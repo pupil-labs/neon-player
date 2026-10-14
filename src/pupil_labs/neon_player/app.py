@@ -161,6 +161,7 @@ class NeonPlayerApp(QApplication):
         self.recording_history.changed.connect(self.save_history)
 
         self.update_manager = UpdateManager(parent=self)
+        self.update_manager.load_release_notes()
         self.update_manager.update_available.connect(self.main_window.on_update_available)
         if self.settings.check_for_updates:
             QTimer.singleShot(0, self.update_manager.check_for_updates)

@@ -42,6 +42,10 @@ def is_frozen() -> bool:
     return getattr(sys, "frozen", False) or "__compiled__" in globals()
 
 
+def changelog_path() -> Path:
+    return resources.files(__package__).joinpath("changelog")
+
+
 __all__ = [
     "BGWorker",
     "GlobalPluginProperties",
