@@ -4,6 +4,7 @@ import pickle
 import shutil
 import typing as T
 import uuid
+from contextlib import ExitStack
 from itertools import starmap
 from pathlib import Path
 
@@ -44,7 +45,7 @@ from PySide6.QtWidgets import (
 from qt_property_widgets.utilities import action_params, property_params
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player import Plugin, ProgressUpdate, action
+from pupil_labs.neon_player import Panel, Plugin, ProgressUpdate, action
 from pupil_labs.neon_player.settings import RecordingSettings
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.utilities import (
@@ -54,7 +55,7 @@ from pupil_labs.neon_player.utilities import (
 )
 
 from .tracked_surface import TrackedSurface
-from .ui import MarkerEditWidget
+from .ui import MarkerEditWidget, SurfaceViewContent
 
 if T.TYPE_CHECKING:
     from pupil_labs.neon_recording.timeseries import GazeTimeseries
@@ -160,11 +161,18 @@ class SurfaceTrackingPlugin(Plugin):
         self.surface_locations: dict[str, list[SurfaceLocation | None]] = {}
 
         self._surfaces: list[TrackedSurface] = []
+        self._preview_panels: dict[str, Panel] = {}
+        self._observing_panels = False
 
         self.marker_edit_widgets: dict[int, MarkerEditWidget] = {}
         self.header_action = ListPropertyAppenderAction("surfaces", "+ Add surface")
 
     def on_disabled(self) -> None:
+        for panel in tuple(self._preview_panels.values()):
+            self.remove_panel(panel)
+        if self._observing_panels:
+            self.panel_manager.panel_removed.disconnect(self._on_preview_removed)
+            self._observing_panels = False
         self.get_timeline().remove_timeline_plot("Marker visibility")
         for surface in self.surfaces:
             self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
@@ -174,11 +182,45 @@ class SurfaceTrackingPlugin(Plugin):
             marker_widget.hide()
 
         for surface in self._surfaces:
+            surface.view_requested.disconnect(self._open_surface_panel)
             surface.marker_edit_changed.disconnect()
             surface.locations_invalidated.disconnect()
             surface.cleanup_widgets()
 
         self._surfaces.clear()
+
+    def _open_surface_panel(self, surface: TrackedSurface) -> None:
+        if surface not in self._surfaces or not surface.uid:
+            raise ValueError("Only registered surfaces can open preview panels")
+        panel_id = f"surface-tracking.preview.{surface.uid}"
+        existing = self.panel_manager.get_panel(panel_id)
+        tracked = self._preview_panels.get(surface.uid)
+        if existing is not None:
+            if tracked is not existing:
+                raise ValueError(f"Surface preview panel ID already in use: {panel_id}")
+            return
+        if not self._observing_panels:
+            self.panel_manager.panel_removed.connect(self._on_preview_removed)
+            self._observing_panels = True
+        with ExitStack() as rollback:
+            content = SurfaceViewContent(surface, self.panel_manager.playback)
+            rollback.callback(content.deleteLater)
+            panel = Panel(panel_id, f"Surface: {surface.name}", content)
+            rollback.callback(panel.deleteLater)
+            self.add_panel(panel)
+            rollback.pop_all()
+        self._preview_panels[surface.uid] = panel
+        content.view_widget.refresh()
+
+    def _on_preview_removed(self, panel: Panel) -> None:
+        for uid, current in tuple(self._preview_panels.items()):
+            if current is panel:
+                del self._preview_panels[uid]
+
+    def _close_surface_panel(self, surface: TrackedSurface) -> None:
+        panel = self._preview_panels.get(surface.uid)
+        if panel is not None:
+            self.remove_panel(panel)
 
     def _update_displays(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
@@ -512,6 +554,7 @@ class SurfaceTrackingPlugin(Plugin):
                 None if location is None else tuple(np.array(v, dtype=np.float64) for v in location)
                 for location in data
             ]
+            surface.surface_location_changed.emit()
 
             if surface.preview_options.render_size == (0, 0):
                 surface2image = self.surface_locations[surface_uid][surface.defining_frame_index][1]
@@ -736,6 +779,8 @@ class SurfaceTrackingPlugin(Plugin):
         removed_surfaces = [
             surface for surface in self._surfaces if surface not in value
         ]
+        for surface in removed_surfaces:
+            self._close_surface_panel(surface)
 
         fresh_surfaces = [s for s in new_surfaces if s.uid == ""]
         if len(fresh_surfaces) > 0:
@@ -754,6 +799,7 @@ class SurfaceTrackingPlugin(Plugin):
         self._surfaces = value
 
         for surface in new_surfaces:
+            surface.view_requested.connect(self._open_surface_panel)
             if surface.uid == "":
                 surface.uid = str(uuid.uuid4())
 
@@ -785,6 +831,7 @@ class SurfaceTrackingPlugin(Plugin):
                 self._start_bg_surface_locator(surface)
 
         for surface in removed_surfaces:
+            surface.view_requested.disconnect(self._open_surface_panel)
             if surface.edit:
                 for marker_widget in self.marker_edit_widgets.values():
                     marker_widget.hide()

@@ -1,4 +1,3 @@
-import logging
 import time
 
 from PySide6.QtCore import QPoint, QPointF, QPropertyAnimation, QSize, Qt, Signal
@@ -18,7 +17,6 @@ from PySide6.QtWidgets import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.playback import PlaybackPosition
-from pupil_labs.neon_recording import NeonRecording
 
 
 class ScalingWidget(QOpenGLWidget):
@@ -119,7 +117,7 @@ class ScalingWidget(QOpenGLWidget):
             return
 
         self.fit_rect()
-        self.repaint()
+        self.update()
 
     def fit_rect(self, source_size: QSize | None = None) -> None:
         if source_size is not None:
@@ -168,60 +166,52 @@ class ScalingWidget(QOpenGLWidget):
 
 
 class VideoRenderWidget(ScalingWidget):
+    """Playback-driven visualization with preparation and content-painting hooks."""
+
     def __init__(
         self, playback: PlaybackPosition, parent: QWidget | None = None
     ) -> None:
         super().__init__(parent)
         self.playback = playback
-        self._scene_available = True
         self.playback.changed.connect(self._on_position_changed)
 
-    def on_recording_loaded(self, recording: NeonRecording) -> None:
-        self._scene_available = False
-        try:
-            scene = recording.scene
-            width, height = scene.width, scene.height
-        except NeonRecording.SensorError:
-            logging.getLogger(__name__).warning(
-                "Scene video unavailable; displaying a gray frame", exc_info=True
-            )
-            self.repaint()
-            return
-        if width is None or height is None or width <= 0 or height <= 0:
-            logging.getLogger(__name__).warning(
-                "Scene video dimensions unavailable; displaying a gray frame"
-            )
-            self.repaint()
-            return
-        self._scene_available = True
-        self.source_size = QSize(width, height)
-        self.adjust_size()
-        self.repaint()
-
-    def on_recording_unloaded(self) -> None:
-        """Release recording-specific children while retaining the scene widget."""
-        self._scene_available = False
-        self.scaled_children_positions.clear()
-        for child in self.children():
-            if isinstance(child, QWidget) and child is not self.fps_label:
-                child.hide()
-                child.deleteLater()
-
     def _on_position_changed(self, ts: int) -> None:
-        self.repaint()
+        self._prepare_frame(ts)
+        self.update()
+
+    def refresh(self) -> None:
+        """Prepare current playback state before scheduling a coalescible paint."""
+        self._prepare_frame(self.playback.time)
+        self.update()
+
+    def _prepare_frame(self, timestamp: int | None) -> None:
+        """Prepare visualization-specific state without painting synchronously."""
 
     def paintEvent(self, event: QPaintEvent) -> None:
         super().paintEvent(event)
-        if not self._scene_available:
-            painter = QPainter(self)
-            painter.fillRect(self.rect(), QColorConstants.Gray)
-            painter.end()
-            return
-        if self.playback.time is None:
-            return
-
         painter = QPainter(self)
-        self.transform_painter(painter)
+        try:
+            timestamp = self.playback.time
+            if timestamp is None:
+                self._paint_unavailable_frame(painter)
+                return
+            painter.save()
+            try:
+                self.transform_painter(painter)
+                self._paint_frame(painter, timestamp)
+            finally:
+                painter.restore()
+        finally:
+            painter.end()
 
-        neon_player.instance().render_to(painter)
-        painter.end()
+    def _paint_frame(self, painter: QPainter, timestamp: int) -> None:
+        """Paint in visualization coordinates using the borrowed painter."""
+        raise NotImplementedError("Video widgets must implement frame painting")
+
+    def _paint_unavailable_frame(self, painter: QPainter) -> None:
+        painter.save()
+        try:
+            painter.resetTransform()
+            painter.fillRect(self.rect(), QColorConstants.Gray)
+        finally:
+            painter.restore()

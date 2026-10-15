@@ -94,7 +94,8 @@ class PanelManager(QObject):
 
     New panels and widgets must be parentless. Successful addition transfers
     ownership; failure preserves it. Duplicate IDs and invalid ownership
-    raise ValueError; missing IDs raise KeyError. Adapter errors propagate.
+    raise ValueError; removal of missing IDs raises KeyError. Lookup returns
+    None for missing IDs. Adapter errors propagate.
     All operations run on the GUI thread. Mutation during notifications raises
     RuntimeError, as does mutation after shutdown.
 
@@ -139,9 +140,10 @@ class PanelManager(QObject):
         _require_gui_thread()
         return tuple(self._panels.values())
 
-    def get_panel(self, panel_id: str) -> Panel:
+    def get_panel(self, panel_id: str) -> Panel | None:
+        """Return the registered panel, or None if its ID is absent."""
         _require_gui_thread()
-        return self._panels[panel_id]
+        return self._panels.get(panel_id)
 
     def add_panel(self, panel: Panel, *, owner: "Plugin | None" = None) -> None:
         with self._mutation():
@@ -230,7 +232,9 @@ class PanelManager(QObject):
 
     def _on_close_requested(self, panel_id: str) -> None:
         try:
-            if self.get_panel(panel_id).closable:
+            _require_gui_thread()
+            panel = self._panels[panel_id]
+            if panel.closable:
                 self.remove_panel(panel_id)
         except Exception:
             logging.getLogger(__name__).exception("Failed to close panel %s", panel_id)

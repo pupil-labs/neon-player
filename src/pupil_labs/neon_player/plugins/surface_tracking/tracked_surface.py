@@ -25,10 +25,11 @@ from pupil_labs.neon_player import Plugin, action
 from pupil_labs.neon_player.plugins.gaze import CircleViz, GazeVisualization, apply_offset
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
-from .ui import SurfaceHandle, SurfaceViewWindow
+from .ui import SurfaceHandle
 
 if TYPE_CHECKING:
     from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
+        SurfaceLocation,
         SurfaceTrackingPlugin,
     )
 
@@ -172,7 +173,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
         self._location = None
 
-        self.preview_window = None
         self.handle_widgets = {}
         self.corner_positions = {}
         self.jobs = []
@@ -456,10 +456,14 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
         return np.array(mapped_points)
 
-    def image_points_to_surface(self, points):
+    def image_points_to_surface(
+        self, points: np.ndarray, *, location: "SurfaceLocation | None" = None
+    ) -> np.ndarray:
         if len(points) == 0:
             return np.array([]).reshape(-1, 2)
-        return perspective_transform(points, self.location[0])
+        return perspective_transform(
+            points, (self.location if location is None else location)[0]
+        )
 
     def apply_offset_and_map_gazes(self, gazes):
         try:
@@ -564,8 +568,15 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
         return fixation_data
 
-    def render(self, painter: QPainter, time_in_recording: int = -1) -> None:
-        if self.location is None:
+    def render(
+        self,
+        painter: QPainter,
+        time_in_recording: int = -1,
+        *,
+        location: "SurfaceLocation | None" = None,
+    ) -> None:
+        location = self.location if location is None else location
+        if location is None:
             return
 
         if time_in_recording == -1:
@@ -580,7 +591,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         undistorted_image = camera.undistort_image(scene_frame.bgr)
         surface_image = utils.crop_image(
             undistorted_image,
-            self.location[1],
+            location[1],
             width=self.preview_options.render_size[0],
             height=None,
         )
@@ -592,7 +603,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         if len(gazes) > 0:
             gazes = camera.undistort_points(gazes)
 
-        mapped_gazes = self.image_points_to_surface(gazes)
+        mapped_gazes = self.image_points_to_surface(gazes, location=location)
         mapped_gazes[:, 0] *= self.preview_options.render_size[0]
         mapped_gazes[:, 1] *= self.preview_options.render_size[1]
 
@@ -607,7 +618,9 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
                         gaze_plugin.offset_x * scene_frame.width,
                         gaze_plugin.offset_y * scene_frame.height,
                     ])
-                    mapped_offset_gazes = self.image_points_to_surface(offset_gazes)
+                    mapped_offset_gazes = self.image_points_to_surface(
+                        offset_gazes, location=location
+                    )
                     mapped_offset_gazes[:, 0] *= self.preview_options.render_size[0]
                     mapped_offset_gazes[:, 1] *= self.preview_options.render_size[1]
 
@@ -628,9 +641,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         icon=QIcon.fromTheme("window-new"),
     )
     def view_surface(self) -> None:
-        self.preview_window = SurfaceViewWindow(self)
-        self.preview_window.show()
-        self.preview_window.resize(800, 400)
+        self.view_requested.emit(self)
 
     @action
     @action_params(

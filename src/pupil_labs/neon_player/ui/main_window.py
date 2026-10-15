@@ -49,9 +49,9 @@ from pupil_labs.neon_player.panels import Panel
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.panel_layout import PanelContainer
+from pupil_labs.neon_player.ui.scene_video_widget import SceneVideoWidget
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
-from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
 from pupil_labs.neon_recording import NeonRecording
 
@@ -429,7 +429,7 @@ class MainWindow(QMainWindow):
         self.splash_widget.browse_button.clicked.connect(self.on_open_action)
         self.splash_widget.recent_button.clicked.connect(self.on_show_recent_action)
 
-        self.video_widget = VideoRenderWidget(app.playback)
+        self.video_widget = SceneVideoWidget(app.playback)
         self.panel_container = PanelContainer(app.panel_backend)
         self.scene_panel = Panel(
             "scene", "RGB Scene Video", self.video_widget, closable=False

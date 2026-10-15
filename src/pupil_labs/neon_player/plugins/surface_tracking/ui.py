@@ -8,9 +8,13 @@ from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
+from pupil_labs.neon_player.playback import PlaybackPosition
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 
 if TYPE_CHECKING:
+    from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
+        SurfaceLocation,
+    )
     from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import (
         TrackedSurface,
     )
@@ -132,38 +136,48 @@ class SurfaceViewWidget(VideoRenderWidget):
     def __init__(
         self,
         surface: "TrackedSurface",
+        playback: PlaybackPosition,
     ) -> None:
-        super().__init__()
+        super().__init__(playback)
 
         self.surface = surface
         self.surface.changed.connect(self.refit_rect)
-        self.surface.surface_location_changed.connect(self.update)
+        self.surface.surface_location_changed.connect(self.refresh)
 
-        self.tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
+        self.tracker_plugin = surface.tracker_plugin
+        self._frame_location: SurfaceLocation | None = None
 
         self.refit_rect()
 
     def refit_rect(self) -> None:
         self.fit_rect(QSize(*self.surface.preview_options.render_size))
-        self.update()
+        self.refresh()
 
-    def paintEvent(self, event: QPaintEvent) -> None:
-        painter = QPainter(self)
-        if self.tracker_plugin.is_time_gray() or self.surface.location is None:
-            painter.fillRect(0, 0, self.width(), self.height(), Qt.GlobalColor.gray)
+    def _prepare_frame(self, timestamp: int | None) -> None:
+        self._frame_location = None
+        if (
+            timestamp is None
+            or min(self.surface.preview_options.render_size) <= 0
+            or self.tracker_plugin.is_time_gray(timestamp)
+        ):
             return
+        frame_idx = self.tracker_plugin.get_scene_idx_for_time(timestamp)
+        locations = self.tracker_plugin.surface_locations.get(self.surface.uid, ())
+        if 0 <= frame_idx < len(locations):
+            self._frame_location = locations[frame_idx]
 
-        painter.fillRect(0, 0, self.width(), self.height(), Qt.GlobalColor.black)
-        self.transform_painter(painter)
-        self.surface.render(painter, neon_player.instance().current_ts)
-        painter.end()
+    def _paint_frame(self, painter: QPainter, timestamp: int) -> None:
+        if self._frame_location is None:
+            self._paint_unavailable_frame(painter)
+            return
+        self.surface.render(painter, timestamp, location=self._frame_location)
 
 
-class SurfaceViewWindow(QSplitter):
-    def __init__(self, surface: "TrackedSurface") -> None:
+class SurfaceViewContent(QSplitter):
+    def __init__(self, surface: "TrackedSurface", playback: PlaybackPosition) -> None:
         super().__init__()
 
-        self.view_widget = SurfaceViewWidget(surface)
+        self.view_widget = SurfaceViewWidget(surface, playback)
         self.view_widget.setMinimumWidth(400)
         self.addWidget(self.view_widget)
 
@@ -176,9 +190,6 @@ class SurfaceViewWindow(QSplitter):
         self.options_container_layout.addStretch()
 
         self.addWidget(self.options_container)
-
-        surface.preview_options.changed.connect(surface.changed.emit)
-        surface.changed.connect(self.view_widget.refit_rect)
 
         Plugin.get_instance_by_name("GazeDataPlugin").changed.connect(
             self.view_widget.refit_rect
