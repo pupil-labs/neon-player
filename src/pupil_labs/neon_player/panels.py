@@ -1,0 +1,190 @@
+import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
+
+from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtWidgets import QApplication, QWidget
+
+from pupil_labs.neon_player.playback import PlaybackPosition
+
+
+def _require_gui_thread() -> None:
+    app = QApplication.instance()
+    if app is None or QThread.currentThread() != app.thread():
+        raise RuntimeError("Panel operations require the GUI thread")
+
+
+class Panel(QObject):
+    """Visualization identity independent of the docking adapter.
+
+    The manager supplies playback on successful registration. Access before
+    registration raises RuntimeError; plugin authors need not provide a clock.
+    """
+
+    def __init__(
+        self,
+        panel_id: str,
+        title: str,
+        widget: QWidget,
+    ) -> None:
+        _require_gui_thread()
+        super().__init__()
+        self._panel_id = panel_id
+        self._title = title
+        self._widget = widget
+        self._playback: PlaybackPosition | None = None
+
+    @property
+    def panel_id(self) -> str:
+        return self._panel_id
+
+    @property
+    def title(self) -> str:
+        return self._title
+
+    @property
+    def widget(self) -> QWidget:
+        return self._widget
+
+    @property
+    def playback(self) -> PlaybackPosition:
+        if self._playback is None:
+            raise RuntimeError("Panel must be registered before accessing playback")
+        return self._playback
+
+
+class PanelLayoutBackend(QObject):
+    """Internal docking seam; concrete dock types stay inside adapters.
+
+    attach and detach must leave ownership and layout unchanged on failure.
+    detach releases the visualization widget before disposing its dock wrapper.
+    The manager owns this adapter; the container parents its host widget.
+    """
+
+    close_requested = Signal(str)
+
+    @property
+    def widget(self) -> QWidget:
+        raise NotImplementedError
+
+    def attach(self, panel: Panel) -> None:
+        raise NotImplementedError
+
+    def detach(self, panel_id: str) -> None:
+        raise NotImplementedError
+
+
+class PanelManager(QObject):
+    """Registry owning panels and the injected layout adapter.
+
+    Call shutdown before destroying the container that holds the adapter's host.
+    The shared playback object is borrowed and outlives this manager.
+
+    New panels and widgets must be parentless. Successful addition transfers
+    ownership; failure preserves it. Duplicate IDs and invalid ownership
+    raise ValueError; missing IDs raise KeyError. Adapter errors propagate.
+    All operations run on the GUI thread. Mutation during notifications raises
+    RuntimeError, as does mutation after shutdown.
+    """
+
+    panel_added = Signal(object)
+    panel_removed = Signal(object)
+
+    def __init__(
+        self,
+        backend: PanelLayoutBackend,
+        playback: PlaybackPosition,
+        parent: QObject | None = None,
+    ) -> None:
+        _require_gui_thread()
+        if backend.parent() is not None:
+            raise ValueError("Layout backend is already owned")
+        if backend.thread() != QThread.currentThread():
+            raise ValueError("Layout backend must live on the GUI thread")
+        if playback.thread() != QThread.currentThread():
+            raise ValueError("Playback position must live on the GUI thread")
+        super().__init__(parent)
+        self._backend = backend
+        self._playback = playback
+        self._panels: dict[str, Panel] = {}
+        self._busy = False
+        self._closed = False
+        backend.setParent(self)
+        backend.close_requested.connect(self._on_close_requested)
+
+    @property
+    def playback(self) -> PlaybackPosition:
+        return self._playback
+
+    @property
+    def panels(self) -> tuple[Panel, ...]:
+        _require_gui_thread()
+        return tuple(self._panels.values())
+
+    def get_panel(self, panel_id: str) -> Panel:
+        _require_gui_thread()
+        return self._panels[panel_id]
+
+    def add_panel(self, panel: Panel) -> None:
+        with self._mutation():
+            if panel.panel_id in self._panels:
+                raise ValueError(f"Duplicate panel ID: {panel.panel_id}")
+            if panel.parent() is not None or panel.widget.parent() is not None:
+                raise ValueError("Panel and visualization widget must be parentless")
+            if (
+                panel.thread() != QThread.currentThread()
+                or panel.widget.thread() != QThread.currentThread()
+            ):
+                raise ValueError("Panel and visualization must live on the GUI thread")
+            self._backend.attach(panel)
+            panel._playback = self._playback
+            panel.setParent(self)
+            self._panels[panel.panel_id] = panel
+            self.panel_added.emit(panel)
+
+    def remove_panel(self, panel_id: str) -> None:
+        with self._mutation():
+            self._remove_panel(panel_id)
+
+    def _remove_panel(self, panel_id: str) -> None:
+        panel = self._panels[panel_id]
+        self._backend.detach(panel_id)
+        del self._panels[panel_id]
+        panel.widget.setParent(self._backend.widget)
+        self.panel_removed.emit(panel)
+        panel.widget.deleteLater()
+        panel.deleteLater()
+
+    def shutdown(self) -> None:
+        """Remove panels and disconnect close requests before host destruction.
+
+        Repeated successful shutdown is a no-op. Failures propagate and can be
+        retried; already removed panels stay removed. This is not recording unload.
+        """
+        _require_gui_thread()
+        if self._closed:
+            return
+        with self._mutation():
+            for panel_id in tuple(self._panels):
+                self._remove_panel(panel_id)
+            self._backend.close_requested.disconnect(self._on_close_requested)
+            self._closed = True
+
+    @contextmanager
+    def _mutation(self) -> Iterator[None]:
+        _require_gui_thread()
+        if self._closed:
+            raise RuntimeError("Panel manager is shut down")
+        if self._busy:
+            raise RuntimeError("Panel mutation is already in progress")
+        self._busy = True
+        try:
+            yield
+        finally:
+            self._busy = False
+
+    def _on_close_requested(self, panel_id: str) -> None:
+        try:
+            self.remove_panel(panel_id)
+        except Exception:
+            logging.getLogger(__name__).exception("Failed to close panel %s", panel_id)
