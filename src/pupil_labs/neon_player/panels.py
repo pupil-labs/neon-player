@@ -19,6 +19,7 @@ class Panel(QObject):
 
     The manager supplies playback on successful registration. Access before
     registration raises RuntimeError; plugin authors need not provide a clock.
+    closable governs user requests, not explicit owner removal or shutdown.
     """
 
     def __init__(
@@ -26,12 +27,15 @@ class Panel(QObject):
         panel_id: str,
         title: str,
         widget: QWidget,
+        *,
+        closable: bool = True,
     ) -> None:
         _require_gui_thread()
         super().__init__()
         self._panel_id = panel_id
         self._title = title
         self._widget = widget
+        self._closable = closable
         self._playback: PlaybackPosition | None = None
 
     @property
@@ -45,6 +49,10 @@ class Panel(QObject):
     @property
     def widget(self) -> QWidget:
         return self._widget
+
+    @property
+    def closable(self) -> bool:
+        return self._closable
 
     @property
     def playback(self) -> PlaybackPosition:
@@ -185,6 +193,7 @@ class PanelManager(QObject):
 
     def _on_close_requested(self, panel_id: str) -> None:
         try:
-            self.remove_panel(panel_id)
+            if self.get_panel(panel_id).closable:
+                self.remove_panel(panel_id)
         except Exception:
             logging.getLogger(__name__).exception("Failed to close panel %s", panel_id)

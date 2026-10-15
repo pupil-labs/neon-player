@@ -1,3 +1,4 @@
+import logging
 import time
 
 from PySide6.QtCore import QPoint, QPointF, QPropertyAnimation, QSize, Qt, Signal
@@ -172,18 +173,50 @@ class VideoRenderWidget(ScalingWidget):
     ) -> None:
         super().__init__(parent)
         self.playback = playback
+        self._scene_available = True
         self.playback.changed.connect(self._on_position_changed)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
-        self.source_size = QSize(recording.scene.width, recording.scene.height)
+        self._scene_available = False
+        try:
+            scene = recording.scene
+            width, height = scene.width, scene.height
+        except NeonRecording.SensorError:
+            logging.getLogger(__name__).warning(
+                "Scene video unavailable; displaying a gray frame", exc_info=True
+            )
+            self.repaint()
+            return
+        if width is None or height is None or width <= 0 or height <= 0:
+            logging.getLogger(__name__).warning(
+                "Scene video dimensions unavailable; displaying a gray frame"
+            )
+            self.repaint()
+            return
+        self._scene_available = True
+        self.source_size = QSize(width, height)
         self.adjust_size()
         self.repaint()
+
+    def on_recording_unloaded(self) -> None:
+        """Release recording-specific children while retaining the scene widget."""
+        self._scene_available = False
+        self.scaled_children_positions.clear()
+        for child in self.children():
+            if isinstance(child, QWidget) and child is not self.fps_label:
+                child.hide()
+                child.deleteLater()
 
     def _on_position_changed(self, ts: int) -> None:
         self.repaint()
 
     def paintEvent(self, event: QPaintEvent) -> None:
         super().paintEvent(event)
+        if not self._scene_available:
+            painter = QPainter(self)
+            painter.fillRect(self.rect(), QColorConstants.Gray)
+            painter.end()
+            return
         if self.playback.time is None:
             return
 

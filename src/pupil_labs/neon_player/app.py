@@ -26,6 +26,7 @@ from pupil_labs import neon_recording as nr
 from pupil_labs.neon_player import Plugin, is_frozen
 from pupil_labs.neon_player.ipc_logger import IPCLogger
 from pupil_labs.neon_player.job_manager import JobManager
+from pupil_labs.neon_player.panels import PanelManager
 from pupil_labs.neon_player.playback import PlaybackPosition
 from pupil_labs.neon_player.plugin_management import (
     check_dependencies_for_plugin,
@@ -49,6 +50,7 @@ from pupil_labs.neon_player.plugins import (
 from pupil_labs.neon_player.history import RecordingHistory
 from pupil_labs.neon_player.settings import GeneralSettings, load_recording_settings
 from pupil_labs.neon_player.ui.main_window import MainWindow
+from pupil_labs.neon_player.ui.panel_layout import QtPanelLayoutBackend
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
     PluginInstallationDialog,
 )
@@ -88,6 +90,9 @@ class NeonPlayerApp(QApplication):
         self.playback_start_anchor = 0
         self.current_ts = 0
         self.playback = PlaybackPosition(self)
+        self._shutdown_complete = False
+        self.panel_backend = QtPanelLayoutBackend()
+        self.panel_manager = PanelManager(self.panel_backend, self.playback, self)
         self.playback_speed_options = [
             -4.0, -2.0, -1.0, -0.5, -0.25, -0.125, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0
         ]
@@ -118,6 +123,7 @@ class NeonPlayerApp(QApplication):
         self.progress_ipc_name = self.args.progress_ipc_name
 
         self.main_window = MainWindow()
+        self.aboutToQuit.connect(self.shutdown)
 
         self.ipc_logger = IPCLogger()
         logging.info(
@@ -158,8 +164,6 @@ class NeonPlayerApp(QApplication):
         else:
             self._initializing = False
             os.chdir(Path.home())
-
-        self.aboutToQuit.connect(self.unload)
 
     def run_jobs(self, job):
         plugin_name, action_name = job[0].split(".")
@@ -369,11 +373,24 @@ class NeonPlayerApp(QApplication):
             self.toggle_plugin(plugin_class_name, False)
         timeline.enable_plot_sorting()
 
+        for panel in self.panel_manager.panels:
+            if panel is not self.main_window.scene_panel:
+                self.panel_manager.remove_panel(panel.panel_id)
+        self.main_window.video_widget.on_recording_unloaded()
+
         if self.recording is not None:
             self.recording.close()
         self.recording = None
         self.playback._reset()
         self.recording_unloaded.emit()
+
+    def shutdown(self) -> None:
+        """Release plugins and recordings before disposing managed widgets."""
+        if self._shutdown_complete:
+            return
+        self.unload()
+        self.panel_manager.shutdown()
+        self._shutdown_complete = True
 
     def load(self, path: Path) -> None:
         """Load a recording from the given path."""

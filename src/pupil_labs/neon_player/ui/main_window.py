@@ -45,8 +45,10 @@ from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
+from pupil_labs.neon_player.panels import Panel
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
+from pupil_labs.neon_player.ui.panel_layout import PanelContainer
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
@@ -428,6 +430,11 @@ class MainWindow(QMainWindow):
         self.splash_widget.recent_button.clicked.connect(self.on_show_recent_action)
 
         self.video_widget = VideoRenderWidget(app.playback)
+        self.panel_container = PanelContainer(app.panel_backend)
+        self.scene_panel = Panel(
+            "scene", "RGB Scene Video", self.video_widget, closable=False
+        )
+        app.panel_manager.add_panel(self.scene_panel)
 
         self.recent_widget = RecentWidget()
         self.recent_widget.back_button.clicked.connect(self.on_show_splash_action)
@@ -436,7 +443,7 @@ class MainWindow(QMainWindow):
         central_widget = QWidget(self)
         central_widget.setLayout(self.greeting_switcher)
         self.greeting_switcher.addWidget(self.splash_widget)
-        self.greeting_switcher.addWidget(self.video_widget)
+        self.greeting_switcher.addWidget(self.panel_container)
         self.greeting_switcher.addWidget(self.recent_widget)
         self.setCentralWidget(central_widget)
 

@@ -9,17 +9,26 @@ class _PanelDock(QDockWidget):
     def __init__(self, panel: Panel, backend: PanelLayoutBackend) -> None:
         super().__init__(panel.title, backend.widget)
         self._panel_id = panel.panel_id
+        self._closable = panel.closable
         self._backend = backend
         self.setObjectName(panel.panel_id)
-        self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetClosable)
+        self.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            if panel.closable
+            else QDockWidget.DockWidgetFeature.NoDockWidgetFeatures
+        )
 
     def closeEvent(self, event: QCloseEvent) -> None:
         event.ignore()
-        self._backend.close_requested.emit(self._panel_id)
+        if self._closable:
+            self._backend.close_requested.emit(self._panel_id)
 
 
 class QtPanelLayoutBackend(PanelLayoutBackend):
-    """Default docking adapter; floating and arrangement are not enabled yet."""
+    """Default adapter respecting panel user-close policy.
+
+    Floating and arrangement are not enabled yet.
+    """
 
     def __init__(self) -> None:
         _require_gui_thread()
