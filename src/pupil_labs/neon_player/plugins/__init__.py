@@ -3,6 +3,7 @@ import typing as T
 from pathlib import Path
 
 from numpyencoder import NumpyEncoder
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import QMessageBox
@@ -11,11 +12,11 @@ from qt_property_widgets.utilities import PersistentPropertiesMixin, property_pa
 from pupil_labs import neon_player
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
-from pupil_labs.neon_recording import NeonRecording
 
 if T.TYPE_CHECKING:
     from pupil_labs.neon_player.app import NeonPlayerApp
     from pupil_labs.neon_player.job_manager import JobManager
+    from pupil_labs.neon_player.panels import Panel, PanelManager
 
 
 class GlobalPluginProperties(PersistentPropertiesMixin):
@@ -60,6 +61,18 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
     def unregister_action(self, name: str) -> None:
         return self.app.main_window.unregister_action(name)
+
+    def add_panel(self, panel: "Panel") -> None:
+        """Register a panel contributed by this plugin instance."""
+        self.panel_manager.add_panel(panel, owner=self)
+
+    def remove_panel(self, panel: "Panel") -> None:
+        """Remove this instance's exact panel.
+
+        Missing IDs raise KeyError, stale panel objects raise ValueError, and
+        attempts to remove panels contributed by another owner raise PermissionError.
+        """
+        self.panel_manager.remove_owned_panel(panel, self)
 
     def register_timeline_action(
         self, name: str, shortcut: QtShortcutType, func: T.Callable
@@ -179,6 +192,12 @@ class Plugin(PersistentPropertiesMixin, QObject):
     @property_params(widget=None, dont_encode=True)
     def app(self) -> "NeonPlayerApp":
         return neon_player.instance()
+
+    @property
+    @property_params(widget=None, dont_encode=True)
+    def panel_manager(self) -> "PanelManager":
+        """Shared discovery and playback; direct removal is application-privileged."""
+        return self.app.panel_manager
 
     @property
     @property_params(widget=None, dont_encode=True)

@@ -1,11 +1,15 @@
 import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, QThread, Signal
 from PySide6.QtWidgets import QApplication, QWidget
 
 from pupil_labs.neon_player.playback import PlaybackPosition
+
+if TYPE_CHECKING:
+    from pupil_labs.neon_player.plugins import Plugin
 
 
 def _require_gui_thread() -> None:
@@ -93,6 +97,11 @@ class PanelManager(QObject):
     raise ValueError; missing IDs raise KeyError. Adapter errors propagate.
     All operations run on the GUI thread. Mutation during notifications raises
     RuntimeError, as does mutation after shutdown.
+
+    Optional contribution owners identify plugin instances, independently of Qt
+    parenting. remove_owned_panel requires the current panel object and owner;
+    stale objects raise ValueError and other owners raise PermissionError.
+    remove_panel remains privileged for application cleanup.
     """
 
     panel_added = Signal(object)
@@ -115,6 +124,7 @@ class PanelManager(QObject):
         self._backend = backend
         self._playback = playback
         self._panels: dict[str, Panel] = {}
+        self._panel_owners: dict[str, Plugin] = {}
         self._busy = False
         self._closed = False
         backend.setParent(self)
@@ -133,8 +143,10 @@ class PanelManager(QObject):
         _require_gui_thread()
         return self._panels[panel_id]
 
-    def add_panel(self, panel: Panel) -> None:
+    def add_panel(self, panel: Panel, *, owner: "Plugin | None" = None) -> None:
         with self._mutation():
+            if owner is not None:
+                self._validate_owner(owner)
             if panel.panel_id in self._panels:
                 raise ValueError(f"Duplicate panel ID: {panel.panel_id}")
             if panel.parent() is not None or panel.widget.parent() is not None:
@@ -148,7 +160,31 @@ class PanelManager(QObject):
             panel._playback = self._playback
             panel.setParent(self)
             self._panels[panel.panel_id] = panel
+            if owner is not None:
+                self._panel_owners[panel.panel_id] = owner
             self.panel_added.emit(panel)
+
+    def remove_owned_panel(self, panel: Panel, owner: "Plugin") -> None:
+        """Remove an exact contribution without granting application privileges."""
+        with self._mutation():
+            current = self._panels[panel.panel_id]
+            if current is not panel:
+                raise ValueError(f"Stale panel object: {panel.panel_id}")
+            self._validate_owner(owner)
+            if self._panel_owners.get(panel.panel_id) is not owner:
+                raise PermissionError(
+                    f"Panel is not owned by this plugin: {panel.panel_id}"
+                )
+            self._remove_panel(panel.panel_id)
+
+    @staticmethod
+    def _validate_owner(owner: "Plugin") -> None:
+        from pupil_labs.neon_player.plugins import Plugin
+
+        if not isinstance(owner, Plugin):
+            raise TypeError("Panel contribution owner must be a Plugin instance")
+        if owner.thread() != QThread.currentThread():
+            raise ValueError("Panel contribution owner must live on the GUI thread")
 
     def remove_panel(self, panel_id: str) -> None:
         with self._mutation():
@@ -158,6 +194,7 @@ class PanelManager(QObject):
         panel = self._panels[panel_id]
         self._backend.detach(panel_id)
         del self._panels[panel_id]
+        self._panel_owners.pop(panel_id, None)
         panel.widget.setParent(self._backend.widget)
         self.panel_removed.emit(panel)
         panel.widget.deleteLater()

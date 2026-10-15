@@ -7,6 +7,7 @@ from pathlib import Path
 from qt_property_widgets.utilities import action as object_action
 
 from pupil_labs.neon_player.job_manager import ProgressUpdate
+from pupil_labs.neon_player.panels import Panel
 from pupil_labs.neon_player.plugins import GlobalPluginProperties, Plugin
 
 if T.TYPE_CHECKING:
@@ -45,6 +46,7 @@ def is_frozen() -> bool:
 __all__ = [
     "BGWorker",
     "GlobalPluginProperties",
+    "Panel",
     "Plugin",
     "ProgressUpdate",
     "action",
