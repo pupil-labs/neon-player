@@ -427,7 +427,7 @@ class MainWindow(QMainWindow):
         self.splash_widget.browse_button.clicked.connect(self.on_open_action)
         self.splash_widget.recent_button.clicked.connect(self.on_show_recent_action)
 
-        self.video_widget = VideoRenderWidget()
+        self.video_widget = VideoRenderWidget(app.playback)
 
         self.recent_widget = RecentWidget()
         self.recent_widget.back_button.clicked.connect(self.on_show_splash_action)
@@ -752,9 +752,6 @@ class MainWindow(QMainWindow):
         self.addDockWidget(area, dock)
 
         return dock
-
-    def set_time_in_recording(self, ts: int) -> None:
-        self.video_widget.set_time_in_recording(ts)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.video_widget.on_recording_loaded(recording)

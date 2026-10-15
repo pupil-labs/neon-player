@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs import neon_player
+from pupil_labs.neon_player.playback import PlaybackPosition
 from pupil_labs.neon_recording import NeonRecording
 
 
@@ -25,7 +26,7 @@ class ScalingWidget(QOpenGLWidget):
     mouse_clicked = Signal(QMouseEvent)
     mouse_moved = Signal(QMouseEvent)
 
-    def __init__(self, parent: QWidget):
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
         surface_format = self.format()
@@ -166,21 +167,26 @@ class ScalingWidget(QOpenGLWidget):
 
 
 class VideoRenderWidget(ScalingWidget):
-    def __init__(self, parent: QWidget = None) -> None:
+    def __init__(
+        self, playback: PlaybackPosition, parent: QWidget | None = None
+    ) -> None:
         super().__init__(parent)
-        self.ts = None
+        self.playback = playback
+        self.playback.changed.connect(self._on_position_changed)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.source_size = QSize(recording.scene.width, recording.scene.height)
         self.adjust_size()
         self.repaint()
 
-    def set_time_in_recording(self, ts: int) -> None:
-        self.ts = ts
+    def _on_position_changed(self, ts: int) -> None:
         self.repaint()
 
     def paintEvent(self, event: QPaintEvent) -> None:
         super().paintEvent(event)
+        if self.playback.time is None:
+            return
+
         painter = QPainter(self)
         self.transform_painter(painter)
 

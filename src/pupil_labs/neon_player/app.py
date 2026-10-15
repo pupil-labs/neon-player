@@ -26,6 +26,7 @@ from pupil_labs import neon_recording as nr
 from pupil_labs.neon_player import Plugin, is_frozen
 from pupil_labs.neon_player.ipc_logger import IPCLogger
 from pupil_labs.neon_player.job_manager import JobManager
+from pupil_labs.neon_player.playback import PlaybackPosition
 from pupil_labs.neon_player.plugin_management import (
     check_dependencies_for_plugin,
     install_dependencies,
@@ -86,6 +87,7 @@ class NeonPlayerApp(QApplication):
         self.recording: nr.NeonRecording | None = None
         self.playback_start_anchor = 0
         self.current_ts = 0
+        self.playback = PlaybackPosition(self)
         self.playback_speed_options = [
             -4.0, -2.0, -1.0, -0.5, -0.25, -0.125, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0
         ]
@@ -370,6 +372,7 @@ class NeonPlayerApp(QApplication):
         if self.recording is not None:
             self.recording.close()
         self.recording = None
+        self.playback._reset()
         self.recording_unloaded.emit()
 
     def load(self, path: Path) -> None:
@@ -429,7 +432,7 @@ class NeonPlayerApp(QApplication):
             return
 
         if self.current_ts >= self.recording.stop_time:
-            self.current_ts = self.recording.start_time
+            self._publish_position(self.recording.start_time)
 
         if self.refresh_timer.isActive():
             self.refresh_timer.stop()
@@ -477,22 +480,24 @@ class NeonPlayerApp(QApplication):
 
         now = time.time_ns()
         elapsed_time = (now - self.playback_start_anchor) * self.playback_speed
-        target_ts = int(elapsed_time + self.recording.start_time)
+        target_ts = self.recording.start_time + int(elapsed_time)
 
         if self.recording.start_time <= target_ts <= self.recording.stop_time:
-            self.current_ts = target_ts
-            self.main_window.set_time_in_recording(self.current_ts)
+            self._publish_position(target_ts)
 
         else:
-            self.current_ts = min(
-                max(target_ts, self.recording.start_time), self.recording.stop_time
+            self._publish_position(
+                min(max(target_ts, self.recording.start_time), self.recording.stop_time)
             )
-            self.main_window.set_time_in_recording(self.current_ts)
 
             self.refresh_timer.stop()
             self.playback_state_changed.emit(self.refresh_timer.isActive())
 
         self.position_changed.emit(self.current_ts)
+
+    def _publish_position(self, ts: int) -> None:
+        self.current_ts = ts
+        self.playback._publish(ts)
 
     def seek_to(self, ts: int) -> None:
         if self.recording is None:
@@ -505,9 +510,8 @@ class NeonPlayerApp(QApplication):
         ts = min(max(int(ts), self.recording.start_time), self.recording.stop_time)
 
         now = time.time_ns()
-        self.current_ts = ts
         self.playback_start_anchor = now - (ts - self.recording.start_time)
-        self.main_window.set_time_in_recording(ts)
+        self._publish_position(ts)
 
         self.position_changed.emit(self.current_ts)
         self.seeked.emit(self.current_ts)
