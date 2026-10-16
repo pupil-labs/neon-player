@@ -48,6 +48,7 @@ from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.managers.panel import Panel
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
+from pupil_labs.neon_player.ui.objects_panel import ObjectsPanel
 from pupil_labs.neon_player.ui.panel_layout import PanelContainer
 from pupil_labs.neon_player.ui.scene_video_widget import SceneVideoWidget
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
@@ -466,9 +467,15 @@ class MainWindow(QMainWindow):
 
         self.console_window = ConsoleWindow()
         self.settings_panel = SettingsPanel()
+        self.objects_panel = ObjectsPanel(app.panel_manager)
         self.settings_dock = self.add_dock(
-            self.settings_panel, "", Qt.DockWidgetArea.RightDockWidgetArea
+            self.settings_panel, "Settings", Qt.DockWidgetArea.RightDockWidgetArea
         )
+        self.objects_dock = self.add_dock(
+            self.objects_panel, "Objects", Qt.DockWidgetArea.RightDockWidgetArea
+        )
+        self.tabifyDockWidget(self.settings_dock, self.objects_dock)
+        self.settings_dock.raise_()
 
         self.timeline = TimeLineDock()
         self.timeline_dock = self.add_dock(
@@ -544,6 +551,7 @@ class MainWindow(QMainWindow):
         docks_and_areas = {
             self.timeline_dock: Qt.DockWidgetArea.BottomDockWidgetArea,
             self.settings_dock: Qt.DockWidgetArea.RightDockWidgetArea,
+            self.objects_dock: Qt.DockWidgetArea.RightDockWidgetArea,
         }
 
         for dock, area in docks_and_areas.items():
@@ -551,10 +559,15 @@ class MainWindow(QMainWindow):
             dock.setFloating(False)
             dock.show()
 
+        self.tabifyDockWidget(self.settings_dock, self.objects_dock)
+        self.settings_dock.raise_()
+
     def on_recording_opened(self):
         self.greeting_switcher.setCurrentIndex(1)
         self.timeline_dock.show()
         self.settings_dock.show()
+        self.objects_dock.show()
+        self.settings_dock.raise_()
         self.menuBar().show()
         self.statusBar().show()
         QTimer.singleShot(1, self.timeline.reset_view)
@@ -563,6 +576,7 @@ class MainWindow(QMainWindow):
         self.greeting_switcher.setCurrentIndex(0)
         self.timeline_dock.hide()
         self.settings_dock.hide()
+        self.objects_dock.hide()
         self.menuBar().hide()
         self.statusBar().hide()
 
