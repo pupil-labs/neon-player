@@ -17,9 +17,9 @@ def test_update_pill_show_update(qtbot):
     qtbot.addWidget(pill)
 
     url = "https://github.com/pupil-labs/neon-player/releases/tag/v2.0.0"
-    pill.show_update("v2.0.0", url)
+    pill.show_update("2.0.0", url)
     assert pill.isVisible()
-    assert "v2.0.0" in pill.action_btn.text()
+    assert "Update available: 2.0.0" in pill.action_btn.text()
     assert pill.action_url == url
 
 
