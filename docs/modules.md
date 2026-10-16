@@ -108,27 +108,55 @@ existing scene and surface rendering still use their original frame hooks.
 
 The built-in Gaze Data plugin attaches each `GazeVisualization` to the scene
 panel as an `InteractivePanelOverlay2D`. Circle and crosshair visualizations
-hit-test their rendered marks and highlight those marks on hover; clicks do not
-currently trigger an action. On-screen gaze painting uses the overlay host,
-while surface previews retain their data-driven render path. Video export
-rendering is not yet migrated to the overlay host.
+hit-test their rendered marks, highlight those marks on hover, and show the
+overlay's display name in bold with the nearest gaze x/y coordinates in a
+structured tooltip. Those coordinates follow pointer movement and update when
+playback changes while the tooltip is visible; clicks do not currently trigger
+an action. On-screen gaze painting uses the overlay host, while surface
+previews retain their data-driven render path. Video export rendering is not
+yet migrated to the overlay host.
 
-Import `PanelOverlay`, `PanelOverlay2D`, `PanelWidget`, and `PanelWidget2D` from
-`pupil_labs.neon_player`. Generic `PanelOverlay` has read-only borrowed playback
-and a `changed` signal, with no painting method. `PanelOverlay2D` adds
-`paint(painter)`. Playback is supplied explicitly, without an automatic
-subscription or an independent clock:
+Import `PanelOverlay`, `PanelOverlay2D`, `PanelOverlayTooltip`, `PanelWidget`,
+and `PanelWidget2D` from `pupil_labs.neon_player`. Generic `PanelOverlay` has
+read-only borrowed playback, a `changed` signal, and an optional tooltip, with
+no painting method. `PanelOverlay2D` adds `paint(painter)`.
+`PanelOverlayTooltip(widget)` accepts any parentless QWidget as its content.
+`PanelOverlay.tooltip` exposes the optional tooltip. The tooltip adds a
+non-transparent frame using the host's application palette; the host owns the
+frame and content and disposes them when that overlay is removed. Initially,
+`PanelWidget2D` displays tooltips for the topmost hovered
+`InteractivePanelOverlay2D`, positions them beside and follows the pointer, and
+hides them on hover exit or target change.
+`InteractivePanelOverlay2D` also notifies its overlay as the pointer moves
+within the hit region. The tooltip module is generic for future hoverable
+overlay types. Playback is supplied explicitly, without an independent clock:
 
 ```python
-from pupil_labs.neon_player import PanelOverlay2D, PanelWidget2D
+from PySide6.QtWidgets import QLabel
+from PySide6.QtCore import QRect
+
+from pupil_labs.neon_player import (
+    InteractivePanelOverlay2D,
+    PanelOverlayTooltip,
+    PanelWidget2D,
+)
 
 
-class TimeLabel(PanelOverlay2D):
+class TimeLabel(InteractivePanelOverlay2D):
     def __init__(self, playback):
-        super().__init__(playback)
+        tooltip = PanelOverlayTooltip(QLabel("Structured tooltip content"))
+        super().__init__(
+            playback,
+            "Time label",
+            hitbox=QRect(0, 0, 120, 32),
+            tooltip=tooltip,
+        )
         self.timestamp = playback.time
         self._subscribed = True
         playback.changed.connect(self.on_position)
+
+    def on_click(self, point):
+        pass
 
     def on_position(self, timestamp):
         self.timestamp = timestamp

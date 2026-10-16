@@ -76,11 +76,16 @@ class PanelWidget:
             raise ValueError("Overlay must live on the GUI thread")
         if overlay.parent() is not None or overlay._attached_once:
             raise ValueError("Overlay is already owned or was previously attached")
+        tooltip = overlay.tooltip
+        if tooltip is not None:
+            tooltip._require_attachable()
         with self._mutation():
             overlay.changed.connect(self._overlay_changed)
             overlay.setParent(self._widget)
             overlay._attached_once = True
             self._overlays[overlay] = layer
+            if tooltip is not None:
+                tooltip._attach(self._widget)
             handler = partial(self._overlay_destroyed, overlay)
             self._destroy_handlers[overlay] = handler
             overlay.destroyed.connect(handler)
@@ -98,6 +103,9 @@ class PanelWidget:
                 logging.getLogger(__name__).exception(
                     "Overlay cleanup hook failed; disposing overlay"
                 )
+            tooltip = overlay.tooltip
+            if tooltip is not None:
+                tooltip._dispose()
             overlay.changed.disconnect(self._overlay_changed)
             overlay.destroyed.disconnect(self._destroy_handlers.pop(overlay))
             del self._overlays[overlay]
@@ -117,6 +125,9 @@ class PanelWidget:
     def _overlay_destroyed(self, overlay: PanelOverlay) -> None:
         self._destroy_handlers.pop(overlay, None)
         self._overlays.pop(overlay, None)
+        tooltip = overlay.tooltip
+        if tooltip is not None:
+            tooltip._dispose()
         if isValid(self._widget):
             if self._contribution_removed is not None:
                 self._contribution_removed(overlay)

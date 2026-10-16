@@ -12,6 +12,7 @@ from pupil_labs.neon_player.overlays import (
     InteractivePanelOverlay2D,
     PanelOverlay,
     PanelOverlay2D,
+    PanelOverlayTooltip,
 )
 from pupil_labs.neon_player.plugins import GlobalPluginProperties, Plugin
 from pupil_labs.neon_player.ui.panel_widget import PanelWidget
@@ -56,6 +57,7 @@ __all__ = [
     "InteractivePanelOverlay2D",
     "Panel",
     "PanelOverlay",
+    "PanelOverlayTooltip",
     "PanelOverlay2D",
     "PanelWidget",
     "PanelWidget2D",

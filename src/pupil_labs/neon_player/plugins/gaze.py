@@ -8,6 +8,7 @@ import numpy.typing as npt
 import pandas as pd
 from PySide6.QtCore import QPointF, QRect, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen
+from PySide6.QtWidgets import QFormLayout, QLabel, QVBoxLayout, QWidget
 from qt_property_widgets.utilities import (
     PersistentPropertiesMixin,
     action_params,
@@ -17,7 +18,10 @@ from qt_property_widgets.utilities import (
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
 from pupil_labs.neon_player.managers.playback import PlaybackPosition
-from pupil_labs.neon_player.overlays import InteractivePanelOverlay2D
+from pupil_labs.neon_player.overlays import (
+    InteractivePanelOverlay2D,
+    PanelOverlayTooltip,
+)
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.ui.panel_widget import PanelWidget
 from pupil_labs.neon_player.utilities import (
@@ -59,6 +63,35 @@ class Aggregation(enum.Enum):
 
         else:
             return v.reshape(-1)
+
+
+class GazeCoordinateTooltip(QWidget):
+    def __init__(self, display_name: str) -> None:
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.title = QLabel(display_name)
+        title_font = self.title.font()
+        title_font.setBold(True)
+        title_font.setPointSizeF(max(title_font.pointSizeF() + 1.0, 10.0))
+        self.title.setFont(title_font)
+        layout.addWidget(self.title)
+        coordinates = QFormLayout()
+        self.x_value = QLabel("—")
+        self.y_value = QLabel("—")
+        self.x_value.setObjectName("gaze_x_value")
+        self.y_value.setObjectName("gaze_y_value")
+        coordinates.addRow("Gaze x (px)", self.x_value)
+        coordinates.addRow("Gaze y (px)", self.y_value)
+        layout.addLayout(coordinates)
+
+    def set_coordinates(self, x: float, y: float) -> None:
+        self.x_value.setText(f"{x:.1f}")
+        self.y_value.setText(f"{y:.1f}")
+
+    def clear_coordinates(self) -> None:
+        self.x_value.setText("—")
+        self.y_value.setText("—")
 
 
 class GazeDataPlugin(neon_player.Plugin):
@@ -327,6 +360,19 @@ class GazeVisualization(InteractivePanelOverlay2D, PersistentPropertiesMixin):
         self._gaze_provider: T.Callable[
             [int], npt.NDArray[np.float64]
         ] | None = None
+        self._gaze_tooltip_widget: GazeCoordinateTooltip | None = None
+        self._tooltip_point: QPointF | None = None
+        self._tooltip_playback_connected = False
+
+    @property
+    @property_params(widget=None, dont_encode=True)
+    def tooltip(self) -> PanelOverlayTooltip | None:
+        if self._tooltip is None:
+            self._gaze_tooltip_widget = GazeCoordinateTooltip(self.display_name)
+            self._tooltip = PanelOverlayTooltip(self._gaze_tooltip_widget)
+            self.playback.changed.connect(self._on_tooltip_playback_changed)
+            self._tooltip_playback_connected = True
+        return self._tooltip
 
     @property
     @property_params(widget=None, dont_encode=True)
@@ -363,6 +409,41 @@ class GazeVisualization(InteractivePanelOverlay2D, PersistentPropertiesMixin):
 
     def on_click(self, point: QPointF) -> None:
         pass
+
+    def on_hover_enter(self, point: QPointF) -> None:
+        self.on_hover_move(point)
+
+    def on_hover_move(self, point: QPointF) -> None:
+        self._tooltip_point = QPointF(point)
+        self._update_tooltip_coordinates()
+
+    def on_hover_leave(self, _point: QPointF) -> None:
+        self._tooltip_point = None
+
+    def _on_tooltip_playback_changed(self, _timestamp: int | None) -> None:
+        if self._tooltip_point is not None:
+            self._update_tooltip_coordinates()
+
+    def _update_tooltip_coordinates(self) -> None:
+        gazes = self._current_gazes()
+        tooltip = self._gaze_tooltip_widget
+        if tooltip is None:
+            return
+        if len(gazes) == 0:
+            tooltip.clear_coordinates()
+            return
+        point = self._tooltip_point
+        if point is None:
+            return
+        nearest = int(
+            np.argmin(
+                np.sum(
+                    (gazes - np.array([point.x(), point.y()])) ** 2,
+                    axis=1,
+                )
+            )
+        )
+        tooltip.set_coordinates(*gazes[nearest])
 
     def hit_test(self, point: QPointF) -> bool:
         gazes = self._current_gazes()
@@ -404,6 +485,10 @@ class GazeVisualization(InteractivePanelOverlay2D, PersistentPropertiesMixin):
     def on_removed(self) -> None:
         self._gaze_provider = None
         self.hitbox = None
+        self._tooltip_point = None
+        if self._tooltip_playback_connected:
+            self.playback.changed.disconnect(self._on_tooltip_playback_changed)
+            self._tooltip_playback_connected = False
 
     def __init_subclass__(cls: type["GazeVisualization"], **kwargs: dict) -> None:
         GazeVisualization._known_types.append(cls)

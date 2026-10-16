@@ -103,7 +103,9 @@ class PanelWidget2D(PanelWidget, QOpenGLWidget):
         super().mouseReleaseEvent(event)
 
     def _update_hover(
-        self, target: tuple[InteractivePanelOverlay2D, QPointF] | None
+        self,
+        target: tuple[InteractivePanelOverlay2D, QPointF] | None,
+        widget_point: QPointF | None = None,
     ) -> None:
         if target is None:
             overlay = None
@@ -112,20 +114,33 @@ class PanelWidget2D(PanelWidget, QOpenGLWidget):
             overlay, point = target
         if overlay is self._hovered_interactive_overlay:
             self._hovered_point = point
+            if overlay is not None and point is not None:
+                overlay.on_hover_move(point)
+                tooltip = overlay.tooltip
+                if tooltip is not None and widget_point is not None:
+                    tooltip._show_at(widget_point)
             return
         previous_overlay = self._hovered_interactive_overlay
         if previous_overlay is not None:
             previous_point = self._hovered_point
             if previous_point is not None:
                 previous_overlay.on_hover_leave(previous_point)
+            tooltip = previous_overlay.tooltip
+            if tooltip is not None:
+                tooltip._hide()
         self._hovered_interactive_overlay = overlay
         self._hovered_point = point
         if overlay is not None and point is not None:
             overlay.on_hover_enter(point)
+            tooltip = overlay.tooltip
+            if tooltip is not None and widget_point is not None:
+                tooltip._show_at(widget_point)
         self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        self._update_hover(self._interactive_overlay_at(event.position()))
+        self._update_hover(
+            self._interactive_overlay_at(event.position()), event.position()
+        )
         super().mouseMoveEvent(event)
 
     def leaveEvent(self, event: QEvent) -> None:
