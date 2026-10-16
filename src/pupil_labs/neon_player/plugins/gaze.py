@@ -509,11 +509,14 @@ class CircleViz(GazeVisualization):
     def render_hover_highlight(self, painter: QPainter) -> None:
         gazes = self._current_gazes()
         self._update_hitbox(gazes)
-        radius = self._applied_radius + self._applied_stroke_width / 2 + 2
-        painter.setPen(QPen(QColor(255, 255, 0, 220), 3))
+        painter.setPen(QPen(QColor(0, 0, 0, 220), 5))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         for gaze in gazes:
-            painter.drawEllipse(QPointF(gaze[0], gaze[1]), radius, radius)
+            outer_radius = self._applied_radius + self._applied_stroke_width / 2 + 3
+            painter.drawEllipse(QPointF(gaze[0], gaze[1]), outer_radius, outer_radius)
+
+            inner_radius = self._applied_radius - self._applied_stroke_width / 2 - 3
+            painter.drawEllipse(QPointF(gaze[0], gaze[1]), inner_radius, inner_radius)
 
     def _update_hitbox(self, gazes: npt.NDArray[np.float64]) -> None:
         if len(gazes) == 0:
@@ -597,7 +600,7 @@ class CrosshairViz(GazeVisualization):
         gazes = self._current_gazes()
         self._update_hitbox(gazes)
         self._draw_crosshairs(
-            painter, gazes, QColor(255, 255, 0, 220), self._stroke_width + 5
+            painter, gazes, QColor(0, 0, 0, 220), self._stroke_width + 5
         )
 
     def _update_hitbox(self, gazes: npt.NDArray[np.float64]) -> None:
