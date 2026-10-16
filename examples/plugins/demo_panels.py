@@ -5,10 +5,11 @@ only after registration supplies playback. Discovery uses synchronous GUI-thread
 connect-then-snapshot; observers must not mutate panels during notifications.
 """
 
+import logging
 from contextlib import ExitStack
 
 from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtCore import QSize
+from PySide6.QtCore import QSize, QTimer
 from PySide6.QtGui import QColorConstants, QImage, QPainter
 from PySide6.QtWidgets import QLabel
 
@@ -156,3 +157,73 @@ class PanelsDemo(Plugin):
             self.panel_manager.panel_removed.disconnect(self._on_panel_removed)
             self._observing = False
         self._known_panels.clear()
+
+
+class SharedTimeLabel(PlaybackCursor):
+    def paint(self, painter: QPainter) -> None:
+        painter.setPen(QColorConstants.White)
+        text = "No recording" if self.timestamp is None else f"Shared: {self.timestamp} ns"
+        painter.drawText(8, 150, text)
+
+
+class PanelOverlaysDemo(Plugin):
+    """Enable before or after Panels Demo; disable independently."""
+
+    label = "Panel Overlays Demo"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._observing = False
+        self._pending: dict[str, Panel] = {}
+        self._attached: dict[Panel, SharedTimeLabel] = {}
+        self._attach_timer = QTimer(self)
+        self._attach_timer.setSingleShot(True)
+        self._attach_timer.timeout.connect(self._attach_pending)
+
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
+        if self._observing:
+            return
+        self._observing = True
+        self.panel_manager.panel_added.connect(self._queue_panel)
+        self.panel_manager.panel_removed.connect(self._panel_removed)
+        for panel in self.panel_manager.panels:
+            self._queue_panel(panel)
+
+    def _queue_panel(self, panel: Panel) -> None:
+        if self._observing and panel.panel_id == "demo.overlay":
+            self._pending[panel.panel_id] = panel
+            self._attach_timer.start(0)
+
+    def _panel_removed(self, panel: Panel) -> None:
+        if self._pending.get(panel.panel_id) is panel:
+            self._pending.pop(panel.panel_id)
+        self._attached.pop(panel, None)
+
+    def _attach_pending(self) -> None:
+        pending, self._pending = self._pending, {}
+        if not self._observing:
+            return
+        for panel_id, panel in pending.items():
+            if self.panel_manager.get_panel(panel_id) is not panel:
+                continue
+            if panel in self._attached or not isinstance(panel.widget, PanelWidget2D):
+                continue
+            overlay = SharedTimeLabel(self.panel_manager.playback)
+            try:
+                self.add_overlay(panel, overlay, layer=20)
+            except Exception:
+                overlay.on_removed()
+                overlay.deleteLater()
+                logging.getLogger(__name__).exception("Failed to attach demo overlay")
+            else:
+                self._attached[panel] = overlay
+
+    def on_disabled(self) -> None:
+        if not self._observing:
+            return
+        self._observing = False
+        self._attach_timer.stop()
+        self._pending.clear()
+        self.panel_manager.panel_added.disconnect(self._queue_panel)
+        self.panel_manager.panel_removed.disconnect(self._panel_removed)
+        self._attached.clear()

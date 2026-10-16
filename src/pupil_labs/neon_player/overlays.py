@@ -9,7 +9,8 @@ class PanelOverlay(QObject):
 
     Subscriptions are optional. Use QObject-bound receivers so destruction
     disconnects them, and release subscriptions in on_removed for immediate
-    disconnection before deferred deletion. That hook must tolerate retries.
+    disconnection before deferred deletion. Hook failures are logged and do not
+    prevent disposal.
     """
 
     changed = Signal()
@@ -24,7 +25,7 @@ class PanelOverlay(QObject):
         return self._playback
 
     def on_removed(self) -> None:
-        """Release subscriptions before removal; errors leave attachment intact."""
+        """Release subscriptions before removal; failures are logged by the host."""
 
 
 class PanelOverlay2D(PanelOverlay):

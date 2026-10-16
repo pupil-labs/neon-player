@@ -17,6 +17,8 @@ if T.TYPE_CHECKING:
     from pupil_labs.neon_player.app import NeonPlayerApp
     from pupil_labs.neon_player.job_manager import JobManager
     from pupil_labs.neon_player.managers.panel import Panel, PanelManager
+    from pupil_labs.neon_player.overlays import PanelOverlay
+    from pupil_labs.neon_player.ui.panel_widget import PanelWidget
 
 
 class GlobalPluginProperties(PersistentPropertiesMixin):
@@ -53,6 +55,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
         super().__init__()
         self.render_layer = 1
         self._enabled = False
+        self._overlay_contributions_closed = False
 
     def register_action(
         self, name: str, shortcut: QtShortcutType, func: T.Callable
@@ -77,6 +80,27 @@ class Plugin(PersistentPropertiesMixin, QObject):
         attempts to remove panels contributed by another owner raise PermissionError.
         """
         self.panel_manager.remove_owned_panel(panel, self)
+
+    def add_overlay(
+        self,
+        panel: "Panel",
+        overlay: "PanelOverlay",
+        *,
+        host: "PanelWidget | None" = None,
+        layer: int = 0,
+    ) -> None:
+        """Contribute to the root host, or an explicit nested visualization."""
+        self.panel_manager.add_overlay(panel, overlay, owner=self, host=host, layer=layer)
+
+    def remove_overlay(
+        self,
+        panel: "Panel",
+        overlay: "PanelOverlay",
+        *,
+        host: "PanelWidget | None" = None,
+    ) -> None:
+        """Remove only this instance's exact overlay contribution."""
+        self.panel_manager.remove_owned_overlay(panel, overlay, self, host=host)
 
     def register_timeline_action(
         self, name: str, shortcut: QtShortcutType, func: T.Callable

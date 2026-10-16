@@ -374,6 +374,8 @@ class NeonPlayerApp(QApplication):
                 callback_error = error
 
         try:
+            plugin._overlay_contributions_closed = True
+            self.panel_manager.remove_overlays_owned_by(plugin)
             self.panel_manager.remove_panels_owned_by(plugin)
             self._remove_plugin_settings(class_name)
         except Exception as cleanup_error:

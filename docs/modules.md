@@ -83,11 +83,19 @@ Do not retain runtime panel references in serialized plugin settings.
 See [the runnable Panels Demo](https://github.com/pupil-labs/neon-player/blob/main/examples/plugins/demo_panels.py)
 for static and playback-driven widgets, discovery, close/reopen, and explicit
 cleanup, including a cached static image with a playback-dependent overlay.
-Layout controls and cross-plugin overlay ownership are separate work.
+Enable Panel Overlays Demo before or after Panels Demo to demonstrate an
+independent overlay contributor. Layout controls remain separate work.
 
 ### Visualization-specific 2D overlays
 
-`PanelWidget2D` is an optional `QOpenGLWidget` host, not a requirement for
+`PanelWidget` is the rendering-independent overlay-lifecycle base. It is a
+Qt-independent mixin, not itself a QWidget or an OpenGL widget. Concrete hosts
+combine it with a QWidget subclass and call `_initialize_overlays()` after
+initializing the widget. It supplies generic attachment, ownership, invalidation,
+and disposal, with no painter requirement. Import it from
+`pupil_labs.neon_player`.
+
+`PanelWidget2D(PanelWidget, QOpenGLWidget)` is an optional 2D host, not a requirement for
 `Panel`. Its default coordinates are widget-local pixels. Override
 `_paint_content(painter)` to draw prepared content. `ScalingWidget`, available
 from `pupil_labs.neon_player.ui.video_render_widget`, derives from it and adds
@@ -96,7 +104,7 @@ signals, and scaled-child positioning. `VideoRenderWidget` derives from
 `ScalingWidget` and adds playback-driven frame preparation and FPS display;
 existing scene and surface rendering still use their original frame hooks.
 
-Import `PanelOverlay`, `PanelOverlay2D`, and `PanelWidget2D` from
+Import `PanelOverlay`, `PanelOverlay2D`, `PanelWidget`, and `PanelWidget2D` from
 `pupil_labs.neon_player`. Generic `PanelOverlay` has read-only borrowed playback
 and a `changed` signal, with no painting method. `PanelOverlay2D` adds
 `paint(painter)`. Playback is supplied explicitly, without an automatic
@@ -130,13 +138,64 @@ class TimeLabel(PanelOverlay2D):
 # Within a plugin, after discovering a panel:
 if isinstance(panel.widget, PanelWidget2D):
     overlay = TimeLabel(self.panel_manager.playback)
-    panel.widget.add_overlay(overlay, layer=10)
+    self.add_overlay(panel, overlay, layer=10)
 ```
 
-The snippet demonstrates host capability checking, not automatic ownership of
-contributions to another plugin's panel. This initial interface supports
-host-owned overlays; cross-plugin contribution tracking/disable cleanup is
-deferred. Prefer attaching overlays to your own panels for now.
+`Plugin.add_overlay(panel, overlay, *, host=None, layer=0)` accepts a generic
+`PanelOverlay` and optional generic `PanelWidget` host, and associates the
+contribution with that exact plugin instance, independently of the host's Qt
+ownership. It works on application-owned panels and panels from other plugins.
+Omitting `host` targets the panel's root widget; an unsupported root raises
+`TypeError` rather than choosing an arbitrary descendant. For compound widgets,
+pass an explicit `PanelWidget` host that is also a QWidget descendant of `panel.widget`:
+
+```python
+self.add_overlay(panel, overlay, host=preview_widget, layer=10)
+self.remove_overlay(panel, overlay, host=preview_widget)
+```
+
+The existing panel manager validates visualization compatibility before invoking
+host attachment or committing contribution ownership. The only supported pair
+currently is `PanelOverlay2D` on `PanelWidget2D`, including their subclasses.
+Other combinations raise `TypeError` with no attachment or ownership change.
+The generic interfaces do not imply universal rendering support; future
+visualizations need an explicit compatibility rule. Direct host attachment
+uses the same manager-defined rule so it cannot bypass the check.
+
+`Plugin.remove_overlay(panel, overlay, *, host=None)` requires the same exact
+panel, host, overlay, and contributing plugin instance. Supply the explicit host
+again for nested contributions. Another instance of the same plugin class
+does not inherit ownership. Missing panels raise `KeyError`; stale panel/host/
+overlay identities and unrelated hosts raise `ValueError`; trying to remove
+another plugin's or a host-owned overlay raises `PermissionError`. Failed
+attachment leaves the overlay with the caller and no contribution record.
+
+Direct `host.add_overlay` creates host-owned content without a plugin
+contribution association. Direct `host.remove_overlay` is privileged and clears
+any contribution record. `host.overlays` remains the shared snapshot; there is
+no second discovery registry.
+
+Plugin disable runs `on_disabled` while contributions remain available, then
+removes its overlays before its panels. A surviving visualization keeps other
+plugins' and host-owned overlays, and cached content is not recomputed.
+Failed activation uses the same cleanup path after successful construction and
+state restoration. Once automatic cleanup starts, further contributions from
+that plugin instance are rejected with `RuntimeError`.
+
+Closing/removing a panel drains overlays from its root and nested hosts while
+they are valid, then notifies removal and schedules deletion. Backend detach
+failures happen before this drain and retain the panel and overlays for retry.
+Actual backend failures still retain pending plugin cleanup; successful earlier
+overlay removals are not undone. If the host closes first, later contributor
+cleanup finds no remaining records. Reusing the panel ID does not transfer
+contributions to the replacement.
+
+Discovery uses the same GUI-thread connect-then-snapshot pattern as panels.
+Panel lifecycle notifications permit reads, not mutations: queue attachment
+until notification delivery returns, then revalidate the exact panel and
+contributor activity. Cancel pending work and disconnect discovery on disable.
+The runnable Panel Overlays Demo uses a child single-shot timer to do this and
+logs unexpected attachment errors at the Qt callback seam.
 
 The host paints content first and overlays in ascending integer layer order,
 using insertion order for ties. `host.overlays` is a snapshot in painting order.
@@ -167,15 +226,21 @@ raise `TypeError`; invalid ownership, identity, or deleted objects raise
 
 `remove_overlay(overlay)` calls `on_removed()` before disconnecting host
 invalidation and scheduling deletion. Implement the hook to disconnect optional
-subscriptions immediately; make it retry-safe. If it raises, the error propagates
-and the attachment remains available for retry. Removed overlays cannot be
+subscriptions immediately. If it raises, the host logs the exception with its
+traceback and still disconnects invalidation, clears contribution tracking, and
+schedules disposal. This log-and-dispose policy also applies to explicit removal
+and plugin/panel teardown; cleanup-hook exceptions do not leave a pending
+contribution. A broken hook's remaining QObject-bound playback callbacks end
+when deferred destruction runs, not necessarily immediately upon removal.
+Removed overlays cannot be
 reattached, even before deferred deletion. Creating a fresh overlay is required.
 Do not independently delete or reparent an attached overlay.
 
-When the host is destroyed, Qt destroys its overlays and disconnects
-QObject-bound subscriptions; `on_removed` is for explicit removal, not a
-destructor notification. Non-QObject-bound subscriptions require explicit
-cleanup before host destruction. Recording unload removes recording-scoped
+Managed panel removal calls `on_removed` while overlays are valid. Unexpected
+host destruction uses Qt ownership and QObject-bound subscription lifetimes,
+not Python cleanup hooks on dead wrappers; contribution records are also
+cleared. Non-QObject-bound subscriptions require explicit cleanup before host
+destruction. Recording unload removes recording-scoped
 panels before silently clearing shared playback; no synthetic unload timestamp
 notification is introduced.
 
