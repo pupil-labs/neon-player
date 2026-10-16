@@ -128,22 +128,24 @@ class UpdatePill(NotificationPill):
 
     def show_update(self, version_tag: str, release_url: str) -> None:
         self.version_tag = version_tag
-        text = f"There is a new update available: v{version_tag}"
+        text = f"Update available: {version_tag}"
         tooltip = f"Open v{version_tag} release on GitHub ({release_url})"
         self.show_pill(text, release_url, tooltip)
 
 
-class DisableUpdatesPrompt(QMessageBox):
+class DismissedUpdatePrompt(QMessageBox):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
         self.setIcon(QMessageBox.Icon.Information)
         self.setWindowTitle("Update Notification Dismissed")
         self.setText(
-            "You can always check for updates later or view release notes "
-            "from the Help menu."
+            "The update notification will not be shown again until the next "
+            "release is available. You can manually check for updates or view "
+            "the release notes from the Help menu. If necessary, it is possible "
+            "to disable the update check via File > Global settings."
         )
-        self.cb = QCheckBox("Disable automatic update checks on startup")
+        self.cb = QCheckBox("Do not show this message again")
         self.setCheckBox(self.cb)
 
     @property

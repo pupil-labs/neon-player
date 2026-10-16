@@ -51,7 +51,7 @@ from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.release_notes import ReleaseNotesDialog
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
-from pupil_labs.neon_player.ui.update_notification import UpdatePill, DisableUpdatesPrompt
+from pupil_labs.neon_player.ui.update_notification import UpdatePill, DismissedUpdatePrompt
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
 
@@ -459,7 +459,7 @@ class MainWindow(QMainWindow):
 
         self.statusBar().addWidget(self.status_label, stretch=5)
         self.statusBar().addWidget(self.job_progress_bar, stretch=1)
-        self.statusBar().addWidget(self.update_pill)
+        self.statusBar().addPermanentWidget(self.update_pill)
         app.job_manager.updated.connect(self.update_job_status)
 
         self.log_status_handler = StatusBarLogHandler(self.status_label)
@@ -562,11 +562,14 @@ class MainWindow(QMainWindow):
         app = neon_player.instance()
         app.settings.last_displayed_update_version = self.update_pill.version_tag
 
-        prompt = DisableUpdatesPrompt(self)
+        if not app.settings.show_prompt_on_dismissed_update:
+            return
+
+        prompt = DismissedUpdatePrompt(self)
         if not prompt.user_confirmed:
             return
 
-        app.settings.check_for_updates = False
+        app.settings.show_prompt_on_dismissed_update = False
 
     def on_recording_opened(self):
         self.greeting_switcher.setCurrentIndex(1)

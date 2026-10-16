@@ -10,7 +10,7 @@ class GithubAPIClient:
     def __init__(self, timeout_seconds: float = 10) -> None:
         self.base_url = "https://api.github.com"
         self.timeout_seconds = timeout_seconds
-        self.headers = {"User-Agent": "Neon-Player-Updater"}
+        self.headers = {"User-Agent": "Neon-Player-GithubAPIClient"}
 
     def _get_json(self, url: str) -> Any:
         logging.debug(f"Retrieving {url}")
