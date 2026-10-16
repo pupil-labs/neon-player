@@ -454,7 +454,7 @@ class MainWindow(QMainWindow):
         self.job_progress_bar.hide()
         self.job_progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.update_pill = UpdatePill(self)
-        self.update_pill.dismissed.connect(self.prompt_disable_updates)
+        self.update_pill.dismissed.connect(self.prompt_dismiss_updates)
         self.update_pill.hide()
 
         self.statusBar().addWidget(self.status_label, stretch=5)
@@ -558,7 +558,7 @@ class MainWindow(QMainWindow):
         self.update_pill.show_update(tag_name, release_url)
         self.statusBar().show()
 
-    def prompt_disable_updates(self) -> None:
+    def prompt_dismiss_updates(self) -> None:
         app = neon_player.instance()
         app.settings.last_displayed_update_version = self.update_pill.version_tag
 

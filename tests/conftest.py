@@ -12,6 +12,9 @@ from pupil_labs.neon_recording.timeseries import (
     WornTimeseries
 )
 
+from pupil_labs.neon_player.history import RecordingHistory
+from pupil_labs.neon_player.job_manager import JobManager
+from pupil_labs.neon_player.managers.update import UpdateManager
 from pupil_labs.neon_player.settings import GeneralSettings
 
 
@@ -59,14 +62,27 @@ class MockNeonPlayerApp(QApplication):
     before executing the respective test.
     """
     export_window_changed = Signal(tuple[int, int])
+    playback_state_changed = Signal(bool)
+    position_changed = Signal(object)
+    seeked = Signal(object)
+    speed_changed = Signal(float)
+    recording_loaded = Signal(object)
+    recording_unloaded = Signal(object)
 
     def __init__(self, *args):
         super().__init__(*args)
         self.headless = True
         self.plugins_by_class = {}
         self.recording = None
+        self.recording_history = RecordingHistory()
+        self.job_manager = JobManager()
         self.settings = GeneralSettings()
         self.settings.default_plugins = {"DefaultPlugin": True}
+        self.update_manager = UpdateManager(self)
+        self.playback_speed_options = []
+
+    def unload(self):
+        self.recording = None
 
 
 @pytest.fixture(scope="session")
