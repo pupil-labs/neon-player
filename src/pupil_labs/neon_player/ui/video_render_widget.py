@@ -1,6 +1,15 @@
 import time
 
-from PySide6.QtCore import QPoint, QPointF, QPropertyAnimation, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import (
+    QEvent,
+    QPoint,
+    QPointF,
+    QPropertyAnimation,
+    QRectF,
+    QSize,
+    Qt,
+    Signal,
+)
 from PySide6.QtGui import (
     QColorConstants,
     QMouseEvent,
@@ -52,8 +61,16 @@ class ScalingWidget(PanelWidget2D):
         super().mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if self._point_in_content(event.position()) is None:
+            self.unsetCursor()
+        else:
+            self.setCursor(Qt.CursorShape.CrossCursor)
         self.mouse_moved.emit(event)
         super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event: QEvent) -> None:
+        self.unsetCursor()
+        super().leaveEvent(event)
 
     def map_point(self, point: QPoint | QPointF) -> QPointF:
         if self.width() <= 0 or self.height() <= 0 or self.scale <= 0:

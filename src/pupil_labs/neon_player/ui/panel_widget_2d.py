@@ -1,5 +1,5 @@
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColorConstants, QCursor, QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtGui import QColorConstants, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QWidget
 from pupil_labs.neon_player.overlays import (
@@ -29,15 +29,12 @@ class PanelWidget2D(PanelWidget, QOpenGLWidget):
         self._pressed_interactive_overlay: InteractivePanelOverlay2D | None = None
         self._hovered_interactive_overlay: InteractivePanelOverlay2D | None = None
         self._hovered_point: QPointF | None = None
-        self._cursor_before_hover: QCursor | None = None
-        self._cursor_was_set_before_hover = False
         self.setMouseTracking(True)
 
     def _notify_overlay_removed(self, overlay: PanelOverlay) -> None:
         if overlay is self._hovered_interactive_overlay:
             self._hovered_interactive_overlay = None
             self._hovered_point = None
-            self._restore_hover_cursor()
         if overlay is self._pressed_interactive_overlay:
             self._pressed_interactive_overlay = None
         self.overlay_removed.emit(overlay)
@@ -69,19 +66,22 @@ class PanelWidget2D(PanelWidget, QOpenGLWidget):
     def _interactive_overlay_at(
         self, widget_point: QPointF
     ) -> tuple[InteractivePanelOverlay2D, QPointF] | None:
-        if not self._has_valid_mapping():
-            return None
-        content = self.content_rect()
-        try:
-            point = self.map_point(widget_point)
-        except RuntimeError:
-            return None
-        if not content.contains(point):
+        point = self._point_in_content(widget_point)
+        if point is None:
             return None
         for overlay in reversed(self.overlays):
             if isinstance(overlay, InteractivePanelOverlay2D) and overlay.hit_test(point):
                 return overlay, point
         return None
+
+    def _point_in_content(self, widget_point: QPointF) -> QPointF | None:
+        if not self._has_valid_mapping():
+            return None
+        try:
+            point = self.map_point(widget_point)
+        except RuntimeError:
+            return None
+        return point if self.content_rect().contains(point) else None
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
@@ -116,34 +116,11 @@ class PanelWidget2D(PanelWidget, QOpenGLWidget):
             previous_point = self._hovered_point
             if previous_point is not None:
                 previous_overlay.on_hover_leave(previous_point)
-        if previous_overlay is None and overlay is not None:
-            self._set_hover_cursor()
-        elif previous_overlay is not None and overlay is None:
-            self._restore_hover_cursor()
         self._hovered_interactive_overlay = overlay
         self._hovered_point = point
         if overlay is not None and point is not None:
             overlay.on_hover_enter(point)
         self.update()
-
-    def _set_hover_cursor(self) -> None:
-        if self._cursor_before_hover is None:
-            self._cursor_before_hover = self.cursor()
-            self._cursor_was_set_before_hover = self.testAttribute(
-                Qt.WidgetAttribute.WA_SetCursor
-            )
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-
-    def _restore_hover_cursor(self) -> None:
-        cursor = self._cursor_before_hover
-        if cursor is None:
-            return
-        self._cursor_before_hover = None
-        if self._cursor_was_set_before_hover:
-            self.setCursor(cursor)
-        else:
-            self.unsetCursor()
-        self._cursor_was_set_before_hover = False
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         self._update_hover(self._interactive_overlay_at(event.position()))

@@ -100,9 +100,18 @@ and disposal, with no painter requirement. Import it from
 `_paint_content(painter)` to draw prepared content. `ScalingWidget`, available
 from `pupil_labs.neon_player.ui.video_render_widget`, derives from it and adds
 aspect-fit source coordinates, `fit_rect(QSize(...))`, inverse `map_point`, mouse
-signals, and scaled-child positioning. `VideoRenderWidget` derives from
+signals, and scaled-child positioning. While the pointer is within the mapped
+content rectangle, it uses a cross cursor independently of overlay hit-testing;
+leaving the content or widget restores the inherited cursor. `VideoRenderWidget` derives from
 `ScalingWidget` and adds playback-driven frame preparation and FPS display;
 existing scene and surface rendering still use their original frame hooks.
+
+The built-in Gaze Data plugin attaches each `GazeVisualization` to the scene
+panel as an `InteractivePanelOverlay2D`. Circle and crosshair visualizations
+hit-test their rendered marks and highlight those marks on hover; clicks do not
+currently trigger an action. On-screen gaze painting uses the overlay host,
+while surface previews retain their data-driven render path. Video export
+rendering is not yet migrated to the overlay host.
 
 Import `PanelOverlay`, `PanelOverlay2D`, `PanelWidget`, and `PanelWidget2D` from
 `pupil_labs.neon_player`. Generic `PanelOverlay` has read-only borrowed playback
