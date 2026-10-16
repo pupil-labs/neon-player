@@ -5,7 +5,7 @@ from unittest.mock import patch
 from packaging import version
 from pupil_labs.neon_player.clients.github import GithubAPIClient
 from pupil_labs.neon_player.managers.update import (
-    CheckUpdateThread, 
+    CheckUpdateThread,
     UpdateManager,
 )
 
@@ -106,9 +106,9 @@ def test_update_manager_load_release_notes(tmp_path, qapp):
     for version_tag, notes in mock_release_notes.items():
         with open(tmp_path / f"v{version_tag}.md", "w+") as f:
             f.write(notes)
-    
+
     with patch(
-        "pupil_labs.neon_player.managers.update.changelog_path", 
+        "pupil_labs.neon_player.managers.update.changelog_path",
         return_value=tmp_path
     ):
         update_manager = UpdateManager(qapp)
@@ -152,7 +152,7 @@ def test_update_manager_get_release_notes_uses_since_version(qapp):
 
 
 @pytest.mark.parametrize("last_read_version, has_unread", [
-    ("6.0.0", True), 
+    ("6.0.0", True),
     ("6.0.1", False)
 ])
 def test_update_manager_check_unread_release_notes(

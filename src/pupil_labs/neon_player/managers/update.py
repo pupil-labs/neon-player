@@ -73,7 +73,7 @@ class CheckUpdateThread(QThread):
 
 class UpdateManager(QObject):
     """Handles release notes from changelog and fetches new releases."""
-    
+
     update_available = Signal(str, str)
     notes_available = Signal(str)
 
@@ -95,7 +95,7 @@ class UpdateManager(QObject):
         )
         if since_version is None:
             return releases
-        
+
         return list(filter(lambda el: el[0] > since_version, releases))
 
     def get_release_notes(
