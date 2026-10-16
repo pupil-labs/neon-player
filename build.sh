@@ -15,9 +15,6 @@ if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]] || [[ "$OSTYPE" == "c
     UV_PATH=$UV_PATH.exe
 fi
 
-DIST_INFO_DIR=$(ls -d .venv/lib/python*/site-packages/pupil_labs_neon_player*.dist-info | head -n 1)
-DIST_INFO_NAME=$(basename "$DIST_INFO_DIR")
-echo "Found metadata directory: $DIST_INFO_NAME"
 uv run -m nuitka src/pupil_labs/neon_player \
     --assume-yes-for-downloads \
     --user-package-configuration-file=package-configs.yml \
@@ -28,7 +25,6 @@ uv run -m nuitka src/pupil_labs/neon_player \
     --python-flag=isolated \
     --include-data-dir=./src/pupil_labs/neon_player/assets=pupil_labs/neon_player/assets \
     --include-data-dir=./docs/changelog=pupil_labs/neon_player/changelog \
-    --include-data-dir="${DIST_INFO_DIR}=${DIST_INFO_NAME}" \
     --include-data-files="$UV_PATH"=uv \
     --nofollow-import-to=uv \
     --macos-create-app-bundle \
