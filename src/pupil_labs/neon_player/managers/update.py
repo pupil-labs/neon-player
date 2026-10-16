@@ -72,6 +72,8 @@ class CheckUpdateThread(QThread):
 
 
 class UpdateManager(QObject):
+    """Handles release notes from changelog and fetches new releases."""
+    
     update_available = Signal(str, str)
     notes_available = Signal(str)
 
@@ -85,17 +87,23 @@ class UpdateManager(QObject):
     def check_for_updates(self) -> None:
         self.update_thread.start()
 
-    def get_release_notes(
-        self,
-        title: str = "Release notes",
-        min_version: version.Version | None = None
-    ) -> str:
+    def _get_new_releases(
+        self, since_version: version.Version | None = None
+    ) -> list[tuple[version.Version, str]]:
         releases = sorted(
             self._release_notes.items(), key=lambda el: el[0], reverse=True
         )
-        if min_version is not None:
-            releases = list(filter(lambda el: el[0] > min_version, releases))
+        if since_version is None:
+            return releases
+        
+        return list(filter(lambda el: el[0] > since_version, releases))
 
+    def get_release_notes(
+        self,
+        title: str = "Release notes",
+        since_version: version.Version | None = None
+    ) -> str:
+        releases = self._get_new_releases(since_version)
         if not releases:
             return ""
 
@@ -105,7 +113,7 @@ class UpdateManager(QObject):
 
         return result
 
-    def load_release_notes(self, latest_read_version: str) -> None:
+    def load_release_notes(self) -> None:
         for path in changelog_path().iterdir():
             if not path.is_file() or not path.suffix == ".md":
                 continue
@@ -116,10 +124,11 @@ class UpdateManager(QObject):
 
             self._release_notes[version_tag] = notes
 
+    def check_unread_release_notes(self, latest_read_version: str) -> None:
         read_version = version.parse(latest_read_version)
         unread_notes = self.get_release_notes(
             title="What's Changed",
-            min_version=read_version
+            since_version=read_version
         )
         if not unread_notes:
             return

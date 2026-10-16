@@ -166,7 +166,11 @@ class NeonPlayerApp(QApplication):
         self.update_manager = UpdateManager(parent=self)
         self.update_manager.update_available.connect(self.main_window.on_update_available)
         self.update_manager.notes_available.connect(self.main_window.show_release_notes)
-        self.update_manager.load_release_notes(self.settings.last_read_release_notes_version)
+        if not self.headless:
+            self.update_manager.load_release_notes()
+            self.update_manager.check_unread_release_notes(
+                self.settings.last_read_release_notes_version
+            )
         if self.settings.check_for_updates and not self.headless:
             QTimer.singleShot(0, self.update_manager.check_for_updates)
 

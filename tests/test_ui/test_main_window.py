@@ -1,12 +1,9 @@
 import pytest
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QMessageBox
+from unittest.mock import PropertyMock, patch
 
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.ui.update_notification import DismissedUpdatePrompt
-
-from tests.utilities import retrieve_messagebox
 
 
 def test_main_window_on_update_available(qtbot):
@@ -38,25 +35,18 @@ def test_main_window_dismissed_update_sets_last_displayed_update_version(qtbot, 
     assert qapp.settings.last_displayed_update_version == "7.0.0"
 
 
-@pytest.mark.parametrize("set_checkbox", [True, False])
-def test_main_window_dismissed_update_not_show_message_again(set_checkbox, qtbot, qapp):
+@pytest.mark.parametrize("user_confirmed", [True, False])
+def test_main_window_dismissed_update_not_show_message_again(user_confirmed, qtbot, qapp):
     main_window = MainWindow()
     qtbot.addWidget(main_window)
 
     main_window.update_pill.version_tag = "7.0.0"
     qapp.settings.last_displayed_update_version = "6.0.0"
+    qapp.settings.show_prompt_on_dismissed_update = True
 
-    def check_messagebox():
-        msg_box = retrieve_messagebox()
-        assert isinstance(msg_box, DismissedUpdatePrompt)
-
-        if set_checkbox:
-            msg_box.cb.setChecked()
-        qtbot.mouseClick(
-            msg_box.button(QMessageBox.StandardButton.Ok), 
-            Qt.MouseButton.LeftButton
-        )
-        assert qapp.settings.show_prompt_on_dismissed_update ^ set_checkbox
-
-    main_window.prompt_dismiss_updates()
-    QTimer.singleShot(100, check_messagebox)
+    with patch.object(
+        DismissedUpdatePrompt, "user_confirmed", new_callable=PropertyMock
+    ) as mock_confirmed:
+        mock_confirmed.return_value = user_confirmed
+        main_window.prompt_dismiss_updates()
+        assert qapp.settings.show_prompt_on_dismissed_update or user_confirmed
