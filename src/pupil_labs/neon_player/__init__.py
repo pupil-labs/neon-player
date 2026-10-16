@@ -8,7 +8,9 @@ from qt_property_widgets.utilities import action as object_action
 
 from pupil_labs.neon_player.job_manager import ProgressUpdate
 from pupil_labs.neon_player.managers.panel import Panel
+from pupil_labs.neon_player.overlays import PanelOverlay, PanelOverlay2D
 from pupil_labs.neon_player.plugins import GlobalPluginProperties, Plugin
+from pupil_labs.neon_player.ui.panel_widget_2d import PanelWidget2D
 
 if T.TYPE_CHECKING:
     from pupil_labs.neon_player.app import NeonPlayerApp
@@ -47,6 +49,9 @@ __all__ = [
     "BGWorker",
     "GlobalPluginProperties",
     "Panel",
+    "PanelOverlay",
+    "PanelOverlay2D",
+    "PanelWidget2D",
     "Plugin",
     "ProgressUpdate",
     "action",

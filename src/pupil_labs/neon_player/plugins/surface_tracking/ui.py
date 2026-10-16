@@ -150,7 +150,8 @@ class SurfaceViewWidget(VideoRenderWidget):
         self.refit_rect()
 
     def refit_rect(self) -> None:
-        self.fit_rect(QSize(*self.surface.preview_options.render_size))
+        if min(self.surface.preview_options.render_size) > 0:
+            self.fit_rect(QSize(*self.surface.preview_options.render_size))
         self.refresh()
 
     def _prepare_frame(self, timestamp: int | None) -> None:

@@ -74,14 +74,109 @@ Python plugins. Direct manager removal by ID remains privileged for application
 cleanup. Plugin authors should use the plugin helpers for contributions and use
 the shared manager for discovery.
 
-Automatic per-plugin disable/failed-activation cleanup is not implemented yet.
-Plugins must explicitly remove their live panels and disconnect discovery
-handlers in `on_disabled`; track removals so already-closed panels are skipped.
+Plugin disable/failed-activation cleanup removes panels owned by that exact
+plugin instance. Explicit removal in `on_disabled` is also supported; track
+removals so already-closed panels are skipped. Disconnect discovery handlers
+when disabling an observer.
 Do not retain runtime panel references in serialized plugin settings.
 
 See [the runnable Panels Demo](https://github.com/pupil-labs/neon-player/blob/main/examples/plugins/demo_panels.py)
 for static and playback-driven widgets, discovery, close/reopen, and explicit
-cleanup. Surface Tracking preview migration, layout controls, and overlays are
-separate work.
+cleanup, including a cached static image with a playback-dependent overlay.
+Layout controls and cross-plugin overlay ownership are separate work.
 
-::: pupil_labs.neon_player.panels
+### Visualization-specific 2D overlays
+
+`PanelWidget2D` is an optional `QOpenGLWidget` host, not a requirement for
+`Panel`. Its default coordinates are widget-local pixels. Override
+`_paint_content(painter)` to draw prepared content. `ScalingWidget`, available
+from `pupil_labs.neon_player.ui.video_render_widget`, derives from it and adds
+aspect-fit source coordinates, `fit_rect(QSize(...))`, inverse `map_point`, mouse
+signals, and scaled-child positioning. `VideoRenderWidget` derives from
+`ScalingWidget` and adds playback-driven frame preparation and FPS display;
+existing scene and surface rendering still use their original frame hooks.
+
+Import `PanelOverlay`, `PanelOverlay2D`, and `PanelWidget2D` from
+`pupil_labs.neon_player`. Generic `PanelOverlay` has read-only borrowed playback
+and a `changed` signal, with no painting method. `PanelOverlay2D` adds
+`paint(painter)`. Playback is supplied explicitly, without an automatic
+subscription or an independent clock:
+
+```python
+from pupil_labs.neon_player import PanelOverlay2D, PanelWidget2D
+
+
+class TimeLabel(PanelOverlay2D):
+    def __init__(self, playback):
+        super().__init__(playback)
+        self.timestamp = playback.time
+        self._subscribed = True
+        playback.changed.connect(self.on_position)
+
+    def on_position(self, timestamp):
+        self.timestamp = timestamp
+        self.changed.emit()
+
+    def paint(self, painter):
+        text = "No recording" if self.timestamp is None else str(self.timestamp)
+        painter.drawText(8, 24, text)
+
+    def on_removed(self):
+        if self._subscribed:
+            self.playback.changed.disconnect(self.on_position)
+            self._subscribed = False
+
+
+# Within a plugin, after discovering a panel:
+if isinstance(panel.widget, PanelWidget2D):
+    overlay = TimeLabel(self.panel_manager.playback)
+    panel.widget.add_overlay(overlay, layer=10)
+```
+
+The snippet demonstrates host capability checking, not automatic ownership of
+contributions to another plugin's panel. This initial interface supports
+host-owned overlays; cross-plugin contribution tracking/disable cleanup is
+deferred. Prefer attaching overlays to your own panels for now.
+
+The host paints content first and overlays in ascending integer layer order,
+using insertion order for ties. `host.overlays` is a snapshot in painting order.
+Layers are attachment metadata, not mutable overlay properties. Each overlay
+receives its own saved/restored painter state and clipping to the content
+rectangle, intersected with any incoming painter clip. Do not end the borrowed
+painter. `paint(painter)` also renders a host into an active image-backed painter,
+preserving caller state; it does not change the application's video export path.
+
+The unscaled host's `map_point` is identity. The scaling specialization fits the
+source rectangle and uses the same transform for content, overlays, and inverse
+mapping. Points in letterboxing extrapolate outside the source rectangle;
+mapping does not clamp them. Invalid source dimensions raise `ValueError`
+before changing geometry; mapping with a zero-sized/unusable target raises
+`RuntimeError`.
+
+`changed` schedules a coalescible `update()`. It never calls content preparation.
+Prepare static data or a cached image independently, then draw it in
+`_paint_content`. Ordinary repainting of that cache is expected; recomputing it
+on every playback notification is not. Neither `PanelWidget2D` nor
+`ScalingWidget` requires a recording or subscribes to playback.
+
+Attachment requires a live, parentless, never-attached `PanelOverlay2D` on the
+GUI thread and transfers ownership only on success. Incompatible types/layers
+raise `TypeError`; invalid ownership, identity, or deleted objects raise
+`ValueError`. Off-GUI-thread mutation and mutation during painting/removal raise
+`RuntimeError`. Rejected operations leave attachment/ownership unchanged.
+
+`remove_overlay(overlay)` calls `on_removed()` before disconnecting host
+invalidation and scheduling deletion. Implement the hook to disconnect optional
+subscriptions immediately; make it retry-safe. If it raises, the error propagates
+and the attachment remains available for retry. Removed overlays cannot be
+reattached, even before deferred deletion. Creating a fresh overlay is required.
+Do not independently delete or reparent an attached overlay.
+
+When the host is destroyed, Qt destroys its overlays and disconnects
+QObject-bound subscriptions; `on_removed` is for explicit removal, not a
+destructor notification. Non-QObject-bound subscriptions require explicit
+cleanup before host destruction. Recording unload removes recording-scoped
+panels before silently clearing shared playback; no synthetic unload timestamp
+notification is introduced.
+
+::: pupil_labs.neon_player.managers.panel

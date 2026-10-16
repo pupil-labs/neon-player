@@ -8,10 +8,68 @@ connect-then-snapshot; observers must not mutate panels during notifications.
 from contextlib import ExitStack
 
 from pupil_labs.neon_recording import NeonRecording
+from PySide6.QtCore import QSize
+from PySide6.QtGui import QColorConstants, QImage, QPainter
 from PySide6.QtWidgets import QLabel
 
-from pupil_labs.neon_player import Panel, Plugin, action
+from pupil_labs.neon_player import (
+    Panel,
+    PanelOverlay2D,
+    PanelWidget2D,
+    Plugin,
+    action,
+)
 from pupil_labs.neon_player.managers.playback import PlaybackPosition
+from pupil_labs.neon_player.ui.video_render_widget import ScalingWidget
+
+
+class StaticImage(ScalingWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self.preparation_count = 0
+        self.image = self._prepare_image()
+        self.fit_rect(self.image.size())
+
+    def _prepare_image(self) -> QImage:
+        self.preparation_count += 1
+        image = QImage(QSize(320, 160), QImage.Format.Format_RGB32)
+        image.fill(QColorConstants.DarkBlue)
+        painter = QPainter(image)
+        try:
+            painter.fillRect(40, 40, 240, 80, QColorConstants.DarkCyan)
+        finally:
+            painter.end()
+        return image
+
+    def _paint_content(self, painter: QPainter) -> None:
+        painter.drawImage(0, 0, self.image)
+
+
+class PlaybackCursor(PanelOverlay2D):
+    def __init__(self, playback: PlaybackPosition) -> None:
+        super().__init__(playback)
+        self.timestamp = playback.time
+        self._subscribed = True
+        playback.changed.connect(self.show_position)
+
+    def show_position(self, timestamp: int | None) -> None:
+        self.timestamp = timestamp
+        self.changed.emit()
+
+    def paint(self, painter: QPainter) -> None:
+        painter.setPen(QColorConstants.Yellow)
+        if self.timestamp is None:
+            painter.drawText(8, 24, "No recording")
+            return
+        # Sweep once per recording-axis second, without reducing ns precision.
+        x = int((self.timestamp % 1_000_000_000) * 319 // 1_000_000_000)
+        painter.drawLine(x, 0, x, 159)
+        painter.drawText(8, 24, f"{self.timestamp} ns")
+
+    def on_removed(self) -> None:
+        if self._subscribed:
+            self.playback.changed.disconnect(self.show_position)
+            self._subscribed = False
 
 
 class PlaybackLabel(QLabel):
@@ -59,6 +117,19 @@ class PanelsDemo(Plugin):
             panel = Panel("demo.playback", "Playback position", widget)
             self._add_panel(panel)
             widget.bind_playback(panel.playback)
+        if "demo.overlay" not in self._owned_panels:
+            host = StaticImage()
+            panel = Panel("demo.overlay", "Static image with playback overlay", host)
+            with ExitStack() as rollback:
+                rollback.callback(panel.deleteLater)
+                rollback.callback(host.deleteLater)
+                if isinstance(panel.widget, PanelWidget2D):
+                    overlay = PlaybackCursor(self.panel_manager.playback)
+                    rollback.callback(overlay.deleteLater)
+                    panel.widget.add_overlay(overlay, layer=10)
+                self.add_panel(panel)
+                rollback.pop_all()
+            self._owned_panels[panel.panel_id] = panel
 
     def _add_panel(self, panel: Panel) -> None:
         with ExitStack() as rollback:

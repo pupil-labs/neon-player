@@ -1,14 +1,12 @@
 import time
 
-from PySide6.QtCore import QPoint, QPointF, QPropertyAnimation, QSize, Qt, Signal
+from PySide6.QtCore import QPoint, QPointF, QPropertyAnimation, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColorConstants,
     QMouseEvent,
     QPainter,
-    QPaintEvent,
     QResizeEvent,
 )
-from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import (
     QGraphicsOpacityEffect,
     QLabel,
@@ -17,9 +15,10 @@ from PySide6.QtWidgets import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.managers.playback import PlaybackPosition
+from pupil_labs.neon_player.ui.panel_widget_2d import PanelWidget2D
 
 
-class ScalingWidget(QOpenGLWidget):
+class ScalingWidget(PanelWidget2D):
     mouse_pressed = Signal(QMouseEvent)
     mouse_released = Signal(QMouseEvent)
     mouse_clicked = Signal(QMouseEvent)
@@ -28,54 +27,34 @@ class ScalingWidget(QOpenGLWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
-        surface_format = self.format()
-        surface_format.setSamples(10)
-        self.setFormat(surface_format)
-
         self.setMouseTracking(True)
 
         self.source_size = QSize(100, 100)
-        self.scaled_children_positions = {}
+        self.scaled_children_positions: dict[QWidget, tuple[float, float, bool]] = {}
         self._mouse_down = False
-
-        self._last_frame_time = None
-        self._fps = 0.0
-        self.fps_label = QLabel(self)
-        self.fps_label.resize(1024, 24)
-
-        self.opacity_effect = QGraphicsOpacityEffect()
-        self.fps_label.setGraphicsEffect(self.opacity_effect)
-        self.opacity_effect.setOpacity(0.0)
-
-        self.fade_anim = QPropertyAnimation(self.opacity_effect, b"opacity")
-        self.fade_anim.setDuration(1000)
-        self.fade_anim.setStartValue(1.0)
-        self.fade_anim.setEndValue(0.0)
-        self.fade_anim.finished.connect(self.on_fade_finished)
 
         self.offset = QPointF(0, 0)
         self.scale = 1.0
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self._mouse_down = True
 
         self.mouse_pressed.emit(event)
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton and self._mouse_down:
             self.mouse_clicked.emit(event)
             self._mouse_down = False
 
         self.mouse_released.emit(event)
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
         self.mouse_moved.emit(event)
 
-    def on_fade_finished(self):
-        self._last_frame_time = None
-
     def map_point(self, point: QPoint | QPointF) -> QPointF:
+        if self.width() <= 0 or self.height() <= 0 or self.scale <= 0:
+            raise RuntimeError("Cannot map points without a usable visualization size")
         point = QPointF(point) - self.offset
         return QPointF(point.x() / self.scale, point.y() / self.scale)
 
@@ -83,47 +62,30 @@ class ScalingWidget(QOpenGLWidget):
         painter.translate(self.offset)
         painter.scale(self.scale, self.scale)
 
-    def paintEvent(self, event: QPaintEvent) -> None:
-        painter = QPainter(self)
-        painter.setRenderHints(
-            QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform
-        )
-        painter.fillRect(0, 0, self.width(), self.height(), QColorConstants.Black)
-
-        if neon_player.instance().settings.show_fps:
-            now = time.monotonic()
-            if self._last_frame_time is not None:
-                delta = now - self._last_frame_time
-                self.fade_anim.stop()
-                instant_fps = 1.0 / delta
-                self._fps = self._fps * 0.98 + instant_fps * 0.02
-                self.fps_label.setText(f"{self._fps:.2f} fps")
-                self.opacity_effect.setOpacity(1.0)
-                self.fade_anim.start()
-
-            self._last_frame_time = now
-
-        painter.end()
+    def content_rect(self) -> QRectF:
+        return QRectF(0, 0, self.source_size.width(), self.source_size.height())
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         self.adjust_size()
         for child in self.children():
-            self.update_child_position(child)
+            if isinstance(child, QWidget):
+                self.update_child_position(child)
 
     def adjust_size(self) -> None:
-        app = neon_player.instance()
-        if app.recording is None:
-            return
-
         self.fit_rect()
         self.update()
 
     def fit_rect(self, source_size: QSize | None = None) -> None:
+        size = self.source_size if source_size is None else source_size
+        if size.width() <= 0 or size.height() <= 0:
+            raise ValueError("Visualization source dimensions must be positive")
         if source_size is not None:
-            self.source_size = source_size
+            self.source_size = QSize(source_size)
 
-        if self.source_size.height() == 0 or self.height() == 0:
+        if self.width() <= 0 or self.height() <= 0:
+            self.scale = 0.0
+            self.offset = QPointF()
             return
 
         source_aspect = self.source_size.width() / self.source_size.height()
@@ -172,6 +134,18 @@ class VideoRenderWidget(ScalingWidget):
         self, playback: PlaybackPosition, parent: QWidget | None = None
     ) -> None:
         super().__init__(parent)
+        self._last_frame_time: float | None = None
+        self._fps = 0.0
+        self.fps_label = QLabel(self)
+        self.fps_label.resize(1024, 24)
+        self.opacity_effect = QGraphicsOpacityEffect()
+        self.fps_label.setGraphicsEffect(self.opacity_effect)
+        self.opacity_effect.setOpacity(0.0)
+        self.fade_anim = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.fade_anim.setDuration(1000)
+        self.fade_anim.setStartValue(1.0)
+        self.fade_anim.setEndValue(0.0)
+        self.fade_anim.finished.connect(self.on_fade_finished)
         self.playback = playback
         self.playback.changed.connect(self._on_position_changed)
 
@@ -187,22 +161,36 @@ class VideoRenderWidget(ScalingWidget):
     def _prepare_frame(self, timestamp: int | None) -> None:
         """Prepare visualization-specific state without painting synchronously."""
 
-    def paintEvent(self, event: QPaintEvent) -> None:
-        super().paintEvent(event)
-        painter = QPainter(self)
-        try:
-            timestamp = self.playback.time
-            if timestamp is None:
-                self._paint_unavailable_frame(painter)
-                return
-            painter.save()
-            try:
-                self.transform_painter(painter)
-                self._paint_frame(painter, timestamp)
-            finally:
-                painter.restore()
-        finally:
-            painter.end()
+    def on_fade_finished(self) -> None:
+        self._last_frame_time = None
+
+    def adjust_size(self) -> None:
+        if neon_player.instance().recording is not None:
+            super().adjust_size()
+
+    def _paint_background(self, painter: QPainter) -> None:
+        super()._paint_background(painter)
+        if neon_player.instance().settings.show_fps:
+            now = time.monotonic()
+            if self._last_frame_time is not None:
+                delta = now - self._last_frame_time
+                self.fade_anim.stop()
+                instant_fps = 1.0 / delta
+                self._fps = self._fps * 0.98 + instant_fps * 0.02
+                self.fps_label.setText(f"{self._fps:.2f} fps")
+                self.opacity_effect.setOpacity(1.0)
+                self.fade_anim.start()
+            self._last_frame_time = now
+
+    def _paint_content(self, painter: QPainter) -> None:
+        # Legacy video content used a fresh painter without these render hints.
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        timestamp = self.playback.time
+        if timestamp is None:
+            self._paint_unavailable_frame(painter)
+        else:
+            self._paint_frame(painter, timestamp)
 
     def _paint_frame(self, painter: QPainter, timestamp: int) -> None:
         """Paint in visualization coordinates using the borrowed painter."""
