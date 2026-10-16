@@ -46,9 +46,10 @@ from qt_property_widgets.widgets import PropertyForm
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.managers.panel import Panel
+from pupil_labs.neon_player.overlays import InteractivePanelOverlay2D
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
-from pupil_labs.neon_player.ui.objects_panel import ObjectsPanel
+from pupil_labs.neon_player.ui.inspector_panel import InspectorPanel
 from pupil_labs.neon_player.ui.panel_layout import PanelContainer
 from pupil_labs.neon_player.ui.scene_video_widget import SceneVideoWidget
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
@@ -467,14 +468,15 @@ class MainWindow(QMainWindow):
 
         self.console_window = ConsoleWindow()
         self.settings_panel = SettingsPanel()
-        self.objects_panel = ObjectsPanel(app.panel_manager)
+        self.inspector_panel = InspectorPanel(app.panel_manager)
         self.settings_dock = self.add_dock(
             self.settings_panel, "Settings", Qt.DockWidgetArea.RightDockWidgetArea
         )
-        self.objects_dock = self.add_dock(
-            self.objects_panel, "Objects", Qt.DockWidgetArea.RightDockWidgetArea
+        self.inspector_dock = self.add_dock(
+            self.inspector_panel, "Inspector", Qt.DockWidgetArea.RightDockWidgetArea
         )
-        self.tabifyDockWidget(self.settings_dock, self.objects_dock)
+        self.tabifyDockWidget(self.settings_dock, self.inspector_dock)
+        app.panel_manager.overlay_clicked.connect(self._on_inspector_overlay_clicked)
         self.settings_dock.raise_()
 
         self.timeline = TimeLineDock()
@@ -551,7 +553,7 @@ class MainWindow(QMainWindow):
         docks_and_areas = {
             self.timeline_dock: Qt.DockWidgetArea.BottomDockWidgetArea,
             self.settings_dock: Qt.DockWidgetArea.RightDockWidgetArea,
-            self.objects_dock: Qt.DockWidgetArea.RightDockWidgetArea,
+            self.inspector_dock: Qt.DockWidgetArea.RightDockWidgetArea,
         }
 
         for dock, area in docks_and_areas.items():
@@ -559,14 +561,14 @@ class MainWindow(QMainWindow):
             dock.setFloating(False)
             dock.show()
 
-        self.tabifyDockWidget(self.settings_dock, self.objects_dock)
+        self.tabifyDockWidget(self.settings_dock, self.inspector_dock)
         self.settings_dock.raise_()
 
     def on_recording_opened(self):
         self.greeting_switcher.setCurrentIndex(1)
         self.timeline_dock.show()
         self.settings_dock.show()
-        self.objects_dock.show()
+        self.inspector_dock.show()
         self.settings_dock.raise_()
         self.menuBar().show()
         self.statusBar().show()
@@ -576,9 +578,13 @@ class MainWindow(QMainWindow):
         self.greeting_switcher.setCurrentIndex(0)
         self.timeline_dock.hide()
         self.settings_dock.hide()
-        self.objects_dock.hide()
+        self.inspector_dock.hide()
         self.menuBar().hide()
         self.statusBar().hide()
+
+    def _on_inspector_overlay_clicked(self, overlay: object) -> None:
+        if isinstance(overlay, InteractivePanelOverlay2D):
+            self.inspector_dock.raise_()
 
     def on_show_recent_action(self) -> None:
         self.recent_widget.update_recent_recordings()

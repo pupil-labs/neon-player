@@ -18,6 +18,7 @@ class PanelWidget2D(PanelWidget, QOpenGLWidget):
     """
 
     overlay_removed = Signal(object)
+    overlay_clicked = Signal(object)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         _require_gui_thread()
@@ -97,6 +98,7 @@ class PanelWidget2D(PanelWidget, QOpenGLWidget):
             self._pressed_interactive_overlay = None
             target = self._interactive_overlay_at(event.position())
             if target is not None and target[0] is pressed_overlay:
+                self.overlay_clicked.emit(target[0])
                 target[0].on_click(target[1])
         super().mouseReleaseEvent(event)
 

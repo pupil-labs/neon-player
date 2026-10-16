@@ -9,7 +9,11 @@ from PySide6.QtWidgets import QWidget
 from shiboken6 import isValid
 
 from pupil_labs.neon_player.managers.playback import PlaybackPosition
-from pupil_labs.neon_player.overlays import PanelOverlay, PanelOverlay2D
+from pupil_labs.neon_player.overlays import (
+    InteractivePanelOverlay2D,
+    PanelOverlay,
+    PanelOverlay2D,
+)
 from pupil_labs.neon_player.plugins import Plugin
 from pupil_labs.neon_player.ui.panel_widget import PanelWidget, _require_gui_thread
 from pupil_labs.neon_player.ui.panel_widget_2d import PanelWidget2D
@@ -107,7 +111,7 @@ class PanelLayoutBackend(QObject):
 
 
 class PanelManager(QObject):
-    """Registry owning panels and the injected layout adapter.
+    """Registry owning panels, selected-object state, and the injected layout adapter.
 
     Call shutdown before destroying the container that holds the adapter's host.
     The shared playback object is borrowed and outlives this manager.
@@ -119,6 +123,9 @@ class PanelManager(QObject):
     All operations run on the GUI thread. Mutation during notifications raises
     RuntimeError, as does mutation after shutdown.
 
+    Selection changes emit selection_changed; every managed interactive overlay
+    click emits overlay_clicked, including clicks on the already selected overlay.
+
     Optional contribution owners identify plugin instances, independently of Qt
     parenting. remove_owned_panel requires the current panel object and owner;
     stale objects raise ValueError and other owners raise PermissionError.
@@ -129,6 +136,8 @@ class PanelManager(QObject):
     panel_removed = Signal(object)
     overlay_added = Signal(object, object, object, object)
     overlay_removed = Signal(object, object, object, object)
+    overlay_clicked = Signal(object)
+    selection_changed = Signal(object)
 
     def __init__(
         self,
@@ -153,7 +162,9 @@ class PanelManager(QObject):
         self._overlay_host_destroy_handlers: dict[
             PanelWidget, Callable[..., None]
         ] = {}
+        self._overlay_click_handlers: dict[PanelWidget2D, Callable[..., None]] = {}
         self._overlay_operation: PanelWidget | None = None
+        self._selected_object: object | None = None
         self._busy = False
         self._closed = False
         backend.setParent(self)
@@ -167,6 +178,22 @@ class PanelManager(QObject):
     def panels(self) -> tuple[Panel, ...]:
         _require_gui_thread()
         return tuple(self._panels.values())
+
+    @property
+    def selected_object(self) -> object | None:
+        _require_gui_thread()
+        return self._selected_object
+
+    def select_object(self, selected_object: object | None) -> None:
+        """Publish the object selected by an Inspector consumer."""
+        _require_gui_thread()
+        self._set_selected_object(selected_object)
+
+    def _set_selected_object(self, selected_object: object | None) -> None:
+        if self._selected_object is selected_object:
+            return
+        self._selected_object = selected_object
+        self.selection_changed.emit(selected_object)
 
     def get_panel(self, panel_id: str) -> Panel | None:
         """Return the registered panel, or None if its ID is absent."""
@@ -242,6 +269,12 @@ class PanelManager(QObject):
             handler = partial(self._overlay_host_destroyed, panel, host)
             self._overlay_host_destroy_handlers[host] = handler
             host._widget.destroyed.connect(handler)
+            if isinstance(host, PanelWidget2D):
+                click_handler = partial(
+                    self._on_overlay_clicked, panel, host
+                )
+                self._overlay_click_handlers[host] = click_handler
+                host.overlay_clicked.connect(click_handler)
         return True
 
     def _unbind_overlay_host(self, host: PanelWidget) -> None:
@@ -249,6 +282,10 @@ class PanelManager(QObject):
         handler = self._overlay_host_destroy_handlers.pop(host, None)
         if handler is not None and isValid(host._widget):
             host._widget.destroyed.disconnect(handler)
+        if isinstance(host, PanelWidget2D):
+            click_handler = self._overlay_click_handlers.pop(host, None)
+            if click_handler is not None and isValid(host._widget):
+                host.overlay_clicked.disconnect(click_handler)
         if host._overlay_manager is self:
             host._overlay_manager = None
             host._mutation_guard = None
@@ -260,6 +297,8 @@ class PanelManager(QObject):
     ) -> None:
         self._overlay_hosts.pop(host, None)
         self._overlay_host_destroy_handlers.pop(host, None)
+        if isinstance(host, PanelWidget2D):
+            self._overlay_click_handlers.pop(host, None)
         for overlay in host.overlays:
             contribution = self._overlay_owners.get(overlay)
             owner = (
@@ -269,6 +308,7 @@ class PanelManager(QObject):
                 and contribution.host is host
                 else None
             )
+            self._clear_selection(overlay)
             self._forget_overlay(overlay)
             if self._panels.get(panel.panel_id) is panel:
                 self.overlay_removed.emit(panel, host, overlay, owner)
@@ -280,6 +320,25 @@ class PanelManager(QObject):
             self.overlay_added.emit(
                 panel, host, overlay, self.get_overlay_owner(overlay)
             )
+
+    def _on_overlay_clicked(
+        self,
+        panel: Panel,
+        host: PanelWidget2D,
+        overlay: object,
+    ) -> None:
+        if (
+            self._panels.get(panel.panel_id) is panel
+            and self._overlay_hosts.get(host) is panel
+            and isinstance(overlay, InteractivePanelOverlay2D)
+            and overlay in host.overlays
+        ):
+            self._set_selected_object(overlay)
+            self.overlay_clicked.emit(overlay)
+
+    def _clear_selection(self, selected_object: object) -> None:
+        if self._selected_object is selected_object:
+            self._set_selected_object(None)
 
     def _remove_overlay_from_host(
         self, panel: Panel, host: PanelWidget, overlay: PanelOverlay
@@ -295,6 +354,7 @@ class PanelManager(QObject):
             and contribution.host is host
             else None
         )
+        self._clear_selection(overlay)
         self._forget_overlay(overlay)
         if self._panels.get(panel.panel_id) is panel:
             self.overlay_removed.emit(panel, host, overlay, owner)
@@ -466,6 +526,8 @@ class PanelManager(QObject):
             self._overlay_operation = None
         for host in hosts:
             self._unbind_overlay_host(host)
+        self._clear_selection(panel.widget)
+        self._clear_selection(panel)
         del self._panels[panel_id]
         self._panel_owners.pop(panel_id, None)
         panel.widget.setParent(self._backend.widget)
