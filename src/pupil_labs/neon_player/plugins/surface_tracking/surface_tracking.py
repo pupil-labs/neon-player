@@ -162,6 +162,7 @@ class SurfaceTrackingPlugin(Plugin):
 
         self._surfaces: list[TrackedSurface] = []
         self._preview_panels: dict[str, Panel] = {}
+        self._preview_option_handlers: dict[str, T.Callable[[], None]] = {}
         self._observing_panels = False
 
         self.marker_edit_widgets: dict[int, MarkerEditWidget] = {}
@@ -210,12 +211,65 @@ class SurfaceTrackingPlugin(Plugin):
             self.add_panel(panel)
             rollback.pop_all()
         self._preview_panels[surface.uid] = panel
+        handler = lambda uid=surface.uid: self._sync_preview_visualizations(uid)
+        self._preview_option_handlers[surface.uid] = handler
+        surface.preview_options.changed.connect(handler)
+        try:
+            self._sync_preview_visualizations(surface.uid)
+        except Exception:
+            self.remove_panel(panel)
+            raise
         content.view_widget.refresh()
+
+    def _sync_preview_visualizations(self, uid: str) -> None:
+        panel = self._preview_panels.get(uid)
+        surface = next((item for item in self._surfaces if item.uid == uid), None)
+        if panel is None or surface is None:
+            return
+
+        host = panel.widget.view_widget
+        visualizations = tuple(surface.preview_options.visualizations)
+        for overlay in host.overlays:
+            if overlay not in visualizations:
+                self.remove_overlay(panel, overlay, host=host)
+
+        attached = set(host.overlays)
+        for viz in visualizations:
+            if viz in attached:
+                continue
+            if not viz._attached_once:
+                viz._bind_playback(self.panel_manager.playback)
+            viz._set_gaze_provider(
+                lambda timestamp, visualization=viz: host.gazes_for_visualization(
+                    visualization, timestamp
+                )
+            )
+            try:
+                self.add_overlay(
+                    panel,
+                    viz,
+                    host=host,
+                    layer=self.render_layer,
+                )
+            except Exception:
+                viz._set_gaze_provider(None)
+                raise
 
     def _on_preview_removed(self, panel: Panel) -> None:
         for uid, current in tuple(self._preview_panels.items()):
             if current is panel:
                 del self._preview_panels[uid]
+                handler = self._preview_option_handlers.pop(uid, None)
+                surface = next(
+                    (item for item in self._surfaces if item.uid == uid), None
+                )
+                if surface is not None:
+                    if handler is not None:
+                        surface.preview_options.changed.disconnect(handler)
+                    surface.preview_options.visualizations = [
+                        viz.__class__.from_dict(viz.to_dict(recursive=True))
+                        for viz in surface.preview_options.visualizations
+                    ]
 
     def _close_surface_panel(self, surface: TrackedSurface) -> None:
         panel = self._preview_panels.get(surface.uid)

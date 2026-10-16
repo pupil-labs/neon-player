@@ -68,6 +68,8 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
         self._visualizations: list[GazeVisualization] = [
             CircleViz(),
         ]
+        for viz in self._visualizations:
+            viz.changed.connect(self.changed.emit)
         self._render_size = (0, 0)
 
     @property
@@ -95,10 +97,17 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
 
     @visualizations.setter
     def visualizations(self, value: list["GazeVisualization"]) -> None:
+        previous = set(self._visualizations)
+        current = set(value)
         self._visualizations = value
 
-        for viz in self._visualizations:
+        for viz in previous - current:
+            viz.changed.disconnect(self.changed.emit)
+
+        for viz in current - previous:
             viz.changed.connect(self.changed.emit)
+
+        self.changed.emit()
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
@@ -574,6 +583,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         time_in_recording: int = -1,
         *,
         location: "SurfaceLocation | None" = None,
+        include_gaze: bool = True,
     ) -> None:
         location = self.location if location is None else location
         if location is None:
@@ -582,13 +592,11 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         if time_in_recording == -1:
             time_in_recording = neon_player.instance().current_ts
 
-        camera = self.tracker_plugin.camera
-        gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
-
         app = neon_player.instance()
+        gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
         scene_idx = gaze_plugin.get_scene_idx_for_time(time_in_recording)
         scene_frame = app.recording.scene[scene_idx]
-        undistorted_image = camera.undistort_image(scene_frame.bgr)
+        undistorted_image = self.tracker_plugin.camera.undistort_image(scene_frame.bgr)
         surface_image = utils.crop_image(
             undistorted_image,
             location[1],
@@ -599,6 +607,23 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         surface_image = surface_image[:self.preview_options.render_size[1], :self.preview_options.render_size[0]]
         painter.drawImage(0, 0, qimage_from_frame(surface_image))
 
+        if include_gaze:
+            self.render_gazes(painter, time_in_recording, location=location)
+
+    def get_visualization_gazes(
+        self,
+        time_in_recording: int,
+        *,
+        location: "SurfaceLocation | None",
+    ) -> dict[GazeVisualization, np.ndarray]:
+        if location is None:
+            return {}
+
+        camera = self.tracker_plugin.camera
+        gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
+        app = neon_player.instance()
+        scene_idx = gaze_plugin.get_scene_idx_for_time(time_in_recording)
+        scene_frame = app.recording.scene[scene_idx]
         gazes = gaze_plugin.get_gazes_for_scene(scene_idx).point
         if len(gazes) > 0:
             gazes = camera.undistort_points(gazes)
@@ -607,13 +632,13 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         mapped_gazes[:, 0] *= self.preview_options.render_size[0]
         mapped_gazes[:, 1] *= self.preview_options.render_size[1]
 
-        offset_gazes = None
-
+        mapped_offset_gazes = None
         aggregations = {}
-        offset_aggregations = {}
+        rendered_gazes = {}
         for viz in self.preview_options.visualizations:
+            gaze_points = mapped_gazes
             if viz.use_offset:
-                if offset_gazes is None:
+                if mapped_offset_gazes is None:
                     offset_gazes = gazes + np.array([
                         gaze_plugin.offset_x * scene_frame.width,
                         gaze_plugin.offset_y * scene_frame.height,
@@ -623,17 +648,29 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
                     )
                     mapped_offset_gazes[:, 0] *= self.preview_options.render_size[0]
                     mapped_offset_gazes[:, 1] *= self.preview_options.render_size[1]
+                gaze_points = mapped_offset_gazes
 
-                if viz._aggregation not in offset_aggregations:
-                    offset_aggregations[viz._aggregation] = viz._aggregation.apply(
-                        mapped_offset_gazes
-                    )
+            aggregation_key = (viz.use_offset, viz.aggregation)
+            if aggregation_key not in aggregations:
+                aggregations[aggregation_key] = viz.aggregation.apply(gaze_points)
+            rendered_gazes[viz] = aggregations[aggregation_key]
 
-            elif viz._aggregation not in aggregations:
-                aggregations[viz._aggregation] = viz._aggregation.apply(mapped_gazes)
+        return rendered_gazes
 
-            aggregation_dict = offset_aggregations if viz.use_offset else aggregations
-            viz.render(painter, aggregation_dict[viz._aggregation])
+    def render_gazes(
+        self,
+        painter: QPainter,
+        time_in_recording: int,
+        *,
+        location: "SurfaceLocation | None",
+    ) -> None:
+        if location is None:
+            return
+
+        for viz, gazes in self.get_visualization_gazes(
+            time_in_recording, location=location
+        ).items():
+            viz.render(painter, gazes)
 
     @action
     @action_params(

@@ -12,6 +12,7 @@ from pupil_labs.neon_player.managers.playback import PlaybackPosition
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 
 if TYPE_CHECKING:
+    from pupil_labs.neon_player.plugins.gaze import GazeVisualization
     from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
         SurfaceLocation,
     )
@@ -146,6 +147,12 @@ class SurfaceViewWidget(VideoRenderWidget):
 
         self.tracker_plugin = surface.tracker_plugin
         self._frame_location: SurfaceLocation | None = None
+        self._prepared_timestamp: int | None = None
+        self._visualization_gazes: dict[
+            GazeVisualization, np.ndarray
+        ] = {}
+        self._prepared_visualization_signature = ()
+        self._prepared_gaze_offset: tuple[float, float] | None = None
 
         self.refit_rect()
 
@@ -156,6 +163,19 @@ class SurfaceViewWidget(VideoRenderWidget):
 
     def _prepare_frame(self, timestamp: int | None) -> None:
         self._frame_location = None
+        self._prepared_timestamp = timestamp
+        self._visualization_gazes = {}
+        self._prepared_visualization_signature = tuple(
+            (viz, viz.use_offset, viz.aggregation)
+            for viz in self.surface.preview_options.visualizations
+        )
+        self._prepared_gaze_offset = None
+        if timestamp is not None:
+            gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
+            self._prepared_gaze_offset = (
+                gaze_plugin.offset_x,
+                gaze_plugin.offset_y,
+            )
         if (
             timestamp is None
             or min(self.surface.preview_options.render_size) <= 0
@@ -166,12 +186,39 @@ class SurfaceViewWidget(VideoRenderWidget):
         locations = self.tracker_plugin.surface_locations.get(self.surface.uid, ())
         if 0 <= frame_idx < len(locations):
             self._frame_location = locations[frame_idx]
+            self._visualization_gazes = self.surface.get_visualization_gazes(
+                timestamp, location=self._frame_location
+            )
+
+    def gazes_for_visualization(
+        self, visualization: "GazeVisualization", timestamp: int
+    ) -> np.ndarray:
+        gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
+        gaze_offset = (gaze_plugin.offset_x, gaze_plugin.offset_y)
+        signature = tuple(
+            (viz, viz.use_offset, viz.aggregation)
+            for viz in self.surface.preview_options.visualizations
+        )
+        if (
+            timestamp != self._prepared_timestamp
+            or signature != self._prepared_visualization_signature
+            or gaze_offset != self._prepared_gaze_offset
+        ):
+            self._prepare_frame(timestamp)
+        return self._visualization_gazes.get(
+            visualization, np.empty((0, 2), dtype=np.float64)
+        )
 
     def _paint_frame(self, painter: QPainter, timestamp: int) -> None:
         if self._frame_location is None:
             self._paint_unavailable_frame(painter)
             return
-        self.surface.render(painter, timestamp, location=self._frame_location)
+        self.surface.render(
+            painter,
+            timestamp,
+            location=self._frame_location,
+            include_gaze=False,
+        )
 
 
 class SurfaceViewContent(QSplitter):
