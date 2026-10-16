@@ -77,7 +77,7 @@ class PanelsDemo(Plugin):
             del self._owned_panels[panel.panel_id]
 
     def on_disabled(self) -> None:
-        # Explicit cleanup until automatic plugin lifecycle cleanup is available.
+        # Optional explicit removal while discovery is still connected.
         for panel in tuple(self._owned_panels.values()):
             self.remove_panel(panel)
         if self._observing:

@@ -149,6 +149,7 @@ class SettingsPanel(QScrollArea):
         expander = self.plugin_list_widget.add_expander(
             cls.get_label(), settings_form, not app.loading_recording
         )
+        self.plugin_class_expanders[class_name] = expander
         if hasattr(instance, "header_action"):
             header_action = instance.header_action
 
@@ -170,8 +171,6 @@ class SettingsPanel(QScrollArea):
                 tb.clicked.connect(header_action.callback)
             tb.setObjectName("HeaderAction")
             expander.controls_layout.addWidget(tb)
-
-        self.plugin_class_expanders[class_name] = expander
 
     def remove_plugin_settings(self, class_name: str) -> None:
         expander = self.plugin_class_expanders[class_name]

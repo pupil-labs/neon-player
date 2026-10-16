@@ -63,7 +63,11 @@ class Plugin(PersistentPropertiesMixin, QObject):
         return self.app.main_window.unregister_action(name)
 
     def add_panel(self, panel: "Panel") -> None:
-        """Register a panel contributed by this plugin instance."""
+        """Register a contribution automatically removed after on_disabled.
+
+        Cleanup also runs after activation fails, once construction and saved
+        state restoration have completed successfully.
+        """
         self.panel_manager.add_panel(panel, owner=self)
 
     def remove_panel(self, panel: "Panel") -> None:
@@ -115,7 +119,13 @@ class Plugin(PersistentPropertiesMixin, QObject):
         pass
 
     def on_disabled(self) -> None:
-        pass
+        """Release plugin resources while owned panels are still available.
+
+        The application removes remaining panels even if this callback raises.
+        Explicit removal is optional. Bind discovery handlers to this QObject
+        so deferred destruction disconnects them, or disconnect them here.
+        A callback is attempted once; failed panel detachment can be retried.
+        """
 
     def trigger_scene_update(self) -> None:
         self.app.main_window.video_widget.update()

@@ -179,6 +179,22 @@ class PanelManager(QObject):
                 )
             self._remove_panel(panel.panel_id)
 
+    def remove_panels_owned_by(self, owner: "Plugin") -> None:
+        """Remove this instance's remaining contributions in registration order.
+
+        A detach failure stops cleanup. Remaining panels retain registration and
+        ownership for retry; successfully removed panels stay removed.
+        """
+        with self._mutation():
+            self._validate_owner(owner)
+            panel_ids = tuple(
+                panel_id
+                for panel_id, panel_owner in self._panel_owners.items()
+                if panel_owner is owner
+            )
+            for panel_id in panel_ids:
+                self._remove_panel(panel_id)
+
     @staticmethod
     def _validate_owner(owner: "Plugin") -> None:
         from pupil_labs.neon_player.plugins import Plugin

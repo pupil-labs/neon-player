@@ -48,7 +48,11 @@ from pupil_labs.neon_player.plugins import (
     xdf,  # noqa: F401
 )
 from pupil_labs.neon_player.history import RecordingHistory
-from pupil_labs.neon_player.settings import GeneralSettings, load_recording_settings
+from pupil_labs.neon_player.settings import (
+    GeneralSettings,
+    RecordingSettings,
+    load_recording_settings,
+)
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.ui.panel_layout import QtPanelLayoutBackend
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
@@ -86,6 +90,7 @@ class NeonPlayerApp(QApplication):
 
         self.plugins_by_class: dict[str, Plugin] = {}
         self.plugins: list[Plugin] = []
+        self._pending_plugin_cleanup: dict[str, Plugin] = {}
         self.recording: nr.NeonRecording | None = None
         self.playback_start_anchor = 0
         self.current_ts = 0
@@ -100,7 +105,7 @@ class NeonPlayerApp(QApplication):
 
         self.settings = GeneralSettings()
         self.loading_recording = False
-        self.recording_settings = None
+        self.recording_settings: RecordingSettings | None = None
         self.recording_history = RecordingHistory()
 
         self.refresh_timer = QTimer(self)
@@ -292,15 +297,23 @@ class NeonPlayerApp(QApplication):
                     logging.warning(f"Couldn't enable plugin class: {kls}")
                 return None
 
+        if enabled:
+            pending = self._pending_plugin_cleanup.get(kls.__name__)
+            if pending is not None:
+                self._cleanup_plugin(pending)
         currently_enabled = kls.__name__ in self.plugins_by_class
 
         if enabled and not currently_enabled:
             logging.info(f"Enabling plugin: {kls.__name__}")
+            plugin: Plugin | None = None
+            recording_settings = self.recording_settings
             try:
                 if state is None:
-                    state = self.recording_settings.plugin_states.get(kls.__name__, {})
+                    if recording_settings is None:
+                        raise RuntimeError("Plugin state requires recording settings")
+                    state = recording_settings.plugin_states.get(kls.__name__, {})
 
-                plugin: Plugin = kls.from_dict(state)
+                plugin = kls.from_dict(state)
 
                 self.plugins_by_class[kls.__name__] = plugin
                 self.main_window.settings_panel.add_plugin_settings(plugin)
@@ -312,22 +325,75 @@ class NeonPlayerApp(QApplication):
                     plugin.on_recording_loaded(self.recording)
             except Exception:
                 logging.exception(f"Failed to enable plugin {kls}")
+                if plugin is not None:
+                    self.plugins_by_class.pop(kls.__name__, None)
+                    if recording_settings is not None:
+                        recording_settings.enabled_plugins[kls.__name__] = False
+                    try:
+                        self._cleanup_plugin(plugin)
+                    finally:
+                        self._remove_plugin_settings(kls.__name__)
+                        self._refresh_plugins()
+                elif recording_settings is not None:
+                    recording_settings.enabled_plugins[kls.__name__] = False
                 return None
 
-        elif not enabled and currently_enabled:
-            plugin = self.plugins_by_class[kls.__name__]
+        elif not enabled:
+            plugin = self._pending_plugin_cleanup.get(kls.__name__)
+            if plugin is None:
+                plugin = self.plugins_by_class.get(kls.__name__)
+            if plugin is not None:
+                self._cleanup_plugin(plugin)
 
-            plugin.on_disabled()
-            plugin.deleteLater()
-            del self.plugins_by_class[kls.__name__]
-            self.main_window.settings_panel.remove_plugin_settings(kls.__name__)
+        self._refresh_plugins()
+        return None
 
-            logging.info(f"Disabled plugin: {kls.__name__}")
-
-        self.plugins = list(self.plugins_by_class.values())
+    def _refresh_plugins(self) -> None:
+        self.plugins = [
+            plugin
+            for plugin in self.plugins_by_class.values()
+            if self._pending_plugin_cleanup.get(type(plugin).__name__) is not plugin
+        ]
         self.plugins.sort(key=lambda p: p.render_layer)
-
         self.main_window.video_widget.update()
+
+    def _remove_plugin_settings(self, class_name: str) -> None:
+        settings_panel = self.main_window.settings_panel
+        if class_name in settings_panel.plugin_class_expanders:
+            settings_panel.remove_plugin_settings(class_name)
+
+    def _cleanup_plugin(self, plugin: Plugin) -> None:
+        class_name = type(plugin).__name__
+        callback_error: Exception | None = None
+        if class_name not in self._pending_plugin_cleanup:
+            self._pending_plugin_cleanup[class_name] = plugin
+            try:
+                plugin.on_disabled()
+            except Exception as error:
+                logging.exception("Failed to disable plugin %s", class_name)
+                callback_error = error
+
+        try:
+            self.panel_manager.remove_panels_owned_by(plugin)
+            self._remove_plugin_settings(class_name)
+        except Exception as cleanup_error:
+            logging.exception("Failed to clean up plugin %s", class_name)
+            self._refresh_plugins()
+            if callback_error is not None:
+                raise ExceptionGroup(
+                    f"Plugin {class_name} disable and cleanup failed",
+                    [callback_error, cleanup_error],
+                ) from None
+            raise
+
+        if self.plugins_by_class.get(class_name) is plugin:
+            del self.plugins_by_class[class_name]
+        del self._pending_plugin_cleanup[class_name]
+        plugin.deleteLater()
+        self._refresh_plugins()
+        if callback_error is not None:
+            raise callback_error
+        logging.info("Disabled plugin: %s", class_name)
 
     def run(self) -> int:
         if not self.headless:
@@ -365,13 +431,17 @@ class NeonPlayerApp(QApplication):
     def unload(self) -> None:
         self.set_playback_state(False)
         self.save_settings(force=True)
-        class_names = list(self.plugins_by_class.keys())
+        class_names = tuple(dict.fromkeys((
+            *self.plugins_by_class, *self._pending_plugin_cleanup,
+        )))
 
         timeline = self.main_window.timeline
         timeline.disable_plot_sorting()
-        for plugin_class_name in class_names:
-            self.toggle_plugin(plugin_class_name, False)
-        timeline.enable_plot_sorting()
+        try:
+            for plugin_class_name in class_names:
+                self.toggle_plugin(plugin_class_name, False)
+        finally:
+            timeline.enable_plot_sorting()
 
         for panel in self.panel_manager.panels:
             if panel is not self.main_window.scene_panel:
@@ -430,11 +500,14 @@ class NeonPlayerApp(QApplication):
         timeline = self.main_window.timeline
         timeline.disable_plot_sorting()
 
-        for cls_name, enabled in self.recording_settings.enabled_plugins.items():
-            state = self.recording_settings.plugin_states.get(cls_name, {})
-            self.toggle_plugin(cls_name, enabled, state)
-
-        timeline.enable_plot_sorting()
+        try:
+            for cls_name, enabled in tuple(
+                self.recording_settings.enabled_plugins.items()
+            ):
+                state = self.recording_settings.plugin_states.get(cls_name, {})
+                self.toggle_plugin(cls_name, enabled, state)
+        finally:
+            timeline.enable_plot_sorting()
         self._initializing = False
 
         if self.args.job:
