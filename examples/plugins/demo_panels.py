@@ -1,19 +1,22 @@
 """Copy into the custom-plugin directory and enable Panels Demo for a recording.
 
 The static widget never subscribes to playback. The position widget subscribes
-only after registration supplies playback. Discovery uses synchronous GUI-thread
-connect-then-snapshot; observers must not mutate panels during notifications.
+only after registration supplies playback. In the image panel, click the bright
+yellow-and-green "CLICK HERE" box near the center to increment its counter.
+Discovery uses synchronous GUI-thread connect-then-snapshot; observers must not
+mutate panels during notifications.
 """
 
 import logging
 from contextlib import ExitStack
 
 from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtCore import QSize, QTimer
+from PySide6.QtCore import QPointF, QRect, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import QColorConstants, QImage, QPainter
 from PySide6.QtWidgets import QLabel
 
 from pupil_labs.neon_player import (
+    ClickablePanelOverlay2D,
     Panel,
     PanelOverlay2D,
     PanelWidget2D,
@@ -46,12 +49,21 @@ class StaticImage(ScalingWidget):
         painter.drawImage(0, 0, self.image)
 
 
-class PlaybackCursor(PanelOverlay2D):
+class PlaybackCursor(ClickablePanelOverlay2D):
     def __init__(self, playback: PlaybackPosition) -> None:
-        super().__init__(playback)
+        super().__init__(
+            playback,
+            "Playback cursor and click counter",
+            hitbox=QRect(95, 55, 130, 50),
+        )
         self.timestamp = playback.time
+        self.click_count = 0
         self._subscribed = True
         playback.changed.connect(self.show_position)
+
+    def on_click(self, _point: QPointF) -> None:
+        self.click_count += 1
+        self.changed.emit()
 
     def show_position(self, timestamp: int | None) -> None:
         self.timestamp = timestamp
@@ -61,11 +73,22 @@ class PlaybackCursor(PanelOverlay2D):
         painter.setPen(QColorConstants.Yellow)
         if self.timestamp is None:
             painter.drawText(8, 24, "No recording")
-            return
-        # Sweep once per recording-axis second, without reducing ns precision.
-        x = int((self.timestamp % 1_000_000_000) * 319 // 1_000_000_000)
-        painter.drawLine(x, 0, x, 159)
-        painter.drawText(8, 24, f"{self.timestamp} ns")
+        else:
+            # Sweep once per recording-axis second, without reducing ns precision.
+            x = int((self.timestamp % 1_000_000_000) * 319 // 1_000_000_000)
+            painter.drawLine(x, 0, x, 159)
+            painter.drawText(8, 24, f"{self.timestamp} ns")
+        painter.setPen(QColorConstants.Yellow)
+        painter.setBrush(QColorConstants.DarkGreen)
+        hitbox = self.hitbox
+        if hitbox is None:
+            raise RuntimeError("Playback cursor hitbox is required for painting")
+        painter.drawRect(QRectF(hitbox))
+        painter.drawText(
+            QRectF(hitbox),
+            Qt.AlignmentFlag.AlignCenter,
+            f"CLICK HERE\nClicks: {self.click_count}",
+        )
 
     def on_removed(self) -> None:
         if self._subscribed:
@@ -159,11 +182,26 @@ class PanelsDemo(Plugin):
         self._known_panels.clear()
 
 
-class SharedTimeLabel(PlaybackCursor):
+class SharedTimeLabel(PanelOverlay2D):
+    def __init__(self, playback: PlaybackPosition) -> None:
+        super().__init__(playback, "Shared playback time")
+        self.timestamp = playback.time
+        self._subscribed = True
+        playback.changed.connect(self.show_position)
+
+    def show_position(self, timestamp: int | None) -> None:
+        self.timestamp = timestamp
+        self.changed.emit()
+
     def paint(self, painter: QPainter) -> None:
         painter.setPen(QColorConstants.White)
         text = "No recording" if self.timestamp is None else f"Shared: {self.timestamp} ns"
         painter.drawText(8, 150, text)
+
+    def on_removed(self) -> None:
+        if self._subscribed:
+            self.playback.changed.disconnect(self.show_position)
+            self._subscribed = False
 
 
 class PanelOverlaysDemo(Plugin):

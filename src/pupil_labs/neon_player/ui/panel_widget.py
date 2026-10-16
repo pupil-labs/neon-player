@@ -31,6 +31,8 @@ class PanelWidget:
         self._mutating = False
         self._mutation_guard: Callable[[], None] | None = None
         self._contribution_removed: Callable[[PanelOverlay], None] | None = None
+        self._overlay_added_callback: Callable[[PanelOverlay], None] | None = None
+        self._overlay_manager: object | None = None
         self._destroy_handlers: dict[PanelOverlay, Callable[..., None]] = {}
 
     @property
@@ -83,6 +85,7 @@ class PanelWidget:
             self._destroy_handlers[overlay] = handler
             overlay.destroyed.connect(handler)
             self._widget.update()
+            self._notify_overlay_added(overlay)
 
     def remove_overlay(self, overlay: PanelOverlay) -> None:
         self._require_mutation()
@@ -106,6 +109,10 @@ class PanelWidget:
 
     def _notify_overlay_removed(self, overlay: PanelOverlay) -> None:
         """Allow concrete hosts to expose a rendering-specific notification."""
+
+    def _notify_overlay_added(self, overlay: PanelOverlay) -> None:
+        if self._overlay_added_callback is not None:
+            self._overlay_added_callback(overlay)
 
     def _overlay_destroyed(self, overlay: PanelOverlay) -> None:
         self._destroy_handlers.pop(overlay, None)

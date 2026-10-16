@@ -1,8 +1,12 @@
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColorConstants, QPainter, QPaintEvent
+from PySide6.QtGui import QColorConstants, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QWidget
-from pupil_labs.neon_player.overlays import PanelOverlay, PanelOverlay2D
+from pupil_labs.neon_player.overlays import (
+    ClickablePanelOverlay2D,
+    PanelOverlay,
+    PanelOverlay2D,
+)
 from pupil_labs.neon_player.ui.panel_widget import PanelWidget, _require_gui_thread
 
 
@@ -22,6 +26,7 @@ class PanelWidget2D(PanelWidget, QOpenGLWidget):
         surface_format.setSamples(10)
         self.setFormat(surface_format)
         self._initialize_overlays()
+        self._pressed_clickable_overlay: ClickablePanelOverlay2D | None = None
 
     def _notify_overlay_removed(self, overlay: PanelOverlay) -> None:
         self.overlay_removed.emit(overlay)
@@ -35,11 +40,54 @@ class PanelWidget2D(PanelWidget, QOpenGLWidget):
     def content_rect(self) -> QRectF:
         return QRectF(self.rect())
 
+    def _has_valid_mapping(self) -> bool:
+        content = self.content_rect()
+        return (
+            self.width() > 0
+            and self.height() > 0
+            and content.width() > 0
+            and content.height() > 0
+        )
+
     def _paint_content(self, painter: QPainter) -> None:
         """Paint content before overlays, without preparing data here."""
 
     def _paint_background(self, painter: QPainter) -> None:
         painter.fillRect(self.rect(), QColorConstants.Black)
+
+    def _clickable_overlay_at(
+        self, widget_point: QPointF
+    ) -> tuple[ClickablePanelOverlay2D, QPointF] | None:
+        if not self._has_valid_mapping():
+            return None
+        content = self.content_rect()
+        try:
+            point = self.map_point(widget_point)
+        except RuntimeError:
+            return None
+        if not content.contains(point):
+            return None
+        for overlay in reversed(self.overlays):
+            if isinstance(overlay, ClickablePanelOverlay2D) and overlay.hit_test(point):
+                return overlay, point
+        return None
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            target = self._clickable_overlay_at(event.position())
+            self._pressed_clickable_overlay = (
+                None if target is None else target[0]
+            )
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            pressed_overlay = self._pressed_clickable_overlay
+            self._pressed_clickable_overlay = None
+            target = self._clickable_overlay_at(event.position())
+            if target is not None and target[0] is pressed_overlay:
+                target[0].on_click(target[1])
+        super().mouseReleaseEvent(event)
 
     def paint(self, painter: QPainter) -> None:
         """Render into a borrowed painter, preserving its state.

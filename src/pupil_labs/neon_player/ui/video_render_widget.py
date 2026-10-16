@@ -41,6 +41,7 @@ class ScalingWidget(PanelWidget2D):
             self._mouse_down = True
 
         self.mouse_pressed.emit(event)
+        super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton and self._mouse_down:
@@ -48,6 +49,7 @@ class ScalingWidget(PanelWidget2D):
             self._mouse_down = False
 
         self.mouse_released.emit(event)
+        super().mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         self.mouse_moved.emit(event)
@@ -57,6 +59,9 @@ class ScalingWidget(PanelWidget2D):
             raise RuntimeError("Cannot map points without a usable visualization size")
         point = QPointF(point) - self.offset
         return QPointF(point.x() / self.scale, point.y() / self.scale)
+
+    def _has_valid_mapping(self) -> bool:
+        return super()._has_valid_mapping() and self.scale > 0
 
     def transform_painter(self, painter: QPainter) -> None:
         painter.translate(self.offset)

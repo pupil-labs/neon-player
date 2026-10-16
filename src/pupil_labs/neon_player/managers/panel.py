@@ -26,8 +26,16 @@ class _OverlayContribution:
 def _require_overlay_compatibility(
     host: "PanelWidget", overlay: "PanelOverlay"
 ) -> None:
-    if not isinstance(host, PanelWidget2D) or not isinstance(overlay, PanelOverlay2D):
-        raise TypeError("Only PanelOverlay2D on PanelWidget2D is currently supported")
+    if not isinstance(host, PanelWidget) or not isinstance(host, QWidget):
+        raise TypeError("Overlay hosts must be QWidget instances implementing PanelWidget")
+    if isinstance(host, PanelWidget2D):
+        if isinstance(overlay, PanelOverlay2D):
+            return
+        raise TypeError("PanelWidget2D hosts require PanelOverlay2D overlays")
+    if isinstance(overlay, PanelOverlay2D):
+        raise TypeError("PanelOverlay2D overlays require a PanelWidget2D host")
+    if not isinstance(overlay, PanelOverlay):
+        raise TypeError("Overlay must be a PanelOverlay instance")
 
 
 class Panel(QObject):
@@ -119,6 +127,8 @@ class PanelManager(QObject):
 
     panel_added = Signal(object)
     panel_removed = Signal(object)
+    overlay_added = Signal(object, object, object, object)
+    overlay_removed = Signal(object, object, object, object)
 
     def __init__(
         self,
@@ -139,6 +149,10 @@ class PanelManager(QObject):
         self._panels: dict[str, Panel] = {}
         self._panel_owners: dict[str, Plugin] = {}
         self._overlay_owners: dict[PanelOverlay, _OverlayContribution] = {}
+        self._overlay_hosts: dict[PanelWidget, Panel] = {}
+        self._overlay_host_destroy_handlers: dict[
+            PanelWidget, Callable[..., None]
+        ] = {}
         self._overlay_operation: PanelWidget | None = None
         self._busy = False
         self._closed = False
@@ -159,6 +173,12 @@ class PanelManager(QObject):
         _require_gui_thread()
         return self._panels.get(panel_id)
 
+    def get_overlay_owner(self, overlay: PanelOverlay) -> Plugin | None:
+        """Return the exact plugin instance contributing an overlay, if any."""
+        _require_gui_thread()
+        contribution = self._overlay_owners.get(overlay)
+        return None if contribution is None else contribution.owner
+
     def add_panel(self, panel: Panel, *, owner: "Plugin | None" = None) -> None:
         with self._mutation():
             if owner is not None:
@@ -172,7 +192,7 @@ class PanelManager(QObject):
                 or panel.widget.thread() != QThread.currentThread()
             ):
                 raise ValueError("Panel and visualization must live on the GUI thread")
-            hosts = self._panel_overlay_hosts(panel)
+            hosts = self.get_hosts(panel)
             for host in hosts:
                 self._validate_host_manager(host)
             self._backend.attach(panel)
@@ -182,11 +202,13 @@ class PanelManager(QObject):
             if owner is not None:
                 self._panel_owners[panel.panel_id] = owner
             for host in hosts:
-                self._bind_overlay_host(host)
+                self._bind_overlay_host(host, panel)
             self.panel_added.emit(panel)
 
     @staticmethod
-    def _panel_overlay_hosts(panel: Panel) -> list["PanelWidget"]:
+    def get_hosts(panel: Panel) -> list["PanelWidget"]:
+        """Return the root and nested overlay-capable hosts for a panel."""
+        _require_gui_thread()
         hosts: list[PanelWidget] = [
             child
             for child in panel.widget.findChildren(QWidget)
@@ -197,17 +219,85 @@ class PanelManager(QObject):
         return hosts
 
     def _validate_host_manager(self, host: "PanelWidget") -> None:
-        if (
-            host._contribution_removed is not None
-            and host._contribution_removed != self._forget_overlay
-        ):
+        if host._overlay_manager is not None and host._overlay_manager is not self:
             raise ValueError("Overlay host is already managed by another manager")
 
-    def _bind_overlay_host(self, host: "PanelWidget") -> None:
+    def _bind_overlay_host(self, host: "PanelWidget", panel: Panel) -> bool:
         self._validate_host_manager(host)
+        managed_panel = self._overlay_hosts.get(host)
+        if managed_panel is not None:
+            if managed_panel is not panel:
+                raise ValueError("Overlay host belongs to another panel")
+            return False
+        self._overlay_hosts[host] = panel
         if host._mutation_guard is None:
+            host._overlay_manager = self
             host._mutation_guard = partial(self._guard_host_mutation, host)
-            host._contribution_removed = self._forget_overlay
+            host._contribution_removed = partial(
+                self._remove_overlay_from_host, panel, host
+            )
+            host._overlay_added_callback = partial(
+                self._add_overlay_to_host, panel, host
+            )
+            handler = partial(self._overlay_host_destroyed, panel, host)
+            self._overlay_host_destroy_handlers[host] = handler
+            host._widget.destroyed.connect(handler)
+        return True
+
+    def _unbind_overlay_host(self, host: PanelWidget) -> None:
+        self._overlay_hosts.pop(host, None)
+        handler = self._overlay_host_destroy_handlers.pop(host, None)
+        if handler is not None and isValid(host._widget):
+            host._widget.destroyed.disconnect(handler)
+        if host._overlay_manager is self:
+            host._overlay_manager = None
+            host._mutation_guard = None
+            host._contribution_removed = None
+            host._overlay_added_callback = None
+
+    def _overlay_host_destroyed(
+        self, panel: Panel, host: PanelWidget, _widget: QObject | None = None
+    ) -> None:
+        self._overlay_hosts.pop(host, None)
+        self._overlay_host_destroy_handlers.pop(host, None)
+        for overlay in host.overlays:
+            contribution = self._overlay_owners.get(overlay)
+            owner = (
+                contribution.owner
+                if contribution is not None
+                and contribution.panel is panel
+                and contribution.host is host
+                else None
+            )
+            self._forget_overlay(overlay)
+            if self._panels.get(panel.panel_id) is panel:
+                self.overlay_removed.emit(panel, host, overlay, owner)
+
+    def _add_overlay_to_host(
+        self, panel: Panel, host: PanelWidget, overlay: PanelOverlay
+    ) -> None:
+        if self._panels.get(panel.panel_id) is panel:
+            self.overlay_added.emit(
+                panel, host, overlay, self.get_overlay_owner(overlay)
+            )
+
+    def _remove_overlay_from_host(
+        self, panel: Panel, host: PanelWidget, overlay: PanelOverlay
+    ) -> None:
+        if self._overlay_hosts.get(host) is not panel:
+            self._forget_overlay(overlay)
+            return
+        contribution = self._overlay_owners.get(overlay)
+        owner = (
+            contribution.owner
+            if contribution is not None
+            and contribution.panel is panel
+            and contribution.host is host
+            else None
+        )
+        self._forget_overlay(overlay)
+        if self._panels.get(panel.panel_id) is panel:
+            self.overlay_removed.emit(panel, host, overlay, owner)
 
     def _resolve_overlay_host(
         self, panel: Panel, host: "PanelWidget | None"
@@ -249,9 +339,9 @@ class PanelManager(QObject):
             _require_overlay_compatibility(target, overlay)
             if overlay in self._overlay_owners:
                 raise ValueError("Overlay is already contributed")
-            self._bind_overlay_host(target)
             if not isValid(overlay):
                 raise ValueError("Overlay has been destroyed")
+            newly_bound = self._bind_overlay_host(target, panel)
             destroyed = partial(self._forget_overlay, overlay)
             self._overlay_owners[overlay] = _OverlayContribution(
                 panel, target, owner, destroyed
@@ -262,6 +352,8 @@ class PanelManager(QObject):
                 target.add_overlay(overlay, layer=layer)
             except Exception:
                 self._forget_overlay(overlay)
+                if newly_bound:
+                    self._unbind_overlay_host(target)
                 raise
             finally:
                 self._overlay_operation = None
@@ -356,7 +448,12 @@ class PanelManager(QObject):
 
     def _remove_panel(self, panel_id: str) -> None:
         panel = self._panels[panel_id]
-        hosts = self._panel_overlay_hosts(panel)
+        hosts = self.get_hosts(panel)
+        hosts.extend(
+            host
+            for host, owner_panel in self._overlay_hosts.items()
+            if owner_panel is panel and host not in hosts and isValid(host._widget)
+        )
         for host in hosts:
             if host._painting or host._mutating:
                 raise RuntimeError("Cannot remove a panel during overlay painting/removal")
@@ -367,6 +464,8 @@ class PanelManager(QObject):
                 host.clear_overlays()
         finally:
             self._overlay_operation = None
+        for host in hosts:
+            self._unbind_overlay_host(host)
         del self._panels[panel_id]
         self._panel_owners.pop(panel_id, None)
         panel.widget.setParent(self._backend.widget)
