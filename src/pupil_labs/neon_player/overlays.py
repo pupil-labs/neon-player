@@ -1,5 +1,5 @@
-from PySide6.QtCore import QObject, QPointF, QRect, QRectF, Signal
-from PySide6.QtGui import QPainter
+from PySide6.QtCore import QObject, QPointF, QRect, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QPainter
 
 from pupil_labs.neon_player.managers.playback import PlaybackPosition
 
@@ -44,8 +44,8 @@ class PanelOverlay2D(PanelOverlay):
         raise NotImplementedError("2D overlays must implement painting")
 
 
-class ClickablePanelOverlay2D(PanelOverlay2D):
-    """A 2D overlay with optional QRect-based click targeting."""
+class InteractivePanelOverlay2D(PanelOverlay2D):
+    """A 2D overlay with hit-tested click and hover interaction."""
 
     def __init__(
         self,
@@ -74,4 +74,19 @@ class ClickablePanelOverlay2D(PanelOverlay2D):
 
     def on_click(self, point: QPointF) -> None:
         """Handle a completed left click in visualization coordinates."""
-        raise NotImplementedError("Clickable overlays must implement click handling")
+        raise NotImplementedError("Interactive overlays must implement click handling")
+
+    def on_hover_enter(self, point: QPointF) -> None:
+        """Handle entry into the topmost hit region at a visualization point."""
+
+    def on_hover_leave(self, point: QPointF) -> None:
+        """Handle leaving the hit region, with the last hovered visualization point."""
+
+    def render_hover_highlight(self, painter: QPainter) -> None:
+        """Render the default highlight; subclasses can customize its appearance."""
+        hitbox = self.hitbox
+        if hitbox is None:
+            return
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(128, 128, 128, 40))
+        painter.drawRoundedRect(QRectF(hitbox).adjusted(-5, -5, 5, 5), 5, 5)

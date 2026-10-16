@@ -53,6 +53,7 @@ class ScalingWidget(PanelWidget2D):
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         self.mouse_moved.emit(event)
+        super().mouseMoveEvent(event)
 
     def map_point(self, point: QPoint | QPointF) -> QPointF:
         if self.width() <= 0 or self.height() <= 0 or self.scale <= 0:

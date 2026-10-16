@@ -1,8 +1,9 @@
 """Copy into the custom-plugin directory and enable Panels Demo for a recording.
 
 The static widget never subscribes to playback. The position widget subscribes
-only after registration supplies playback. In the image panel, click the bright
-yellow-and-green "CLICK HERE" box near the center to increment its counter.
+only after registration supplies playback. In the image panel, hover over or
+click the bright yellow-and-green "CLICK HERE" box near the center to highlight
+it or increment its counter.
 Discovery uses synchronous GUI-thread connect-then-snapshot; observers must not
 mutate panels during notifications.
 """
@@ -16,7 +17,7 @@ from PySide6.QtGui import QColorConstants, QImage, QPainter
 from PySide6.QtWidgets import QLabel
 
 from pupil_labs.neon_player import (
-    ClickablePanelOverlay2D,
+    InteractivePanelOverlay2D,
     Panel,
     PanelOverlay2D,
     PanelWidget2D,
@@ -49,7 +50,7 @@ class StaticImage(ScalingWidget):
         painter.drawImage(0, 0, self.image)
 
 
-class PlaybackCursor(ClickablePanelOverlay2D):
+class PlaybackCursor(InteractivePanelOverlay2D):
     def __init__(self, playback: PlaybackPosition) -> None:
         super().__init__(
             playback,

@@ -9,7 +9,7 @@ from qt_property_widgets.utilities import action as object_action
 from pupil_labs.neon_player.job_manager import ProgressUpdate
 from pupil_labs.neon_player.managers.panel import Panel
 from pupil_labs.neon_player.overlays import (
-    ClickablePanelOverlay2D,
+    InteractivePanelOverlay2D,
     PanelOverlay,
     PanelOverlay2D,
 )
@@ -52,8 +52,8 @@ def is_frozen() -> bool:
 
 __all__ = [
     "BGWorker",
-    "ClickablePanelOverlay2D",
     "GlobalPluginProperties",
+    "InteractivePanelOverlay2D",
     "Panel",
     "PanelOverlay",
     "PanelOverlay2D",
