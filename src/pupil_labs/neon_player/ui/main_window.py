@@ -45,7 +45,7 @@ from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
-from pupil_labs.neon_player.panels import Panel
+from pupil_labs.neon_player.managers.panel import Panel
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.panel_layout import PanelContainer

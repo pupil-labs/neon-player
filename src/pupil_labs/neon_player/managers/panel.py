@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QObject, QThread, Signal
 from PySide6.QtWidgets import QApplication, QWidget
 
-from pupil_labs.neon_player.playback import PlaybackPosition
+from pupil_labs.neon_player.managers.playback import PlaybackPosition
 
 if TYPE_CHECKING:
     from pupil_labs.neon_player.plugins import Plugin

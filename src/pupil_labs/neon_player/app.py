@@ -26,8 +26,8 @@ from pupil_labs import neon_recording as nr
 from pupil_labs.neon_player import Plugin, is_frozen
 from pupil_labs.neon_player.ipc_logger import IPCLogger
 from pupil_labs.neon_player.job_manager import JobManager
-from pupil_labs.neon_player.panels import PanelManager
-from pupil_labs.neon_player.playback import PlaybackPosition
+from pupil_labs.neon_player.managers.panel import PanelManager
+from pupil_labs.neon_player.managers.playback import PlaybackPosition
 from pupil_labs.neon_player.plugin_management import (
     check_dependencies_for_plugin,
     install_dependencies,

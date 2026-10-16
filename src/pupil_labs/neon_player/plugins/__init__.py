@@ -16,7 +16,7 @@ from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 if T.TYPE_CHECKING:
     from pupil_labs.neon_player.app import NeonPlayerApp
     from pupil_labs.neon_player.job_manager import JobManager
-    from pupil_labs.neon_player.panels import Panel, PanelManager
+    from pupil_labs.neon_player.managers.panel import Panel, PanelManager
 
 
 class GlobalPluginProperties(PersistentPropertiesMixin):

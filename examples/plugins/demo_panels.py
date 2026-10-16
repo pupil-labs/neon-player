@@ -11,7 +11,7 @@ from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtWidgets import QLabel
 
 from pupil_labs.neon_player import Panel, Plugin, action
-from pupil_labs.neon_player.playback import PlaybackPosition
+from pupil_labs.neon_player.managers.playback import PlaybackPosition
 
 
 class PlaybackLabel(QLabel):

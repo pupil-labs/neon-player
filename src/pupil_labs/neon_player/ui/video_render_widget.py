@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player.playback import PlaybackPosition
+from pupil_labs.neon_player.managers.playback import PlaybackPosition
 
 
 class ScalingWidget(QOpenGLWidget):

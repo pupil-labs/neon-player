@@ -2,7 +2,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QDockWidget, QMainWindow, QVBoxLayout, QWidget
 
-from pupil_labs.neon_player.panels import Panel, PanelLayoutBackend, _require_gui_thread
+from pupil_labs.neon_player.managers.panel import Panel, PanelLayoutBackend, _require_gui_thread
 
 
 class _PanelDock(QDockWidget):

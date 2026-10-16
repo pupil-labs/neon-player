@@ -6,7 +6,7 @@ from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import QWidget
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player.playback import PlaybackPosition
+from pupil_labs.neon_player.managers.playback import PlaybackPosition
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 
 

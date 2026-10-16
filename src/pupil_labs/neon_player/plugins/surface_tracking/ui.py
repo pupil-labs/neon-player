@@ -8,7 +8,7 @@ from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
-from pupil_labs.neon_player.playback import PlaybackPosition
+from pupil_labs.neon_player.managers.playback import PlaybackPosition
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 
 if TYPE_CHECKING:
