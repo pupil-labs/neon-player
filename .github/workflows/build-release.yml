@@ -80,3 +80,19 @@ jobs:
             bundle-*/*.deb
           draft: true
           name: Neon Player Release ${{ steps.release_ver.outputs.ver }}
+
+  deploy-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v6
+
+      - name: Set up the environment
+        uses: ./.github/actions/setup-python-env
+
+      - name: Deploy documentation
+        run: |
+          git fetch origin gh-pages --depth=1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          uv run mike deploy ${{ github.ref_name }} latest --push --update-aliases

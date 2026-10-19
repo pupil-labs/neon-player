@@ -416,6 +416,7 @@ class NeonPlayerApp(QApplication):
         self.recording_unloaded.emit()
 
     def load(self, path: Path) -> None:
+        """Load a recording from the given path."""
         self.loading_recording = True
         self._initializing = True
         self.unload()
