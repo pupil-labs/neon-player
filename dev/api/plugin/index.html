@@ -1,0 +1,3667 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://pupil-labs.github.io/neon-player/dev/api/plugin/">
+      
+      
+        <link rel="prev" href="../../license/">
+      
+      
+        <link rel="next" href="../properties/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/favicon.ico">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Plugin - Pupil Labs Neon Player</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_markdown_exec_pyodide.css">
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../css/material.css">
+    
+      <link rel="stylesheet" href="../../css/mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#pupil_labs.neon_player.Plugin" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Pupil Labs Neon Player" class="md-header__button md-logo" aria-label="Pupil Labs Neon Player" data-md-component="logo">
+      <!-- Logo -->
+<svg xmlns="http://www.w3.org/2000/svg" height="18" viewBox="0 0 155.38 31">
+  <path
+    d="M0 16c0 8.84 7.16 16 16 16s16-7.16 16-16S24.84 0 16 0 0 7.16 0 16zm28.56 0c0 6.93-5.64 12.56-12.56 12.56S3.44 22.93 3.44 16 9.07 3.44 16 3.44 28.56 9.07 28.56 16z"
+  />
+  <path
+    d="M4.56 16c0 6.31 5.13 11.44 11.44 11.44S27.44 22.31 27.44 16 22.31 4.56 16 4.56 4.56 9.69 4.56 16zM24 16c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8 8 3.58 8 8z"
+  />
+  <path
+    d="M102.65 23.99V8h3v13.32h8.93v2.67h-11.93zM126.36 23.99l-.07-1.68h-.05c-.85 1.2-2.33 1.93-4.23 1.93-3.35 0-5.8-2.55-5.8-6.1s2.45-6.13 5.8-6.13c1.9 0 3.35.72 4.2 1.93h.05l.1-1.68h2.2v11.73h-2.2zm-.38-5.85c0-2.23-1.45-3.75-3.55-3.75-2.1 0-3.55 1.52-3.55 3.75 0 2.17 1.45 3.72 3.55 3.72 2.1.01 3.55-1.54 3.55-3.72zM143.92 18.14c0 3.55-2.45 6.1-5.8 6.1-1.93 0-3.38-.72-4.23-1.93h-.05l-.07 1.68h-2.23V8h2.65v5.52h.05c.88-.95 2.17-1.5 3.88-1.5 3.35 0 5.8 2.57 5.8 6.12zm-2.67 0c0-2.23-1.47-3.75-3.55-3.75-2.1 0-3.58 1.52-3.58 3.75 0 2.17 1.47 3.72 3.58 3.72 2.07.01 3.55-1.54 3.55-3.72zM154.63 12.87v2.72h-.12c-.8-.82-2.02-1.25-3.55-1.25-1.27 0-2.17.58-2.17 1.4 0 .67.53.97 2.25 1.07 3.13.18 4.35 1.33 4.35 3.7 0 2.3-1.78 3.72-4.7 3.72-1.95 0-3.48-.4-4.45-1.15V20.3h.13c.98 1.05 2.4 1.6 4.2 1.6 1.38 0 2.23-.55 2.23-1.4 0-.78-.53-1.13-2.43-1.28-3.05-.25-4.17-1.2-4.17-3.43 0-2.3 1.87-3.8 4.7-3.8 1.51.03 2.88.33 3.73.88z"
+  />
+  <path
+    d="M51.25 8c4.03 0 6.1 1.82 6.1 5.37 0 3.52-2.08 5.35-6.1 5.35h-3.58v5.27h-3V8h6.58zm-.12 8.05c2.17 0 3.2-.87 3.2-2.67 0-1.82-1.03-2.7-3.2-2.7h-3.45v5.37h3.45zM68.52 23.99l-.1-1.78h-.05c-.75 1.3-2.08 2.02-3.93 2.02-2.95 0-4.7-1.9-4.7-5.1v-6.91h2.65v6.61c0 1.9 1 3.02 2.73 3.02 1.87 0 2.98-1.3 2.98-3.45v-6.18h2.65v11.76h-2.23zM94.01 8h2.65v15.99h-2.65V8zM90.96 12.24V24h-2.65V12.24h2.65zM86 18.14c0 3.55-2.45 6.1-5.8 6.1-1.7 0-3-.55-3.87-1.5h-.05v5.52h-2.65V12.24h2.23l.07 1.68h.05c.85-1.2 2.3-1.93 4.23-1.93 3.34 0 5.79 2.6 5.79 6.15zm-2.67-.03c0-2.23-1.47-3.75-3.55-3.75-2.1 0-3.58 1.53-3.58 3.75 0 2.17 1.48 3.75 3.58 3.75 2.07.01 3.55-1.57 3.55-3.75zM88.31 8h2.65v2.65h-2.65z"
+  />
+</svg>
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Pupil Labs Neon Player
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Plugin
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="blue"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="blue"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pupil-labs/neon-player" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pupil-labs/neon-player
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+    
+  
+  API reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../examples/face_detection/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Examples
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Pupil Labs Neon Player" class="md-nav__button md-logo" aria-label="Pupil Labs Neon Player" data-md-component="logo">
+      <!-- Logo -->
+<svg xmlns="http://www.w3.org/2000/svg" height="18" viewBox="0 0 155.38 31">
+  <path
+    d="M0 16c0 8.84 7.16 16 16 16s16-7.16 16-16S24.84 0 16 0 0 7.16 0 16zm28.56 0c0 6.93-5.64 12.56-12.56 12.56S3.44 22.93 3.44 16 9.07 3.44 16 3.44 28.56 9.07 28.56 16z"
+  />
+  <path
+    d="M4.56 16c0 6.31 5.13 11.44 11.44 11.44S27.44 22.31 27.44 16 22.31 4.56 16 4.56 4.56 9.69 4.56 16zM24 16c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8 8 3.58 8 8z"
+  />
+  <path
+    d="M102.65 23.99V8h3v13.32h8.93v2.67h-11.93zM126.36 23.99l-.07-1.68h-.05c-.85 1.2-2.33 1.93-4.23 1.93-3.35 0-5.8-2.55-5.8-6.1s2.45-6.13 5.8-6.13c1.9 0 3.35.72 4.2 1.93h.05l.1-1.68h2.2v11.73h-2.2zm-.38-5.85c0-2.23-1.45-3.75-3.55-3.75-2.1 0-3.55 1.52-3.55 3.75 0 2.17 1.45 3.72 3.55 3.72 2.1.01 3.55-1.54 3.55-3.72zM143.92 18.14c0 3.55-2.45 6.1-5.8 6.1-1.93 0-3.38-.72-4.23-1.93h-.05l-.07 1.68h-2.23V8h2.65v5.52h.05c.88-.95 2.17-1.5 3.88-1.5 3.35 0 5.8 2.57 5.8 6.12zm-2.67 0c0-2.23-1.47-3.75-3.55-3.75-2.1 0-3.58 1.52-3.58 3.75 0 2.17 1.47 3.72 3.58 3.72 2.07.01 3.55-1.54 3.55-3.72zM154.63 12.87v2.72h-.12c-.8-.82-2.02-1.25-3.55-1.25-1.27 0-2.17.58-2.17 1.4 0 .67.53.97 2.25 1.07 3.13.18 4.35 1.33 4.35 3.7 0 2.3-1.78 3.72-4.7 3.72-1.95 0-3.48-.4-4.45-1.15V20.3h.13c.98 1.05 2.4 1.6 4.2 1.6 1.38 0 2.23-.55 2.23-1.4 0-.78-.53-1.13-2.43-1.28-3.05-.25-4.17-1.2-4.17-3.43 0-2.3 1.87-3.8 4.7-3.8 1.51.03 2.88.33 3.73.88z"
+  />
+  <path
+    d="M51.25 8c4.03 0 6.1 1.82 6.1 5.37 0 3.52-2.08 5.35-6.1 5.35h-3.58v5.27h-3V8h6.58zm-.12 8.05c2.17 0 3.2-.87 3.2-2.67 0-1.82-1.03-2.7-3.2-2.7h-3.45v5.37h3.45zM68.52 23.99l-.1-1.78h-.05c-.75 1.3-2.08 2.02-3.93 2.02-2.95 0-4.7-1.9-4.7-5.1v-6.91h2.65v6.61c0 1.9 1 3.02 2.73 3.02 1.87 0 2.98-1.3 2.98-3.45v-6.18h2.65v11.76h-2.23zM94.01 8h2.65v15.99h-2.65V8zM90.96 12.24V24h-2.65V12.24h2.65zM86 18.14c0 3.55-2.45 6.1-5.8 6.1-1.7 0-3-.55-3.87-1.5h-.05v5.52h-2.65V12.24h2.23l.07 1.68h.05c.85-1.2 2.3-1.93 4.23-1.93 3.34 0 5.79 2.6 5.79 6.15zm-2.67-.03c0-2.23-1.47-3.75-3.55-3.75-2.1 0-3.58 1.53-3.58 3.75 0 2.17 1.48 3.75 3.58 3.75 2.07.01 3.55-1.57 3.55-3.75zM88.31 8h2.65v2.65h-2.65z"
+  />
+</svg>
+    </a>
+    Pupil Labs Neon Player
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pupil-labs/neon-player" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pupil-labs/neon-player
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../.." class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_1" id="__nav_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Home
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    License
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugin
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Plugin
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" Plugin">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;app
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.job_manager" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;job_manager
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.headless" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;headless
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.recording" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;recording
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.render_layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;render_layer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.global_properties" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;global_properties
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.get_timeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_timeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.on_recording_loaded" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;on_recording_loaded
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.on_disabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;on_disabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.render" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;render
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.trigger_scene_update" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;trigger_scene_update
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.get_scene_idx_for_time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_scene_idx_for_time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.is_time_gray" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;is_time_gray
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.get_cache_path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_cache_path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.load_cached_json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;load_cached_json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.save_cached_json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;save_cached_json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.add_dynamic_action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;add_dynamic_action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.register_action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;register_action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.unregister_action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;unregister_action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.register_timeline_action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;register_timeline_action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.unregister_timeline_action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;unregister_timeline_action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.register_data_point_action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;register_data_point_action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.unregister_data_point_action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;unregister_data_point_action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.user_confirm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;user_confirm
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../properties/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Property parameters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../actions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Action parameters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../global_settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Global settings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom_types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_6" id="__nav_2_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Player components
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Player components
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../player/app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Application
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../player/job_manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Job manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../player/timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/face_detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Face detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/object_detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Object detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demos
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Demos
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/demo_widgets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built-in widgets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Plugin
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" Plugin">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;app
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.job_manager" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;job_manager
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.headless" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;headless
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.recording" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;recording
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.render_layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;render_layer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.global_properties" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;global_properties
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.get_timeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_timeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.on_recording_loaded" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;on_recording_loaded
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.on_disabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;on_disabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.render" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;render
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.trigger_scene_update" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;trigger_scene_update
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.get_scene_idx_for_time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_scene_idx_for_time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.is_time_gray" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;is_time_gray
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.get_cache_path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_cache_path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.load_cached_json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;load_cached_json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.save_cached_json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;save_cached_json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.add_dynamic_action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;add_dynamic_action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.register_action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;register_action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.unregister_action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;unregister_action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.register_timeline_action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;register_timeline_action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.unregister_timeline_action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;unregister_timeline_action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.register_data_point_action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;register_data_point_action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.unregister_data_point_action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;unregister_data_point_action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.Plugin.user_confirm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;user_confirm
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/pupil-labs/neon-player/edit/main/docs/api/plugin.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+  <h1>Plugin</h1>
+
+<div class="admonition info">
+<p class="admonition-title">Plugin API</p>
+<p>The classes and methods listed below form the public API, which is recommended
+for extending the functionality of Neon Player. Since Neon Player uses PySide6
+under the hood, a plugin can technically reach other application and Qt
+components too. However, those undocumented parts may change without notice and
+are not guaranteed to be compatible with the future releases of Neon Player.</p>
+<p>If the currently available methods are not sufficient for your use case, feel
+free to <a href="https://github.com/pupil-labs/neon-player/issues">open an issue</a> in
+the GitHub repository.</p>
+</div>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="pupil_labs.neon_player.Plugin" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">Plugin</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">Plugin</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="qt_property_widgets.utilities.PersistentPropertiesMixin">PersistentPropertiesMixin</span></code>, <code><a class="autorefs autorefs-external" title="PySide6.QtCore.QObject" href="https://doc.qt.io/qtforpython-6/PySide6/QtCore/QObject.html#PySide6.QtCore.QObject">QObject</a></code></p>
+
+
+
+        <p>Base class for all Neon Player plugins.</p>
+<p>To create a plugin, subclass this class and, depending on the intended
+goal, add:</p>
+<ul>
+<li>plugin settings (via <a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#property"><code>@property</code></a> and
+    <a href="../properties/"><code>@property_params</code></a>
+    decorators)</li>
+<li>launchable actions (via <a class="autorefs autorefs-internal" title="            action" href="../actions/#pupil_labs.neon_player.action"><code>@action</code></a> and
+    <a href="../actions/"><code>@action_params</code></a>
+    decorators)</li>
+<li>timeline plots (via <a class="autorefs autorefs-internal" title="            get_timeline" href="#pupil_labs.neon_player.Plugin.get_timeline"><code>get_timeline</code></a>)</li>
+<li>overlays on top of the scene video (via <a class="autorefs autorefs-internal" title="            render" href="#pupil_labs.neon_player.Plugin.render"><code>render</code></a>)</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Methods:</span></p>
+    <ul>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            get_timeline (pupil_labs.neon_player.Plugin.get_timeline)" href="#pupil_labs.neon_player.Plugin.get_timeline">get_timeline</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Access the timeline to add or remove its plots.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            on_recording_loaded (pupil_labs.neon_player.Plugin.on_recording_loaded)" href="#pupil_labs.neon_player.Plugin.on_recording_loaded">on_recording_loaded</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Prepare this plugin after a recording has been opened.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            on_disabled (pupil_labs.neon_player.Plugin.on_disabled)" href="#pupil_labs.neon_player.Plugin.on_disabled">on_disabled</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Clean up plugin content when the plugin is disabled.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            render (pupil_labs.neon_player.Plugin.render)" href="#pupil_labs.neon_player.Plugin.render">render</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Draw an overlay on the scene video.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            trigger_scene_update (pupil_labs.neon_player.Plugin.trigger_scene_update)" href="#pupil_labs.neon_player.Plugin.trigger_scene_update">trigger_scene_update</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Ask Neon Player to redraw the scene video.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            get_scene_idx_for_time (pupil_labs.neon_player.Plugin.get_scene_idx_for_time)" href="#pupil_labs.neon_player.Plugin.get_scene_idx_for_time">get_scene_idx_for_time</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Find the scene frame closest to a timestamp.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            is_time_gray (pupil_labs.neon_player.Plugin.is_time_gray)" href="#pupil_labs.neon_player.Plugin.is_time_gray">is_time_gray</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Check whether the scene video has no usable frame at a timestamp.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            get_cache_path (pupil_labs.neon_player.Plugin.get_cache_path)" href="#pupil_labs.neon_player.Plugin.get_cache_path">get_cache_path</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Get this plugin's cache folder for the current recording.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            load_cached_json (pupil_labs.neon_player.Plugin.load_cached_json)" href="#pupil_labs.neon_player.Plugin.load_cached_json">load_cached_json</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Read a JSON file from this plugin's cache folder.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            save_cached_json (pupil_labs.neon_player.Plugin.save_cached_json)" href="#pupil_labs.neon_player.Plugin.save_cached_json">save_cached_json</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Save a value as JSON in this plugin's cache folder.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            add_dynamic_action (pupil_labs.neon_player.Plugin.add_dynamic_action)" href="#pupil_labs.neon_player.Plugin.add_dynamic_action">add_dynamic_action</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Add a button to this plugin's section in the settings sidebar.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            register_action (pupil_labs.neon_player.Plugin.register_action)" href="#pupil_labs.neon_player.Plugin.register_action">register_action</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Add an action to the application menu and optional keyboard shortcut.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            unregister_action (pupil_labs.neon_player.Plugin.unregister_action)" href="#pupil_labs.neon_player.Plugin.unregister_action">unregister_action</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Remove an application-menu action previously added by this plugin.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            register_timeline_action (pupil_labs.neon_player.Plugin.register_timeline_action)" href="#pupil_labs.neon_player.Plugin.register_timeline_action">register_timeline_action</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Add an action to the "Timeline" menu.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            unregister_timeline_action (pupil_labs.neon_player.Plugin.unregister_timeline_action)" href="#pupil_labs.neon_player.Plugin.unregister_timeline_action">unregister_timeline_action</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Remove a timeline-menu action previously added by this plugin.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            register_data_point_action (pupil_labs.neon_player.Plugin.register_data_point_action)" href="#pupil_labs.neon_player.Plugin.register_data_point_action">register_data_point_action</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Add an data point action to the context menu of the timeline.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            unregister_data_point_action (pupil_labs.neon_player.Plugin.unregister_data_point_action)" href="#pupil_labs.neon_player.Plugin.unregister_data_point_action">unregister_data_point_action</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Remove a data-point action previously registered by this plugin.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            user_confirm (pupil_labs.neon_player.Plugin.user_confirm)" href="#pupil_labs.neon_player.Plugin.user_confirm">user_confirm</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Ask the user a Yes/No question and get their response.</p>
+            </div>
+          </li>
+    </ul>
+
+
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="            app
+
+
+  
+      property
+   (pupil_labs.neon_player.Plugin.app)" href="#pupil_labs.neon_player.Plugin.app">app</a></code></b>
+              (<code><a class="autorefs autorefs-internal" title="            NeonPlayerApp (pupil_labs.neon_player.app.NeonPlayerApp)" href="../player/app/#pupil_labs.neon_player.app.NeonPlayerApp">NeonPlayerApp</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Access the main Neon Player application.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="            job_manager
+
+
+  
+      property
+   (pupil_labs.neon_player.Plugin.job_manager)" href="#pupil_labs.neon_player.Plugin.job_manager">job_manager</a></code></b>
+              (<code><a class="autorefs autorefs-internal" title="            JobManager (pupil_labs.neon_player.job_manager.JobManager)" href="../player/job_manager/#pupil_labs.neon_player.job_manager.JobManager">JobManager</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Access the service for starting long-running background jobs.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="            headless
+
+
+  
+      property
+   (pupil_labs.neon_player.Plugin.headless)" href="#pupil_labs.neon_player.Plugin.headless">headless</a></code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Report whether Neon Player is running without its normal user interface.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="            recording
+
+
+  
+      property
+   (pupil_labs.neon_player.Plugin.recording)" href="#pupil_labs.neon_player.Plugin.recording">recording</a></code></b>
+              (<code><a class="autorefs autorefs-external" title="pupil_labs.neon_recording.NeonRecording" href="https://pupil-labs.github.io/pl-neon-recording/latest/api/recording/#pupil_labs.neon_recording.NeonRecording">NeonRecording</a> | None</code>)
+          –
+          <div class="doc-md-description">
+            <p>Access the currently opened Neon recording.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="            render_layer
+
+
+  
+      instance-attribute
+   (pupil_labs.neon_player.Plugin.render_layer)" href="#pupil_labs.neon_player.Plugin.render_layer">render_layer</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Set the render layer of the plugin.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="            global_properties
+
+
+  
+      class-attribute
+   (pupil_labs.neon_player.Plugin.global_properties)" href="#pupil_labs.neon_player.Plugin.global_properties">global_properties</a></code></b>
+              (<code><a class="autorefs autorefs-internal" title="            GlobalPluginProperties (pupil_labs.neon_player.plugins.GlobalPluginProperties)" href="../global_settings/#pupil_labs.neon_player.GlobalPluginProperties">GlobalPluginProperties</a> | None</code>)
+          –
+          <div class="doc-md-description">
+            <p>Optional default settings used by this plugin for all recordings.</p>
+          </div>
+        </li>
+    </ul>
+
+                  <details class="mkdocstrings-source">
+                    <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">75</span>
+<span class="normal">76</span>
+<span class="normal">77</span>
+<span class="normal">78</span>
+<span class="normal">79</span>
+<span class="normal">80</span>
+<span class="normal">81</span>
+<span class="normal">82</span>
+<span class="normal">83</span>
+<span class="normal">84</span>
+<span class="normal">85</span>
+<span class="normal">86</span>
+<span class="normal">87</span>
+<span class="normal">88</span>
+<span class="normal">89</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">render_layer</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Set the render layer of the plugin.</span>
+
+<span class="sd">    Plugins render their content on top of the scene video according</span>
+<span class="sd">    to the ascending order of the `render_layer` parameter.&quot;&quot;&quot;</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">_enabled</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="n">app</span> <span class="o">=</span> <span class="n">neon_player</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">app</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span>
+
+    <span class="n">app</span><span class="o">.</span><span class="n">aboutToQuit</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">on_disabled</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="pupil_labs.neon_player.Plugin.app" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">app</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#pupil_labs.neon_player.Plugin.app" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">app</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            NeonPlayerApp (pupil_labs.neon_player.app.NeonPlayerApp)" href="../player/app/#pupil_labs.neon_player.app.NeonPlayerApp">NeonPlayerApp</a></span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Access the main Neon Player application.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="pupil_labs.neon_player.Plugin.job_manager" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">job_manager</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#pupil_labs.neon_player.Plugin.job_manager" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">job_manager</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            JobManager (pupil_labs.neon_player.job_manager.JobManager)" href="../player/job_manager/#pupil_labs.neon_player.job_manager.JobManager">JobManager</a></span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Access the service for starting long-running background jobs.</p>
+<p>See the <a class="autorefs autorefs-internal" title="            JobManager" href="../player/job_manager/#pupil_labs.neon_player.job_manager.JobManager">Job Manager API reference</a>
+for the supported method and the returned job's progress and completion signals.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="pupil_labs.neon_player.Plugin.headless" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">headless</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#pupil_labs.neon_player.Plugin.headless" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">headless</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Report whether Neon Player is running without its normal user interface.</p>
+<p>Background jobs and command-line tasks run in this mode.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="pupil_labs.neon_player.Plugin.recording" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">recording</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#pupil_labs.neon_player.Plugin.recording" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">recording</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="pupil_labs.neon_recording.NeonRecording" href="https://pupil-labs.github.io/pl-neon-recording/latest/api/recording/#pupil_labs.neon_recording.NeonRecording">NeonRecording</a></span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Access the currently opened Neon recording.</p>
+<p>Returns <code>None</code> if no recording is opened.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="pupil_labs.neon_player.Plugin.render_layer" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">render_layer</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#pupil_labs.neon_player.Plugin.render_layer" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">render_layer</span> <span class="o">=</span> <span class="mi">1</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Set the render layer of the plugin.</p>
+<p>Plugins render their content on top of the scene video according
+to the ascending order of the <code>render_layer</code> parameter.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="pupil_labs.neon_player.Plugin.global_properties" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">global_properties</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#pupil_labs.neon_player.Plugin.global_properties" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">global_properties</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            GlobalPluginProperties (pupil_labs.neon_player.plugins.GlobalPluginProperties)" href="../global_settings/#pupil_labs.neon_player.GlobalPluginProperties">GlobalPluginProperties</a></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Optional default settings used by this plugin for all recordings.</p>
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.get_timeline" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">get_timeline</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.get_timeline" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">get_timeline</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-internal" title="            TimeLineDock (pupil_labs.neon_player.ui.timeline_dock.TimeLineDock)" href="../player/timeline/#pupil_labs.neon_player.ui.timeline_dock.TimeLineDock">TimeLineDock</a></span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Access the timeline to add or remove its plots.</p>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+<b><code>timeline</code></b> (              <code><a class="autorefs autorefs-internal" title="            TimeLineDock (pupil_labs.neon_player.ui.timeline_dock.TimeLineDock)" href="../player/timeline/#pupil_labs.neon_player.ui.timeline_dock.TimeLineDock">TimeLineDock</a></code>
+)          –
+          <div class="doc-md-description">
+            <p>The shared timeline component.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">227</span>
+<span class="normal">228</span>
+<span class="normal">229</span>
+<span class="normal">230</span>
+<span class="normal">231</span>
+<span class="normal">232</span>
+<span class="normal">233</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_timeline</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TimeLineDock</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Access the timeline to add or remove its plots.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        timeline: The shared timeline component.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">main_window</span><span class="o">.</span><span class="n">timeline</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.on_recording_loaded" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">on_recording_loaded</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.on_recording_loaded" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">on_recording_loaded</span><span class="p">(</span><span class="n">recording</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="pupil_labs.neon_recording.NeonRecording" href="https://pupil-labs.github.io/pl-neon-recording/latest/api/recording/#pupil_labs.neon_recording.NeonRecording">NeonRecording</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Prepare this plugin after a recording has been opened.</p>
+<p>Override this method to load plugin data from cache or add timeline content.
+Saved plugin settings are restored before this method runs.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>recording</code></b>
+              (<code><a class="autorefs autorefs-external" title="pupil_labs.neon_recording.NeonRecording" href="https://pupil-labs.github.io/pl-neon-recording/latest/api/recording/#pupil_labs.neon_recording.NeonRecording">NeonRecording</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>The recording that was opened.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">189</span>
+<span class="normal">190</span>
+<span class="normal">191</span>
+<span class="normal">192</span>
+<span class="normal">193</span>
+<span class="normal">194</span>
+<span class="normal">195</span>
+<span class="normal">196</span>
+<span class="normal">197</span>
+<span class="normal">198</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">on_recording_loaded</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">recording</span><span class="p">:</span> <span class="n">NeonRecording</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Prepare this plugin after a recording has been opened.</span>
+
+<span class="sd">    Override this method to load plugin data from cache or add timeline content.</span>
+<span class="sd">    Saved plugin settings are restored before this method runs.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        recording: The recording that was opened.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.on_disabled" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">on_disabled</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.on_disabled" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">on_disabled</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Clean up plugin content when the plugin is disabled.</p>
+<p>Override this method to remove items added to the timeline or other
+plugin-created content. The settings section is removed automatically.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">200</span>
+<span class="normal">201</span>
+<span class="normal">202</span>
+<span class="normal">203</span>
+<span class="normal">204</span>
+<span class="normal">205</span>
+<span class="normal">206</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">on_disabled</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Clean up plugin content when the plugin is disabled.</span>
+
+<span class="sd">    Override this method to remove items added to the timeline or other</span>
+<span class="sd">    plugin-created content. The settings section is removed automatically.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.render" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">render</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.render" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">render</span><span class="p">(</span><span class="n">painter</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="PySide6.QtGui.QPainter" href="https://doc.qt.io/qtforpython-6/PySide6/QtGui/QPainter.html#PySide6.QtGui.QPainter">QPainter</a></span><span class="p">,</span> <span class="n">time_in_recording</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Draw an overlay on the scene video.</p>
+<p>Override this method to paint on top of the current scene frame.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>painter</code></b>
+              (<code><a class="autorefs autorefs-external" title="PySide6.QtGui.QPainter" href="https://doc.qt.io/qtforpython-6/PySide6/QtGui/QPainter.html#PySide6.QtGui.QPainter">QPainter</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Qt painter for drawing the overlay. The painter uses scene-video
+pixel coordinates.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>time_in_recording</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Timestamp of the frame being drawn (in nanoseconds).</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">208</span>
+<span class="normal">209</span>
+<span class="normal">210</span>
+<span class="normal">211</span>
+<span class="normal">212</span>
+<span class="normal">213</span>
+<span class="normal">214</span>
+<span class="normal">215</span>
+<span class="normal">216</span>
+<span class="normal">217</span>
+<span class="normal">218</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">painter</span><span class="p">:</span> <span class="n">QPainter</span><span class="p">,</span> <span class="n">time_in_recording</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Draw an overlay on the scene video.</span>
+
+<span class="sd">    Override this method to paint on top of the current scene frame.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        painter: Qt painter for drawing the overlay. The painter uses scene-video</span>
+<span class="sd">            pixel coordinates.</span>
+<span class="sd">        time_in_recording: Timestamp of the frame being drawn (in nanoseconds).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.trigger_scene_update" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">trigger_scene_update</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.trigger_scene_update" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">trigger_scene_update</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Ask Neon Player to redraw the scene video.</p>
+<p>Call this after changing overlay data while playback is paused.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">220</span>
+<span class="normal">221</span>
+<span class="normal">222</span>
+<span class="normal">223</span>
+<span class="normal">224</span>
+<span class="normal">225</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">trigger_scene_update</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Ask Neon Player to redraw the scene video.</span>
+
+<span class="sd">    Call this after changing overlay data while playback is paused.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">main_window</span><span class="o">.</span><span class="n">video_widget</span><span class="o">.</span><span class="n">update</span><span class="p">()</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.get_scene_idx_for_time" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">get_scene_idx_for_time</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.get_scene_idx_for_time" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">get_scene_idx_for_time</span><span class="p">(</span><span class="n">t</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">method</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="typing.Literal" href="https://docs.python.org/3/library/typing.html#typing.Literal">Literal</a></span><span class="p">[</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="s1">&#39;backward&#39;</span><span class="p">,</span> <span class="s1">&#39;forward&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;backward&#39;</span><span class="p">,</span> <span class="n">tolerance</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Find the scene frame closest to a timestamp.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>t</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></code>, default:
+                  <code>-1</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Timestamp in nanoseconds. <code>-1</code> uses the current playhead time.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>method</code></b>
+              (<code><a class="autorefs autorefs-external" title="typing.Literal" href="https://docs.python.org/3/library/typing.html#typing.Literal">Literal</a>[&#39;nearest&#39;, &#39;backward&#39;, &#39;forward&#39;]</code>, default:
+                  <code>&#39;backward&#39;</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Whether to choose the nearest frame or only look backward
+or forward in time.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>tolerance</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a> | None</code>, default:
+                  <code>None</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Maximum allowed difference in nanoseconds, or <code>None</code>
+for no limit.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></code>
+          –
+          <div class="doc-md-description">
+            <p>The frame's index, or <code>-1</code> when no frame matches.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">300</span>
+<span class="normal">301</span>
+<span class="normal">302</span>
+<span class="normal">303</span>
+<span class="normal">304</span>
+<span class="normal">305</span>
+<span class="normal">306</span>
+<span class="normal">307</span>
+<span class="normal">308</span>
+<span class="normal">309</span>
+<span class="normal">310</span>
+<span class="normal">311</span>
+<span class="normal">312</span>
+<span class="normal">313</span>
+<span class="normal">314</span>
+<span class="normal">315</span>
+<span class="normal">316</span>
+<span class="normal">317</span>
+<span class="normal">318</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_scene_idx_for_time</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">t</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">method</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;nearest&quot;</span><span class="p">,</span> <span class="s2">&quot;backward&quot;</span><span class="p">,</span> <span class="s2">&quot;forward&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;backward&quot;</span><span class="p">,</span>
+    <span class="n">tolerance</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Find the scene frame closest to a timestamp.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        t: Timestamp in nanoseconds. ``-1`` uses the current playhead time.</span>
+<span class="sd">        method: Whether to choose the nearest frame or only look backward</span>
+<span class="sd">            or forward in time.</span>
+<span class="sd">        tolerance: Maximum allowed difference in nanoseconds, or ``None``</span>
+<span class="sd">            for no limit.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The frame&#39;s index, or ``-1`` when no frame matches.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">get_scene_idx_for_time</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">tolerance</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.is_time_gray" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">is_time_gray</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.is_time_gray" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">is_time_gray</span><span class="p">(</span><span class="n">t</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Check whether the scene video has no usable frame at a timestamp.</p>
+<p>A recording must be open.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>t</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></code>, default:
+                  <code>-1</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Timestamp in nanoseconds. <code>-1</code> checks the current playhead time.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></code>
+          –
+          <div class="doc-md-description">
+            <p><code>True</code> when the video should show a gray frame at that time.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">320</span>
+<span class="normal">321</span>
+<span class="normal">322</span>
+<span class="normal">323</span>
+<span class="normal">324</span>
+<span class="normal">325</span>
+<span class="normal">326</span>
+<span class="normal">327</span>
+<span class="normal">328</span>
+<span class="normal">329</span>
+<span class="normal">330</span>
+<span class="normal">331</span>
+<span class="normal">332</span>
+<span class="normal">333</span>
+<span class="normal">334</span>
+<span class="normal">335</span>
+<span class="normal">336</span>
+<span class="normal">337</span>
+<span class="normal">338</span>
+<span class="normal">339</span>
+<span class="normal">340</span>
+<span class="normal">341</span>
+<span class="normal">342</span>
+<span class="normal">343</span>
+<span class="normal">344</span>
+<span class="normal">345</span>
+<span class="normal">346</span>
+<span class="normal">347</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">is_time_gray</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Check whether the scene video has no usable frame at a timestamp.</span>
+
+<span class="sd">    A recording must be open.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        t: Timestamp in nanoseconds. ``-1`` checks the current playhead time.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        ``True`` when the video should show a gray frame at that time.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">current_ts</span>
+
+    <span class="k">if</span> <span class="n">t</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="n">closest_idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_scene_idx_for_time</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;backward&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">closest_idx</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="c1"># Consider gaps above 0.5 s in the scene stream as breaks to be filled</span>
+    <span class="c1"># with gray frames since such gaps are unlikely to happen naturally</span>
+    <span class="n">closest_time</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="n">closest_idx</span><span class="p">]</span>
+    <span class="n">scene_stream_ended</span> <span class="o">=</span> <span class="n">t</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">threshold</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">30</span> <span class="k">if</span> <span class="n">scene_stream_ended</span> <span class="k">else</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">2</span>
+
+    <span class="k">return</span> <span class="nb">abs</span><span class="p">(</span><span class="n">t</span> <span class="o">-</span> <span class="n">closest_time</span><span class="p">)</span> <span class="o">/</span> <span class="mf">1e9</span> <span class="o">&gt;</span> <span class="n">threshold</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.get_cache_path" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">get_cache_path</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.get_cache_path" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">get_cache_path</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-external" title="pathlib.Path" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path">Path</a></span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Get this plugin's cache folder for the current recording.</p>
+<p>Use this folder for files that can be recreated, such as results from a
+long-running calculation. Returns <code>None</code> when no recording is open.</p>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-external" title="pathlib.Path" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path">Path</a></code>
+          –
+          <div class="doc-md-description">
+            <p>Path to the cache folder, or <code>None</code> if there is no open recording.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">248</span>
+<span class="normal">249</span>
+<span class="normal">250</span>
+<span class="normal">251</span>
+<span class="normal">252</span>
+<span class="normal">253</span>
+<span class="normal">254</span>
+<span class="normal">255</span>
+<span class="normal">256</span>
+<span class="normal">257</span>
+<span class="normal">258</span>
+<span class="normal">259</span>
+<span class="normal">260</span>
+<span class="normal">261</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_cache_path</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get this plugin&#39;s cache folder for the current recording.</span>
+
+<span class="sd">    Use this folder for files that can be recreated, such as results from a</span>
+<span class="sd">    long-running calculation. Returns ``None`` when no recording is open.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Path to the cache folder, or ``None`` if there is no open recording.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">cache_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span><span class="o">.</span><span class="n">_rec_dir</span> <span class="o">/</span> <span class="s2">&quot;.neon_player&quot;</span> <span class="o">/</span> <span class="s2">&quot;cache&quot;</span>
+    <span class="k">return</span> <span class="n">cache_dir</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.load_cached_json" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">load_cached_json</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.load_cached_json" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">load_cached_json</span><span class="p">(</span><span class="n">filename</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-external" title="typing.Any" href="https://docs.python.org/3/library/typing.html#typing.Any">Any</a></span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Read a JSON file from this plugin's cache folder.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>filename</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Name of the file to read.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+<b><code>contents</code></b> (              <code><a class="autorefs autorefs-external" title="typing.Any" href="https://docs.python.org/3/library/typing.html#typing.Any">Any</a></code>
+)          –
+          <div class="doc-md-description">
+            <p>The decoded JSON value, or <code>None</code> if the file is
+missing or no recording is currently open.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">263</span>
+<span class="normal">264</span>
+<span class="normal">265</span>
+<span class="normal">266</span>
+<span class="normal">267</span>
+<span class="normal">268</span>
+<span class="normal">269</span>
+<span class="normal">270</span>
+<span class="normal">271</span>
+<span class="normal">272</span>
+<span class="normal">273</span>
+<span class="normal">274</span>
+<span class="normal">275</span>
+<span class="normal">276</span>
+<span class="normal">277</span>
+<span class="normal">278</span>
+<span class="normal">279</span>
+<span class="normal">280</span>
+<span class="normal">281</span>
+<span class="normal">282</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">load_cached_json</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Read a JSON file from this plugin&#39;s cache folder.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        filename: Name of the file to read.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        contents: The decoded JSON value, or ``None`` if the file is</span>
+<span class="sd">            missing or no recording is currently open.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">cache_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_cache_path</span><span class="p">()</span> <span class="o">/</span> <span class="n">filename</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">cache_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">with</span> <span class="n">cache_file</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.save_cached_json" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">save_cached_json</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.save_cached_json" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">save_cached_json</span><span class="p">(</span><span class="n">filename</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="typing.Any" href="https://docs.python.org/3/library/typing.html#typing.Any">Any</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Save a value as JSON in this plugin's cache folder.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>filename</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Name of the file to write.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>data</code></b>
+              (<code><a class="autorefs autorefs-external" title="typing.Any" href="https://docs.python.org/3/library/typing.html#typing.Any">Any</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Value to encode as JSON.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">284</span>
+<span class="normal">285</span>
+<span class="normal">286</span>
+<span class="normal">287</span>
+<span class="normal">288</span>
+<span class="normal">289</span>
+<span class="normal">290</span>
+<span class="normal">291</span>
+<span class="normal">292</span>
+<span class="normal">293</span>
+<span class="normal">294</span>
+<span class="normal">295</span>
+<span class="normal">296</span>
+<span class="normal">297</span>
+<span class="normal">298</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">save_cached_json</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Save a value as JSON in this plugin&#39;s cache folder.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        filename: Name of the file to write.</span>
+<span class="sd">        data: Value to encode as JSON.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span>
+
+    <span class="n">cache_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_cache_path</span><span class="p">()</span> <span class="o">/</span> <span class="n">filename</span>
+    <span class="n">cache_file</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">cache_file</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="bp">cls</span><span class="o">=</span><span class="n">NumpyEncoder</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.add_dynamic_action" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">add_dynamic_action</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.add_dynamic_action" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">add_dynamic_action</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n">func</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="typing.Callable" href="https://docs.python.org/3/library/typing.html#typing.Callable">Callable</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Add a button to this plugin's section in the settings sidebar.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>name</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Text displayed on the button.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>func</code></b>
+              (<code><a class="autorefs autorefs-external" title="typing.Callable" href="https://docs.python.org/3/library/typing.html#typing.Callable">Callable</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Function to call when the button is pressed.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">171</span>
+<span class="normal">172</span>
+<span class="normal">173</span>
+<span class="normal">174</span>
+<span class="normal">175</span>
+<span class="normal">176</span>
+<span class="normal">177</span>
+<span class="normal">178</span>
+<span class="normal">179</span>
+<span class="normal">180</span>
+<span class="normal">181</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">add_dynamic_action</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">func</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Callable</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Add a button to this plugin&#39;s section in the settings sidebar.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        name: Text displayed on the button.</span>
+<span class="sd">        func: Function to call when the button is pressed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">my_prop_form</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">main_window</span><span class="o">.</span><span class="n">settings_panel</span><span class="o">.</span><span class="n">plugin_class_expanders</span><span class="p">[</span>
+        <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+    <span class="p">]</span><span class="o">.</span><span class="n">content_widget</span>
+    <span class="n">my_prop_form</span><span class="o">.</span><span class="n">add_action</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.register_action" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">register_action</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.register_action" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">register_action</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n">shortcut</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            QtShortcutType
+
+
+  
+      module-attribute
+   (pupil_labs.neon_player.ui.QtShortcutType)" href="../custom_types/#pupil_labs.neon_player.ui.QtShortcutType">QtShortcutType</a></span><span class="p">,</span> <span class="n">func</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="typing.Callable" href="https://docs.python.org/3/library/typing.html#typing.Callable">Callable</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-external" title="PySide6.QtGui.QAction" href="https://doc.qt.io/qtforpython-6/PySide6/QtGui/QAction.html#PySide6.QtGui.QAction">QAction</a></span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Add an action to the application menu and optional keyboard shortcut.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>name</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Label shown for the action. Use '/' to indicate nesting
+(e.g., <code>"Help/About"</code>).</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>shortcut</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            QtShortcutType
+
+
+  
+      module-attribute
+   (pupil_labs.neon_player.ui.QtShortcutType)" href="../custom_types/#pupil_labs.neon_player.ui.QtShortcutType">QtShortcutType</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Keyboard shortcut, or <code>None</code> for no shortcut (default).</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>func</code></b>
+              (<code><a class="autorefs autorefs-external" title="typing.Callable" href="https://docs.python.org/3/library/typing.html#typing.Callable">Callable</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Function to call when the action is selected.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+<b><code>action</code></b> (              <code><a class="autorefs autorefs-external" title="PySide6.QtGui.QAction" href="https://doc.qt.io/qtforpython-6/PySide6/QtGui/QAction.html#PySide6.QtGui.QAction">QAction</a></code>
+)          –
+          <div class="doc-md-description">
+            <p>The created action.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 91</span>
+<span class="normal"> 92</span>
+<span class="normal"> 93</span>
+<span class="normal"> 94</span>
+<span class="normal"> 95</span>
+<span class="normal"> 96</span>
+<span class="normal"> 97</span>
+<span class="normal"> 98</span>
+<span class="normal"> 99</span>
+<span class="normal">100</span>
+<span class="normal">101</span>
+<span class="normal">102</span>
+<span class="normal">103</span>
+<span class="normal">104</span>
+<span class="normal">105</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">register_action</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">shortcut</span><span class="p">:</span> <span class="n">QtShortcutType</span><span class="p">,</span> <span class="n">func</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Callable</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QAction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Add an action to the application menu and optional keyboard shortcut.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        name: Label shown for the action. Use &#39;/&#39; to indicate nesting</span>
+<span class="sd">            (e.g., `&quot;Help/About&quot;`).</span>
+<span class="sd">        shortcut: Keyboard shortcut, or ``None`` for no shortcut (default).</span>
+<span class="sd">        func: Function to call when the action is selected.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        action: The created action.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">main_window</span><span class="o">.</span><span class="n">register_action</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">shortcut</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.unregister_action" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">unregister_action</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.unregister_action" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">unregister_action</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Remove an application-menu action previously added by this plugin.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>name</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Label used when the action was registered.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">107</span>
+<span class="normal">108</span>
+<span class="normal">109</span>
+<span class="normal">110</span>
+<span class="normal">111</span>
+<span class="normal">112</span>
+<span class="normal">113</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">unregister_action</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Remove an application-menu action previously added by this plugin.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        name: Label used when the action was registered.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">main_window</span><span class="o">.</span><span class="n">unregister_action</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.register_timeline_action" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">register_timeline_action</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.register_timeline_action" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">register_timeline_action</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n">shortcut</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            QtShortcutType
+
+
+  
+      module-attribute
+   (pupil_labs.neon_player.ui.QtShortcutType)" href="../custom_types/#pupil_labs.neon_player.ui.QtShortcutType">QtShortcutType</a></span><span class="p">,</span> <span class="n">func</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="typing.Callable" href="https://docs.python.org/3/library/typing.html#typing.Callable">Callable</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Add an action to the "Timeline" menu.</p>
+<p>Actions added to the "Timeline" menu are displayed when the user
+right-clicks the timeline area if no data points lie under the cursor.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>name</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Label shown for the action. Use '/' to indicate nesting
+(e.g., <code>"Add event/Event 1"</code>).</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>shortcut</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            QtShortcutType
+
+
+  
+      module-attribute
+   (pupil_labs.neon_player.ui.QtShortcutType)" href="../custom_types/#pupil_labs.neon_player.ui.QtShortcutType">QtShortcutType</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Keyboard shortcut, or <code>None</code> for no shortcut (default).</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>func</code></b>
+              (<code><a class="autorefs autorefs-external" title="typing.Callable" href="https://docs.python.org/3/library/typing.html#typing.Callable">Callable</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Function to call when the action is selected.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">115</span>
+<span class="normal">116</span>
+<span class="normal">117</span>
+<span class="normal">118</span>
+<span class="normal">119</span>
+<span class="normal">120</span>
+<span class="normal">121</span>
+<span class="normal">122</span>
+<span class="normal">123</span>
+<span class="normal">124</span>
+<span class="normal">125</span>
+<span class="normal">126</span>
+<span class="normal">127</span>
+<span class="normal">128</span>
+<span class="normal">129</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">register_timeline_action</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">shortcut</span><span class="p">:</span> <span class="n">QtShortcutType</span><span class="p">,</span> <span class="n">func</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Callable</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Add an action to the &quot;Timeline&quot; menu.</span>
+
+<span class="sd">    Actions added to the &quot;Timeline&quot; menu are displayed when the user</span>
+<span class="sd">    right-clicks the timeline area if no data points lie under the cursor.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        name: Label shown for the action. Use &#39;/&#39; to indicate nesting</span>
+<span class="sd">            (e.g., `&quot;Add event/Event 1&quot;`).</span>
+<span class="sd">        shortcut: Keyboard shortcut, or ``None`` for no shortcut (default).</span>
+<span class="sd">        func: Function to call when the action is selected.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">main_window</span><span class="o">.</span><span class="n">register_action</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Timeline/</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">shortcut</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.unregister_timeline_action" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">unregister_timeline_action</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.unregister_timeline_action" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">unregister_timeline_action</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Remove a timeline-menu action previously added by this plugin.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>name</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Label used when the action was registered.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">131</span>
+<span class="normal">132</span>
+<span class="normal">133</span>
+<span class="normal">134</span>
+<span class="normal">135</span>
+<span class="normal">136</span>
+<span class="normal">137</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">unregister_timeline_action</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Remove a timeline-menu action previously added by this plugin.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        name: Label used when the action was registered.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">main_window</span><span class="o">.</span><span class="n">unregister_action</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Timeline/</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.register_data_point_action" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">register_data_point_action</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.register_data_point_action" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">register_data_point_action</span><span class="p">(</span><span class="n">row_name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n">action_name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n">callback</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="typing.Callable" href="https://docs.python.org/3/library/typing.html#typing.Callable">Callable</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Add an data point action to the context menu of the timeline.</p>
+<p>This context menu appears when a data point displayed in the
+specified timeline row is right-clicked.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>row_name</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Name of the timeline row containing the points.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>action_name</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Label shown in the context menu.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>callback</code></b>
+              (<code><a class="autorefs autorefs-external" title="typing.Callable" href="https://docs.python.org/3/library/typing.html#typing.Callable">Callable</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Function called with the selected point. The callback
+receives the clicked data point as a <code>(timestamp, value)</code>
+pair. Timestamps are in nanoseconds.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">139</span>
+<span class="normal">140</span>
+<span class="normal">141</span>
+<span class="normal">142</span>
+<span class="normal">143</span>
+<span class="normal">144</span>
+<span class="normal">145</span>
+<span class="normal">146</span>
+<span class="normal">147</span>
+<span class="normal">148</span>
+<span class="normal">149</span>
+<span class="normal">150</span>
+<span class="normal">151</span>
+<span class="normal">152</span>
+<span class="normal">153</span>
+<span class="normal">154</span>
+<span class="normal">155</span>
+<span class="normal">156</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">register_data_point_action</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span> <span class="n">row_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">action_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">callback</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Callable</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Add an data point action to the context menu of the timeline.</span>
+
+<span class="sd">    This context menu appears when a data point displayed in the</span>
+<span class="sd">    specified timeline row is right-clicked.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        row_name: Name of the timeline row containing the points.</span>
+<span class="sd">        action_name: Label shown in the context menu.</span>
+<span class="sd">        callback: Function called with the selected point. The callback</span>
+<span class="sd">            receives the clicked data point as a ``(timestamp, value)``</span>
+<span class="sd">            pair. Timestamps are in nanoseconds.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">main_window</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">register_data_point_action</span><span class="p">(</span>
+        <span class="n">row_name</span><span class="p">,</span> <span class="n">action_name</span><span class="p">,</span> <span class="n">callback</span>
+    <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.unregister_data_point_action" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">unregister_data_point_action</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.unregister_data_point_action" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">unregister_data_point_action</span><span class="p">(</span><span class="n">row_name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n">action_name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Remove a data-point action previously registered by this plugin.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>row_name</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Name of the timeline row containing the points.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>action_name</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Label used when the action was registered.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">158</span>
+<span class="normal">159</span>
+<span class="normal">160</span>
+<span class="normal">161</span>
+<span class="normal">162</span>
+<span class="normal">163</span>
+<span class="normal">164</span>
+<span class="normal">165</span>
+<span class="normal">166</span>
+<span class="normal">167</span>
+<span class="normal">168</span>
+<span class="normal">169</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">unregister_data_point_action</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span> <span class="n">row_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">action_name</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Remove a data-point action previously registered by this plugin.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        row_name: Name of the timeline row containing the points.</span>
+<span class="sd">        action_name: Label used when the action was registered.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">main_window</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">unregister_data_point_action</span><span class="p">(</span>
+        <span class="n">row_name</span><span class="p">,</span> <span class="n">action_name</span>
+    <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.Plugin.user_confirm" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">user_confirm</span>
+
+
+<a href="#pupil_labs.neon_player.Plugin.user_confirm" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">user_confirm</span><span class="p">(</span><span class="n">title</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Ask the user a Yes/No question and get their response.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>title</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Title shown on the question dialog.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>message</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Question shown to the user.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+<b><code>confirmed</code></b> (              <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></code>
+)          –
+          <div class="doc-md-description">
+            <p><code>True</code> when the user selects Yes; otherwise <code>False</code>.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/plugins/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">235</span>
+<span class="normal">236</span>
+<span class="normal">237</span>
+<span class="normal">238</span>
+<span class="normal">239</span>
+<span class="normal">240</span>
+<span class="normal">241</span>
+<span class="normal">242</span>
+<span class="normal">243</span>
+<span class="normal">244</span>
+<span class="normal">245</span>
+<span class="normal">246</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">user_confirm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Ask the user a Yes/No question and get their response.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        title: Title shown on the question dialog.</span>
+<span class="sd">        message: Question shown to the user.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        confirmed: ``True`` when the user selects Yes; otherwise ``False``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">reply</span> <span class="o">=</span> <span class="n">QMessageBox</span><span class="o">.</span><span class="n">question</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">reply</span> <span class="o">==</span> <span class="n">QMessageBox</span><span class="o">.</span><span class="n">StandardButton</span><span class="o">.</span><span class="n">Yes</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/pupil-labs" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://pypi.org/project/pupil-labs-neon-player/" target="_blank" rel="noopener" title="pypi.org" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://pupil-labs.com/chat" target="_blank" rel="noopener" title="pupil-labs.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M492.5 69.8c-.2-.3-.4-.6-.8-.7-38.1-17.5-78.4-30-119.7-37.1-.4-.1-.8 0-1.1.1s-.6.4-.8.8c-5.5 9.9-10.5 20.2-14.9 30.6-44.6-6.8-89.9-6.8-134.4 0-4.5-10.5-9.5-20.7-15.1-30.6-.2-.3-.5-.6-.8-.8s-.7-.2-1.1-.2C162.5 39 122.2 51.5 84.1 69c-.3.1-.6.4-.8.7C7.1 183.5-13.8 294.6-3.6 404.2c0 .3.1.5.2.8s.3.4.5.6c44.4 32.9 94 58 146.8 74.2.4.1.8.1 1.1 0s.7-.4.9-.7c11.3-15.4 21.4-31.8 30-48.8.1-.2.2-.5.2-.8s0-.5-.1-.8-.2-.5-.4-.6-.4-.3-.7-.4c-15.8-6.1-31.2-13.4-45.9-21.9-.3-.2-.5-.4-.7-.6s-.3-.6-.3-.9 0-.6.2-.9.3-.5.6-.7c3.1-2.3 6.2-4.7 9.1-7.1.3-.2.6-.4.9-.4s.7 0 1 .1c96.2 43.9 200.4 43.9 295.5 0 .3-.1.7-.2 1-.2s.7.2.9.4c2.9 2.4 6 4.9 9.1 7.2.2.2.4.4.6.7s.2.6.2.9-.1.6-.3.9-.4.5-.6.6c-14.7 8.6-30 15.9-45.9 21.8-.2.1-.5.2-.7.4s-.3.4-.4.7-.1.5-.1.8.1.5.2.8c8.8 17 18.8 33.3 30 48.8.2.3.6.6.9.7s.8.1 1.1 0c52.9-16.2 102.6-41.3 147.1-74.2.2-.2.4-.4.5-.6s.2-.5.2-.8c12.3-126.8-20.5-236.9-86.9-334.5zm-302 267.7c-29 0-52.8-26.6-52.8-59.2s23.4-59.2 52.8-59.2c29.7 0 53.3 26.8 52.8 59.2 0 32.7-23.4 59.2-52.8 59.2m195.4 0c-29 0-52.8-26.6-52.8-59.2s23.4-59.2 52.8-59.2c29.7 0 53.3 26.8 52.8 59.2 0 32.7-23.2 59.2-52.8 59.2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://pupil-labs.com/" target="_blank" rel="noopener" title="pupil-labs.com" class="md-social__link">
+      <?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 23.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="47.99922px" height="47.99922px" viewBox="0 0 47.99922 47.99922" style="enable-background:new 0 0 47.99922 47.99922;"
+	 xml:space="preserve">
+<style type="text/css">
+	.st0{display:none;}
+	.st1{display:inline;}
+	.st2{fill:#0D122A;}
+	.st3{fill:none;}
+	.st4{fill:#FAFAFA;}
+</style>
+<g id="Black" class="st0">
+	<g class="st1">
+		<g>
+			<g>
+				<g>
+					<g>
+						<path class="st2" d="M24.00019,7.99964c-8.8371,0-16.00058,7.16354-16.00058,15.99994c0,8.8365,7.16348,16,16.00058,16
+							c8.8359,0,15.99942-7.1635,15.99942-16C39.99961,15.16318,32.83609,7.99964,24.00019,7.99964z M23.99899,36.56388
+							c-6.9276,0-12.5632-5.6356-12.5632-12.5632s5.6356-12.56534,12.5632-12.56534c6.9277,0,12.5655,5.63774,12.5655,12.56534
+							S30.92669,36.56388,23.99899,36.56388z"/>
+						<path class="st2" d="M23.99899,12.56418c-6.3058,0-11.4343,5.1307-11.4343,11.4365c0,6.3059,5.1285,11.4343,11.4343,11.4343
+							c6.3059,0,11.43662-5.1284,11.43662-11.4343C35.43561,17.69488,30.30489,12.56418,23.99899,12.56418z M24.00019,31.99958
+							c-4.41858,0-8.0003-3.5817-8.0003-8c0-4.4185,3.58172-8.0003,8.0003-8.0003c4.4185,0,8.0002,3.5818,8.0002,8.0003
+							C32.00039,28.41788,28.41869,31.99958,24.00019,31.99958z"/>
+					</g>
+				</g>
+			</g>
+		</g>
+	</g>
+</g>
+<g id="White">
+	<g>
+		<g>
+			<g>
+				<g>
+					<g>
+						<path class="st4" d="M24.00019,7.99964c-8.8371,0-16.00058,7.16354-16.00058,15.99994c0,8.8365,7.16348,16,16.00058,16
+							c8.8359,0,15.99942-7.1635,15.99942-16C39.99961,15.16318,32.83609,7.99964,24.00019,7.99964z M23.99899,36.56388
+							c-6.9276,0-12.5632-5.6356-12.5632-12.5632s5.6356-12.56534,12.5632-12.56534c6.9277,0,12.5655,5.63774,12.5655,12.56534
+							S30.92669,36.56388,23.99899,36.56388z"/>
+						<path class="st4" d="M23.99899,12.56418c-6.3058,0-11.4343,5.1307-11.4343,11.4365c0,6.3059,5.1285,11.4343,11.4343,11.4343
+							c6.3059,0,11.43662-5.1284,11.43662-11.4343C35.43561,17.69488,30.30489,12.56418,23.99899,12.56418z M24.00019,31.99958
+							c-4.41858,0-8.0003-3.5817-8.0003-8c0-4.4185,3.58172-8.0003,8.0003-8.0003c4.4185,0,8.0002,3.5818,8.0002,8.0003
+							C32.00039,28.41788,28.41869,31.99958,24.00019,31.99958z"/>
+					</g>
+				</g>
+			</g>
+		</g>
+	</g>
+</g>
+</svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["announce.dismiss", "content.action.edit", "content.code.copy", "content.code.annotate", "navigation.indexes", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "search.highlight", "search.suggest", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../assets/_markdown_exec_pyodide.js"></script>
+      
+    
+  </body>
+</html>
