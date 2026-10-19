@@ -130,3 +130,4 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           uv run mike deploy dev --push
+          uv run mike set-default dev

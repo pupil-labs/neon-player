@@ -83,6 +83,7 @@ jobs:
 
   deploy-docs:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.inputs.deploy_docs
     steps:
       - name: Check out
         uses: actions/checkout@v6
