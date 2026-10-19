@@ -14,6 +14,7 @@ from .progress_action_form import ProgressActionForm  # noqa: F401
 QtShortcutType = (
     QKeySequence | QKeyCombination | QKeySequence.StandardKey | str | int | None
 )
+"""Data types that can be used to set a shortcut."""
 
 
 class GUIEventNotifier:
