@@ -126,7 +126,7 @@ jobs:
 
       - name: Deploy latest docs
         run: |
-          git fetch origin gh-pages --depth=1
+          git fetch origin gh-pages --depth=1 || echo "gh-pages does not exist but will be created"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           uv run mike deploy dev --push
