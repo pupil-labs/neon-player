@@ -4,10 +4,8 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QSize, Signal
 from PySide6.QtGui import QIcon, QCursor
 from PySide6.QtWidgets import (
-    QCheckBox,
     QFrame,
     QHBoxLayout,
-    QMessageBox,
     QPushButton,
     QToolButton,
     QWidget,
@@ -131,28 +129,3 @@ class UpdatePill(NotificationPill):
         text = f"Update available: {version_tag}"
         tooltip = f"Open v{version_tag} release on GitHub ({release_url})"
         self.show_pill(text, release_url, tooltip)
-
-
-class DismissedUpdatePrompt(QMessageBox):
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-
-        self.setIcon(QMessageBox.Icon.Information)
-        self.setWindowTitle("Update Notification Dismissed")
-        self.setText(
-            "The update notification will not be shown again until the next "
-            "release is available. You can manually check for updates or view "
-            "the release notes from the Help menu. If necessary, it is possible "
-            "to disable the update check via File > Global settings."
-        )
-        self.cb = QCheckBox("Do not show this message again")
-        self.setCheckBox(self.cb)
-
-    @property
-    def user_confirmed(self) -> bool:
-        self.exec()
-
-        result = self.cb.isChecked()
-        self.deleteLater()
-
-        return result

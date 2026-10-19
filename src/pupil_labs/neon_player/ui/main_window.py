@@ -51,7 +51,7 @@ from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.release_notes import ReleaseNotesDialog
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
-from pupil_labs.neon_player.ui.update_notification import UpdatePill, DismissedUpdatePrompt
+from pupil_labs.neon_player.ui.update_notification import UpdatePill
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
 
@@ -454,7 +454,7 @@ class MainWindow(QMainWindow):
         self.job_progress_bar.hide()
         self.job_progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.update_pill = UpdatePill(self)
-        self.update_pill.dismissed.connect(self.prompt_dismiss_updates)
+        self.update_pill.dismissed.connect(self.on_update_dismissed)
         self.update_pill.hide()
 
         self.statusBar().addWidget(self.status_label, stretch=5)
@@ -558,18 +558,9 @@ class MainWindow(QMainWindow):
         self.update_pill.show_update(tag_name, release_url)
         self.statusBar().show()
 
-    def prompt_dismiss_updates(self) -> None:
+    def on_update_dismissed(self) -> None:
         app = neon_player.instance()
         app.settings.last_displayed_update_version = self.update_pill.version_tag
-
-        if not app.settings.show_prompt_on_dismissed_update:
-            return
-
-        prompt = DismissedUpdatePrompt(self)
-        if not prompt.user_confirmed:
-            return
-
-        app.settings.show_prompt_on_dismissed_update = False
 
     def on_recording_opened(self):
         self.greeting_switcher.setCurrentIndex(1)

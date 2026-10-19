@@ -31,7 +31,6 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
         self._skip_gray_frames_on_load = True
         self._show_fps = False
         self._check_for_updates = True
-        self._show_prompt_on_dismissed_update = True
         self._last_read_release_notes_version = "0.0.0"
         self._last_displayed_update_version = "0.0.0"
 
@@ -80,16 +79,6 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
     @last_displayed_update_version.setter
     def last_displayed_update_version(self, value: str) -> None:
         self._last_displayed_update_version = value
-        self.changed.emit()
-
-    @property
-    @property_params(widget=None)
-    def show_prompt_on_dismissed_update(self) -> bool:
-        return self._show_prompt_on_dismissed_update
-
-    @show_prompt_on_dismissed_update.setter
-    def show_prompt_on_dismissed_update(self, value: bool) -> None:
-        self._show_prompt_on_dismissed_update = value
         self.changed.emit()
 
     @property
