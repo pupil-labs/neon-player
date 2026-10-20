@@ -150,19 +150,24 @@ class SettingsPanel(QScrollArea):
             cls.get_label(), settings_form, not app.loading_recording
         )
         if hasattr(instance, "header_action"):
+            header_action = instance.header_action
+
             tb = QToolButton()
-            tb.setText(instance.header_action.name)
+            tb.setText(header_action.name)
             tb.setCursor(Qt.CursorShape.PointingHandCursor)
-            if isinstance(instance.header_action, ListPropertyAppenderAction):
+            if isinstance(header_action, ListPropertyAppenderAction):
 
                 def do_add():
                     widget = settings_form.property_widgets.get(
-                        instance.header_action.property_name, None
+                        header_action.property_name, None
                     )
                     if widget and hasattr(widget, "on_add_button_clicked"):
                         widget.on_add_button_clicked()
 
-            tb.clicked.connect(lambda _: do_add())
+                tb.clicked.connect(lambda _: do_add())
+
+            else:
+                tb.clicked.connect(header_action.callback)
             tb.setObjectName("HeaderAction")
             expander.controls_layout.addWidget(tb)
 

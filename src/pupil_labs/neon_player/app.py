@@ -6,10 +6,12 @@ import os
 import sys
 import time
 import typing as T
+import warnings
 from importlib.metadata import version
 from pathlib import Path
 
 import numpy as np
+from pandas.errors import ChainedAssignmentError
 from pupil_labs.neon_recording.sample import match_ts
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QAction, QIcon, QPainter
@@ -21,7 +23,7 @@ from qt_property_widgets.utilities import ComplexEncoder, create_action_object
 
 from pupil_labs import neon_player
 from pupil_labs import neon_recording as nr
-from pupil_labs.neon_player import Plugin
+from pupil_labs.neon_player import Plugin, is_frozen
 from pupil_labs.neon_player.ipc_logger import IPCLogger
 from pupil_labs.neon_player.job_manager import JobManager
 from pupil_labs.neon_player.plugin_management import (
@@ -41,9 +43,10 @@ from pupil_labs.neon_player.plugins import (
     scene_renderer,  # noqa: F401
     surface_tracking,  # noqa: F401
     video_exporter,  # noqa: F401
+    xdf,  # noqa: F401
 )
 from pupil_labs.neon_player.history import RecordingHistory
-from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
+from pupil_labs.neon_player.settings import GeneralSettings, load_recording_settings
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
     PluginInstallationDialog,
@@ -118,6 +121,7 @@ class NeonPlayerApp(QApplication):
         logging.info(
             f"{self.applicationName()} v{self.applicationVersion()} starting up"
         )
+        self._setup_frozen()
 
         if self.args.job and self.args.job[0] == "install_packages":
             packages = self.args.job[1:]
@@ -152,6 +156,8 @@ class NeonPlayerApp(QApplication):
         else:
             self._initializing = False
             os.chdir(Path.home())
+
+        self.aboutToQuit.connect(self.unload)
 
     def run_jobs(self, job):
         plugin_name, action_name = job[0].split(".")
@@ -191,8 +197,8 @@ class NeonPlayerApp(QApplication):
         logging.info(f"Loading recording history from {history_path}")
         return json.loads(history_path.read_text())
 
-    def save_settings(self) -> None:
-        if self._initializing:
+    def save_settings(self, force: bool = False) -> None:
+        if self._initializing and not force:
             return
 
         try:
@@ -306,6 +312,7 @@ class NeonPlayerApp(QApplication):
             plugin = self.plugins_by_class[kls.__name__]
 
             plugin.on_disabled()
+            plugin.deleteLater()
             del self.plugins_by_class[kls.__name__]
             self.main_window.settings_panel.remove_plugin_settings(kls.__name__)
 
@@ -351,10 +358,17 @@ class NeonPlayerApp(QApplication):
 
     def unload(self) -> None:
         self.set_playback_state(False)
+        self.save_settings(force=True)
         class_names = list(self.plugins_by_class.keys())
+
+        timeline = self.main_window.timeline
+        timeline.disable_plot_sorting()
         for plugin_class_name in class_names:
             self.toggle_plugin(plugin_class_name, False)
+        timeline.enable_plot_sorting()
 
+        if self.recording is not None:
+            self.recording.close()
         self.recording = None
         self.recording_unloaded.emit()
 
@@ -372,36 +386,10 @@ class NeonPlayerApp(QApplication):
 
         self.main_window.on_recording_loaded(self.recording)
 
-        try:
-            settings_path = path / ".neon_player" / "settings.json"
-            if settings_path.exists():
-                logging.info(f"Loading recording settings from {settings_path}")
-                self.recording_settings = RecordingSettings.from_dict(
-                    json.loads(settings_path.read_text())
-                )
-
-                if len(self.recording_settings.export_window) != 2:
-                    logging.warning("Invalid export window in settings")
-                    self.recording_settings.export_window = (
-                        self.recording.start_time,
-                        self.recording.stop_time,
-                    )
-
-            else:
-                self.recording_settings = RecordingSettings()
-                self.recording_settings.export_window = (
-                    self.recording.start_time,
-                    self.recording.stop_time,
-                )
-
-        except Exception:
-            logging.exception("Failed to load settings")
-            self.recording_settings = RecordingSettings()
+        settings_path = path / ".neon_player" / "settings.json"
+        self.recording_settings = load_recording_settings(settings_path, self.recording)
         self.recording_settings.export_window_changed.connect(self.export_window_changed.emit)
-
-        logging.info(
-            "Recording settings loaded", self.recording_settings.enabled_plugins
-        )
+        logging.info("Recording settings loaded")
 
         if self.settings.skip_gray_frames_on_load:
             self.seek_to(self.recording.scene[0].time)
@@ -410,7 +398,7 @@ class NeonPlayerApp(QApplication):
 
         QTimer.singleShot(0, self.toggle_plugins_by_settings)
         QTimer.singleShot(10, self.on_recording_load_complete)
-        self.recording_settings.changed.connect(self.toggle_plugins_by_settings)
+        self.recording_settings.plugins_changed.connect(self.toggle_plugins_by_settings)
         SlotDebouncer.debounce(self.recording_settings.changed, self.save_settings)
 
     def on_recording_load_complete(self) -> None:
@@ -419,10 +407,14 @@ class NeonPlayerApp(QApplication):
         logging.info(f"Loaded `{self.recording._rec_dir}`")
 
     def toggle_plugins_by_settings(self) -> None:
+        timeline = self.main_window.timeline
+        timeline.disable_plot_sorting()
+
         for cls_name, enabled in self.recording_settings.enabled_plugins.items():
             state = self.recording_settings.plugin_states.get(cls_name, {})
             self.toggle_plugin(cls_name, enabled, state)
 
+        timeline.enable_plot_sorting()
         self._initializing = False
 
         if self.args.job:
@@ -597,3 +589,15 @@ class NeonPlayerApp(QApplication):
 
         self.recording_settings.export_window = export_window
         self.main_window.timeline.set_export_window(export_window)
+
+    def _setup_frozen(self) -> None:
+        if not is_frozen():
+            return
+
+        # NOTE: this is temporary fix for spurious ChainedAssignmentError warnings
+        # that appear only in the standalone app generated by Nuitka 2.7.16. When
+        # running from source, built-in plugins don't produce such warnings. Newer
+        # versions of Nuitka (>4.0) might fix this issue, but the app generated using
+        # Nuitka 4.3 segfaults on MacOS, requiring further investigation.
+        logging.debug("Disabling pandas.ChainedAssignmentError warnings")
+        warnings.simplefilter("ignore", ChainedAssignmentError)

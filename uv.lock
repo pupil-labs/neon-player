@@ -5,9 +5,12 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
     "python_full_version >= '3.14' and sys_platform == 'emscripten'",
     "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
-    "python_full_version < '3.14' and sys_platform == 'win32'",
-    "python_full_version < '3.14' and sys_platform == 'emscripten'",
-    "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'win32'",
+    "python_full_version < '3.12' and sys_platform == 'win32'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
+    "python_full_version < '3.12' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version < '3.12' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
 [[package]]
@@ -1012,6 +1015,43 @@ wheels = [
 ]
 
 [[package]]
+name = "numpy-typing-compat"
+version = "20251206.2.3"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.12' and sys_platform == 'win32'",
+    "python_full_version < '3.12' and sys_platform == 'emscripten'",
+    "python_full_version < '3.12' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+]
+dependencies = [
+    { name = "numpy", marker = "python_full_version < '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/77/83/dd90774d6685664cbe5525645a50c4e6c7454207aee552918790e879137f/numpy_typing_compat-20251206.2.3.tar.gz", hash = "sha256:18e00e0f4f2040fe98574890248848c7c6831a975562794da186cf4f3c90b935", size = 5009, upload-time = "2025-12-06T20:02:04.177Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/48/6f/dde8e2a79a3b6cbc31bc1037c1a1dbc07c90d52d946851bd7cba67e730a8/numpy_typing_compat-20251206.2.3-py3-none-any.whl", hash = "sha256:bfa2e4c4945413e84552cbd34a6d368c88a06a54a896e77ced760521b08f0f61", size = 6300, upload-time = "2025-12-06T20:01:56.664Z" },
+]
+
+[[package]]
+name = "numpy-typing-compat"
+version = "20260602.2.3"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14' and sys_platform == 'win32'",
+    "python_full_version >= '3.14' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'win32'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+]
+dependencies = [
+    { name = "numpy", marker = "python_full_version >= '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cc/1b/c3906ddf31b083d73ac93ca2fdee5f4db6cb3bddd18ceff4ebd49b720726/numpy_typing_compat-20260602.2.3.tar.gz", hash = "sha256:f06c8aaca9fa6a9047a7aba5474a7e33870b954544ff276de000dad68c640fbf", size = 4597, upload-time = "2026-06-02T15:52:37.686Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/15/b2/99c1f33f85198d504edb0e1ff5342c3af6ecf2cd5b71d4529fdd05f837c9/numpy_typing_compat-20260602.2.3-py3-none-any.whl", hash = "sha256:2fa13965f068e2ecc7dec9a1883e1381ea506f1d19d435399dde88fc68f0da01", size = 5882, upload-time = "2026-06-02T15:52:32.108Z" },
+]
+
+[[package]]
 name = "numpyencoder"
 version = "0.3.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1040,6 +1080,64 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/fd/55/b3b49a1b97aabcfbbd6c7326df9cb0b6fa0c0aefa8e89d500939e04aa229/opencv_python-4.13.0.92-cp37-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:620d602b8f7d8b8dab5f4b99c6eb353e78d3fb8b0f53db1bd258bb1aa001c1d5", size = 72927042, upload-time = "2026-02-05T06:59:23.389Z" },
     { url = "https://files.pythonhosted.org/packages/fb/17/de5458312bcb07ddf434d7bfcb24bb52c59635ad58c6e7c751b48949b009/opencv_python-4.13.0.92-cp37-abi3-win32.whl", hash = "sha256:372fe164a3148ac1ca51e5f3ad0541a4a276452273f503441d718fab9c5e5f59", size = 30932638, upload-time = "2026-02-05T07:02:14.98Z" },
     { url = "https://files.pythonhosted.org/packages/e9/a5/1be1516390333ff9be3a9cb648c9f33df79d5096e5884b5df71a588af463/opencv_python-4.13.0.92-cp37-abi3-win_amd64.whl", hash = "sha256:423d934c9fafb91aad38edf26efb46da91ffbc05f3f59c4b0c72e699720706f5", size = 40212062, upload-time = "2026-02-05T07:02:12.724Z" },
+]
+
+[[package]]
+name = "opencv-stubs"
+version = "0.1.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0b/f4/8cdf24683aae51ad94e443b2b8482a117d7ecf8d6663be8877ec490a73e9/opencv_stubs-0.1.3.tar.gz", hash = "sha256:25b74af6bd7903340587e0fdc7d49ced0d159b56bbc598e5a58d5f3a01549e1c", size = 376250, upload-time = "2026-02-17T12:48:51.53Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/62/8b/6041723a40fedc5092bf39a91f0daa0410ebaa09763f07385a01871309bb/opencv_stubs-0.1.3-py3-none-any.whl", hash = "sha256:37074b00ede8ec9e2e2b0e77d02277841421606520327087580309e968e45bfc", size = 365107, upload-time = "2026-02-17T12:48:50.042Z" },
+]
+
+[[package]]
+name = "optype"
+version = "0.17.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.12' and sys_platform == 'win32'",
+    "python_full_version < '3.12' and sys_platform == 'emscripten'",
+    "python_full_version < '3.12' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+]
+dependencies = [
+    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9b/86/e6f1f6f3487492dfcf3b7a2d4e2534d27af6ac05b364b276706906c34865/optype-0.17.1.tar.gz", hash = "sha256:07bfa32b795dea28fba8605a6288d36370d072f25183fb9c29b5a90f4b6f5638", size = 53572, upload-time = "2026-05-17T22:13:28.725Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2f/d4/c6a2b043e33f0dd012486dcebe0593585588d400175d22aad42049c88321/optype-0.17.1-py3-none-any.whl", hash = "sha256:82f2508ca31cb21e53a41648482d890fe1f5c6cb153720551af41161555adaf1", size = 65954, upload-time = "2026-05-17T22:13:27.549Z" },
+]
+
+[package.optional-dependencies]
+numpy = [
+    { name = "numpy", marker = "python_full_version < '3.12'" },
+    { name = "numpy-typing-compat", version = "20251206.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+]
+
+[[package]]
+name = "optype"
+version = "0.18.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14' and sys_platform == 'win32'",
+    "python_full_version >= '3.14' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'win32'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+]
+dependencies = [
+    { name = "typing-extensions", marker = "python_full_version == '3.12.*'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/99/51/51dc9b1009e020f44703933d4d1ee3429c647c026ce7806b37ee2b257998/optype-0.18.0.tar.gz", hash = "sha256:ea10dee61b15ca299ed0d97025d362585c4dfc5481159bb999a1d0d414bbcb04", size = 59967, upload-time = "2026-06-07T22:13:17.534Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5b/91/2b064a117cb2593bc3eb04ee994134ca2a6bf2162c92961769947e3258cc/optype-0.18.0-py3-none-any.whl", hash = "sha256:91822ed8516e7a4f225ba53d30f291776c35f31553fb952d7cda98286679c5a6", size = 73410, upload-time = "2026-06-07T22:13:16.324Z" },
+]
+
+[package.optional-dependencies]
+numpy = [
+    { name = "numpy", marker = "python_full_version >= '3.12'" },
+    { name = "numpy-typing-compat", version = "20260602.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 
 [[package]]
@@ -1127,6 +1225,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/e4/a5/2f6ed612056819de445a433ca1f2821ac3dab7f150d569a59e9cc105de1d/pandas-3.0.2-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:734be7551687c00fbd760dc0522ed974f82ad230d4a10f54bf51b80d44a08702", size = 11815274, upload-time = "2026-03-31T06:48:22.695Z" },
     { url = "https://files.pythonhosted.org/packages/00/2f/b622683e99ec3ce00b0854bac9e80868592c5b051733f2cf3a868e5fea26/pandas-3.0.2-cp314-cp314t-win_amd64.whl", hash = "sha256:57a07209bebcbcf768d2d13c9b78b852f9a15978dac41b9e6421a81ad4cdd276", size = 10888530, upload-time = "2026-03-31T06:48:25.806Z" },
     { url = "https://files.pythonhosted.org/packages/cb/2b/f8434233fab2bd66a02ec014febe4e5adced20e2693e0e90a07d118ed30e/pandas-3.0.2-cp314-cp314t-win_arm64.whl", hash = "sha256:5371b72c2d4d415d08765f32d689217a43227484e81b2305b52076e328f6f482", size = 9455341, upload-time = "2026-03-31T06:48:28.418Z" },
+]
+
+[[package]]
+name = "pandas-stubs"
+version = "3.0.3.260530"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3d/aa/c41a8a0ff86fd85dbb3ec0c1f3fa488ca64a8b5f82654ae1b07d84acefe5/pandas_stubs-3.0.3.260530.tar.gz", hash = "sha256:d1efe47b2e5a312c047d7feabec5cb7a55365747983420077e9fcbe9ab74f714", size = 113183, upload-time = "2026-05-30T17:47:40.34Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0b/e0/99ec5b02203c4e9ce878bc63d8caa06ac1f891e4d63bded9a5ced70fcb4f/pandas_stubs-3.0.3.260530-py3-none-any.whl", hash = "sha256:a6277eb1c8cebf48d9b2413fcd2e9a6b4ff479c934a223c29eacbc3058c4cb55", size = 173780, upload-time = "2026-05-30T17:47:39.13Z" },
 ]
 
 [[package]]
@@ -1240,15 +1350,15 @@ wheels = [
 
 [[package]]
 name = "pupil-labs-camera"
-version = "1.1.0"
+version = "1.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
     { name = "opencv-python" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/64/73/9d763de609619fbe4edd63af955a116e9abacd8d5454927505508ae06c02/pupil_labs_camera-1.1.0.tar.gz", hash = "sha256:537d74f38884993eba20f5de672618512e28e605f57809e2840d9ec39deefce3", size = 1592816, upload-time = "2025-12-19T13:48:40.985Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4c/3c/2dd77dc52009886dacd6edcb44da2c7cd941be60685bf55a8165fc867743/pupil_labs_camera-1.2.1.tar.gz", hash = "sha256:29cbff5b9c7b31d7e034be8086ceeb5e71d24ed681257625ec97156981781c6f", size = 1708922, upload-time = "2026-09-01T10:19:29.036Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/88/df/a4649fb73bfeb5499fb3930597dbb528f733684d730826473a84a4abee4f/pupil_labs_camera-1.1.0-py3-none-any.whl", hash = "sha256:ab2b132f07261ef069bcfc3565c95ba09383dbddf7e477ad7f7fa6155764199d", size = 184585, upload-time = "2025-12-19T13:48:39.374Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/ec/8fbc0895c4ecfb529d7b9b77fb436434aa50a06b13a5b2683d43ff8e0cd7/pupil_labs_camera-1.2.1-py3-none-any.whl", hash = "sha256:b3f66bba702ea1a029a7baace5871a9614dfa06489f5b6f9814c24c2ae32e0b0", size = 185602, upload-time = "2026-09-01T10:19:27.315Z" },
 ]
 
 [[package]]
@@ -1276,6 +1386,7 @@ dependencies = [
     { name = "numpy" },
     { name = "numpyencoder" },
     { name = "opencv-python" },
+    { name = "packaging" },
     { name = "pandas" },
     { name = "protobuf" },
     { name = "pupil-apriltags" },
@@ -1285,6 +1396,7 @@ dependencies = [
     { name = "pyobjc", marker = "sys_platform == 'darwin'" },
     { name = "pyqtgraph" },
     { name = "pyside6" },
+    { name = "pyxdf" },
     { name = "qt-property-widgets" },
     { name = "scipy" },
     { name = "setuptools" },
@@ -1306,9 +1418,14 @@ dev = [
     { name = "mkdocs-minify-plugin" },
     { name = "mkdocstrings", extra = ["python"] },
     { name = "mypy" },
+    { name = "opencv-stubs" },
+    { name = "pandas-stubs" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pytest-qt" },
+    { name = "scipy-stubs", version = "1.17.1.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "scipy-stubs", version = "1.18.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "tox-uv" },
 ]
 
@@ -1319,16 +1436,18 @@ requires-dist = [
     { name = "numpy", specifier = "<2.4.0" },
     { name = "numpyencoder", specifier = ">=0.3.2" },
     { name = "opencv-python", specifier = ">=4.11.0.86" },
+    { name = "packaging", specifier = ">=26.1" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "protobuf", specifier = "<6" },
     { name = "pupil-apriltags", specifier = ">=1.0.4.post11" },
     { name = "pupil-labs-marker-mapper", specifier = ">=1.0.0" },
-    { name = "pupil-labs-neon-recording", specifier = ">=2.1.4" },
-    { name = "pupil-labs-video", specifier = ">=1.0.11" },
+    { name = "pupil-labs-neon-recording", specifier = "==2.1.6" },
+    { name = "pupil-labs-video", specifier = ">=1.0.13" },
     { name = "pyobjc", marker = "sys_platform == 'darwin'" },
     { name = "pyqtgraph", specifier = ">=0.13.7" },
     { name = "pyside6", specifier = ">=6.10.2" },
-    { name = "qt-property-widgets", git = "https://github.com/domstoppable/qt-property-widgets" },
+    { name = "pyxdf", specifier = ">=1.17.5" },
+    { name = "qt-property-widgets", specifier = ">=0.10.0" },
     { name = "scipy", specifier = ">=1.15.2" },
     { name = "setuptools", specifier = ">=78.1.0" },
     { name = "tqdm", specifier = ">=4.67.1" },
@@ -1350,16 +1469,20 @@ dev = [
     { name = "mkdocs-minify-plugin", specifier = ">=0.8" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.25" },
     { name = "mypy", specifier = ">=0.991" },
+    { name = "opencv-stubs", specifier = ">=0.1.3" },
+    { name = "pandas-stubs", specifier = ">=3.0.3.260530" },
     { name = "pre-commit", specifier = ">=2.20.0" },
     { name = "pytest", specifier = ">=8.2" },
     { name = "pytest-cov", specifier = ">=4.0.0" },
+    { name = "pytest-qt", specifier = ">=4.5.0" },
+    { name = "scipy-stubs", specifier = ">=1.17.1.5" },
     { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0" },
     { name = "tox-uv", specifier = ">=1.11.3" },
 ]
 
 [[package]]
 name = "pupil-labs-neon-recording"
-version = "2.1.4"
+version = "2.1.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
@@ -1369,23 +1492,23 @@ dependencies = [
     { name = "pupil-labs-video" },
     { name = "universal-pathlib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e4/54/76737ab8c779aea34756b8e39fd9cdc5a6faae815648b708741bb4b061d9/pupil_labs_neon_recording-2.1.4.tar.gz", hash = "sha256:4418a2a1e31bfd5794562d31c1c0056f56f9ffa66a647a6388e28ec8cc48a87e", size = 1360909, upload-time = "2026-04-15T13:58:50.913Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/86/11/b73b3088607508dde289999da475fd86bd8bfb0046a60985fe66f34b799e/pupil_labs_neon_recording-2.1.6.tar.gz", hash = "sha256:59c65d17ee3ed4e45eecee3b2a86bdb0d791ac41b8d908b70850a5f1e49a7041", size = 1361621, upload-time = "2026-09-03T10:28:54.477Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ab/ff/e25f4f5b9ece453a1537048bace2a05bf0b7b9dd9591c7b1f4b6c0947d70/pupil_labs_neon_recording-2.1.4-py3-none-any.whl", hash = "sha256:c53e928a624a412be0c694e4b09883e8009fe5049fac9faedd8d60840f046153", size = 28201, upload-time = "2026-04-15T13:58:49.558Z" },
+    { url = "https://files.pythonhosted.org/packages/f8/e5/b4c8db95a5f14aa757a0a6b4c94ba640b791eac89ff92842213cb1e9f63b/pupil_labs_neon_recording-2.1.6-py3-none-any.whl", hash = "sha256:56612aebfca0ba17768f0bce692d10deb0433a41679ed4ffdc5ee7b2f8c7277c", size = 28583, upload-time = "2026-09-03T10:28:52.98Z" },
 ]
 
 [[package]]
 name = "pupil-labs-video"
-version = "1.0.11"
+version = "1.0.13"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "av" },
     { name = "numpy" },
     { name = "universal-pathlib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f5/ba/e09a8b0647a97a0d60e687c7aacf9e80bb59d90c753cfe40fe4676f42867/pupil_labs_video-1.0.11.tar.gz", hash = "sha256:71616c5c983e769a8a540748c81c674c75643b6d799c043c29173eb8d3107a9f", size = 323592, upload-time = "2026-04-14T13:57:38.623Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8b/5e/059dfef3a1a8cf22c01faa84cfaa9d895a195544749d0d8684a02e9f401b/pupil_labs_video-1.0.13.tar.gz", hash = "sha256:7fee344732baea2758325bc964f2cdc6ebd1a9a7c5feaedfac65b25b2280f305", size = 323692, upload-time = "2026-06-24T08:01:54.276Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/57/b7/b92692589fe3a2a2cf7be34e71d2cfe061a7a7423ddd7abfee3bfebd6700/pupil_labs_video-1.0.11-py3-none-any.whl", hash = "sha256:362e60aee62ec9d02ee9c9321b2cdc13b1a85307d044bbbb6e43ddb8b5c19e91", size = 21601, upload-time = "2026-04-14T13:57:37.118Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/64/2226ba7c935b79a4052cdff4680d5d66bb90db1cdf7c81068179da10ddb8/pupil_labs_video-1.0.13-py3-none-any.whl", hash = "sha256:4e94fc1b30b6eba43eb8f858a07e18705e5d9e1609f374aaa1cdd779ec31e80d", size = 21705, upload-time = "2026-06-24T08:01:52.709Z" },
 ]
 
 [[package]]
@@ -4309,6 +4432,20 @@ wheels = [
 ]
 
 [[package]]
+name = "pytest-qt"
+version = "4.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pluggy" },
+    { name = "pytest" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d3/61/8bdec02663c18bf5016709b909411dce04a868710477dc9b9844ffcf8dd2/pytest_qt-4.5.0.tar.gz", hash = "sha256:51620e01c488f065d2036425cbc1cbcf8a6972295105fd285321eb47e66a319f", size = 128702, upload-time = "2025-07-01T17:24:39.889Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cc/d0/8339b888ad64a3d4e508fed8245a402b503846e1972c10ad60955883dcbb/pytest_qt-4.5.0-py3-none-any.whl", hash = "sha256:ed21ea9b861247f7d18090a26bfbda8fb51d7a8a7b6f776157426ff2ccf26eff", size = 37214, upload-time = "2025-07-01T17:24:38.226Z" },
+]
+
+[[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
 source = { registry = "https://pypi.org/simple" }
@@ -4331,6 +4468,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/de/ef/3bae0e537cfe91e8431efcba4434463d2c5a65f5a89edd47c6cf2f03c55f/python_discovery-1.2.2.tar.gz", hash = "sha256:876e9c57139eb757cb5878cbdd9ae5379e5d96266c99ef731119e04fffe533bb", size = 58872, upload-time = "2026-04-07T17:28:49.249Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d8/db/795879cc3ddfe338599bddea6388cc5100b088db0a4caf6e6c1af1c27e04/python_discovery-1.2.2-py3-none-any.whl", hash = "sha256:e1ae95d9af875e78f15e19aed0c6137ab1bb49c200f21f5061786490c9585c7a", size = 31894, upload-time = "2026-04-07T17:28:48.09Z" },
+]
+
+[[package]]
+name = "pyxdf"
+version = "1.17.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f6/e9/0e34f94f443fa88d70ddce91d4f3fbce319165dee09309e6ba6029cb1eda/pyxdf-1.17.5.tar.gz", hash = "sha256:97ab76e066855ed2233ebd8a2b046ea01306c5846a9471194c6dbc7e3a6a7bf4", size = 35635, upload-time = "2026-06-15T15:25:56.416Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/92/26/40408ec2d50b5a3794c1fbace10ca36882eb0d97bc2633d76e4edfb29efe/pyxdf-1.17.5-py3-none-any.whl", hash = "sha256:3162772dba88ed4516956f91ec05ea87b8c93387a403dacb7497ffcd0ee345af", size = 21577, upload-time = "2026-06-15T15:25:57.323Z" },
 ]
 
 [[package]]
@@ -4402,10 +4551,14 @@ wheels = [
 
 [[package]]
 name = "qt-property-widgets"
-version = "0.0.0.post63.dev0+0ad46c3"
-source = { git = "https://github.com/domstoppable/qt-property-widgets#0ad46c373edb538092a059ccbbbabff454b6bd04" }
+version = "0.10.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyside6" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/87/fb/0450fb26962a1df426e3be07a1a85037f959f142fd0dac097c0b67ecb23d/qt_property_widgets-0.10.0.tar.gz", hash = "sha256:ae596f8cf89d9258de6e8549cda1da9a32f8e2c1bc433ca71eff6193275bc1d9", size = 85868, upload-time = "2026-10-07T11:04:13.063Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/0b/59da2a4e70f55cff9ff47839511587cf198b37c46d20014cba82dde08970/qt_property_widgets-0.10.0-py3-none-any.whl", hash = "sha256:979a67022190257bd3438b6e7b7cac21553cc9075bd732841fda35e3e1df4179", size = 28413, upload-time = "2026-10-07T11:04:11.697Z" },
 ]
 
 [[package]]
@@ -4504,6 +4657,43 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/52/52/e57eceff0e342a1f50e274264ed47497b59e6a4e3118808ee58ddda7b74a/scipy-1.17.1-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:a77cbd07b940d326d39a1d1b37817e2ee4d79cb30e7338f3d0cddffae70fcaa2", size = 37682317, upload-time = "2026-02-23T00:22:18.513Z" },
     { url = "https://files.pythonhosted.org/packages/11/2f/b29eafe4a3fbc3d6de9662b36e028d5f039e72d345e05c250e121a230dd4/scipy-1.17.1-cp314-cp314t-win_amd64.whl", hash = "sha256:eb092099205ef62cd1782b006658db09e2fed75bffcae7cc0d44052d8aa0f484", size = 37345327, upload-time = "2026-02-23T00:22:24.442Z" },
     { url = "https://files.pythonhosted.org/packages/07/39/338d9219c4e87f3e708f18857ecd24d22a0c3094752393319553096b98af/scipy-1.17.1-cp314-cp314t-win_arm64.whl", hash = "sha256:200e1050faffacc162be6a486a984a0497866ec54149a01270adc8a59b7c7d21", size = 25489165, upload-time = "2026-02-23T00:22:29.563Z" },
+]
+
+[[package]]
+name = "scipy-stubs"
+version = "1.17.1.5"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.12' and sys_platform == 'win32'",
+    "python_full_version < '3.12' and sys_platform == 'emscripten'",
+    "python_full_version < '3.12' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+]
+dependencies = [
+    { name = "optype", version = "0.17.1", source = { registry = "https://pypi.org/simple" }, extra = ["numpy"], marker = "python_full_version < '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/02/30/7a2e621918d1317ab972f797161131f2635648ad5d92baf0695dd009e4f9/scipy_stubs-1.17.1.5.tar.gz", hash = "sha256:284b1dd1dd46107a614971d170030d310cd88b2ac6b483f85285ee0ff87720bd", size = 399933, upload-time = "2026-05-25T21:34:33.6Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/26/d4bc2ba3427a623f79a6c10c8f427c7a55b56eb8b3eddc369319d97f741b/scipy_stubs-1.17.1.5-py3-none-any.whl", hash = "sha256:58ebf054a86c000c72e8982e121c4ead0d3d9ba7a6c38aa5fa71b07f96a427fd", size = 607388, upload-time = "2026-05-25T21:34:32.073Z" },
+]
+
+[[package]]
+name = "scipy-stubs"
+version = "1.18.0.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14' and sys_platform == 'win32'",
+    "python_full_version >= '3.14' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'win32'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+]
+dependencies = [
+    { name = "optype", version = "0.18.0", source = { registry = "https://pypi.org/simple" }, extra = ["numpy"], marker = "python_full_version >= '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e5/9b/6cb11393563241c79b74e035c1d697329d1dce1635565e40b0085d56a2fe/scipy_stubs-1.18.0.0.tar.gz", hash = "sha256:a1fc917da66e4d338998839170e218754a669f6455c24243890a1e572bde98f6", size = 402538, upload-time = "2026-06-19T10:56:39.57Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e9/b4/82d4de656500722dea533151b88f926672341b46289cc31eb2e2c1c7c1d7/scipy_stubs-1.18.0.0-py3-none-any.whl", hash = "sha256:872ec1066a75feb5c5d8451231e8f7826d08d53fb806c526abd5f97bb1ba29fb", size = 608175, upload-time = "2026-06-19T10:56:37.905Z" },
 ]
 
 [[package]]

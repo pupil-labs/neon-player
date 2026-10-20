@@ -23,16 +23,18 @@ dependencies = [
     "numpy<2.4.0",
     "numpyencoder>=0.3.2",
     "opencv-python>=4.11.0.86",
+    "packaging>=26.1",
     "pandas>=2.2.3",
     "protobuf<6",
     "pupil-apriltags>=1.0.4.post11",
     "pupil-labs-marker-mapper>=1.0.0",
-    "pupil-labs-neon-recording>=2.1.4",
-    "pupil-labs-video>=1.0.11",
+    "pupil-labs-neon-recording==2.1.6",
+    "pupil-labs-video>=1.0.13",
     "pyobjc; sys_platform == 'darwin'",
     "pyqtgraph>=0.13.7",
     "pyside6>=6.10.2",
-    "qt-property-widgets",
+    "pyxdf>=1.17.5",
+    "qt-property-widgets>=0.10.0",
     "scipy>=1.15.2",
     "setuptools>=78.1.0",
     "tqdm>=4.67.1",
@@ -54,17 +56,17 @@ neon-player = "pupil_labs.neon_player.main:main"
 [tool.uv]
 dev-dependencies = [
     "pytest>=8.2",
+    "pytest-qt>=4.5.0",
     "pre-commit>=2.20.0",
     "mypy>=0.991",
     "deptry>=0.20.0",
     "tox-uv>=1.11.3",
     "pytest-cov>=4.0.0",
-
     # stubs
-    # "opencv-stubs",
+    "pandas-stubs>=3.0.3.260530",
+    "scipy-stubs>=1.17.1.5",
+    "opencv-stubs>=0.1.3",
     # "types-protobuf",
-    # "pandas-stubs",
-
     # docs
     "markdown-callouts>=0.4",
     "markdown-exec>=1.8",
@@ -79,10 +81,8 @@ dev-dependencies = [
     "mkdocstrings[python]>=0.25",
     # YORE: EOL 3.10: Remove line.
     "tomli>=2.0; python_version < '3.11'",
+    "scipy-stubs>=1.17.1.5",
 ]
-
-[tool.uv.sources]
-qt-property-widgets = { git = "https://github.com/domstoppable/qt-property-widgets" }
 
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]

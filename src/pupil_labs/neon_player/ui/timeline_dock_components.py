@@ -232,11 +232,12 @@ class TimestampLabel(QLabel):
 
 
 class SmartSizePlotItem(pg.PlotItem):
-    def __init__(self, legend, *args, **kwargs) -> None:
+    def __init__(self, legend, row_name, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
         self.setDownsampling(auto=True, mode='subsample')
         self.legend_handle = legend
+        self.row_name = row_name
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
@@ -354,7 +355,7 @@ class PlayHead(PlotOverlay):
 
 class TrimEndMarker(QGraphicsEllipseItem):
     def __init__(self, time, plot: pg.PlotItem, *args, **kwargs) -> None:
-        super().__init__(0, -1, 0, 2, *args, **kwargs)
+        super().__init__(time, -1, 0, 2, *args, **kwargs)
         self._time = time
         self._plot = plot
 
