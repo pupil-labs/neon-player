@@ -7,12 +7,14 @@ from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRect, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFontMetrics,
+    QKeyEvent,
     QPaintEvent,
     QPainter,
     QPen,
     QPolygon,
 )
 from PySide6.QtWidgets import (
+    QApplication,
     QGraphicsEllipseItem,
     QGraphicsRectItem,
     QGraphicsSceneMouseEvent,
@@ -414,7 +416,14 @@ class TimelineHoverMarker(PlotOverlay):
 
         self._viewport = parent.viewport()
         self._viewport.installEventFilter(self)
+        application = QApplication.instance()
+        if application is None:
+            raise RuntimeError("TimelineHoverMarker requires a QApplication")
+
+        self._application = application
+        self._application_filter_installed = False
         linked_plot.vb.sigRangeChanged.connect(self._on_range_changed)
+        self.raw_timestamp = False
 
     def refresh_geometry(self) -> None:
         super().refresh_geometry()
@@ -436,13 +445,38 @@ class TimelineHoverMarker(PlotOverlay):
         self.cursor_time = time
         if time is None:
             self.hide()
+            if self._application_filter_installed:
+                self._application.removeEventFilter(self)
+                self._application_filter_installed = False
         else:
+            self.raw_timestamp = bool(
+                QApplication.keyboardModifiers() & Qt.KeyboardModifier.AltModifier
+            )
+            if not self._application_filter_installed:
+                self._application.installEventFilter(self)
+                self._application_filter_installed = True
             self.update()
             self.show()
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if watched is self._viewport and event.type() == QEvent.Type.Leave:
+        if (
+            getattr(self, "_viewport", None) is watched
+            and event.type() == QEvent.Type.Leave
+        ):
             self.set_cursor_time(None)
+        elif (
+            event.type() in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease)
+            and isinstance(event, QKeyEvent)
+        ):
+            if event.key() == Qt.Key.Key_Alt:
+                self.raw_timestamp = event.type() == QEvent.Type.KeyPress
+                self.update()
+        elif event.type() in (
+            QEvent.Type.ApplicationDeactivate,
+            QEvent.Type.WindowDeactivate,
+        ):
+            self.raw_timestamp = False
+            self.update()
 
         return super().eventFilter(watched, event)
 
@@ -459,12 +493,7 @@ class TimelineHoverMarker(PlotOverlay):
         x = min(max(x, 0), self.width() - 1)
 
         painter = QPainter(self)
-        label = format_timestamp_ns(
-            self.cursor_time,
-            origin_ns=self.time_axis.recording_start_time_ns,
-            always_show_hours=True,
-            show_milliseconds=True,
-        )
+        label = self._format_cursor_label(self.cursor_time)
         font_metrics = QFontMetrics(self.font())
         badge_width = min(
             self.width(),
@@ -487,7 +516,6 @@ class TimelineHoverMarker(PlotOverlay):
             Qt.AlignmentFlag.AlignCenter,
             label,
         )
-
         painter.setPen(
             QPen(
                 QColor(255, 255, 255, 128),
@@ -497,6 +525,17 @@ class TimelineHoverMarker(PlotOverlay):
         )
         painter.drawLine(x, self.AXIS_STRIP_HEIGHT, x, self.height())
         painter.end()
+
+    def _format_cursor_label(self, timestamp_ns: int) -> str:
+        if self.raw_timestamp:
+            return str(timestamp_ns)
+
+        return format_timestamp_ns(
+            timestamp_ns,
+            origin_ns=self.time_axis.recording_start_time_ns,
+            always_show_hours=True,
+            show_milliseconds=True,
+        )
 
 
 class TrimEndMarker(QGraphicsEllipseItem):
