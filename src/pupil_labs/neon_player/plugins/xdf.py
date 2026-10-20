@@ -21,7 +21,7 @@ from typing import Any, Callable, Literal, Optional
 from collections.abc import Iterator
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player import Plugin, action
+from pupil_labs.neon_player import Plugin, action, asset_path
 from pupil_labs.neon_player.job_manager import BackgroundJob, ProgressUpdate
 from pupil_labs.neon_player.plugins.events import _load_events_from_recording, EventsPlugin
 from pupil_labs.neon_recording import NeonRecording
@@ -1074,7 +1074,7 @@ class XDFPlugin(Plugin):
         logging.info(f"Exported {len(df)} samples of XDF data to {export_file}")
 
     @action
-    @action_params(compact=True, icon=QIcon.fromTheme("help-about"))
+    @action_params(compact=True, icon=QIcon(str(asset_path("info.svg"))))
     def debug_events(self) -> None:
         if not self.recording:
             return
@@ -1101,7 +1101,7 @@ class XDFPlugin(Plugin):
             logging.info(f"XDF: '{name}' @ {offset_ts} (ts={xdf_ts})")
 
     @action
-    @action_params(compact=True, icon=QIcon.fromTheme("edit-select-all"))
+    @action_params(compact=True, icon=QIcon(str(asset_path("done_all.svg"))))
     def enable_all_channels(self) -> None:
         if not self.data_stream or not self.data_stream.loaded:
             return
@@ -1109,7 +1109,7 @@ class XDFPlugin(Plugin):
         self.channels = {name: True for name in self.data_stream.channel_names}
 
     @action
-    @action_params(compact=True, icon=QIcon.fromTheme("edit-clear"))
+    @action_params(compact=True, icon=QIcon(str(asset_path("cancel.svg"))))
     def disable_all_channels(self) -> None:
         if not self.data_stream or not self.data_stream.loaded:
             return
