@@ -55,13 +55,42 @@ from pupil_labs.neon_player.utilities import SlotDebouncer, clone_menu
 
 
 class NeonPlayerApp(QApplication):
-    export_window_changed = Signal(tuple[int, int])
-    playback_state_changed = Signal(bool)
-    position_changed = Signal(object)
-    seeked = Signal(object)
-    speed_changed = Signal(float)
-    recording_loaded = Signal(object)
-    recording_unloaded = Signal()
+    """Main Neon Player application."""
+
+    export_window_changed: Signal = Signal(tuple[int, int])
+    """Emitted when the export window changes.
+
+    Signal parameter contains the start and end timestamps of
+    the export window in nanoseconds."""
+
+    playback_state_changed: Signal = Signal(bool)
+    """Emitted when the playback state changes.
+
+    Signal parameter is ``True`` if the app is currently playing
+    back a recording, and ``False`` otherwise."""
+
+    position_changed: Signal = Signal(object)
+    """Emitted when the current timestamp changes.
+
+    Signal parameter contains the current timestamp in nanoseconds."""
+
+    seeked: Signal = Signal(object)
+    """Emitted after a seek to a timestamp.
+
+    Signal parameter contains the current timestamp in nanoseconds."""
+
+    speed_changed: Signal = Signal(float)
+    """Emitted when playback speed changes.
+
+    Signal parameter contains the current playback speed as a multiplier."""
+
+    recording_loaded: Signal = Signal(object)
+    """Emitted after a Neon recording is opened.
+
+    Signal parameter contains the newly opened Neon recording."""
+
+    recording_unloaded: Signal = Signal()
+    """Emitted after the currently opened recording is closed."""
 
     def __init__(self, argv: list[str]) -> None:
         self._initializing = True
@@ -84,12 +113,15 @@ class NeonPlayerApp(QApplication):
         self.plugins_by_class: dict[str, Plugin] = {}
         self.plugins: list[Plugin] = []
         self.recording: nr.NeonRecording | None = None
+        """Currently opened Neon recording, if any."""
         self.playback_start_anchor = 0
-        self.current_ts = 0
-        self.playback_speed_options = [
+        self.current_ts: int = 0
+        """Current timestamp in nanoseconds."""
+        self.playback_speed_options: list[float] = [
             -4.0, -2.0, -1.0, -0.5, -0.25, -0.125, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0
         ]
-        self.playback_speed = 1.0
+        self.playback_speed: float = 1.0
+        """Playback speed as a multiplier; negative values play backward."""
 
         self.settings = GeneralSettings()
         self.loading_recording = False
@@ -350,10 +382,21 @@ class NeonPlayerApp(QApplication):
         | QIcon = QSystemTrayIcon.MessageIcon.Information,
         duration: int = 10000,
     ) -> None:
+        """Show a system notification.
+
+        Args:
+            title: Short notification heading.
+            message: Notification text.
+            icon: Icon to show with the notification.
+            duration: How long to show it, in milliseconds.
+        """
         self.tray_icon.showMessage(title, message, icon, duration)
 
     @property
     def headless(self) -> bool:
+        """Report whether the application is running a background or command-line
+        job.
+        """
         return self.args.job is not None
 
     def unload(self) -> None:
@@ -441,6 +484,10 @@ class NeonPlayerApp(QApplication):
         self.playback_state_changed.emit(self.refresh_timer.isActive())
 
     def set_playback_speed(self, speed: float) -> None:
+        """Set the playback rate; negative values play the recording backward.
+
+        Args:
+            speed: The desired playback speed."""
         self.playback_speed = speed
         self._reset_start_anchor()
         self.speed_changed.emit(speed)
@@ -465,6 +512,11 @@ class NeonPlayerApp(QApplication):
         self.playback_start_anchor = now - elapsed_time
 
     def set_playback_state(self, playing: bool) -> None:
+        """Start or pause playback.
+
+        Args:
+            playing: Whether the app should be playing back the recording.
+        """
         if self.is_playing != playing:
             self.toggle_play()
 
@@ -495,6 +547,12 @@ class NeonPlayerApp(QApplication):
         self.position_changed.emit(self.current_ts)
 
     def seek_to(self, ts: int) -> None:
+        """Move the playhead to a timestamp.
+
+        Args:
+            ts: Timestamp in nanoseconds. The provided value is clamped to the
+                boundaries (start/stop time) of the opened recording.
+        """
         if self.recording is None:
             return
 
@@ -570,15 +628,30 @@ class NeonPlayerApp(QApplication):
 
     @property
     def is_playing(self) -> bool:
+        """Report whether playback is currently running."""
         return self.refresh_timer.isActive()
 
     def get_export_window(self) -> tuple[int, int] | None:
+        """Get the start and end timestamps of the current export window.
+
+        Returns:
+            The ``(start, end)`` timestamp pair (in nanoseconds), or ``None``
+            if no recording is open.
+        """
         if self.recording is None:
             return None
 
         return self.recording_settings.export_window
 
     def set_export_window(self, export_window: tuple[int, int]) -> None:
+        """Set the export window.
+
+        Args:
+            export_window: ``(start, end)`` timestamps in nanoseconds.
+
+        Raises:
+            ValueError: If the value is not a two-item tuple.
+        """
         if self.recording is None:
             return
 

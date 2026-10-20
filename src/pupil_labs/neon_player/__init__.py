@@ -18,12 +18,25 @@ LOG_FORMAT_STRING = (
 
 
 def instance() -> "NeonPlayerApp":
+    """Return the running Neon Player application instance.
+
+    Within the plugin implementation, it is recommended to use the
+    [`Plugin.app`][pupil_labs.neon_player.Plugin.app]
+    field to access the main application."""
     from pupil_labs.neon_player.app import NeonPlayerApp
 
     return NeonPlayerApp.instance()
 
 
 def action(func: T.Callable) -> T.Any:
+    """Mark a plugin method as an action that users can run.
+
+    Apply this decorator to methods that should appear as plugin actions. For
+    each action, a corresponding button is added to the plugin settings.
+
+    Args:
+        func: Plugin method to make available as an action.
+    """
     @functools.wraps(func)
     def wrapper(*args: T.Any, **kwargs: T.Any) -> T.Any:
         return func(*args, **kwargs)

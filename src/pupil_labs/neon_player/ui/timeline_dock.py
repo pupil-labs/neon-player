@@ -41,6 +41,29 @@ from pupil_labs.neon_player.utilities import clone_menu
 
 
 class TimeLineDock(QWidget):
+    """Displays the data as the plots in the Timeline dock.
+
+    The timeline rows are currently sorted based on the following criteria:
+
+    - plot type: horizontal bar plots, scatter plots, line plots
+    - row name: in alphabetical order within each plot type
+
+    !!! warning
+
+        The sorting is performed automatically for each added or removed plot.
+        When adding or removing multiple rows, [disable][disable_plot_sorting]
+        and later [re-enable][enable_plot_sorting] the sorting for better performance:
+
+        ```py
+        timeline = self.get_timeline()
+        was_sorting_enabled = timeline.disable_plot_sorting()
+
+        # add / remove timeline rows
+
+        if was_sorting_enabled:
+            timeline.enable_plot_sorting()
+        ```
+    """
     key_pressed = Signal(QKeyEvent)
 
     def __init__(self) -> None:
@@ -356,6 +379,17 @@ class TimeLineDock(QWidget):
     def get_timeline_plot(
         self, timeline_row_name: str, create_if_missing: bool = False
     ) -> pg.PlotItem | None:
+        """Get or create a timeline plot (i.e., a row in the timeline).
+
+        Args:
+            timeline_row_name: The name of the timeline plot.
+            create_if_missing: Whether to create the plot if it doesn't
+                exist already.
+
+        Returns:
+            plot: The created/existing plot, or `None` if the plot
+                did not exist and was not created.
+        """
         if timeline_row_name in self.timeline_plots:
             return self.timeline_plots[timeline_row_name]
 
@@ -449,6 +483,15 @@ class TimeLineDock(QWidget):
         return plot_item
 
     def get_timeline_series(self, plot_name: str, series_name: str) -> pg.PlotDataItem | None:
+        """Access timeline data series by their name.
+
+        Args:
+            plot_name: The name of the timeline row.
+            series_name: Name shown for the series in the row legend.
+
+        Returns:
+            series: The data series, if it exists.
+        """
         plot_item = self.get_timeline_plot(plot_name)
         if plot_item is None:
             return None
@@ -466,7 +509,26 @@ class TimeLineDock(QWidget):
         plot_name: str = "",
         color: QColor | None = None,
         **kwargs: T.Any,
-    ) -> pg.PlotDataItem | None:
+    ) -> pg.PlotItem | None:
+        """Add a new plot to the timeline.
+
+        The newly created plot appears as one of the rows in the timeline.
+
+        Args:
+            timeline_row_name: Label for the timeline row, shown to the left
+                of the plot. If a row with the provided name exists, the data
+                are added as another series to the already existing plot.
+            data: Each data point is a ``(timestamp, value)`` pair.
+                Timestamps are in nanoseconds.
+            plot_name: Optional name that shown in the row legend if one row
+                displays multiple time series.
+            color: Optional line color. If the color not provided, the default
+                color palette is used.
+            **kwargs: Additional plotting options passed to pyqtgraph.
+
+        Returns:
+            The timeline plot, or ``None`` if no recording is open.
+        """
         app = neon_player.instance()
         if app.recording is None:
             return None
@@ -499,6 +561,11 @@ class TimeLineDock(QWidget):
         self.playhead.refresh_geometry()
 
     def remove_timeline_plot(self, plot_name: str) -> None:
+        """Remove a timeline plot and all the data series it contains.
+
+        Args:
+            plot_name: Label of the row to remove.
+        """
         plot = self.get_timeline_plot(plot_name)
         if plot is None:
             return
@@ -515,6 +582,12 @@ class TimeLineDock(QWidget):
             self.sort_plots()
 
     def remove_timeline_series(self, plot_name: str, series_name: str) -> None:
+        """Remove one named data series, removing its row if it becomes empty.
+
+        Args:
+            plot_name: Label of the row containing the series.
+            series_name: Name shown for the series in the row legend.
+        """
         if plot_name not in self.timeline_plots:
             return
 
@@ -554,12 +627,33 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
         plot_name: str = "",
         **kwargs: T.Any,
-    ) -> pg.PlotDataItem | None:
+    ) -> pg.PlotItem | None:
+        """Add a line graph to a timeline row.
+
+        Args:
+            timeline_row_name: Label for the timeline row.
+            data: Timestamp and value pairs; timestamps are in nanoseconds.
+            plot_name: Optional name shown in the row legend.
+            **kwargs: Additional line options passed to pyqtgraph.
+
+        Returns:
+            The timeline row, or ``None`` if no recording is open.
+        """
         return self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
 
     def add_timeline_scatter(
         self, name: str, data: list[tuple[int, T.SupportsFloat]] | np.ndarray, item_name: str = ""
-    ) -> pg.PlotDataItem | None:
+    ) -> pg.PlotItem | None:
+        """Add a scatter plot to a timeline row.
+
+        Args:
+            name: Label for the timeline row.
+            data: Timestamp and value pairs; timestamps are in nanoseconds.
+            item_name: Optional name shown in the row legend.
+
+        Returns:
+            The timeline row, or ``None`` if no recording is open.
+        """
         return self.add_timeline_plot(
             name,
             data,
@@ -575,16 +669,19 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, int, T.SupportsFloat]] | list[tuple[int, int]] | np.ndarray,
         item_name: str = "",
         color: str = "white",
-    ) -> pg.PlotDataItem | None:
-        """Adds a broken bar plot to the timeline where bars are colored based on a Z-value.
+    ) -> pg.PlotItem | None:
+        """Add horizontal bars to show time ranges on the timeline.
 
         Args:
-            timeline: The instance of TimeLineDock.
-            timeline_row_name: The name of the row (y-axis label).
-            data: A list of tuples (start, stop, value) or (start, stop).
-                  'value' is used for the colormap.
-            item_name: Name for the legend.
-            color: Name of the pyqtgraph colormap or color(e.g., 'viridis', 'white', ...)
+            timeline_row_name: Label for the timeline row.
+            data: Time ranges as ``(start, end)`` pairs, or
+                ``(start, end, value)`` triples. Timestamps are in nanoseconds;
+                values control the bar colors when supplied.
+            item_name: Optional name shown in the row legend.
+            color: Color name or pyqtgraph color map name.
+
+        Returns:
+            The timeline row, or ``None`` if no recording is open.
         """
         plot_widget = self.get_timeline_plot(timeline_row_name, True)
         if plot_widget is None:
@@ -668,10 +765,16 @@ class TimeLineDock(QWidget):
         self.fix_scroll_size()
 
     def enable_plot_sorting(self) -> None:
+        """Enable plot sorting and sort plots."""
         self.plot_sorting_enabled = True
         self.sort_plots()
 
     def disable_plot_sorting(self) -> bool:
+        """Disable plot sorting.
+
+        Returns:
+            was_enabled: Whether the sorting was enabled prior to that call.
+        """
         was_enabled = self.plot_sorting_enabled
         self.plot_sorting_enabled = False
         return was_enabled
