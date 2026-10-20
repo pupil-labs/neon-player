@@ -942,6 +942,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.ui.timeline_dock.TimeLineDock.get_timeline_series" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_timeline_series
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pupil_labs.neon_player.ui.timeline_dock.TimeLineDock.remove_timeline_plot" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1321,6 +1332,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pupil_labs.neon_player.ui.timeline_dock.TimeLineDock.get_timeline_series" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_timeline_series
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pupil_labs.neon_player.ui.timeline_dock.TimeLineDock.remove_timeline_plot" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1481,6 +1503,13 @@ and later <a class="autorefs autorefs-internal" title="            enable_plot_s
             –
             <div class="doc-md-description">
               <p>Get or create a timeline plot (i.e., a row in the timeline).</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            get_timeline_series (pupil_labs.neon_player.ui.timeline_dock.TimeLineDock.get_timeline_series)" href="#pupil_labs.neon_player.ui.timeline_dock.TimeLineDock.get_timeline_series">get_timeline_series</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Access timeline data series by their name.</p>
             </div>
           </li>
           <li class="doc-section-item field-body">
@@ -2638,6 +2667,100 @@ did not exist and was not created.</p>
         <span class="n">plot_item</span><span class="o">.</span><span class="n">setXLink</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">timestamps_plot</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">plot_item</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pupil_labs.neon_player.ui.timeline_dock.TimeLineDock.get_timeline_series" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">get_timeline_series</span>
+
+
+<a href="#pupil_labs.neon_player.ui.timeline_dock.TimeLineDock.get_timeline_series" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">get_timeline_series</span><span class="p">(</span><span class="n">plot_name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n">series_name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-external" title="pyqtgraph.PlotDataItem" href="https://pyqtgraph.readthedocs.io/en/latest/api_reference/graphicsItems/plotdataitem.html#pyqtgraph.PlotDataItem">PlotDataItem</a></span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Access timeline data series by their name.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>plot_name</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>The name of the timeline row.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>series_name</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Name shown for the series in the row legend.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+<b><code>series</code></b> (              <code><a class="autorefs autorefs-external" title="pyqtgraph.PlotDataItem" href="https://pyqtgraph.readthedocs.io/en/latest/api_reference/graphicsItems/plotdataitem.html#pyqtgraph.PlotDataItem">PlotDataItem</a> | None</code>
+)          –
+          <div class="doc-md-description">
+            <p>The data series, if it exists.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/pupil_labs/neon_player/ui/timeline_dock.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">485</span>
+<span class="normal">486</span>
+<span class="normal">487</span>
+<span class="normal">488</span>
+<span class="normal">489</span>
+<span class="normal">490</span>
+<span class="normal">491</span>
+<span class="normal">492</span>
+<span class="normal">493</span>
+<span class="normal">494</span>
+<span class="normal">495</span>
+<span class="normal">496</span>
+<span class="normal">497</span>
+<span class="normal">498</span>
+<span class="normal">499</span>
+<span class="normal">500</span>
+<span class="normal">501</span>
+<span class="normal">502</span>
+<span class="normal">503</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_timeline_series</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">plot_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">series_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pg</span><span class="o">.</span><span class="n">PlotDataItem</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Access timeline data series by their name.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        plot_name: The name of the timeline row.</span>
+<span class="sd">        series_name: Name shown for the series in the row legend.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        series: The data series, if it exists.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">plot_item</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_timeline_plot</span><span class="p">(</span><span class="n">plot_name</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">plot_item</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">for</span> <span class="n">series</span> <span class="ow">in</span> <span class="n">plot_item</span><span class="o">.</span><span class="n">items</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">series</span><span class="p">,</span> <span class="s2">&quot;name&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">series</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">series_name</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">series</span>
+
+    <span class="k">return</span> <span class="kc">None</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>

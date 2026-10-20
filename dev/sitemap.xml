@@ -2,62 +2,62 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://pupil-labs.github.io/neon-player/dev/</loc>
-         <lastmod>2026-10-19</lastmod>
+         <lastmod>2026-10-20</lastmod>
     </url>
     <url>
          <loc>https://pupil-labs.github.io/neon-player/dev/contributing/</loc>
-         <lastmod>2026-10-19</lastmod>
+         <lastmod>2026-10-20</lastmod>
     </url>
     <url>
          <loc>https://pupil-labs.github.io/neon-player/dev/license/</loc>
-         <lastmod>2026-10-19</lastmod>
+         <lastmod>2026-10-20</lastmod>
     </url>
     <url>
          <loc>https://pupil-labs.github.io/neon-player/dev/api/actions/</loc>
-         <lastmod>2026-10-19</lastmod>
+         <lastmod>2026-10-20</lastmod>
     </url>
     <url>
          <loc>https://pupil-labs.github.io/neon-player/dev/api/custom_types/</loc>
-         <lastmod>2026-10-19</lastmod>
+         <lastmod>2026-10-20</lastmod>
     </url>
     <url>
          <loc>https://pupil-labs.github.io/neon-player/dev/api/global_settings/</loc>
-         <lastmod>2026-10-19</lastmod>
+         <lastmod>2026-10-20</lastmod>
     </url>
     <url>
          <loc>https://pupil-labs.github.io/neon-player/dev/api/plugin/</loc>
-         <lastmod>2026-10-19</lastmod>
+         <lastmod>2026-10-20</lastmod>
     </url>
     <url>
          <loc>https://pupil-labs.github.io/neon-player/dev/api/properties/</loc>
-         <lastmod>2026-10-19</lastmod>
+         <lastmod>2026-10-20</lastmod>
     </url>
     <url>
          <loc>https://pupil-labs.github.io/neon-player/dev/api/player/app/</loc>
-         <lastmod>2026-10-19</lastmod>
+         <lastmod>2026-10-20</lastmod>
     </url>
     <url>
          <loc>https://pupil-labs.github.io/neon-player/dev/api/player/job_manager/</loc>
-         <lastmod>2026-10-19</lastmod>
+         <lastmod>2026-10-20</lastmod>
     </url>
     <url>
          <loc>https://pupil-labs.github.io/neon-player/dev/api/player/timeline/</loc>
-         <lastmod>2026-10-19</lastmod>
+         <lastmod>2026-10-20</lastmod>
     </url>
     <url>
          <loc>https://pupil-labs.github.io/neon-player/dev/examples/demo_widgets/</loc>
-         <lastmod>2026-10-19</lastmod>
+         <lastmod>2026-10-20</lastmod>
     </url>
     <url>
          <loc>https://pupil-labs.github.io/neon-player/dev/examples/face_detection/</loc>
-         <lastmod>2026-10-19</lastmod>
+         <lastmod>2026-10-20</lastmod>
     </url>
     <url>
          <loc>https://pupil-labs.github.io/neon-player/dev/examples/object_detection/</loc>
-         <lastmod>2026-10-19</lastmod>
+         <lastmod>2026-10-20</lastmod>
     </url>
     <url>
          <loc>https://pupil-labs.github.io/neon-player/dev/coverage/</loc>
-         <lastmod>2026-10-19</lastmod>
+         <lastmod>2026-10-20</lastmod>
     </url>
 </urlset>
