@@ -7,6 +7,7 @@ from pupil_labs.neon_player.clients.github import GithubAPIClient
 from pupil_labs.neon_player.managers.update import (
     CheckUpdateThread,
     UpdateManager,
+    _process_release_notes,
 )
 
 
@@ -98,26 +99,66 @@ def test_check_update_thread_offline(mock_get_version, mock_get_release, qtbot):
     mock_get_version.assert_not_called()
 
 
-def test_update_manager_load_release_notes(tmp_path, qapp):
-    mock_release_notes = {
-        "6.0.0": "New release",
-        "6.0.1": "Even newer release"
-    }
-    for version_tag, notes in mock_release_notes.items():
-        with open(tmp_path / f"v{version_tag}.md", "w+") as f:
-            f.write(notes)
+def test_update_manager_fetches_and_caches_release_notes(tmp_path, qtbot, qapp):
+    notes_path = tmp_path / "release_notes"
+    releases = [
+        {
+            "tag_name": "v6.0.2",
+            "body": "What's Changed\n\n* Newest release\n* Another change",
+        },
+        {"tag_name": "v6.0.1", "body": "Previous release"},
+    ]
 
-    with patch(
-        "pupil_labs.neon_player.managers.update.changelog_path",
-        return_value=tmp_path
+    with (
+        patch(
+            "pupil_labs.neon_player.managers.update.release_notes_path",
+            return_value=notes_path,
+        ),
+        patch(
+            "pupil_labs.neon_player.managers.update.app_version",
+            return_value=version.parse("6.0.2"),
+        ),
+        patch.object(
+            GithubAPIClient, "get_releases", return_value=releases
+        ) as mock_get_releases,
     ):
         update_manager = UpdateManager(qapp)
-        update_manager.load_release_notes()
+        with qtbot.waitSignal(update_manager.notes_available, timeout=1000) as blocker:
+            update_manager.load_release_notes()
+            update_manager.check_unread_release_notes("0.0.0")
 
-    assert len(update_manager._release_notes) == 2
-    for version_tag, expected_notes in mock_release_notes.items():
-        actual_notes = update_manager._release_notes[version.parse(version_tag)]
-        assert actual_notes == expected_notes
+        cached_update_manager = UpdateManager(qapp)
+        cached_update_manager.load_release_notes()
+
+    mock_get_releases.assert_called_once_with("pupil-labs", "neon-player")
+    assert blocker.args[0].startswith("# What's Changed\n")
+    assert update_manager._release_notes == {
+        version.parse("6.0.1"): "Previous release",
+        version.parse("6.0.2"): "- Newest release\n- Another change",
+    }
+    assert cached_update_manager._release_notes == update_manager._release_notes
+    assert (notes_path / "v6.0.2.md").read_text() == "- Newest release\n- Another change"
+
+
+@pytest.mark.parametrize(
+    ("notes", "expected"),
+    [
+        (
+            "What's Changed\n\n* First change\n* Second change",
+            "- First change\n- Second change",
+        ),
+        (
+            "**Important** and *emphasized* text\n* First change",
+            "**Important** and *emphasized* text\n- First change",
+        ),
+        (
+            "### What's Changed\n\n**Important change**\n* Another change",
+            "**Important change**\n- Another change",
+        ),
+    ],
+)
+def test_process_release_notes(notes, expected):
+    assert _process_release_notes(notes) == expected
 
 
 def _setup_mock_update_manager(qapp):
