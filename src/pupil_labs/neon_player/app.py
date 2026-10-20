@@ -68,13 +68,8 @@ class NeonPlayerApp(QApplication):
         self._initializing = True
         super().__init__(argv)
 
-        try:
-            app_version = version("pupil_labs.neon_player")
-        except Exception:
-            app_version = "?"
-
         self.setApplicationName("Neon Player")
-        self.setApplicationVersion(app_version)
+        self.setApplicationVersion(app_version().base_version)
         self.setWindowIcon(QIcon(str(neon_player.asset_path("neon-player.svg"))))
         self.setStyle("Fusion")
 
@@ -616,12 +611,8 @@ class NeonPlayerApp(QApplication):
         self.recording_settings.export_window = export_window
         self.main_window.timeline.set_export_window(export_window)
 
-    @property
-    def version(self) -> str:
-        return app_version().base_version
-
     def update_read_release_notes(self) -> None:
-        self.settings.last_read_release_notes_version = str(self.version)
+        self.settings.last_read_release_notes_version = self.applicationVersion()
 
     def _setup_frozen(self) -> None:
         if not is_frozen():

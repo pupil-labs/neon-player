@@ -33,6 +33,8 @@ class GithubAPIClient:
             raise GithubAPIClient.FailedRequest(f"Connection error: {str(e)}") from e
         except requests.Timeout as e:
             raise GithubAPIClient.FailedRequest(f"Request timed out: {str(e)}") from e
+        except Exception as e:
+            raise GithubAPIClient.FailedRequest(f"Request failed: {str(e)}") from e
 
     @staticmethod
     def _json(response: Response) -> Any:
@@ -47,7 +49,7 @@ class GithubAPIClient:
         return self._json(self._get(url, **params))
 
     def _paginate(self, url: str, **params: Any) -> Iterator[Response]:
-        next_page = url
+        next_page: str | None = url
         while next_page:
             response = self._get(next_page, **params)
             yield response
