@@ -7,6 +7,7 @@
             - add_timeline_scatter
             - add_timeline_broken_bar
             - get_timeline_plot
+            - get_timeline_series
             - remove_timeline_plot
             - remove_timeline_series
             - disable_plot_sorting
