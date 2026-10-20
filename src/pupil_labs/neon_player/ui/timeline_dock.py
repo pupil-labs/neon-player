@@ -31,6 +31,7 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     ScrubbableViewBox,
     SmartSizePlotItem,
     TimeAxisItem,
+    TimelineHoverMarker,
     TimelineTableContainer,
     TimestampLabel,
     TrimDurationMarker,
@@ -51,7 +52,6 @@ class TimeLineDock(QWidget):
 
         self.timeline_plots: dict[str, pg.PlotItem] = {}
         self.timeline_legends: dict[str, pg.LegendItem] = {}
-        self.hover_lines: dict[str, pg.InfiniteLine] = {}
         self.plot_colors = [
             QColor("#1f77b4"),
             QColor("#ff7f0e"),
@@ -148,6 +148,11 @@ class TimeLineDock(QWidget):
         )
         self.playhead.hide()
 
+        self.hover_marker = TimelineHoverMarker(
+            self.timestamps_plot, parent=self.graphics_view
+        )
+        self.hover_marker.hide()
+
         app.playback_state_changed.connect(self.on_playback_state_changed)
         app.position_changed.connect(self.on_position_changed)
         app.recording_loaded.connect(self.on_recording_loaded)
@@ -166,6 +171,7 @@ class TimeLineDock(QWidget):
         w = self.scroll_area.width() - self.scroll_area.verticalScrollBar().width()
         self.graphics_view.setFixedWidth(w)
         self.playhead.refresh_geometry()
+        self.hover_marker.refresh_geometry()
         return super().resizeEvent(event)
 
     def on_recording_loaded(self, recording: nr.NeonRecording):
@@ -194,6 +200,7 @@ class TimeLineDock(QWidget):
         if trim_plot is not None:
             trim_plot.clear()
         self.playhead.hide()
+        self.hover_marker.set_cursor_time(None)
 
     def on_playback_state_changed(self, is_playing: bool):
         icon_name = "pause.svg" if is_playing else "play.svg"
@@ -231,6 +238,14 @@ class TimeLineDock(QWidget):
         data_pos = self.timestamps_plot.getViewBox().mapSceneToView(pos)
         for tm in self.trim_markers:
             tm.set_highlighted(self.dragging == tm or tm.nearby(data_pos))
+
+        if any(
+            plot_item.sceneBoundingRect().contains(pos)
+            for plot_item in self.timeline_plots.values()
+        ):
+            self.hover_marker.set_cursor_time(round(data_pos.x()))
+        else:
+            self.hover_marker.set_cursor_time(None)
 
         self._update_tooltip(pos, data_pos.x())
 
@@ -270,18 +285,8 @@ class TimeLineDock(QWidget):
             pos = QCursor.pos()
             pos.setY(pos.y() - 15)
             QToolTip.showText(pos, tooltip_text)
-
-            for line in list(self.hover_lines.values()):
-                try:
-                    line.setPos(x)
-                    line.setVisible(True)
-                except RuntimeError:
-                    pass
         else:
             QToolTip.hideText()
-            for line in list(self.hover_lines.values()):
-                with contextlib.suppress(RuntimeError):
-                    line.setVisible(False)
 
     def _add_plot_data_item_tooltip(self, item, x, x_threshold, lines, plot_name=""):
         hovered_plot_name = plot_name
@@ -552,21 +557,6 @@ class TimeLineDock(QWidget):
                 plot_item.legend_label.setText(timeline_row_name)
             self.timeline_plots[timeline_row_name] = plot_item
 
-            # Recreate hover line since clear() destroyed it
-            hover_line = pg.InfiniteLine(
-                angle=90,
-                movable=False,
-                pen=pg.mkPen(
-                    color=QColor(255, 255, 255, 128),
-                    width=1,
-                    style=Qt.PenStyle.DashLine,
-                ),
-            )
-            hover_line.setZValue(1000)
-            hover_line.setVisible(False)
-            plot_item.addItem(hover_line)
-            self.hover_lines[timeline_row_name] = hover_line
-
             if self.graphics_layout.rows:
                 row = max(self.graphics_layout.rows.keys()) + 1
             else:
@@ -649,20 +639,6 @@ class TimeLineDock(QWidget):
         plot_item.hideAxis("bottom")
         plot_item.showGrid(x=True, y=False, alpha=0.3)
 
-        hover_line = pg.InfiniteLine(
-            angle=90,
-            movable=False,
-            pen=pg.mkPen(
-                color=QColor(255, 255, 255, 128),
-                width=1,
-                style=Qt.PenStyle.DashLine,
-            ),
-        )
-        hover_line.setZValue(1000)
-        hover_line.setVisible(False)
-        plot_item.addItem(hover_line)
-        self.hover_lines[timeline_row_name] = hover_line
-
         if app.recording:
             duration = app.recording.stop_time - app.recording.start_time
             plot_item.getViewBox().setLimits(
@@ -724,7 +700,6 @@ class TimeLineDock(QWidget):
         plot_data_item.name = plot_name
         if kwargs.get("is_event"):
             plot_data_item.is_event = True
-        if timeline_row_name in self.timeline_legends and plot_name != "":
         if plot_name != "":
             legend.addItem(plot_data_item, plot_name)
 
@@ -737,6 +712,7 @@ class TimeLineDock(QWidget):
         h = sum([p.preferredHeight() for p in self.timeline_plots.values()])
         self.graphics_view.setFixedHeight(h)
         self.playhead.refresh_geometry()
+        self.hover_marker.refresh_geometry()
 
     def remove_timeline_plot(self, plot_name: str) -> None:
         plot = self.get_timeline_plot(plot_name)
@@ -750,9 +726,6 @@ class TimeLineDock(QWidget):
             self.graphics_layout.removeItem(self.timeline_plots[plot_name])
             del self.timeline_plots[plot_name]
             del self.timeline_legends[plot_name]
-
-            if plot_name in self.hover_lines:
-                del self.hover_lines[plot_name]
 
         self.sort_plots()
 

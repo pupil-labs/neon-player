@@ -1,13 +1,15 @@
 import math
+import typing as T
 
 import pyqtgraph as pg
 from pyqtgraph.GraphicsScene.mouseEvents import MouseDragEvent
-from PySide6.QtCore import QObject, QPoint, QPointF, QRect, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPolygon
+from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRect, Qt, Signal
+from PySide6.QtGui import QColor, QPaintEvent, QPainter, QPen, QPolygon
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
     QGraphicsRectItem,
     QGraphicsSceneMouseEvent,
+    QGraphicsView,
     QLabel,
     QSizePolicy,
     QStyleOptionGraphicsItem,
@@ -350,6 +352,62 @@ class PlayHead(PlotOverlay):
         else:
             painter.fillRect(QRect(x - 1, 0, 3, self.height()), self.color)
 
+        painter.end()
+
+
+class TimelineHoverMarker(PlotOverlay):
+    def __init__(
+        self,
+        linked_plot: T.Any,
+        *args: object,
+        **kwargs: object,
+    ) -> None:
+        super().__init__(linked_plot, *args, **kwargs)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.cursor_time: int | None = None
+        parent = self.parent()
+        if not isinstance(parent, QGraphicsView):
+            raise TypeError("TimelineHoverMarker must be parented to a QGraphicsView")
+
+        self._viewport = parent.viewport()
+        self._viewport.installEventFilter(self)
+        linked_plot.vb.sigRangeChanged.connect(self._on_range_changed)
+
+    def set_cursor_time(self, time: int | None) -> None:
+        self.cursor_time = time
+        if time is None:
+            self.hide()
+        else:
+            self.update()
+            self.show()
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched is self._viewport and event.type() == QEvent.Type.Leave:
+            self.set_cursor_time(None)
+
+        return super().eventFilter(watched, event)
+
+    def _on_range_changed(self, *args: object) -> None:
+        self.update()
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        if self.cursor_time is None:
+            return
+
+        x = round(self.get_x_pixel_for_x_value(self.cursor_time))
+        if not 0 <= x < self.width():
+            return
+
+        painter = QPainter(self)
+        painter.setPen(
+            QPen(
+                QColor(255, 255, 255, 128),
+                1,
+                Qt.PenStyle.SolidLine,
+            )
+        )
+        painter.drawLine(x, 0, x, self.height())
         painter.end()
 
 
