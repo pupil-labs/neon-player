@@ -30,6 +30,9 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
         super().__init__()
         self._skip_gray_frames_on_load = True
         self._show_fps = False
+        self._check_for_updates = True
+        self._last_read_release_notes_version = "0.0.0"
+        self._last_displayed_update_version = "0.0.0"
 
         plugin_names = [k.__name__ for k in Plugin.known_classes]
         plugin_names.sort()
@@ -43,12 +46,22 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
         })
 
     @property
+    def check_for_updates(self) -> bool:
+        return self._check_for_updates
+
+    @check_for_updates.setter
+    def check_for_updates(self, value: bool) -> None:
+        self._check_for_updates = value
+        self.changed.emit()
+
+    @property
     def skip_gray_frames_on_load(self) -> bool:
         return self._skip_gray_frames_on_load
 
     @skip_gray_frames_on_load.setter
     def skip_gray_frames_on_load(self, value: bool) -> None:
         self._skip_gray_frames_on_load = value
+        self.changed.emit()
 
     @property
     def show_fps(self) -> bool:
@@ -57,6 +70,26 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
     @show_fps.setter
     def show_fps(self, value: bool) -> None:
         self._show_fps = value
+
+    @property
+    @property_params(widget=None)
+    def last_displayed_update_version(self) -> str:
+        return self._last_displayed_update_version
+
+    @last_displayed_update_version.setter
+    def last_displayed_update_version(self, value: str) -> None:
+        self._last_displayed_update_version = value
+        self.changed.emit()
+
+    @property
+    @property_params(widget=None)
+    def last_read_release_notes_version(self) -> str:
+        return self._last_read_release_notes_version
+
+    @last_read_release_notes_version.setter
+    def last_read_release_notes_version(self, value: str) -> None:
+        self._last_read_release_notes_version = value
+        self.changed.emit()
 
     @property
     def default_plugins(self) -> dict[str, bool]:
@@ -69,6 +102,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
     @default_plugins.setter
     def default_plugins(self, value: dict[str, bool]) -> None:
         self._default_plugins = value.copy()
+        self.changed.emit()
 
     @property
     @property_params(widget=None)
@@ -86,6 +120,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
             for cls in Plugin.known_classes:
                 if k == cls.__name__:
                     cls.global_properties = v
+        self.changed.emit()
 
 
 class RecordingSettings(PersistentPropertiesMixin, QObject):

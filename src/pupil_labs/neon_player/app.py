@@ -46,6 +46,7 @@ from pupil_labs.neon_player.plugins import (
     xdf,  # noqa: F401
 )
 from pupil_labs.neon_player.history import RecordingHistory
+from pupil_labs.neon_player.managers.update import UpdateManager, app_version
 from pupil_labs.neon_player.settings import GeneralSettings, load_recording_settings
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
@@ -67,13 +68,8 @@ class NeonPlayerApp(QApplication):
         self._initializing = True
         super().__init__(argv)
 
-        try:
-            app_version = version("pupil_labs.neon_player")
-        except Exception:
-            app_version = "?"
-
         self.setApplicationName("Neon Player")
-        self.setApplicationVersion(app_version)
+        self.setApplicationVersion(app_version().base_version)
         self.setWindowIcon(QIcon(str(neon_player.asset_path("neon-player.svg"))))
         self.setStyle("Fusion")
 
@@ -87,7 +83,18 @@ class NeonPlayerApp(QApplication):
         self.playback_start_anchor = 0
         self.current_ts = 0
         self.playback_speed_options = [
-            -4.0, -2.0, -1.0, -0.5, -0.25, -0.125, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0
+            -4.0,
+            -2.0,
+            -1.0,
+            -0.5,
+            -0.25,
+            -0.125,
+            0.125,
+            0.25,
+            0.5,
+            1.0,
+            2.0,
+            4.0,
         ]
         self.playback_speed = 1.0
 
@@ -142,12 +149,25 @@ class NeonPlayerApp(QApplication):
             logging.exception("Failed to load settings")
 
         try:
-            self.recording_history = RecordingHistory.from_dict(self.load_recording_history())
+            self.recording_history = RecordingHistory.from_dict(
+                self.load_recording_history()
+            )
         except FileNotFoundError:
             logging.warning("Recording history file not found")
         except Exception:
             logging.exception("Failed to load recording history")
         self.recording_history.changed.connect(self.save_history)
+
+        self.update_manager = UpdateManager(parent=self)
+        self.update_manager.update_available.connect(self.main_window.on_update_available)
+        self.update_manager.notes_available.connect(self.main_window.show_release_notes)
+        if not self.headless:
+            self.update_manager.load_release_notes()
+            self.update_manager.check_unread_release_notes(
+                self.settings.last_read_release_notes_version
+            )
+        if self.settings.check_for_updates and not self.headless:
+            QTimer.singleShot(0, self.update_manager.check_for_updates)
 
         if self.args.job and self.args.recording:
             self.load(Path(self.args.recording))
@@ -399,6 +419,7 @@ class NeonPlayerApp(QApplication):
         QTimer.singleShot(0, self.toggle_plugins_by_settings)
         QTimer.singleShot(10, self.on_recording_load_complete)
         self.recording_settings.plugins_changed.connect(self.toggle_plugins_by_settings)
+        SlotDebouncer.debounce(self.settings.changed, self.save_settings)
         SlotDebouncer.debounce(self.recording_settings.changed, self.save_settings)
 
     def on_recording_load_complete(self) -> None:
@@ -589,6 +610,9 @@ class NeonPlayerApp(QApplication):
 
         self.recording_settings.export_window = export_window
         self.main_window.timeline.set_export_window(export_window)
+
+    def update_read_release_notes(self) -> None:
+        self.settings.last_read_release_notes_version = self.applicationVersion()
 
     def _setup_frozen(self) -> None:
         if not is_frozen():
