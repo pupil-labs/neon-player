@@ -10,7 +10,7 @@ from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.timeline_dock_utils import (
     TimelineTooltipContext,
     get_clicked_data_point,
-    get_item_value_at_timestamp,
+    get_item_tooltip_series,
     get_timeline_row_values,
 )
 
@@ -30,7 +30,7 @@ def test_timeline_row_values_uses_nearest_point_within_tolerance():
         "speed": 1.5,
         "speed (2)": 3,
     }
-    assert get_item_value_at_timestamp(line, 111, 10) is None
+    assert get_item_tooltip_series(line, 111, 10).value is None
 
 
 def test_timeline_row_values_includes_only_active_broken_bar_values():
@@ -43,9 +43,9 @@ def test_timeline_row_values_includes_only_active_broken_bar_values():
     )
     bars.bar_values = np.array([7.0, np.nan])
 
-    assert get_item_value_at_timestamp(bars, 20, 0) == 7.0
-    assert get_item_value_at_timestamp(bars, 50, 0) == "Active"
-    assert get_item_value_at_timestamp(bars, 35, 0) is None
+    assert get_item_tooltip_series(bars, 20, 0).value == 7.0
+    assert get_item_tooltip_series(bars, 50, 0).value == "Active"
+    assert get_item_tooltip_series(bars, 35, 0).value is None
     interval = get_timeline_row_values([bars], 50, 0)["interval"]
     assert interval.index == 1
     assert (interval.start_ns, interval.stop_ns) == (40, 60)

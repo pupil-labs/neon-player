@@ -81,13 +81,6 @@ def get_clicked_data_point(
     return None
 
 
-def get_item_value_at_timestamp(
-    item: T.Any, timestamp_ns: int, tolerance_ns: int
-) -> T.Any | None:
-    """Return the nearest plotted value at a timestamp, if it is close enough."""
-    return get_item_tooltip_series(item, timestamp_ns, tolerance_ns).value
-
-
 def get_item_tooltip_series(
     item: T.Any, timestamp_ns: int, tolerance_ns: int
 ) -> TimelineTooltipSeries:
