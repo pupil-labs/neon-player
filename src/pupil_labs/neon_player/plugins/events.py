@@ -1,3 +1,4 @@
+import html
 import logging
 import numpy as np
 import pandas as pd
@@ -21,6 +22,8 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
 from pupil_labs.neon_player.plugins import Plugin
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
+from pupil_labs.neon_player.ui.timeline_dock_components import format_timestamp_ns
+from pupil_labs.neon_player.ui.timeline_dock_utils import TimelineTooltipContext
 
 IMMUTABLE_EVENTS = ["recording.begin", "recording.end"]
 
@@ -367,7 +370,16 @@ class EventsPlugin(neon_player.Plugin):
         if existing_plot is not None:
             return
 
-        plot_item = timeline.add_timeline_scatter(f"Events - {event_type.name}", [])
+        tooltip = lambda context: self._format_event_tooltip(event_type, context)
+        alt_tooltip = lambda context: self._format_event_tooltip(
+            event_type, context, raw_timestamp=True
+        )
+        plot_item = timeline.add_timeline_scatter(
+            f"Events - {event_type.name}",
+            [],
+            tooltip=tooltip,
+            alt_tooltip=alt_tooltip,
+        )
         if plot_item is None:
             return
         plot_item.getViewBox().allow_y_panning = False
@@ -379,6 +391,42 @@ class EventsPlugin(neon_player.Plugin):
             self.app.main_window.sort_action_menu("Timeline/Add Event")
 
         self.register_data_actions(event_type)
+
+    def _format_event_tooltip(
+        self,
+        event_type: EventType,
+        context: TimelineTooltipContext,
+        *,
+        raw_timestamp: bool = False,
+    ) -> str:
+        event = next(
+            (
+                series
+                for series in context.series.values()
+                if series.value is not None
+                and series.index is not None
+                and series.timestamp_ns is not None
+            ),
+            None,
+        )
+        if event is None:
+            return ""
+
+        total = len(self._events.get(event_type.uid, []))
+        timestamp_ns = int(event.timestamp_ns)
+        if raw_timestamp:
+            timestamp = f"{timestamp_ns} ns"
+        else:
+            timestamp = format_timestamp_ns(
+                timestamp_ns,
+                origin_ns=context.origin_ns,
+                always_show_hours=True,
+                show_milliseconds=True,
+            )
+        return (
+            f"<b>{html.escape(event_type.name)}</b> "
+            f"({event.index + 1}/{total})<br>{timestamp}"
+        )
 
     def register_data_actions(self, event_type: EventType) -> None:
         if event_type.name not in IMMUTABLE_EVENTS:
