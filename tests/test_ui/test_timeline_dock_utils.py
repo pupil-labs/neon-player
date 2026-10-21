@@ -3,11 +3,14 @@ from types import SimpleNamespace
 
 import numpy as np
 import pyqtgraph as pg
+import pytest
 from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import QLabel, QWidget
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
+from pupil_labs.neon_player.ui.timeline_dock_components import TimelineTooltipWidget
 from pupil_labs.neon_player.ui.timeline_dock_utils import (
     TimelineTooltipContext,
     TimelineTooltipSeries,
@@ -115,6 +118,65 @@ def test_custom_alternative_tooltip_is_registered_and_none_can_hide_it():
 
     TimeLineDock._register_timeline_tooltip(owner, "row", normal_default, None)
     assert owner.timeline_tooltips["row"] == (default_timeline_tooltip, None)
+
+
+def test_custom_widget_is_adopted_and_released_when_replaced(qapp):
+    class CustomTooltip(QLabel):
+        def update_tooltip(self, timestamp_ns, values):
+            pass
+
+    parent = QWidget()
+    host = TimelineTooltipWidget(parent)
+    owner = SimpleNamespace(
+        timeline_tooltips={},
+        _tooltip_widget_rows={},
+        tooltip_widget=host,
+    )
+    widget = CustomTooltip()
+
+    TimeLineDock._register_timeline_tooltip(owner, "row", widget, widget)
+    assert widget.parent() is host
+    assert owner.timeline_tooltips["row"] == (widget, widget)
+
+    TimeLineDock._register_timeline_tooltip(owner, "row", lambda context: "text", None)
+    assert widget.parent() is None
+    assert id(widget) not in owner._tooltip_widget_rows
+
+
+def test_invalid_custom_widgets_are_rejected_without_taking_ownership():
+    owner = SimpleNamespace(
+        timeline_tooltips={},
+        _tooltip_widget_rows={},
+        tooltip_widget=TimelineTooltipWidget(QWidget()),
+    )
+    widget_without_update = QLabel()
+
+    with pytest.raises(TypeError, match="update_tooltip"):
+        TimeLineDock._register_timeline_tooltip(
+            owner, "row", widget_without_update, None
+        )
+
+    assert widget_without_update.parent() is None
+
+
+def test_parented_custom_widget_is_rejected_and_stays_caller_owned():
+    parent = QWidget()
+
+    class CustomTooltip(QLabel):
+        def update_tooltip(self, timestamp_ns, values):
+            pass
+
+    widget = CustomTooltip(parent)
+    owner = SimpleNamespace(
+        timeline_tooltips={},
+        _tooltip_widget_rows={},
+        tooltip_widget=TimelineTooltipWidget(QWidget()),
+    )
+
+    with pytest.raises(ValueError, match="parentless"):
+        TimeLineDock._register_timeline_tooltip(owner, "row", widget, None)
+
+    assert widget.parent() is parent
 
 
 def test_default_timeline_tooltip_formats_single_series_value():
@@ -305,6 +367,56 @@ def test_callback_receives_integral_timestamp_and_row_values():
     assert received[0].timestamp_ns == 100
     assert received[0].values == {"value": 5}
     assert received[0].series["value"].index == 0
+
+
+def test_custom_widget_receives_timestamp_and_row_values_in_alt_mode(qapp):
+    class CustomTooltip(QLabel):
+        def __init__(self):
+            super().__init__()
+            self.received = None
+
+        def update_tooltip(self, timestamp_ns, values):
+            self.received = (timestamp_ns, values)
+
+    widget = CustomTooltip()
+    plot = SimpleNamespace(
+        getViewBox=lambda: SimpleNamespace(viewPixelSize=lambda: (2.0, 1.0)),
+        items=[pg.PlotDataItem([100], [5], name="value")],
+    )
+    owner = SimpleNamespace(
+        _alt_tooltip_active=True,
+        timeline_tooltips={"row": (None, widget)},
+        timeline_plots={"row": plot},
+    )
+
+    assert TimeLineDock._tooltip_content_for_hovered_row(owner, "row", 100.4) is widget
+    assert widget.received == (100, {"value": 5})
+
+
+def test_custom_widget_is_released_when_timeline_row_is_removed(qapp):
+    class CustomTooltip(QLabel):
+        def update_tooltip(self, timestamp_ns, values):
+            pass
+
+    parent = QWidget()
+    host = TimelineTooltipWidget(parent)
+    widget = CustomTooltip()
+    owner = SimpleNamespace(
+        timeline_tooltips={},
+        _tooltip_widget_rows={},
+        tooltip_widget=host,
+        timeline_plots={"row": object()},
+        timeline_legends={"row": SimpleNamespace(parentItem=lambda: object())},
+        graphics_layout=SimpleNamespace(removeItem=lambda item: None),
+        get_timeline_plot=lambda name: object(),
+        sort_plots=lambda: None,
+    )
+    TimeLineDock._register_timeline_tooltip(owner, "row", widget, widget)
+
+    TimeLineDock.remove_timeline_plot(owner, "row")
+
+    assert widget.parent() is None
+    assert id(widget) not in owner._tooltip_widget_rows
 
 
 def test_alt_mode_uses_alternative_callback():

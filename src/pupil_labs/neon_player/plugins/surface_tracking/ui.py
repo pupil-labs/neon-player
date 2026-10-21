@@ -3,7 +3,14 @@ from typing import TYPE_CHECKING
 import numpy as np
 from PySide6.QtCore import QPointF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon, QMouseEvent, QPainter, QPaintEvent, QPixmap
-from PySide6.QtWidgets import QPushButton, QSplitter, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+)
 from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
@@ -14,6 +21,38 @@ if TYPE_CHECKING:
     from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import (
         TrackedSurface,
     )
+
+
+class SurfaceTimelineTooltip(QWidget):
+    """Static key for the event colors used in Surface Tracking timelines."""
+
+    ENTRIES = (
+        ("#3273FF", "Surface localized"),
+        ("#73F7FF", "Fixation on surface"),
+    )
+
+    def __init__(self) -> None:
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        for color, text in self.ENTRIES:
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(8)
+            swatch = QLabel(self)
+            swatch.setObjectName("surfaceTimelineTooltipSwatch")
+            swatch.setFixedSize(14, 14)
+            swatch.setStyleSheet(
+                f"background-color: {color}; border-radius: 3px;"
+            )
+            label = QLabel(text, self)
+            row.addWidget(swatch)
+            row.addWidget(label)
+            layout.addLayout(row)
+
+    def update_tooltip(self, timestamp_ns: int, values: dict) -> None:
+        """Static legend; row values are unused."""
 
 
 class MarkerEditWidget(QPushButton):

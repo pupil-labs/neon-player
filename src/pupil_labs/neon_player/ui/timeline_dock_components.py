@@ -376,6 +376,7 @@ class TimelineTooltipWidget(QFrame):
         self._text_label.setWordWrap(True)
         self._text_label.setMaximumWidth(420)
         self._content_widget: QWidget = self._text_label
+        self._owned_content_widgets: dict[int, QWidget] = {}
         self._layout.addWidget(self._content_widget)
         self.hide()
 
@@ -384,6 +385,28 @@ class TimelineTooltipWidget(QFrame):
             self.set_content_widget(self._text_label)
         self._text_label.setText(text)
         self.show_at(global_cursor_position)
+
+    def show_widget(
+        self, widget: QWidget, global_cursor_position: QPoint
+    ) -> None:
+        self.set_content_widget(widget)
+        self.show_at(global_cursor_position)
+
+    def own_content_widget(self, widget: QWidget) -> None:
+        """Adopt a parentless tooltip widget until its row releases it."""
+        widget.setParent(self)
+        widget.hide()
+        self._owned_content_widgets[id(widget)] = widget
+
+    def release_content_widget(self, widget: QWidget) -> None:
+        """Release and schedule disposal of an adopted tooltip widget."""
+        if self._content_widget is widget:
+            self.set_content_widget(self._text_label)
+        self._owned_content_widgets.pop(id(widget), None)
+        self._layout.removeWidget(widget)
+        widget.hide()
+        widget.setParent(None)
+        widget.deleteLater()
 
     def show_at(self, global_cursor_position: QPoint) -> None:
         self.adjustSize()
@@ -411,9 +434,9 @@ class TimelineTooltipWidget(QFrame):
             return
         self._layout.removeWidget(self._content_widget)
         self._content_widget.hide()
-        if self._content_widget is not self._text_label:
-            self._content_widget.setParent(None)
         self._content_widget = widget
+        if widget is not self._text_label and id(widget) not in self._owned_content_widgets:
+            self.own_content_widget(widget)
         widget.setParent(self)
         self._layout.addWidget(widget)
         widget.show()

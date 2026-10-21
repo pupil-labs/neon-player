@@ -1,11 +1,13 @@
 import numpy as np
 import pytest
+from PySide6.QtWidgets import QLabel
 
 from pupil_labs.camera import Camera
 from pupil_labs.marker_mapper.surface import normalized_corners
 
 from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
 from pupil_labs.neon_player.plugins.surface_tracking import SurfaceTrackingPlugin
+from pupil_labs.neon_player.plugins.surface_tracking.ui import SurfaceTimelineTooltip
 from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
     _get_position_for_export,
     _prepare_surface_positions_export,
@@ -14,6 +16,34 @@ from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
 from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import TrackedSurface
 
 from tests.mocks import mock_scene_timeseries
+
+
+def test_surface_timeline_tooltip_legend_and_row_registration(qapp):
+    tooltip = SurfaceTimelineTooltip()
+    labels = [label.text() for label in tooltip.findChildren(QLabel) if label.text()]
+    swatches = tooltip.findChildren(QLabel, "surfaceTimelineTooltipSwatch")
+    assert labels == [
+        "Enrichment completed",
+        "Surface localized",
+        "Fixation on surface",
+    ]
+    assert [swatch.styleSheet() for swatch in swatches] == [
+        "background-color: #4a4a4a; border-radius: 3px;",
+        "background-color: #3273FF; border-radius: 3px;",
+        "background-color: #73F7FF; border-radius: 3px;",
+    ]
+
+    calls = []
+    plugin = SurfaceTrackingPlugin()
+    plugin.get_timeline = lambda: type(
+        "Timeline",
+        (),
+        {"add_timeline_broken_bar": lambda self, *args, **kwargs: calls.append((args, kwargs))},
+    )()
+    plugin._add_legend_timeline_row("row", np.empty((0, 3)))
+
+    assert calls[0][1]["tooltip"] is calls[0][1]["alt_tooltip"]
+    assert isinstance(calls[0][1]["tooltip"], SurfaceTimelineTooltip)
 
 
 def mock_transform(x0, y0, w, h):
