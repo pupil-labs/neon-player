@@ -806,7 +806,8 @@ class TimeLineDock(QWidget):
                     self, plot_name, tooltip_config
                 )
 
-        self.sort_plots()
+        if self.plot_sorting_enabled:
+            self.sort_plots()
 
     def remove_timeline_series(self, plot_name: str, series_name: str) -> None:
         if plot_name not in self.timeline_plots:
