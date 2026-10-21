@@ -15,6 +15,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
+    QFrame,
     QGraphicsEllipseItem,
     QGraphicsRectItem,
     QGraphicsSceneMouseEvent,
@@ -348,6 +349,71 @@ class PlotOverlay(QWidget):
         self.setGeometry(
             plot_rect.x(), 20, plot_rect.width(), self.parent().height() - 20
         )
+
+
+class TimelineTooltipWidget(QFrame):
+    """Persistent, mouse-transparent tooltip surface for timeline hover content."""
+
+    CURSOR_OFFSET = QPoint(14, 18)
+
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(parent)
+        self.setObjectName("timelineTooltip")
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setStyleSheet(
+            "QFrame#timelineTooltip { background: #2b2b2b; color: #e0e0e0; "
+            "border-radius: 4px; }"
+        )
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(7, 4, 7, 4)
+        self._text_label = QLabel(self)
+        self._text_label.setTextFormat(Qt.TextFormat.RichText)
+        self._text_label.setWordWrap(True)
+        self._text_label.setMaximumWidth(420)
+        self._content_widget: QWidget = self._text_label
+        self._layout.addWidget(self._content_widget)
+        self.hide()
+
+    def show_text(self, text: str, global_cursor_position: QPoint) -> None:
+        if self._content_widget is not self._text_label:
+            self.set_content_widget(self._text_label)
+        self._text_label.setText(text)
+        self.show_at(global_cursor_position)
+
+    def show_at(self, global_cursor_position: QPoint) -> None:
+        self.adjustSize()
+        parent = self.parentWidget()
+        if parent is None:
+            return
+
+        available = parent.rect().adjusted(4, 4, -4, -4)
+        self.resize(
+            min(self.width(), available.width()),
+            min(self.height(), available.height()),
+        )
+        position = parent.mapFromGlobal(global_cursor_position) + self.CURSOR_OFFSET
+        position.setX(min(position.x(), available.right() - self.width() + 1))
+        position.setY(min(position.y(), available.bottom() - self.height() + 1))
+        position.setX(max(position.x(), available.left()))
+        position.setY(max(position.y(), available.top()))
+        self.move(position)
+        self.raise_()
+        self.show()
+
+    def set_content_widget(self, widget: QWidget) -> None:
+        """Replace the text child with custom content while retaining this surface."""
+        if widget is self._content_widget:
+            return
+        self._layout.removeWidget(self._content_widget)
+        self._content_widget.hide()
+        if self._content_widget is not self._text_label:
+            self._content_widget.setParent(None)
+        self._content_widget = widget
+        widget.setParent(self)
+        self._layout.addWidget(widget)
+        widget.show()
 
 
 class PlayHead(PlotOverlay):

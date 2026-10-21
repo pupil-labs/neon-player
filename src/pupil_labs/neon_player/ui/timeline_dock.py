@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QToolButton,
-    QToolTip,
     QVBoxLayout,
     QWidget,
 )
@@ -32,19 +31,25 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     SmartSizePlotItem,
     TimeAxisItem,
     TimelineHoverMarker,
+    TimelineTooltipWidget,
     TimelineTableContainer,
     TimestampLabel,
     TrimDurationMarker,
     TrimEndMarker,
 )
 from pupil_labs.neon_player.ui.timeline_dock_utils import (
-    get_clicked_data_point, get_clicked_plot_item
+    TimelineTooltipCallback,
+    TimelineTooltipContext,
+    get_clicked_data_point,
+    get_clicked_plot_item,
+    get_timeline_row_values,
 )
-from pupil_labs.neon_player.utilities import clone_menu
+from pupil_labs.neon_player.utilities import SignalDebouncer, clone_menu
 
 
 class TimeLineDock(QWidget):
     key_pressed = Signal(QKeyEvent)
+    tooltip_update_requested = Signal(QPointF, float)
 
     def __init__(self) -> None:
         super().__init__()
@@ -52,6 +57,7 @@ class TimeLineDock(QWidget):
 
         self.timeline_plots: dict[str, pg.PlotItem] = {}
         self.timeline_legends: dict[str, pg.LegendItem] = {}
+        self.timeline_tooltips: dict[str, TimelineTooltipCallback] = {}
         self.plot_colors = [
             QColor("#1f77b4"),
             QColor("#ff7f0e"),
@@ -111,9 +117,11 @@ class TimeLineDock(QWidget):
         self.graphics_layout.setSpacing(0)
         self.graphics_layout.setContentsMargins(0, 0, 0, 0)
         self.graphics_view.setCentralItem(self.graphics_layout)
+        self.tooltip_widget = TimelineTooltipWidget(self.graphics_view.viewport())
 
         self.graphics_view.scene().sigMouseClicked.connect(self.on_chart_area_clicked)
         self.graphics_view.scene().sigMouseMoved.connect(self.on_chart_area_mouse_moved)
+        self.tooltip_update_requested.connect(self._update_tooltip)
 
         self.scroll_area = QScrollArea()
         self.scroll_area.setHorizontalScrollBarPolicy(
@@ -172,6 +180,8 @@ class TimeLineDock(QWidget):
         self.graphics_view.setFixedWidth(w)
         self.playhead.refresh_geometry()
         self.hover_marker.refresh_geometry()
+        if self.tooltip_widget.isVisible():
+            self.tooltip_widget.show_at(QCursor.pos())
         return super().resizeEvent(event)
 
     def on_recording_loaded(self, recording: nr.NeonRecording):
@@ -201,6 +211,7 @@ class TimeLineDock(QWidget):
             trim_plot.clear()
         self.playhead.hide()
         self.hover_marker.set_cursor_time(None)
+        self.tooltip_widget.hide()
 
     def on_playback_state_changed(self, is_playing: bool):
         icon_name = "pause.svg" if is_playing else "play.svg"
@@ -247,176 +258,63 @@ class TimeLineDock(QWidget):
         else:
             self.hover_marker.set_cursor_time(None)
 
-        self._update_tooltip(pos, data_pos.x())
+        SignalDebouncer.debounce(
+            self.tooltip_update_requested, 0.01, pos, data_pos.x()
+        )
 
     def _update_tooltip(self, pos: QPointF, x: float):
-        tooltip_text = ""
+        recording = neon_player.instance().recording
+        if recording is None or not recording.start_time <= x <= recording.stop_time:
+            self.tooltip_widget.hide()
+            return
+
         hovered_plot_name = None
         for name, plot_item in self.timeline_plots.items():
             if plot_item.sceneBoundingRect().contains(pos):
                 hovered_plot_name = name
                 break
 
-        if hovered_plot_name and hovered_plot_name != "Export window":
-            plot_item = self.timeline_plots[hovered_plot_name]
-            lines = []
-
-            view_box = plot_item.getViewBox()
-            pixel_width = view_box.viewPixelSize()[0]
-            x_threshold = 20 * pixel_width
-
-            for item in plot_item.items:
-                if isinstance(item, pg.PlotDataItem):
-                    self._add_plot_data_item_tooltip(
-                        item, x, x_threshold, lines, hovered_plot_name
-                    )
-                elif isinstance(item, pg.BarGraphItem):
-                    self._add_bar_graph_item_tooltip(item, x, lines, hovered_plot_name)
-
-            if lines:
-                tooltip_html = "<br>".join(lines)
-                tooltip_text = (
-                    f"<html><head><style>p, body {{ "
-                    f"margin: 0; padding: 0; line-height: 1.0; }}</style></head>"
-                    f"<body>{tooltip_html}</body></html>"
-                )
+        tooltip_text = self._tooltip_text_for_hovered_row(hovered_plot_name, x)
 
         if tooltip_text:
-            pos = QCursor.pos()
-            pos.setY(pos.y() - 15)
-            QToolTip.showText(pos, tooltip_text)
+            self.tooltip_widget.show_text(tooltip_text, QCursor.pos())
         else:
-            QToolTip.hideText()
+            self.tooltip_widget.hide()
 
-    def _add_plot_data_item_tooltip(self, item, x, x_threshold, lines, plot_name=""):
-        hovered_plot_name = plot_name
-        x_data, y_data = item.getData()
-        if x_data is not None and len(x_data) > 0 and y_data is not None:
-            idx = np.searchsorted(x_data, x)
-            if 0 < idx < len(x_data):
-                if abs(x_data[idx] - x) < abs(x_data[idx - 1] - x):
-                    closest_idx = idx
-                else:
-                    closest_idx = idx - 1
-            elif idx == 0:
-                closest_idx = 0
-            else:
-                closest_idx = len(x_data) - 1
+    def _tooltip_text_for_hovered_row(
+        self, row_name: str | None, x: float
+    ) -> str:
+        if row_name is None:
+            return ""
+        callback = self.timeline_tooltips.get(row_name)
+        if callback is None or row_name == "Export window":
+            return ""
+        plot_item = self.timeline_plots[row_name]
+        tolerance_ns = int(round(20 * plot_item.getViewBox().viewPixelSize()[0]))
+        timestamp_ns = int(round(x))
+        series = get_timeline_row_values(plot_item.items, timestamp_ns, tolerance_ns)
+        try:
+            tooltip_text = callback(TimelineTooltipContext(timestamp_ns, series))
+            if not isinstance(tooltip_text, str):
+                logging.warning(
+                    "Timeline tooltip should be provided as string"
+                )
+                return ""
 
-            if abs(x_data[closest_idx] - x) <= x_threshold:
-                y_val = y_data[closest_idx]
+            return tooltip_text
+        except Exception:
+            logging.exception("Timeline tooltip callback failed for %s", row_name)
+            return ""
 
-                name_attr = getattr(item, "name", "")
-                name = name_attr() if callable(name_attr) else name_attr
-                if not name:
-                    name = item.opts.get("name", "")
-
-                is_event_plot = (
-                    hovered_plot_name and "Events" in hovered_plot_name
-                ) or getattr(item, "is_event", False)
-
-                if not name and is_event_plot and hovered_plot_name:
-                    name = hovered_plot_name.replace("Events - ", "").replace(
-                        "00_Events", "Events"
-                    )
-
-                custom_names = getattr(item, "custom_names", None)
-                if custom_names and closest_idx < len(custom_names):
-                    name = custom_names[closest_idx]
-
-                if is_event_plot:
-                    app = neon_player.instance()
-                    time_ns = x_data[closest_idx]
-                    if app.recording:
-                        diff_ns = time_ns - app.recording.start_time
-
-                        total_ms = int(diff_ns // 1_000_000)
-                        ms = total_ms % 1000
-                        total_seconds = total_ms // 1000
-                        seconds = total_seconds % 60
-                        total_minutes = total_seconds // 60
-                        minutes = total_minutes % 60
-                        hours = total_minutes // 60
-
-                        val_str = f"{hours:02}:{minutes:02}:{seconds:02}.{ms:03}"
-                    else:
-                        val_str = str(time_ns)
-
-                    custom_reps = getattr(item, "custom_reps", None)
-                    if custom_reps and closest_idx < len(custom_reps):
-                        rep_str = custom_reps[closest_idx]
-                    else:
-                        total = len(x_data)
-                        rep_str = f" ({closest_idx + 1}/{total})" if total > 1 else ""
-
-                    if name:
-                        lines.append(f"<b>{name}{rep_str}</b><br/>{val_str}")
-                    else:
-                        lines.append(val_str)
-                else:
-                    if isinstance(y_val, (float, np.floating)):
-                        val_str = f"{y_val:.4g}"
-                    else:
-                        val_str = f"{y_val}"
-
-                    if name:
-                        lines.append(f"<b>{name}:</b> {val_str}")
-                    else:
-                        lines.append(val_str)
-
-    def _add_bar_graph_item_tooltip(self, item, x, lines, plot_name=""):
-        opts = item.opts
-        x0 = opts.get("x0")
-        x1 = opts.get("x1")
-        if x0 is not None and x1 is not None:
-            for i in range(len(x0)):
-                if x0[i] <= x <= x1[i]:
-                    name_attr = getattr(item, "name", "")
-                    name = name_attr() if callable(name_attr) else name_attr
-                    if not name:
-                        name = opts.get("name", "Value")
-
-                    val_str = "Active"
-                    if hasattr(item, "bar_values") and item.bar_values is not None:
-                        val = item.bar_values[i]
-                        if not np.isnan(val):
-                            if isinstance(val, (float, np.floating)):
-                                val_str = f"{val:.4g}"
-                            else:
-                                val_str = str(val)
-                        else:
-                            val_str = self._format_duration(
-                                x0[i], x1[i], plot_name, name, i
-                            )
-                    else:
-                        val_str = self._format_duration(
-                            x0[i], x1[i], plot_name, name, i
-                        )
-
-                    display_name = (
-                        name if name and name != "Value" else plot_name or name
-                    )
-                    if display_name:
-                        lines.append(f"<b>{display_name}:</b> {val_str}")
-                    else:
-                        lines.append(val_str)
-                    break
-
-    def _format_duration(self, start, stop, plot_name, name, index):
-        ms = (stop - start) / 1_000_000
-        if ms >= 60_000:
-            mins = int(ms // 60_000)
-            secs = (ms % 60_000) / 1000
-            dur_str = f"{mins}m {secs:.1f}s"
-        elif ms >= 1_000:
-            secs = ms / 1000
-            dur_str = f"{secs:.1f} s"
+    def _register_timeline_tooltip(
+        self,
+        timeline_row_name: str,
+        tooltip: TimelineTooltipCallback | None,
+    ) -> None:
+        if tooltip is None:
+            self.timeline_tooltips.pop(timeline_row_name, None)
         else:
-            dur_str = f"{ms:.1f} ms"
-
-        is_blink_or_fix = plot_name in ["Blinks", "Fixations"]
-        is_blink_or_fix = is_blink_or_fix or name in ["Blinks", "Fixations"]
-        return f"ID: {index + 1} | {dur_str}" if is_blink_or_fix else dur_str
+            self.timeline_tooltips[timeline_row_name] = tooltip
 
     def on_whitespace_mouse_moved(self, event):
         if event.buttons() == Qt.LeftButton:
@@ -671,6 +569,7 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
         plot_name: str = "",
         color: QColor | None = None,
+        tooltip: TimelineTooltipCallback | None = None,
         **kwargs: T.Any,
     ) -> pg.PlotDataItem | None:
         app = neon_player.instance()
@@ -680,6 +579,8 @@ class TimeLineDock(QWidget):
         plot_item = self.get_timeline_plot(timeline_row_name, True)
         if plot_item is None:
             return None
+
+        self._register_timeline_tooltip(timeline_row_name, tooltip)
 
         if color is None:
             plot_index = len(plot_item.items)
@@ -720,12 +621,15 @@ class TimeLineDock(QWidget):
             return
 
         with contextlib.suppress(ValueError):
+            if plot_name in self.timeline_tooltips:
+                self.tooltip_widget.hide()
             self.graphics_layout.removeItem(
                 self.timeline_legends[plot_name].parentItem()
             )
             self.graphics_layout.removeItem(self.timeline_plots[plot_name])
             del self.timeline_plots[plot_name]
             del self.timeline_legends[plot_name]
+            self.timeline_tooltips.pop(plot_name, None)
 
         self.sort_plots()
 
@@ -768,12 +672,19 @@ class TimeLineDock(QWidget):
         timeline_row_name: str,
         data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
         plot_name: str = "",
+        tooltip: TimelineTooltipCallback | None = None,
         **kwargs: T.Any,
     ) -> pg.PlotDataItem | None:
-        return self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
+        return self.add_timeline_plot(
+            timeline_row_name, data, plot_name, tooltip=tooltip, **kwargs
+        )
 
     def add_timeline_scatter(
-        self, name: str, data: list[tuple[int, T.SupportsFloat]] | np.ndarray, item_name: str = ""
+        self,
+        name: str,
+        data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
+        item_name: str = "",
+        tooltip: TimelineTooltipCallback | None = None,
     ) -> pg.PlotDataItem | None:
         return self.add_timeline_plot(
             name,
@@ -782,6 +693,7 @@ class TimeLineDock(QWidget):
             pen=None,
             symbol="d",
             symbolBrush=pg.mkColor("white"),
+            tooltip=tooltip,
         )
 
     def add_timeline_broken_bar(
@@ -790,6 +702,7 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, int, T.SupportsFloat]] | list[tuple[int, int]] | np.ndarray,
         item_name: str = "",
         color: str = "white",
+        tooltip: TimelineTooltipCallback | None = None,
     ) -> pg.PlotDataItem | None:
         """Adds a broken bar plot to the timeline where bars are colored based on a Z-value.
 
@@ -804,6 +717,8 @@ class TimeLineDock(QWidget):
         plot_widget = self.get_timeline_plot(timeline_row_name, True)
         if plot_widget is None:
             return None
+
+        self._register_timeline_tooltip(timeline_row_name, tooltip)
 
         plot_widget.getViewBox().allow_y_panning = False
         # plot_widget.getViewBox().setMouseEnabled(y=False)
