@@ -3,13 +3,15 @@ from types import SimpleNamespace
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QPointF
+from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtGui import QKeyEvent
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.timeline_dock_utils import (
     TimelineTooltipContext,
     TimelineTooltipSeries,
+    default_alt_timeline_tooltip,
     default_timeline_tooltip,
     get_clicked_data_point,
     get_item_tooltip_series,
@@ -71,18 +73,18 @@ def test_tooltip_registration_replaces_callback_with_latest_non_none():
     second = lambda context: "second"
     owner = SimpleNamespace(timeline_tooltips={})
 
-    TimeLineDock._register_timeline_tooltip(owner, "row", first)
-    TimeLineDock._register_timeline_tooltip(owner, "row", second)
+    TimeLineDock._register_timeline_tooltip(owner, "row", first, None)
+    TimeLineDock._register_timeline_tooltip(owner, "row", second, None)
 
-    assert owner.timeline_tooltips == {"row": second}
+    assert owner.timeline_tooltips == {"row": (second, None)}
 
 
 def test_none_tooltip_clears_registered_callback():
     owner = SimpleNamespace(timeline_tooltips={"row": lambda context: "shown"})
 
-    TimeLineDock._register_timeline_tooltip(owner, "row", None)
+    TimeLineDock._register_timeline_tooltip(owner, "row", None, None)
 
-    assert owner.timeline_tooltips == {}
+    assert owner.timeline_tooltips == {"row": (None, None)}
 
 
 def test_omitted_tooltip_registers_default_callback():
@@ -91,9 +93,28 @@ def test_omitted_tooltip_registers_default_callback():
         "tooltip"
     ].default
 
-    TimeLineDock._register_timeline_tooltip(owner, "row", default)
+    alt_default = inspect.signature(TimeLineDock.add_timeline_plot).parameters[
+        "alt_tooltip"
+    ].default
+    TimeLineDock._register_timeline_tooltip(owner, "row", default, alt_default)
 
-    assert owner.timeline_tooltips == {"row": default_timeline_tooltip}
+    assert owner.timeline_tooltips == {
+        "row": (default_timeline_tooltip, default_alt_timeline_tooltip)
+    }
+
+
+def test_custom_alternative_tooltip_is_registered_and_none_can_hide_it():
+    custom_alt = lambda context: "alternate"
+    owner = SimpleNamespace(timeline_tooltips={})
+    normal_default = inspect.signature(TimeLineDock.add_timeline_plot).parameters[
+        "tooltip"
+    ].default
+
+    TimeLineDock._register_timeline_tooltip(owner, "row", normal_default, custom_alt)
+    assert owner.timeline_tooltips["row"] == (default_timeline_tooltip, custom_alt)
+
+    TimeLineDock._register_timeline_tooltip(owner, "row", normal_default, None)
+    assert owner.timeline_tooltips["row"] == (default_timeline_tooltip, None)
 
 
 def test_default_timeline_tooltip_formats_single_series_value():
@@ -159,6 +180,84 @@ def test_default_timeline_tooltip_rounds_broken_bar_duration_to_whole_ms():
     assert default_timeline_tooltip(context) == "#3 251ms"
 
 
+def test_default_alt_timeline_tooltip_keeps_line_value_unchanged():
+    context = TimelineTooltipContext(
+        100, {"speed": TimelineTooltipSeries(value=3.5, kind="point")}
+    )
+
+    assert default_alt_timeline_tooltip(context) == "3.500"
+
+
+def test_default_alt_timeline_tooltip_adds_exact_interval_timestamps():
+    context = TimelineTooltipContext(
+        100,
+        {
+            "interval": TimelineTooltipSeries(
+                value=7.0,
+                kind="interval",
+                index=2,
+                start_ns=123_456_789,
+                stop_ns=987_654_321,
+            )
+        },
+    )
+
+    tooltip = default_alt_timeline_tooltip(context)
+    assert tooltip.startswith("#3 864ms")
+    assert "Start:</td>" in tooltip
+    assert "Stop:</td>" in tooltip
+    assert "interval" not in tooltip
+    assert "123456789 ns" in tooltip
+    assert "987654321 ns" in tooltip
+
+
+def test_default_alt_timeline_tooltip_omits_names_for_multiple_broken_bar_series():
+    context = TimelineTooltipContext(
+        100,
+        {
+            "left bar": TimelineTooltipSeries(
+                value=1,
+                kind="interval",
+                index=0,
+                start_ns=10,
+                stop_ns=20,
+            ),
+            "right bar": TimelineTooltipSeries(
+                value=1,
+                kind="interval",
+                index=0,
+                start_ns=30,
+                stop_ns=50,
+            ),
+        },
+    )
+
+    assert default_alt_timeline_tooltip(context) == ""
+
+
+def test_alt_tooltip_key_events_switch_mode_and_refresh():
+    refreshed = []
+    owner = SimpleNamespace(
+        _alt_tooltip_active=False,
+        _refresh_tooltip_for_hover=lambda: refreshed.append(owner._alt_tooltip_active),
+    )
+
+    TimeLineDock._on_alt_tooltip_key_event(
+        owner,
+        QKeyEvent(
+            QEvent.Type.KeyPress, Qt.Key.Key_Alt, Qt.KeyboardModifier.AltModifier
+        ),
+    )
+    TimeLineDock._on_alt_tooltip_key_event(
+        owner,
+        QKeyEvent(
+            QEvent.Type.KeyRelease, Qt.Key.Key_Alt, Qt.KeyboardModifier.NoModifier
+        ),
+    )
+
+    assert refreshed == [True, False]
+
+
 def test_default_timeline_tooltip_hides_when_all_values_are_none():
     context = TimelineTooltipContext(
         100,
@@ -180,6 +279,9 @@ def test_all_timeline_add_apis_expose_optional_tooltip():
     ):
         parameter = inspect.signature(getattr(TimeLineDock, name)).parameters["tooltip"]
         assert parameter.default is not None
+        assert inspect.signature(getattr(TimeLineDock, name)).parameters[
+            "alt_tooltip"
+        ].default is not None
 
 
 def test_callback_receives_integral_timestamp_and_row_values():
@@ -190,7 +292,7 @@ def test_callback_receives_integral_timestamp_and_row_values():
     received = []
     owner = SimpleNamespace(
         timeline_tooltips={
-            "row": lambda context: received.append(context) or "<b>ok</b>"
+            "row": (lambda context: received.append(context) or "<b>ok</b>", None)
         },
         timeline_plots={"row": plot},
     )
@@ -205,13 +307,29 @@ def test_callback_receives_integral_timestamp_and_row_values():
     assert received[0].series["value"].index == 0
 
 
+def test_alt_mode_uses_alternative_callback():
+    plot = SimpleNamespace(
+        getViewBox=lambda: SimpleNamespace(viewPixelSize=lambda: (1.0, 1.0)),
+        items=[pg.PlotDataItem([100], [5], name="value")],
+    )
+    owner = SimpleNamespace(
+        _alt_tooltip_active=True,
+        timeline_tooltips={
+            "row": (lambda context: "normal", lambda context: "alternative")
+        },
+        timeline_plots={"row": plot},
+    )
+
+    assert TimeLineDock._tooltip_text_for_hovered_row(owner, "row", 100) == "alternative"
+
+
 def test_empty_callback_result_hides_tooltip():
     plot = SimpleNamespace(
         getViewBox=lambda: SimpleNamespace(viewPixelSize=lambda: (1.0, 1.0)),
         items=[],
     )
     owner = SimpleNamespace(
-        timeline_tooltips={"row": lambda context: ""},
+        timeline_tooltips={"row": (lambda context: "", None)},
         timeline_plots={"row": plot},
     )
 
