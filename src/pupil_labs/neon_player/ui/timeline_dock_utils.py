@@ -9,7 +9,10 @@ import pyqtgraph as pg
 
 from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
 
-from pupil_labs.neon_player.ui.timeline_dock_components import SmartSizePlotItem
+from pupil_labs.neon_player.ui.timeline_dock_components import (
+    SmartSizePlotItem,
+    format_timestamp_ns,
+)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -21,6 +24,7 @@ class TimelineTooltipSeries:
     index: int | None = None
     start_ns: int | None = None
     stop_ns: int | None = None
+    timestamp_ns: int | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -29,6 +33,7 @@ class TimelineTooltipContext:
 
     timestamp_ns: int
     series: dict[str, TimelineTooltipSeries]
+    origin_ns: int = 0
 
     @property
     def values(self) -> dict[str, T.Any | None]:
@@ -41,7 +46,11 @@ TimelineTooltipCallback: T.TypeAlias = T.Callable[[TimelineTooltipContext], str]
 def default_timeline_tooltip(context: TimelineTooltipContext) -> str:
     """Format available row values for the timeline's default tooltip."""
     available = [
-        (name, entry, _format_default_series_value(entry))
+        (
+            name,
+            entry,
+            _format_default_series_value(entry, origin_ns=context.origin_ns),
+        )
         for name, entry in context.series.items()
         if entry.value is not None
     ]
@@ -82,7 +91,7 @@ def default_alt_timeline_tooltip(context: TimelineTooltipContext) -> str:
         return ""
 
     available_values = [
-        _format_default_series_value(entry)
+        _format_default_series_value(entry, origin_ns=context.origin_ns)
         for entry in context.series.values()
         if entry.value is not None
     ]
@@ -106,7 +115,16 @@ def default_alt_timeline_tooltip(context: TimelineTooltipContext) -> str:
     return f'{values}<table cellspacing="0" cellpadding="0">{details}</table>'
 
 
-def _format_default_series_value(entry: TimelineTooltipSeries) -> str:
+def _format_default_series_value(
+    entry: TimelineTooltipSeries, *, origin_ns: int = 0
+) -> str:
+    if entry.kind == "scatter" and entry.timestamp_ns is not None:
+        return format_timestamp_ns(
+            entry.timestamp_ns,
+            origin_ns=origin_ns,
+            always_show_hours=True,
+            show_milliseconds=True,
+        )
     if (
         entry.kind == "interval"
         and entry.index is not None
@@ -170,9 +188,10 @@ def get_item_tooltip_series(
     item: T.Any, timestamp_ns: int, tolerance_ns: int
 ) -> TimelineTooltipSeries:
     if isinstance(item, pg.PlotDataItem):
+        kind = "scatter" if item.opts.get("symbol") is not None else "point"
         timestamps, values = item.getData()
         if timestamps is None or values is None or len(timestamps) == 0:
-            return TimelineTooltipSeries(value=None, kind="point")
+            return TimelineTooltipSeries(value=None, kind=kind)
 
         # TODO: ensure that the timestamps are sorted
         index = bisect_left(timestamps, timestamp_ns)
@@ -180,9 +199,14 @@ def get_item_tooltip_series(
         closest = min(candidates, key=lambda i: abs(timestamps[i] - timestamp_ns))
         if abs(timestamps[closest] - timestamp_ns) <= tolerance_ns:
             return TimelineTooltipSeries(
-                value=values[closest], kind="point", index=closest
+                value=values[closest],
+                kind=kind,
+                index=closest,
+                timestamp_ns=(
+                    int(timestamps[closest]) if kind == "scatter" else None
+                ),
             )
-        return TimelineTooltipSeries(value=None, kind="point")
+        return TimelineTooltipSeries(value=None, kind=kind)
 
     if isinstance(item, pg.BarGraphItem):
         options = item.opts

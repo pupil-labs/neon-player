@@ -359,7 +359,11 @@ class TimeLineDock(QWidget):
                 )
                 return callback
 
-            tooltip_text = callback(TimelineTooltipContext(timestamp_ns, series))
+            recording = neon_player.instance().recording
+            origin_ns = recording.start_time if recording is not None else 0
+            tooltip_text = callback(
+                TimelineTooltipContext(timestamp_ns, series, origin_ns)
+            )
             if not isinstance(tooltip_text, str):
                 logging.warning(
                     "Timeline tooltip should be provided as string"
