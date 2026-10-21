@@ -40,11 +40,14 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
 from pupil_labs.neon_player.ui.timeline_dock_utils import (
     TimelineTooltipCallback,
     TimelineTooltipContext,
+    default_timeline_tooltip,
     get_clicked_data_point,
     get_clicked_plot_item,
     get_timeline_row_values,
 )
 from pupil_labs.neon_player.utilities import SignalDebouncer, clone_menu
+
+_DEFAULT_TOOLTIP = object()
 
 
 class TimeLineDock(QWidget):
@@ -309,12 +312,16 @@ class TimeLineDock(QWidget):
     def _register_timeline_tooltip(
         self,
         timeline_row_name: str,
-        tooltip: TimelineTooltipCallback | None,
+        tooltip: TimelineTooltipCallback | None | object,
     ) -> None:
-        if tooltip is None:
+        if tooltip is _DEFAULT_TOOLTIP:
+            self.timeline_tooltips[timeline_row_name] = default_timeline_tooltip
+        elif tooltip is None:
             self.timeline_tooltips.pop(timeline_row_name, None)
         else:
-            self.timeline_tooltips[timeline_row_name] = tooltip
+            self.timeline_tooltips[timeline_row_name] = T.cast(
+                TimelineTooltipCallback, tooltip
+            )
 
     def on_whitespace_mouse_moved(self, event):
         if event.buttons() == Qt.LeftButton:
@@ -569,7 +576,7 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
         plot_name: str = "",
         color: QColor | None = None,
-        tooltip: TimelineTooltipCallback | None = None,
+        tooltip: TimelineTooltipCallback | None | object = _DEFAULT_TOOLTIP,
         **kwargs: T.Any,
     ) -> pg.PlotDataItem | None:
         app = neon_player.instance()
@@ -672,7 +679,7 @@ class TimeLineDock(QWidget):
         timeline_row_name: str,
         data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
         plot_name: str = "",
-        tooltip: TimelineTooltipCallback | None = None,
+        tooltip: TimelineTooltipCallback | None | object = _DEFAULT_TOOLTIP,
         **kwargs: T.Any,
     ) -> pg.PlotDataItem | None:
         return self.add_timeline_plot(
@@ -684,7 +691,7 @@ class TimeLineDock(QWidget):
         name: str,
         data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
         item_name: str = "",
-        tooltip: TimelineTooltipCallback | None = None,
+        tooltip: TimelineTooltipCallback | None | object = _DEFAULT_TOOLTIP,
     ) -> pg.PlotDataItem | None:
         return self.add_timeline_plot(
             name,
@@ -702,7 +709,7 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, int, T.SupportsFloat]] | list[tuple[int, int]] | np.ndarray,
         item_name: str = "",
         color: str = "white",
-        tooltip: TimelineTooltipCallback | None = None,
+        tooltip: TimelineTooltipCallback | None | object = _DEFAULT_TOOLTIP,
     ) -> pg.PlotDataItem | None:
         """Adds a broken bar plot to the timeline where bars are colored based on a Z-value.
 

@@ -370,6 +370,9 @@ class TimelineTooltipWidget(QFrame):
         self._layout.setContentsMargins(7, 4, 7, 4)
         self._text_label = QLabel(self)
         self._text_label.setTextFormat(Qt.TextFormat.RichText)
+        self._text_label.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
         self._text_label.setWordWrap(True)
         self._text_label.setMaximumWidth(420)
         self._content_widget: QWidget = self._text_label

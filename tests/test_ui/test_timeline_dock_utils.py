@@ -9,6 +9,8 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.timeline_dock_utils import (
     TimelineTooltipContext,
+    TimelineTooltipSeries,
+    default_timeline_tooltip,
     get_clicked_data_point,
     get_item_tooltip_series,
     get_timeline_row_values,
@@ -83,6 +85,92 @@ def test_none_tooltip_clears_registered_callback():
     assert owner.timeline_tooltips == {}
 
 
+def test_omitted_tooltip_registers_default_callback():
+    owner = SimpleNamespace(timeline_tooltips={})
+    default = inspect.signature(TimeLineDock.add_timeline_plot).parameters[
+        "tooltip"
+    ].default
+
+    TimeLineDock._register_timeline_tooltip(owner, "row", default)
+
+    assert owner.timeline_tooltips == {"row": default_timeline_tooltip}
+
+
+def test_default_timeline_tooltip_formats_single_series_value():
+    context = TimelineTooltipContext(
+        100, {"speed": TimelineTooltipSeries(value=3.5, kind="point")}
+    )
+
+    assert default_timeline_tooltip(context) == "3.500"
+
+
+def test_default_timeline_tooltip_formats_multiple_series_and_omits_none():
+    context = TimelineTooltipContext(
+        100,
+        {
+            "speed": TimelineTooltipSeries(value=3.5, kind="point"),
+            "temperature": TimelineTooltipSeries(value=None, kind="point"),
+            "altitude": TimelineTooltipSeries(value=42, kind="point"),
+        },
+    )
+
+    assert (
+        default_timeline_tooltip(context)
+        == '<table cellspacing="0" cellpadding="0">'
+        '<tr><td style="padding-right: 6px"><b>speed</b>:</td>'
+        '<td style="text-align: right">3.500</td></tr>'
+        '<tr><td style="padding-right: 6px"><b>altitude</b>:</td>'
+        '<td style="text-align: right">42</td></tr>'
+        "</table>"
+    )
+
+
+def test_default_timeline_tooltip_formats_broken_bar_index_and_duration():
+    context = TimelineTooltipContext(
+        100,
+        {
+            "interval": TimelineTooltipSeries(
+                value=7.0,
+                kind="interval",
+                index=2,
+                start_ns=100_000_000,
+                stop_ns=350_000_000,
+            )
+        },
+    )
+
+    assert default_timeline_tooltip(context) == "#3 250ms"
+
+
+def test_default_timeline_tooltip_rounds_broken_bar_duration_to_whole_ms():
+    context = TimelineTooltipContext(
+        100,
+        {
+            "interval": TimelineTooltipSeries(
+                value=7.0,
+                kind="interval",
+                index=2,
+                start_ns=100_000_000,
+                stop_ns=350_700_000,
+            )
+        },
+    )
+
+    assert default_timeline_tooltip(context) == "#3 251ms"
+
+
+def test_default_timeline_tooltip_hides_when_all_values_are_none():
+    context = TimelineTooltipContext(
+        100,
+        {
+            "speed": TimelineTooltipSeries(value=None, kind="point"),
+            "temperature": TimelineTooltipSeries(value=None, kind="point"),
+        },
+    )
+
+    assert default_timeline_tooltip(context) == ""
+
+
 def test_all_timeline_add_apis_expose_optional_tooltip():
     for name in (
         "add_timeline_plot",
@@ -91,7 +179,7 @@ def test_all_timeline_add_apis_expose_optional_tooltip():
         "add_timeline_broken_bar",
     ):
         parameter = inspect.signature(getattr(TimeLineDock, name)).parameters["tooltip"]
-        assert parameter.default is None
+        assert parameter.default is not None
 
 
 def test_callback_receives_integral_timestamp_and_row_values():

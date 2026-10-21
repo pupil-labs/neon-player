@@ -1,5 +1,7 @@
 from bisect import bisect_left
 import dataclasses
+import html
+import numbers
 import typing as T
 
 import numpy as np
@@ -34,6 +36,42 @@ class TimelineTooltipContext:
 
 
 TimelineTooltipCallback: T.TypeAlias = T.Callable[[TimelineTooltipContext], str]
+
+
+def default_timeline_tooltip(context: TimelineTooltipContext) -> str:
+    """Format available row values for the timeline's default tooltip."""
+    available = [
+        (name, entry, _format_default_series_value(entry))
+        for name, entry in context.series.items()
+        if entry.value is not None
+    ]
+    if not available:
+        return ""
+    if len(context.series) == 1:
+        return available[0][2]
+    rows = "".join(
+        "<tr>"
+        f'<td style="padding-right: 6px"><b>{html.escape(name)}</b>:</td>'
+        f'<td style="text-align: right">{html.escape(value)}</td>'
+        "</tr>"
+        for name, _entry, value in available
+    )
+    return f'<table cellspacing="0" cellpadding="0">{rows}</table>'
+
+
+def _format_default_series_value(entry: TimelineTooltipSeries) -> str:
+    if (
+        entry.kind == "interval"
+        and entry.index is not None
+        and entry.start_ns is not None
+        and entry.stop_ns is not None
+    ):
+        duration_ms = round((entry.stop_ns - entry.start_ns) / 1_000_000)
+        return f"#{entry.index+1} {duration_ms}ms"
+    value = entry.value
+    if isinstance(value, numbers.Real) and not isinstance(value, numbers.Integral):
+        return f"{value:.3f}"
+    return str(value)
 
 
 def get_clicked_plot_item(items: list[T.Any]) -> SmartSizePlotItem | None:
