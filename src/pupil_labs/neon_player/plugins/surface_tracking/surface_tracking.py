@@ -4,6 +4,7 @@ import pickle
 import shutil
 import typing as T
 import uuid
+from enum import Enum
 from itertools import starmap
 from pathlib import Path
 
@@ -12,7 +13,7 @@ import cv2
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import pupil_apriltags
+import pyapriltags
 import pupil_labs.video as plv
 from dataclasses import dataclass
 from numpy.dtypes import StringDType
@@ -68,6 +69,34 @@ SurfaceLocation: T.TypeAlias = tuple[np.ndarray, np.ndarray]
 class DetectedMarker:
     tag_id: int
     corners: npt.NDArray[np.float64]
+
+
+class TagFamily(Enum):
+    """AprilTag families supported by pyapriltags.
+
+    Smaller families (e.g. tag16h5, tag25h9) have bigger cells and can be
+    detected from further away / at lower resolution, but have fewer IDs and
+    more false positives. Raise the minimum decision margin for those.
+    """
+
+    tag36h11 = "tag36h11"
+    tag25h9 = "tag25h9"
+    tag16h5 = "tag16h5"
+    tagCircle21h7 = "tagCircle21h7"
+    tagCircle49h12 = "tagCircle49h12"
+    tagStandard41h12 = "tagStandard41h12"
+    tagStandard52h13 = "tagStandard52h13"
+    tagCustom48h12 = "tagCustom48h12"
+
+
+# Detector settings used before they became configurable. A markers.npy
+# without a config file next to it was created with these.
+LEGACY_DETECTOR_CONFIG = {
+    "tag_family": TagFamily.tag36h11.value,
+    "quad_decimate": 2.0,
+    "decode_sharpening": 1.0,
+    "min_decision_margin": 0.0,
+}
 
 
 class SurfaceImportDialog(QDialog):
@@ -151,6 +180,25 @@ class SurfaceTrackingPlugin(Plugin):
         super().__init__()
         self.marker_cache_file = self.get_cache_path() / "markers.npy"
         self.surface_cache_file = self.get_cache_path() / "surfaces.npy"
+        # Detector settings that produced markers.npy
+        self.marker_config_file = self.get_cache_path() / "markers_config.json"
+
+        self._tag_family = TagFamily(LEGACY_DETECTOR_CONFIG["tag_family"])
+        self._quad_decimate = LEGACY_DETECTOR_CONFIG["quad_decimate"]
+        self._decode_sharpening = LEGACY_DETECTOR_CONFIG["decode_sharpening"]
+        self._min_decision_margin = LEGACY_DETECTOR_CONFIG["min_decision_margin"]
+
+        # Settings are restored before the recording is loaded; only react to
+        # detector changes after that.
+        self._recording_ready = False
+        self.marker_detection_job = None
+
+        # Wait a moment after a settings change so that typing a number
+        # doesn't start several detection runs.
+        self._redetect_timer = QTimer()
+        self._redetect_timer.setSingleShot(True)
+        self._redetect_timer.setInterval(1000)
+        self._redetect_timer.timeout.connect(self.redetect_markers)
 
         self._draw_marker_ids = False
         self._draw_names = True
@@ -235,22 +283,143 @@ class SurfaceTrackingPlugin(Plugin):
             self.recording.calibration.scene_camera_matrix,
             self.recording.calibration.scene_distortion_coefficients,
         )
+        self._recording_ready = True
         self.attempt_marker_cache_load()
 
+    def detector_config(self) -> dict[str, T.Any]:
+        return {
+            "tag_family": self._tag_family.value,
+            "quad_decimate": float(self._quad_decimate),
+            "decode_sharpening": float(self._decode_sharpening),
+            "min_decision_margin": float(self._min_decision_margin),
+        }
+
+    def _cached_detector_config(self) -> dict[str, T.Any] | None:
+        if not self.marker_cache_file.exists():
+            return None
+
+        if not self.marker_config_file.exists():
+            return dict(LEGACY_DETECTOR_CONFIG)
+
+        try:
+            with self.marker_config_file.open("r") as f:
+                return json.load(f)
+        except Exception:
+            logging.exception("Could not read marker detector config")
+            return None
+
     def attempt_marker_cache_load(self) -> None:
-        if self.marker_cache_file.exists():
+        cache_is_current = self._cached_detector_config() == self.detector_config()
+
+        if self.app.headless:
+            # Background jobs only read the cache, never start detection
+            if self.marker_cache_file.exists():
+                self._load_marker_cache()
+            return
+
+        if cache_is_current:
             self._load_marker_cache()
             return
 
-        if self.app.headless:
-            if self.marker_cache_file.exists():
-                self._load_marker_cache()
+        if self.marker_cache_file.exists():
+            logging.info("Marker cache was made with other detector settings")
+            self.redetect_markers()
+            return
 
-        else:
-            self.marker_detection_job = self.job_manager.run_background_action(
-                "Detect Markers", "SurfaceTrackingPlugin.bg_detect_markers"
-            )
-            self.marker_detection_job.finished.connect(self._load_marker_cache)
+        self._start_marker_detection()
+
+    def _start_marker_detection(self) -> None:
+        job = self.job_manager.run_background_action(
+            "Detect Markers", "SurfaceTrackingPlugin.bg_detect_markers"
+        )
+        self.marker_detection_job = job
+        job.finished.connect(lambda: self._on_marker_detection_finished(job))
+
+    def _on_marker_detection_finished(self, job: T.Any) -> None:
+        if job is not self.marker_detection_job:
+            # an older run that was replaced
+            return
+
+        self.marker_detection_job = None
+        if not self.marker_cache_file.exists():
+            return
+
+        self._load_marker_cache()
+
+        # Surfaces whose locations were invalidated need relocating
+        for surface in self._surfaces:
+            locations_path = self.get_cache_path() / f"{surface.uid}_locations.npy"
+            if not locations_path.exists():
+                self._start_bg_surface_locator(surface)
+
+    def _schedule_redetect(self) -> None:
+        self.changed.emit()
+        if self._recording_ready and not self.app.headless:
+            self._redetect_timer.start()
+
+    def redetect_markers(self) -> None:
+        """Delete the marker cache (and everything derived from it) and re-run
+        marker detection with the current detector settings.
+        """
+        if not self._recording_ready or self.app.headless:
+            return
+
+        logging.info(f"Re-detecting markers with {self.detector_config()}")
+
+        # stop a detection run that's still going with old settings
+        old_job = self.marker_detection_job
+        self.marker_detection_job = None
+        if old_job is not None:
+            try:
+                old_job.cancel()
+            except Exception:
+                logging.exception("Could not cancel marker detection job")
+
+        for path in (self.marker_cache_file, self.marker_config_file):
+            if path.exists():
+                path.unlink()
+
+        # Marker IDs may differ now: drop the old marker widgets
+        for surface in self._surfaces:
+            if surface.edit:
+                surface.edit = False
+
+        for widget in self.marker_edit_widgets.values():
+            widget.hide()
+            widget.setParent(None)
+            widget.deleteLater()
+
+        self.marker_edit_widgets.clear()
+
+        self.markers_by_frame = []
+        self.get_timeline().remove_timeline_plot("Marker visibility")
+
+        # Surface locations depend on the markers. Keep the surface
+        # definitions (surface.pkl), drop everything computed from them.
+        for surface in self._surfaces:
+            for job in list(surface.jobs):
+                try:
+                    job.cancel()
+                except Exception:
+                    logging.exception("Could not cancel surface job")
+
+            for suffix in (
+                "locations.npy",
+                "surface_visibility.pkl",
+                "heatmap.png",
+                "gazes.pkl",
+            ):
+                path = self.get_cache_path() / f"{surface.uid}_{suffix}"
+                if path.exists():
+                    path.unlink()
+
+            self.surface_locations.pop(surface.uid, None)
+            surface._heatmap = None
+            self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
+            self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
+
+        self.trigger_scene_update()
+        self._start_marker_detection()
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:  # noqa: C901
         self._update_displays()
@@ -463,6 +632,9 @@ class SurfaceTrackingPlugin(Plugin):
             painter.setPen(old_pen)
 
     def _load_marker_cache(self) -> None:
+        if not self.marker_cache_file.exists():
+            return
+
         self.markers_by_frame = np.load(self.marker_cache_file, allow_pickle=True)
         self.trigger_scene_update()
         for frame_markers in self.markers_by_frame:
@@ -720,6 +892,70 @@ class SurfaceTrackingPlugin(Plugin):
     def export_overlays(self, value: bool) -> None:
         self._export_overlays = value
 
+    # Marker detector settings. Changing any of them deletes markers.npy
+    # (and the surface caches built on it) and re-runs detection.
+
+    @property
+    def tag_family(self) -> TagFamily:
+        return self._tag_family
+
+    @tag_family.setter
+    def tag_family(self, value: TagFamily) -> None:
+        value = TagFamily(value)
+        if value == self._tag_family:
+            return
+
+        self._tag_family = value
+        self._schedule_redetect()
+
+    @property
+    @property_params(min=1.0, max=4.0, step=0.5, decimals=1)
+    def quad_decimate(self) -> float:
+        """Downsampling before detection. Lower (1.0) finds smaller or more
+        distant markers but is slower.
+        """
+        return self._quad_decimate
+
+    @quad_decimate.setter
+    def quad_decimate(self, value: float) -> None:
+        value = float(value)
+        if value == self._quad_decimate:
+            return
+
+        self._quad_decimate = value
+        self._schedule_redetect()
+
+    @property
+    @property_params(min=0.0, max=2.0, step=0.05, decimals=2)
+    def decode_sharpening(self) -> float:
+        return self._decode_sharpening
+
+    @decode_sharpening.setter
+    def decode_sharpening(self, value: float) -> None:
+        value = float(value)
+        if value == self._decode_sharpening:
+            return
+
+        self._decode_sharpening = value
+        self._schedule_redetect()
+
+    @property
+    @property_params(min=0.0, max=200.0, step=5.0, decimals=1)
+    def min_decision_margin(self) -> float:
+        """Ignore detections below this confidence. Needed against false
+        positives with small families like tag16h5 / tag25h9 (try 50).
+        """
+        return self._min_decision_margin
+
+    @min_decision_margin.setter
+    def min_decision_margin(self, value: float) -> None:
+        value = float(value)
+        if value == self._min_decision_margin:
+            return
+
+        self._min_decision_margin = value
+        self._schedule_redetect()
+
     @property
     @property_params(
         prevent_add=True,
@@ -856,10 +1092,15 @@ class SurfaceTrackingPlugin(Plugin):
         raise ValueError(f"No surface with ID `{uid}` exists")
 
     def bg_detect_markers(self) -> T.Generator[ProgressUpdate, None, None]:
-        logging.info("Detecting markers...")
-        detector = pupil_apriltags.Detector(
-            families="tag36h11", nthreads=2, quad_decimate=2.0, decode_sharpening=1.0
+        config = self.detector_config()
+        logging.info(f"Detecting markers with {config}")
+        detector = pyapriltags.Detector(
+            families=config["tag_family"],
+            nthreads=2,
+            quad_decimate=config["quad_decimate"],
+            decode_sharpening=config["decode_sharpening"],
         )
+        min_margin = config["min_decision_margin"]
 
         markers_by_frame = []
         for frame_idx, frame in enumerate(self.recording.scene):
@@ -870,6 +1111,7 @@ class SurfaceTrackingPlugin(Plugin):
             detected_markers = [
                 DetectedMarker(d.tag_id, d.corners.astype(np.float64))
                 for d in detected_markers
+                if d.decision_margin >= min_margin
             ]
             markers_by_frame.append(detected_markers)
 
@@ -878,6 +1120,10 @@ class SurfaceTrackingPlugin(Plugin):
         self.marker_cache_file.parent.mkdir(parents=True, exist_ok=True)
         with self.marker_cache_file.open("wb") as f:
             np.save(f, np.array(markers_by_frame, dtype=object))
+
+        # Remember which settings produced this cache
+        with self.marker_config_file.open("w") as f:
+            json.dump(config, f, indent=2)
 
     def bg_detect_surface_locations(
         self,

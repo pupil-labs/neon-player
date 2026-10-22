@@ -31,6 +31,7 @@ from pupil_labs.neon_player.plugin_management import (
     install_dependencies,
 )
 from pupil_labs.neon_player.plugins import (
+    aoi,  # noqa: F401
     audio,  # noqa: F401
     blinks,  # noqa: F401
     events,  # noqa: F401

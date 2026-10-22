@@ -16,6 +16,7 @@ nav:
   - Home:
       - Overview: index.md
       - License: license.md
+      - AOI import: aoi_import.md
   - API reference: modules.md
   - Development:
       - Contributing: contributing.md
