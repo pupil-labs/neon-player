@@ -27,6 +27,7 @@ dependencies = [
     "pandas>=2.2.3",
     "protobuf<6",
     "pupil-apriltags>=1.0.4.post11",
+    "pyapriltags>=3.4.3.1",
     "pupil-labs-marker-mapper>=1.0.0",
     "pupil-labs-neon-recording==2.1.6",
     "pupil-labs-video>=1.0.13",

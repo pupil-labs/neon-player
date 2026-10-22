@@ -1393,6 +1393,7 @@ dependencies = [
     { name = "pupil-labs-marker-mapper" },
     { name = "pupil-labs-neon-recording" },
     { name = "pupil-labs-video" },
+    { name = "pyapriltags" },
     { name = "pyobjc", marker = "sys_platform == 'darwin'" },
     { name = "pyqtgraph" },
     { name = "pyside6" },
@@ -1443,6 +1444,7 @@ requires-dist = [
     { name = "pupil-labs-marker-mapper", specifier = ">=1.0.0" },
     { name = "pupil-labs-neon-recording", specifier = "==2.1.6" },
     { name = "pupil-labs-video", specifier = ">=1.0.13" },
+    { name = "pyapriltags", specifier = ">=3.4.3.1" },
     { name = "pyobjc", marker = "sys_platform == 'darwin'" },
     { name = "pyqtgraph", specifier = ">=0.13.7" },
     { name = "pyside6", specifier = ">=6.10.2" },
@@ -1509,6 +1511,23 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/8b/5e/059dfef3a1a8cf22c01faa84cfaa9d895a195544749d0d8684a02e9f401b/pupil_labs_video-1.0.13.tar.gz", hash = "sha256:7fee344732baea2758325bc964f2cdc6ebd1a9a7c5feaedfac65b25b2280f305", size = 323692, upload-time = "2026-06-24T08:01:54.276Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7c/64/2226ba7c935b79a4052cdff4680d5d66bb90db1cdf7c81068179da10ddb8/pupil_labs_video-1.0.13-py3-none-any.whl", hash = "sha256:4e94fc1b30b6eba43eb8f858a07e18705e5d9e1609f374aaa1cdd779ec31e80d", size = 21705, upload-time = "2026-06-24T08:01:52.709Z" },
+]
+
+[[package]]
+name = "pyapriltags"
+version = "3.4.3.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/75/7e/61d605fc806fc2db18b40d4a21826a8ce1ab1650de84c803d0628f94eda3/pyapriltags-3.4.3.1-py3-none-macosx_11_0_arm64.whl", hash = "sha256:d6a13073208eb4344a5d42f2d4ba924a220bff8de74d2afded6d17cb63b94c9e", size = 1176451, upload-time = "2025-04-20T15:55:55.836Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/62/032fad994c00b6e66519ac47747fc72b2c2a3d4290fe1389a9b3e17eb27e/pyapriltags-3.4.3.1-py3-none-macosx_11_0_x86_64.whl", hash = "sha256:61e0d846357a494eaf3785d054f34860066d90d0c96035c709b116da01c92480", size = 1183869, upload-time = "2025-04-20T15:55:57.996Z" },
+    { url = "https://files.pythonhosted.org/packages/8a/ed/48718b2c1b63155e388f6a0b4081f99c10e5e3345771b39e6211d91e9536/pyapriltags-3.4.3.1-py3-none-manylinux_2_31_aarch64.whl", hash = "sha256:ad4c42cca2c61e2d2f8ed5300931f1f2651c2afe9cc35ec1e240f51fa00fdca4", size = 1185498, upload-time = "2025-04-20T15:55:59.921Z" },
+    { url = "https://files.pythonhosted.org/packages/33/5b/e0dc54653777ac498b5056727e2216d0413c0c57932674018595a4ab6822/pyapriltags-3.4.3.1-py3-none-manylinux_2_31_armv7l.whl", hash = "sha256:67b2c7078783296fa7c91888777dc1dbb948d8c2dc77e166989f5222910ec853", size = 1168634, upload-time = "2025-04-20T15:56:02.096Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/f0/0699a7b34a5fdc860e5dc177b3ee008774f9c9afabdfeed90af90d66f9cc/pyapriltags-3.4.3.1-py3-none-manylinux_2_31_x86_64.whl", hash = "sha256:c986a014fa5942827aad887e1e7483f2a32ffd0bdf2007da4ada052dd2a3660b", size = 1192202, upload-time = "2025-04-20T15:56:04.054Z" },
+    { url = "https://files.pythonhosted.org/packages/64/ea/e6f318a33d80e1f14c40d14a8d52cf8fc77e214713bb8d599bc29ec77abb/pyapriltags-3.4.3.1-py3-none-win32.whl", hash = "sha256:0adb46066d36b22a9634b619fd9ca144f0c40eb2532de2feb9e722685080a18d", size = 1311381, upload-time = "2025-04-20T15:56:06.023Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/1f/bfa31e5a17fcbf4e92283d91b878b48c0a65bd68a90b2e25af0cdc1b740b/pyapriltags-3.4.3.1-py3-none-win_amd64.whl", hash = "sha256:6ac6170964984c994f47f51ce9a3c9a46f3236f95caaf9bcd485c58e233e21a6", size = 1342769, upload-time = "2025-04-20T15:56:08.146Z" },
 ]
 
 [[package]]

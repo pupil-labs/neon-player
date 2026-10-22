@@ -10,3 +10,11 @@
         prefixes:
           - "libapriltag"
           - "apriltag"
+
+- module-name: pyapriltags
+  dlls:
+    - from_filenames:
+        relative_path: "."
+        prefixes:
+          - "libapriltag"
+          - "apriltag"
