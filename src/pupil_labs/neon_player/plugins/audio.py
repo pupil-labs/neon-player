@@ -77,6 +77,9 @@ class AudioPlugin(neon_player.Plugin):
 
         self.first_timestamp: int | None = None
 
+        if self.headless:
+            return
+
         self.volume_button = VolumeButton()
         self.volume_button.setIconSize(QSize(32, 32))
         self.volume_button.setFixedSize(QSize(36, 36))
@@ -102,6 +105,10 @@ class AudioPlugin(neon_player.Plugin):
     def on_disabled(self) -> None:
         self.player.stop()
         self.player.setSource(QUrl())
+
+        if self.headless:
+            return
+
         self.get_timeline().remove_timeline_plot("Audio")
         self.get_timeline().toolbar_layout.removeWidget(self.volume_button)
         self.volume_button.deleteLater()
@@ -185,12 +192,15 @@ class AudioPlugin(neon_player.Plugin):
         if not self.cache_file.exists():
             return
 
+        # Load from cache or create the resampled audio waveform
         cached_audio = None
         if self.resampled_audio_cache_file.exists():
             cached_audio = np.load(self.resampled_audio_cache_file, mmap_mode="r")
             self.first_timestamp = int(cached_audio[0, 0])
         else:
             self.first_timestamp = int(self.recording.audio.time[0])
+            cached_audio = _resample_audio(self.cache_file, self.first_timestamp)
+            np.save(self.resampled_audio_cache_file, cached_audio)
 
         self.recording_has_audio = True
         self.player.setSource(QUrl.fromLocalFile(str(self.cache_file)))
@@ -199,10 +209,6 @@ class AudioPlugin(neon_player.Plugin):
 
         if self.headless:
             return
-
-        if cached_audio is None:
-            cached_audio = _resample_audio(self.cache_file, self.first_timestamp)
-            np.save(self.resampled_audio_cache_file, cached_audio)
 
         timeline = self.get_timeline()
         timeline.add_timeline_line("Audio", cached_audio)

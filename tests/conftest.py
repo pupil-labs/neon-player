@@ -6,6 +6,7 @@ from unittest.mock import PropertyMock
 
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.timeseries import (
+    AudioTimeseries,
     EventTimeseries,
     GazeTimeseries,
     SceneVideoTimeseries,
@@ -16,6 +17,7 @@ from pupil_labs.neon_player.settings import GeneralSettings
 
 
 FIELD_CLASS_MAPPING = {
+    "audio": AudioTimeseries,
     "events": EventTimeseries,
     "gaze": GazeTimeseries,
     "scene": SceneVideoTimeseries,
@@ -59,6 +61,9 @@ class MockNeonPlayerApp(QApplication):
     before executing the respective test.
     """
     export_window_changed = Signal(tuple[int, int])
+    playback_state_changed = Signal(bool)
+    seeked = Signal(object)
+    speed_changed = Signal(float)
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -67,6 +72,8 @@ class MockNeonPlayerApp(QApplication):
         self.recording = None
         self.settings = GeneralSettings()
         self.settings.default_plugins = {"DefaultPlugin": True}
+        self.is_playing = False
+        self.playback_speed = 1.0
 
 
 @pytest.fixture(scope="session")
