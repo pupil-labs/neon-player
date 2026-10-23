@@ -45,7 +45,7 @@ from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
     TimelineTooltipConfig,
     TimelineTooltipContext,
     TimelineTooltipWidget,
-    get_hovered_timeline_series,
+    _get_hovered_timeline_series,
 )
 from pupil_labs.neon_player.utilities import SignalDebouncer, clone_menu
 
@@ -309,7 +309,7 @@ class TimeLineDock(QWidget):
 
         plot_item = self.timeline_plots[row_name]
         tolerance_ns = int(round(20 * plot_item.getViewBox().viewPixelSize()[0]))
-        series = get_hovered_timeline_series(plot_item.items, timestamp_ns, tolerance_ns)
+        series = _get_hovered_timeline_series(plot_item.items, timestamp_ns, tolerance_ns)
         if not series:
             return None
 

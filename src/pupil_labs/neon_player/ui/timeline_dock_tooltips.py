@@ -34,7 +34,7 @@ class TimelineBarSeriesHover(TimelineSeriesHover):
     stop_ts: int
     """The stop timestamp of the hovered bar."""
     value: float | None
-    """The bar value that corresponds to the bar."""
+    """The bar value that corresponds to the bar, if set."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -155,7 +155,7 @@ def default_broken_bar_tooltip(context: TimelineTooltipContext) -> str:
     return f"#{entry.index + 1} {duration}"
 
 
-def get_series_hover(
+def _get_series_hover(
     item: T.Any, series_name: str, timestamp_ns: int, tolerance_ns: int
 ) -> TimelineSeriesHover | None:
     kind = "scatter" if item.opts.get("symbol") is not None else "point"
@@ -181,7 +181,7 @@ def get_series_hover(
     return None
 
 
-def get_bar_graph_series_hover(
+def _get_bar_graph_series_hover(
     item: pg.BarGraphItem, series_name: str, timestamp_ns: int
 ) -> TimelineBarSeriesHover | None:
     starts, stops = item.opts.get("x0"), item.opts.get("x1")
@@ -225,7 +225,7 @@ def _get_item_name(item: pg.BarGraphItem | pg.PlotDataItem) -> str:
     return name
 
 
-def get_hovered_timeline_series(
+def _get_hovered_timeline_series(
     items: T.Iterable[T.Any], timestamp_ns: int, tolerance_ns: int
 ) -> list[TimelineSeriesHover]:
     values: list[TimelineSeriesHover] = []
@@ -235,9 +235,9 @@ def get_hovered_timeline_series(
 
         series_name = _get_item_name(item)
         if isinstance(item, pg.BarGraphItem):
-            series = get_bar_graph_series_hover(item, series_name, timestamp_ns)
+            series = _get_bar_graph_series_hover(item, series_name, timestamp_ns)
         else:
-            series = get_series_hover(item, series_name, timestamp_ns, tolerance_ns)
+            series = _get_series_hover(item, series_name, timestamp_ns, tolerance_ns)
 
         if series is None:
             continue

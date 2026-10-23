@@ -19,9 +19,9 @@ from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
     default_broken_bar_tooltip,
     default_line_tooltip,
     default_scatter_tooltip,
-    get_bar_graph_series_hover,
-    get_hovered_timeline_series,
-    get_series_hover,
+    _get_bar_graph_series_hover,
+    _get_hovered_timeline_series,
+    _get_series_hover,
 )
 
 
@@ -33,12 +33,12 @@ def test_timeline_row_values_uses_nearest_point_within_tolerance():
     line = pg.PlotDataItem([100, 200], [1.5, 2.5], name="speed")
     scatter = pg.PlotDataItem([110, 210], [3, 4], name="speed", symbol="o")
 
-    hovered = get_hovered_timeline_series([line, scatter], 108, 10)
+    hovered = _get_hovered_timeline_series([line, scatter], 108, 10)
     assert [(series.name, series.value) for series in hovered] == [
         ("speed", 1.5),
         ("speed", 3),
     ]
-    assert get_series_hover(line, "speed", 111, 10) is None
+    assert _get_series_hover(line, "speed", 111, 10) is None
 
 
 def test_bar_graph_series_hover_returns_hovered_interval_and_value():
@@ -51,10 +51,10 @@ def test_bar_graph_series_hover_returns_hovered_interval_and_value():
     )
     bars.bar_values = np.array([7.0, np.nan])
 
-    assert get_bar_graph_series_hover(bars, "interval", 20).value == 7.0
-    assert np.isnan(get_bar_graph_series_hover(bars, "interval", 50).value)
-    assert get_bar_graph_series_hover(bars, "interval", 35) is None
-    interval = get_hovered_timeline_series([bars], 50, 0)[0]
+    assert _get_bar_graph_series_hover(bars, "interval", 20).value == 7.0
+    assert np.isnan(_get_bar_graph_series_hover(bars, "interval", 50).value)
+    assert _get_bar_graph_series_hover(bars, "interval", 35) is None
+    interval = _get_hovered_timeline_series([bars], 50, 0)[0]
     assert interval.index == 1
     assert (interval.start_ns, interval.stop_ns) == (40, 60)
 
@@ -68,7 +68,7 @@ def test_bar_graph_series_hover_without_bar_values_returns_none_value():
         name="interval",
     )
 
-    hover = get_bar_graph_series_hover(bars, "interval", 20)
+    hover = _get_bar_graph_series_hover(bars, "interval", 20)
 
     assert hover is not None
     assert hover.value is None
@@ -80,7 +80,7 @@ def test_timeline_row_values_assigns_stable_names_for_unnamed_series():
 
     assert [
         (series.name, series.value)
-        for series in get_hovered_timeline_series([first, second], 100, 0)
+        for series in _get_hovered_timeline_series([first, second], 100, 0)
     ] == [("", 1), ("", 2)]
 
 
