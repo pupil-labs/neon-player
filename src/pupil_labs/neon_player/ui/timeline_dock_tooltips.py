@@ -143,6 +143,7 @@ def get_series_hover(
         return TimelineSeriesHover(
             value=values[closest],
             name=series_name,
+            index=closest,
             timestamp_ns=int(timestamps[closest]) if kind == "scatter" else None,
         )
     return None
