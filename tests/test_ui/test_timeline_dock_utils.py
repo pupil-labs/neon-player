@@ -13,8 +13,8 @@ from pupil_labs.neon_player.ui.timeline_dock_utils import get_clicked_data_point
 from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
     TimelineTooltipContext,
     TimelineBarSeriesHover,
+    TimelineLineSeriesHover,
     TimelineScatterSeriesHover,
-    TimelineSeriesHover,
     TimelineTooltipWidget,
     default_broken_bar_tooltip,
     default_line_tooltip,
@@ -33,14 +33,15 @@ def test_timeline_row_values_uses_nearest_point_within_tolerance():
     line = pg.PlotDataItem([100, 200], [1.5, 2.5], name="speed")
     scatter = pg.PlotDataItem([110, 210], [3, 4], name="speed", symbol="o")
 
-    assert {
-        series.name: series.value
-        for series in get_hovered_timeline_series([line, scatter], 108, 10)
-    } == {"speed": 1.5, "speed (2)": 3}
+    hovered = get_hovered_timeline_series([line, scatter], 108, 10)
+    assert [(series.name, series.value) for series in hovered] == [
+        ("speed", 1.5),
+        ("speed", 3),
+    ]
     assert get_series_hover(line, "speed", 111, 10) is None
 
 
-def test_timeline_row_values_includes_only_active_broken_bar_values():
+def test_bar_graph_series_hover_returns_hovered_interval_and_value():
     bars = pg.BarGraphItem(
         x0=np.array([10, 40]),
         x1=np.array([30, 60]),
@@ -51,24 +52,36 @@ def test_timeline_row_values_includes_only_active_broken_bar_values():
     bars.bar_values = np.array([7.0, np.nan])
 
     assert get_bar_graph_series_hover(bars, "interval", 20).value == 7.0
-    assert get_bar_graph_series_hover(bars, "interval", 50).value == "Active"
+    assert np.isnan(get_bar_graph_series_hover(bars, "interval", 50).value)
     assert get_bar_graph_series_hover(bars, "interval", 35) is None
     interval = get_hovered_timeline_series([bars], 50, 0)[0]
     assert interval.index == 1
     assert (interval.start_ns, interval.stop_ns) == (40, 60)
 
 
+def test_bar_graph_series_hover_without_bar_values_returns_none_value():
+    bars = pg.BarGraphItem(
+        x0=np.array([10]),
+        x1=np.array([30]),
+        y0=-0.4,
+        y1=0.4,
+        name="interval",
+    )
+
+    hover = get_bar_graph_series_hover(bars, "interval", 20)
+
+    assert hover is not None
+    assert hover.value is None
+
+
 def test_timeline_row_values_assigns_stable_names_for_unnamed_series():
     first = pg.PlotDataItem([100], [1])
     second = pg.PlotDataItem([100], [2])
 
-    assert {
-        series.name: series.value
+    assert [
+        (series.name, series.value)
         for series in get_hovered_timeline_series([first, second], 100, 0)
-    } == {
-        "Series 1": 1,
-        "Series 2": 2,
-    }
+    ] == [("", 1), ("", 2)]
 
 
 def test_set_timeline_tooltip_replaces_callback():
@@ -178,13 +191,12 @@ def test_parented_custom_widget_is_rejected_and_stays_caller_owned():
     assert widget.parent() is parent
 
 
-def test_line_tooltip_factory_formats_multiple_series_and_omits_none():
+def test_line_tooltip_factory_formats_multiple_line_series():
     context = TimelineTooltipContext(
         100,
         [
-            TimelineSeriesHover(name="speed", timestamp_ns=None, index=0, value=3.5),
-            TimelineSeriesHover(name="temperature", timestamp_ns=None, index=0, value=None),
-            TimelineSeriesHover(name="altitude", timestamp_ns=None, index=0, value=42),
+            TimelineLineSeriesHover(name="speed", timestamp_ns=None, index=0, value=3.5),
+            TimelineLineSeriesHover(name="altitude", timestamp_ns=None, index=0, value=42),
         ],
     )
 
@@ -194,7 +206,7 @@ def test_line_tooltip_factory_formats_multiple_series_and_omits_none():
         '<tr><td style="padding-right: 6px"><b>speed</b>:</td>'
         '<td style="text-align: right">3.500</td></tr>'
         '<tr><td style="padding-right: 6px"><b>altitude</b>:</td>'
-        '<td style="text-align: right">42</td></tr>'
+        '<td style="text-align: right">42.000</td></tr>'
         "</table>"
     )
 
@@ -266,42 +278,40 @@ def test_broken_bar_tooltip_warns_and_returns_empty_for_multiple_series(caplog):
     assert "requires exactly one broken-bar series" in caplog.text
 
 
-def test_line_tooltip_factory_hides_when_all_values_are_none():
+def test_line_tooltip_factory_warns_for_non_line_series(caplog):
     context = TimelineTooltipContext(
         100,
-        [
-            TimelineSeriesHover(name="speed", timestamp_ns=None, index=0, value=None),
-            TimelineSeriesHover(name="temperature", timestamp_ns=None, index=0, value=None),
-        ],
+        [TimelineScatterSeriesHover(name="speed", timestamp_ns=100, index=0, value=3.5)],
     )
 
     assert default_line_tooltip()(context) == ""
+    assert "only line series" in caplog.text
 
 
 def test_line_tooltip_factory_formats_precision_and_units():
     context = TimelineTooltipContext(
-        100, [TimelineSeriesHover(name="speed", timestamp_ns=None, index=0, value=3.5678)]
+        100, [TimelineLineSeriesHover(name="speed", timestamp_ns=None, index=0, value=3.5678)]
     )
 
     assert default_line_tooltip()(context) == "3.568"
     assert default_line_tooltip(precision=1, units="m/s")(context) == "3.6 m/s"
 
 
-def test_line_tooltip_factory_keeps_integer_and_nonnumeric_values_unchanged():
+def test_line_tooltip_factory_formats_values_and_appends_units():
     integer_context = TimelineTooltipContext(
-        100, [TimelineSeriesHover(name="count", timestamp_ns=None, index=0, value=42)]
+        100, [TimelineLineSeriesHover(name="count", timestamp_ns=None, index=0, value=42)]
     )
-    string_context = TimelineTooltipContext(
-        100, [TimelineSeriesHover(name="state", timestamp_ns=None, index=0, value="Active")]
+    float_context = TimelineTooltipContext(
+        100, [TimelineLineSeriesHover(name="state", timestamp_ns=None, index=0, value=1.25)]
     )
 
     assert default_line_tooltip(precision=2, units="items")(integer_context) == (
-        "42 items"
+        "42.00 items"
     )
-    assert default_line_tooltip(precision=2, units="m")(string_context) == "Active"
+    assert default_line_tooltip(precision=2, units="m")(float_context) == "1.25 m"
 
 
-def test_scatter_tooltip_shows_sample_time_and_default_formatted_value():
+def test_scatter_tooltip_shows_sample_time():
     context = TimelineTooltipContext(
         200_000_000,
         [
@@ -315,10 +325,10 @@ def test_scatter_tooltip_shows_sample_time_and_default_formatted_value():
         origin_ns=100_000_000,
     )
 
-    assert default_scatter_tooltip(context) == "00:00:00.023 (3.568)"
+    assert default_scatter_tooltip(context) == "00:00:00.023"
 
 
-def test_scatter_tooltip_leaves_nonnumeric_value_unchanged():
+def test_scatter_tooltip_ignores_value():
     context = TimelineTooltipContext(
         100,
         [
@@ -328,7 +338,7 @@ def test_scatter_tooltip_leaves_nonnumeric_value_unchanged():
         ],
     )
 
-    assert default_scatter_tooltip(context) == "00:00:00.123 (Active)"
+    assert default_scatter_tooltip(context) == "00:00:00.123"
 
 
 def test_scatter_tooltip_keeps_integral_values_integral():
@@ -341,14 +351,14 @@ def test_scatter_tooltip_keeps_integral_values_integral():
         ],
     )
 
-    assert default_scatter_tooltip(context) == "00:00:00.123 (42)"
+    assert default_scatter_tooltip(context) == "00:00:00.123"
 
 
 @pytest.mark.parametrize(
     "series",
     [
         [],
-        [TimelineSeriesHover(name="line", timestamp_ns=123, index=0, value=1.5)],
+        [TimelineLineSeriesHover(name="line", timestamp_ns=123, index=0, value=1.5)],
         [
             TimelineScatterSeriesHover(
                 name="first", timestamp_ns=123, index=0, value=1.5
@@ -369,7 +379,7 @@ def test_scatter_tooltip_warns_and_returns_empty_for_unsupported_series(
     assert "requires exactly one scatter series" in caplog.text
 
 
-def test_broken_bar_tooltip_uses_default_precision_without_units():
+def test_broken_bar_tooltip_ignores_value():
     context = TimelineTooltipContext(
         100,
         [
@@ -387,7 +397,7 @@ def test_broken_bar_tooltip_uses_default_precision_without_units():
     assert default_broken_bar_tooltip(context) == "#3 251ms"
 
 
-def test_broken_bar_tooltip_keeps_nonnumeric_values_unchanged():
+def test_broken_bar_tooltip_ignores_nonnumeric_value():
     context = TimelineTooltipContext(
         100,
         [

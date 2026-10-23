@@ -3,7 +3,6 @@
 import dataclasses
 import html
 import logging
-import numbers
 import numpy as np
 import pyqtgraph as pg
 import typing as T
@@ -26,8 +25,6 @@ class TimelineSeriesHover:
     """The timestamp of the hovered data point."""
     index: int
     """The index of the hovered data point."""
-    value: T.Any
-    """The y-axis value that corresponds to the data point."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -36,16 +33,22 @@ class TimelineBarSeriesHover(TimelineSeriesHover):
     """The start timestamp of the hovered bar."""
     stop_ns: int
     """The stop timestamp of the hovered bar."""
+    value: float | None
+    """The bar value that corresponds to the bar."""
 
 
 @dataclasses.dataclass(frozen=True)
 class TimelineLineSeriesHover(TimelineSeriesHover):
     """The closest line point to the current hover timestamp."""
+    value: float
+    """The y-axis value that corresponds to the data point."""
 
 
 @dataclasses.dataclass(frozen=True)
 class TimelineScatterSeriesHover(TimelineSeriesHover):
     """The closest scatter point to the current hover timestamp"""
+    value: float
+    """The y-axis value that corresponds to the data point."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -165,7 +168,7 @@ def get_series_hover(
             else TimelineLineSeriesHover
         )
         return hover_type(
-            value=values[closest],
+            value=float(values[closest]),
             name=series_name,
             index=closest,
             timestamp_ns=int(timestamps[closest]) if kind == "scatter" else None,
@@ -192,6 +195,7 @@ def get_bar_graph_series_hover(
 
     index = int(matches[0])
     start, stop = starts[index], stops[index]
+    value = None
     values = getattr(item, "bar_values", None)
     if values is not None and index < len(values):
         value = values[index]
