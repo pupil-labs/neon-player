@@ -1,3 +1,4 @@
+import html
 import logging
 import json
 import numpy as np
@@ -24,10 +25,12 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, action, asset_path
 from pupil_labs.neon_player.job_manager import BackgroundJob, ProgressUpdate
 from pupil_labs.neon_player.plugins.events import _load_events_from_recording, EventsPlugin
+from pupil_labs.neon_player.ui.timeline_dock_components import format_timestamp_ns
 from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
     default_broken_bar_tooltip,
     default_line_tooltip,
-    default_scatter_tooltip,
+    TimelineScatterSeriesHover,
+    TimelineTooltipContext,
 )
 from pupil_labs.neon_recording import NeonRecording
 
@@ -957,12 +960,36 @@ class XDFPlugin(Plugin):
                 timeline.add_timeline_scatter(
                     timeline_row_name,
                     [],
-                    tooltip=default_scatter_tooltip,
+                    tooltip=self._format_marker_tooltip,
                 )
 
             y = np.zeros_like(offset_timestamps)
             plot_item.items[0].setData(offset_timestamps, y)
             self._active_timeline_row_names["markers"].add(timeline_row_name)
+
+    def _format_marker_tooltip(self, context: TimelineTooltipContext) -> str:
+        marker_name = context.row_name.removeprefix("XDF Markers - ")
+        if marker_name not in self.marker_stream.markers:
+            return ""
+
+        if len(context.series) != 1 or not isinstance(
+            context.series[0], TimelineScatterSeriesHover
+        ):
+            return ""
+
+        hovered_marker = context.series[0]
+        total = len(self.marker_stream.markers[marker_name])
+        timestamp_ns = int(hovered_marker.timestamp_ns)
+        timestamp = format_timestamp_ns(
+            timestamp_ns,
+            origin_ns=context.origin_ns,
+            always_show_hours=True,
+            show_milliseconds=True,
+        )
+        return (
+            f"<b>{html.escape(marker_name)}</b> "
+            f"({hovered_marker.index + 1}/{total})<br>{timestamp}"
+        )
 
     def _update_timeline_data(self) -> None:
         if not self.recording:
@@ -994,7 +1021,7 @@ class XDFPlugin(Plugin):
             data_stream_row_name,
             [(plot_ts[0], plot_ts[-1])],
             color="#00FFFF",
-            tooltip=default_broken_bar_tooltip,
+            tooltip=default_broken_bar_tooltip(prefix="Aligned"),
         )
         self._active_timeline_row_names["data"].add(data_stream_row_name)
 

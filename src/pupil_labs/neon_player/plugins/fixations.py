@@ -71,7 +71,7 @@ class FixationsPlugin(neon_player.Plugin):
         self.get_timeline().add_timeline_broken_bar(
             "Fixations",
             self.fixations[["start_time", "stop_time"]],
-            tooltip=default_broken_bar_tooltip,
+            tooltip=default_broken_bar_tooltip(),
         )
 
         self.register_action(

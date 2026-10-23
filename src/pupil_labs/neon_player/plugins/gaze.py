@@ -17,11 +17,7 @@ from qt_property_widgets.utilities import (
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
-from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
-    TimelineTooltipContext,
-    TimelineBarSeriesHover,
-    format_duration
-)
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import default_broken_bar_tooltip
 from pupil_labs.neon_player.utilities import (
     cart_to_spherical,
     find_ranged_index,
@@ -63,17 +59,6 @@ class Aggregation(enum.Enum):
             return v.reshape(-1)
 
 
-def worn_tooltip(context: TimelineTooltipContext) -> str:
-    if len(context.series) != 1 or not isinstance(
-        context.series[0], TimelineBarSeriesHover
-    ):
-        return ""
-
-    entry = context.series[0]
-    duration = format_duration(entry.start_ts, entry.stop_ts)
-    return f"On {duration}"
-
-
 class GazeDataPlugin(neon_player.Plugin):
     label = "Gaze Data"
     offset_changed = Signal()
@@ -112,7 +97,7 @@ class GazeDataPlugin(neon_player.Plugin):
             self.get_timeline().add_timeline_broken_bar(
                 "Worn",
                 list(zip(start_times, stop_times, strict=False)),
-                tooltip=worn_tooltip,
+                tooltip=default_broken_bar_tooltip(prefix="On"),
             )
 
         except Exception:

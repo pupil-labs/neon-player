@@ -133,13 +133,7 @@ def default_scatter_tooltip(context: TimelineTooltipContext) -> str:
     return timestamp
 
 
-def default_broken_bar_tooltip(context: TimelineTooltipContext) -> str:
-    """Default tooltip format for a row containing exactly one broken-bar series.
-
-    The tooltip is formatted as `{bar index} {duration}. Bar index is 1-based.
-    Duration is displayed in milliseconds for bars shorter than one second, or
-    in seconds otherwise."""
-
+def _default_broken_bar_tooltip(context: TimelineTooltipContext, prefix: str) -> str:
     if len(context.series) != 1 or not isinstance(
         context.series[0], TimelineBarSeriesHover
     ):
@@ -150,7 +144,19 @@ def default_broken_bar_tooltip(context: TimelineTooltipContext) -> str:
 
     entry = context.series[0]
     duration = format_duration(entry.start_ts, entry.stop_ts)
+    if prefix:
+        return f"{prefix} {duration}"
+
     return f"#{entry.index + 1} {duration}"
+
+
+def default_broken_bar_tooltip(*, prefix: str = "") -> TimelineTooltipCallback:
+    """Default tooltip format for a row containing exactly one broken-bar series.
+
+    The tooltip is formatted as `{bar index} {duration}. Bar index is 1-based.
+    Duration is displayed in milliseconds for bars shorter than one second, or
+    in seconds otherwise."""
+    return partial(_default_broken_bar_tooltip, prefix=prefix)
 
 
 def _get_series_hover(
