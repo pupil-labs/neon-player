@@ -25,9 +25,11 @@ def mock_transform(x0, y0, w, h):
     return np.array([[w, 0, x0 - w / 2], [0, h, y0 - h / 2], [0, 0, 1]], dtype=float)
 
 
-def test_surface_tracking_plugin__to_dict__recursive(qapp, mock_neon_recording):
-    qapp.recording = mock_neon_recording()
-    qapp.plugins_by_class["GazeDataPlugin"] = GazeDataPlugin()
+def test_surface_tracking_plugin__to_dict__recursive(
+    qapp, monkeypatch, mock_neon_recording
+):
+    monkeypatch.setattr(qapp, "recording", mock_neon_recording())
+    monkeypatch.setattr(qapp, "plugins_by_class", {"GazeDataPlugin": GazeDataPlugin()})
 
     plugin = SurfaceTrackingPlugin()
     # Set the surfaces directly to a private field to skip surface initialization

@@ -69,7 +69,7 @@ def test_resample_audio_resamples_and_generates_timestamps(tmp_path):
 
 
 def test_load_audio_creates_timestamped_waveform_cache_when_missing(
-    qapp, mock_neon_recording
+    qapp, monkeypatch, mock_neon_recording
 ):
     first_timestamp = 1_700_000_000_123_456_789
     expected_data = np.array(
@@ -77,7 +77,7 @@ def test_load_audio_creates_timestamped_waveform_cache_when_missing(
         dtype=np.float64,
     )
     recording = mock_neon_recording(audio=mock_av_timeseries([first_timestamp]))
-    qapp.recording = recording
+    monkeypatch.setattr(qapp, "recording", recording)
     plugin = mock_audio_plugin()
     plugin.cache_file.parent.mkdir(parents=True, exist_ok=True)
     plugin.cache_file.touch()
@@ -95,8 +95,9 @@ def test_load_audio_creates_timestamped_waveform_cache_when_missing(
 
 
 def test_load_audio_sets_first_timestamp_from_cached_waveform(
-    qapp, mock_neon_recording
+    qapp, monkeypatch, mock_neon_recording
 ):
+    monkeypatch.setattr(qapp, "recording", mock_neon_recording())
     plugin = mock_audio_plugin()
     plugin.cache_file.parent.mkdir(parents=True, exist_ok=True)
     plugin.cache_file.touch()

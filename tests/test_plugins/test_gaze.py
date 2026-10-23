@@ -28,8 +28,10 @@ def test_circle_viz_parameter_capping_required():
     assert viz._applied_stroke_width == 70
 
 
-def test_gaze_plugin_to_dict_viz_have_class_names(qapp, mock_neon_recording):
-    qapp.recording = mock_neon_recording()
+def test_gaze_plugin_to_dict_viz_have_class_names(
+    qapp, monkeypatch, mock_neon_recording
+):
+    monkeypatch.setattr(qapp, "recording", mock_neon_recording())
 
     plugin = GazeDataPlugin()
     plugin.visualizations = [CircleViz(), CrosshairViz()]
