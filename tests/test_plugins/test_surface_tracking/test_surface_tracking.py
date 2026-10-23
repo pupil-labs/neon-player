@@ -22,15 +22,10 @@ def test_surface_timeline_tooltip_legend_and_row_registration(qapp):
     tooltip = SurfaceTimelineTooltip()
     labels = [label.text() for label in tooltip.findChildren(QLabel) if label.text()]
     swatches = tooltip.findChildren(QLabel, "surfaceTimelineTooltipSwatch")
-    assert labels == [
-        "Enrichment completed",
-        "Surface localized",
-        "Fixation on surface",
-    ]
+    assert labels == [text for _, text in SurfaceTimelineTooltip.ENTRIES]
     assert [swatch.styleSheet() for swatch in swatches] == [
-        "background-color: #4a4a4a; border-radius: 3px;",
-        "background-color: #3273FF; border-radius: 3px;",
-        "background-color: #73F7FF; border-radius: 3px;",
+        f"background-color: {color}; border-radius: 3px;"
+        for color, _ in SurfaceTimelineTooltip.ENTRIES
     ]
 
     calls = []
@@ -38,11 +33,14 @@ def test_surface_timeline_tooltip_legend_and_row_registration(qapp):
     plugin.get_timeline = lambda: type(
         "Timeline",
         (),
-        {"add_timeline_broken_bar": lambda self, *args, **kwargs: calls.append((args, kwargs))},
+            {
+                "add_timeline_broken_bar": lambda self, *args, **kwargs: calls.append(
+                    (args, kwargs)
+                )
+            },
     )()
     plugin._add_legend_timeline_row("row", np.empty((0, 3)))
 
-    assert calls[0][1]["tooltip"] is calls[0][1]["alt_tooltip"]
     assert isinstance(calls[0][1]["tooltip"], SurfaceTimelineTooltip)
 
 

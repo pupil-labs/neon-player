@@ -371,14 +371,10 @@ class EventsPlugin(neon_player.Plugin):
             return
 
         tooltip = lambda context: self._format_event_tooltip(event_type, context)
-        alt_tooltip = lambda context: self._format_event_tooltip(
-            event_type, context, raw_timestamp=True
-        )
         plot_item = timeline.add_timeline_scatter(
             f"Events - {event_type.name}",
             [],
             tooltip=tooltip,
-            alt_tooltip=alt_tooltip,
         )
         if plot_item is None:
             return
@@ -396,8 +392,6 @@ class EventsPlugin(neon_player.Plugin):
         self,
         event_type: EventType,
         context: TimelineTooltipContext,
-        *,
-        raw_timestamp: bool = False,
     ) -> str:
         event = next(
             (
@@ -414,15 +408,12 @@ class EventsPlugin(neon_player.Plugin):
 
         total = len(self._events.get(event_type.uid, []))
         timestamp_ns = int(event.timestamp_ns)
-        if raw_timestamp:
-            timestamp = f"{timestamp_ns} ns"
-        else:
-            timestamp = format_timestamp_ns(
-                timestamp_ns,
-                origin_ns=context.origin_ns,
-                always_show_hours=True,
-                show_milliseconds=True,
-            )
+        timestamp = format_timestamp_ns(
+            timestamp_ns,
+            origin_ns=context.origin_ns,
+            always_show_hours=True,
+            show_milliseconds=True,
+        )
         return (
             f"<b>{html.escape(event_type.name)}</b> "
             f"({event.index + 1}/{total})<br>{timestamp}"

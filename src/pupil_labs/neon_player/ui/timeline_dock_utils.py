@@ -68,53 +68,6 @@ def default_timeline_tooltip(context: TimelineTooltipContext) -> str:
     return f'<table cellspacing="0" cellpadding="0">{rows}</table>'
 
 
-def default_alt_timeline_tooltip(context: TimelineTooltipContext) -> str:
-    """Show default values and exact bounds for active intervals."""
-    interval_series = [
-        (name, entry)
-        for name, entry in context.series.items()
-        if entry.kind == "interval"
-    ]
-    if len(interval_series) > 1:
-        return ""
-    if not interval_series:
-        return default_timeline_tooltip(context)
-
-    intervals = [
-        (name, entry)
-        for name, entry in interval_series
-        if entry.value is not None
-        and entry.start_ns is not None
-        and entry.stop_ns is not None
-    ]
-    if not intervals:
-        return ""
-
-    available_values = [
-        _format_default_series_value(entry, origin_ns=context.origin_ns)
-        for entry in context.series.values()
-        if entry.value is not None
-    ]
-    if len(available_values) == 1:
-        values = available_values[0]
-    else:
-        values = "<table cellspacing=\"0\" cellpadding=\"0\">" + "".join(
-            f"<tr><td>{html.escape(value)}</td></tr>" for value in available_values
-        ) + "</table>"
-
-    details = "".join(
-        "<tr>"
-        '<td style="padding-right: 6px">Start:</td>'
-        f'<td style="text-align: right">{entry.start_ns} ns</td>'
-        "</tr><tr>"
-        '<td style="padding-right: 6px">Stop:</td>'
-        f'<td style="text-align: right">{entry.stop_ns} ns</td>'
-        "</tr>"
-        for _, entry in intervals
-    )
-    return f'{values}<table cellspacing="0" cellpadding="0">{details}</table>'
-
-
 def _format_default_series_value(
     entry: TimelineTooltipSeries, *, origin_ns: int = 0
 ) -> str:

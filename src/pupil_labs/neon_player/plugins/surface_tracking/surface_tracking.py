@@ -470,7 +470,6 @@ class SurfaceTrackingPlugin(Plugin):
             row_name,
             data,
             tooltip=tooltip,
-            alt_tooltip=tooltip,
             **kwargs,
         )
 

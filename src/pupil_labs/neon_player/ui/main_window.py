@@ -271,17 +271,6 @@ class MainWindow(QMainWindow):
                 color: #a09fa6;
             }
 
-            QToolTip {
-                background-color: #2b2b2b;
-                opacity: 230;
-                color: #e0e0e0;
-                border: 0px;
-                border-radius: 4px;
-                padding: 1px;
-                font-family: Inter, roboto, arial, sans-serif;
-                font-size: 11pt;
-            }
-
             QMenuBar, QMenu {
                 color: #ccc;
                 background: #1c2021;

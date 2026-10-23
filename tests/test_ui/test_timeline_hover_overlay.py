@@ -1,7 +1,6 @@
 import pyqtgraph as pg
 import pytest
-from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtCore import QEvent
 
 from pupil_labs.neon_player.ui.timeline_dock_components import (
     TimeAxisItem,
@@ -170,36 +169,3 @@ def test_timeline_hover_marker_draws_clamped_white_on_grey_badge(
     assert badge_edge_pixel.red() == 102
     assert badge_edge_pixel.green() == 102
     assert badge_edge_pixel.blue() == 102
-
-
-def test_timeline_hover_marker_shows_raw_timestamp_while_alt_is_pressed(
-    qapp, timeline_hover_marker
-):
-    _, _, _, marker = timeline_hover_marker
-    recording_start = 1_700_000_000_000_000_000
-    marker.time_axis.set_time_frame(recording_start, recording_start + 1_000_000_000)
-    marker.set_cursor_time(recording_start + 123_456_789)
-    timestamp_ns = marker.cursor_time
-    assert timestamp_ns is not None
-
-    assert marker._format_cursor_label(timestamp_ns) == "00:00:00.123"
-
-    qapp.sendEvent(
-        qapp,
-        QKeyEvent(
-            QEvent.Type.KeyPress,
-            Qt.Key.Key_Alt,
-            Qt.KeyboardModifier.AltModifier,
-        ),
-    )
-    assert marker._format_cursor_label(timestamp_ns) == "1700000000123456789"
-
-    qapp.sendEvent(
-        qapp,
-        QKeyEvent(
-            QEvent.Type.KeyRelease,
-            Qt.Key.Key_Alt,
-            Qt.KeyboardModifier.NoModifier,
-        ),
-    )
-    assert marker._format_cursor_label(timestamp_ns) == "00:00:00.123"
