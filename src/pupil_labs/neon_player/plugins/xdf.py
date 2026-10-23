@@ -994,7 +994,7 @@ class XDFPlugin(Plugin):
             data_stream_row_name,
             [(plot_ts[0], plot_ts[-1])],
             color="#00FFFF",
-            tooltip=default_broken_bar_tooltip(),
+            tooltip=default_broken_bar_tooltip,
         )
         self._active_timeline_row_names["data"].add(data_stream_row_name)
 

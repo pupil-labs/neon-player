@@ -3,6 +3,7 @@
 from bisect import bisect_left
 import dataclasses
 import html
+import logging
 import numbers
 import typing as T
 
@@ -15,15 +16,25 @@ from pupil_labs.neon_player.ui.timeline_dock_components import format_timestamp_
 
 
 @dataclasses.dataclass(frozen=True)
-class TimelineTooltipSeries:
+class TimelineSeriesHover:
     """Value and source details for one plotted series at the hovered time."""
 
-    value: T.Any | None
-    kind: str
-    index: int | None = None
-    start_ns: int | None = None
-    stop_ns: int | None = None
-    timestamp_ns: int | None = None
+    name: str
+    """The name of the time series, empty if not set."""
+    timestamp_ns: int
+    """The timestamp of the hovered data point."""
+    index: int
+    """The index of the hovered data point."""
+    value: T.Any
+    """The y-axis value that corresponds to the data point."""
+
+
+@dataclasses.dataclass(frozen=True)
+class TimelineBarSeriesHover(TimelineSeriesHover):
+    start_ns: int
+    """The start timestamp of the hovered bar."""
+    stop_ns: int
+    """The stop timestamp of the hovered bar."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -31,12 +42,12 @@ class TimelineTooltipContext:
     """Stable callback input with row values and optional per-series details."""
 
     timestamp_ns: int
-    series: dict[str, TimelineTooltipSeries]
+    series: list[TimelineSeriesHover]
     origin_ns: int = 0
 
     @property
     def values(self) -> dict[str, T.Any | None]:
-        return {name: entry.value for name, entry in self.series.items()}
+        return {entry.name: entry.value for entry in self.series}
 
 
 TimelineTooltipCallback: T.TypeAlias = T.Callable[[TimelineTooltipContext], str]
@@ -51,11 +62,11 @@ def _format_value(value: T.Any, *, precision: int, units: str) -> str:
 
 def _format_series_tooltip(
     context: TimelineTooltipContext,
-    format_series: T.Callable[[TimelineTooltipContext, TimelineTooltipSeries], str],
+    format_series: T.Callable[[TimelineTooltipContext, TimelineSeriesHover], str],
 ) -> str:
     available = [
-        (name, format_series(context, entry))
-        for name, entry in context.series.items()
+        (entry.name, format_series(context, entry))
+        for entry in context.series
         if entry.value is not None
     ]
     if not available:
@@ -82,7 +93,7 @@ def default_line_tooltip(*, precision: int = 3, units: str = "") -> TimelineTool
 
 def default_scatter_tooltip(*, precision: int = 3, units: str = "") -> TimelineTooltipCallback:
     """Create a scatter tooltip formatter showing sample time and value."""
-    def format_scatter(context: TimelineTooltipContext, entry: TimelineTooltipSeries) -> str:
+    def format_scatter(context: TimelineTooltipContext, entry: TimelineSeriesHover) -> str:
         value = _format_value(entry.value, precision=precision, units=units)
         if entry.timestamp_ns is None:
             return value
@@ -94,71 +105,111 @@ def default_scatter_tooltip(*, precision: int = 3, units: str = "") -> TimelineT
     return lambda context: _format_series_tooltip(context, format_scatter)
 
 
-def default_broken_bar_tooltip(*, precision: int = 3, units: str = "") -> TimelineTooltipCallback:
-    """Create a broken-bar tooltip formatter with index, duration, and value."""
-    def format_interval(_context: TimelineTooltipContext, entry: TimelineTooltipSeries) -> str:
-        value = _format_value(entry.value, precision=precision, units=units)
-        if entry.index is None or entry.start_ns is None or entry.stop_ns is None:
-            return value
-        duration_ms = round((entry.stop_ns - entry.start_ns) / 1_000_000)
-        return f"#{entry.index + 1} {duration_ms}ms ({value})"
-    return lambda context: _format_series_tooltip(context, format_interval)
+def default_broken_bar_tooltip(context: TimelineTooltipContext) -> str:
+    """Default tooltip format for a row containing exactly one broken-bar series.
+
+    The tooltip is formatted as `{bar index} {duration}. Bar index is 1-based.
+    Duration is displayed in milliseconds for bars shorter than one second, or
+    in seconds otherwise."""
+
+    if len(context.series) != 1 or not isinstance(context.series[0], TimelineBarSeriesHover):
+        logging.warning(
+            "Default broken-bar tooltip requires exactly one broken-bar series"
+        )
+        return ""
+
+    entry = context.series[0]
+    duration_ms = (entry.stop_ns - entry.start_ns) / 1_000_000
+    if duration_ms > 1_000:
+        duration = f"{duration_ms / 1_000:.2f}".rstrip(".0") + "s"
+    else:
+        duration = f"{round(duration_ms)}ms"
+
+    return f"#{entry.index + 1} {duration}"
 
 
-def get_item_tooltip_series(item: T.Any, timestamp_ns: int, tolerance_ns: int) -> TimelineTooltipSeries:
-    if isinstance(item, pg.PlotDataItem):
-        kind = "scatter" if item.opts.get("symbol") is not None else "point"
-        timestamps, values = item.getData()
-        if timestamps is None or values is None or len(timestamps) == 0:
-            return TimelineTooltipSeries(value=None, kind=kind)
-        index = bisect_left(timestamps, timestamp_ns)
-        candidates = [i for i in (index - 1, index) if 0 <= i < len(timestamps)]
-        closest = min(candidates, key=lambda i: abs(timestamps[i] - timestamp_ns))
-        if abs(timestamps[closest] - timestamp_ns) <= tolerance_ns:
-            return TimelineTooltipSeries(
-                value=values[closest], kind=kind, index=closest,
-                timestamp_ns=int(timestamps[closest]) if kind == "scatter" else None,
-            )
-        return TimelineTooltipSeries(value=None, kind=kind)
+def get_series_hover(
+    item: T.Any, series_name: str, timestamp_ns: int, tolerance_ns: int
+) -> TimelineSeriesHover | None:
+    kind = "scatter" if item.opts.get("symbol") is not None else "point"
+    timestamps, values = item.getData()
+    if timestamps is None or values is None or len(timestamps) == 0:
+        return None
 
-    if isinstance(item, pg.BarGraphItem):
-        starts, stops = item.opts.get("x0"), item.opts.get("x1")
-        if starts is None or stops is None:
-            return TimelineTooltipSeries(value=None, kind="interval")
-        for index, (start, stop) in enumerate(zip(starts, stops, strict=True)):
-            if start <= timestamp_ns <= stop:
-                values = getattr(item, "bar_values", None)
-                value = "Active"
-                if values is not None and index < len(values) and not np.isnan(values[index]):
-                    value = values[index]
-                return TimelineTooltipSeries(
-                    value=value, kind="interval", index=index,
-                    start_ns=int(start), stop_ns=int(stop),
-                )
-        return TimelineTooltipSeries(value=None, kind="interval")
-    return TimelineTooltipSeries(value=None, kind="unknown")
+    index = bisect_left(timestamps, timestamp_ns)
+    candidates = [i for i in (index - 1, index) if 0 <= i < len(timestamps)]
+    closest = min(candidates, key=lambda i: abs(timestamps[i] - timestamp_ns))
+    if abs(timestamps[closest] - timestamp_ns) <= tolerance_ns:
+        return TimelineSeriesHover(
+            value=values[closest],
+            name=series_name,
+            timestamp_ns=int(timestamps[closest]) if kind == "scatter" else None,
+        )
+    return None
 
 
-def get_timeline_row_values(
+def get_bar_graph_series_hover(
+    item: pg.BarGraphItem, series_name: str, timestamp_ns: int
+) -> TimelineBarSeriesHover | None:
+    starts, stops = item.opts.get("x0"), item.opts.get("x1")
+    if starts is None or stops is None:
+        return None
+
+    starts = np.asarray(starts)
+    stops = np.asarray(stops)
+    if starts.size != stops.size:
+        logging.warning("Bar graph starts and stops must have equal lengths")
+        return None
+
+    matches = np.flatnonzero((starts <= timestamp_ns) & (timestamp_ns <= stops))
+    if not matches.size:
+        return None
+
+    index = int(matches[0])
+    start, stop = starts[index], stops[index]
+    values = getattr(item, "bar_values", None)
+    if values is not None and index < len(values):
+        value = values[index]
+
+    return TimelineBarSeriesHover(
+        value=value,
+        name=series_name,
+        timestamp_ns=timestamp_ns,
+        index=index,
+        start_ns=int(start),
+        stop_ns=int(stop),
+    )
+
+
+def _get_item_name(item: pg.BarGraphItem | pg.PlotDataItem) -> str:
+    name = getattr(item, "name", "")
+    if callable(name):
+        name = name()
+    if not name:
+        name = item.opts.get("name", "")
+
+    return name
+
+
+def get_hovered_timeline_series(
     items: T.Iterable[T.Any], timestamp_ns: int, tolerance_ns: int
-) -> dict[str, TimelineTooltipSeries]:
-    values: dict[str, TimelineTooltipSeries] = {}
-    for index, item in enumerate(items):
-        if not isinstance(item, (pg.PlotDataItem, pg.BarGraphItem)):
+) -> list[TimelineSeriesHover]:
+    values: list[TimelineSeriesHover] = []
+    for item in items:
+        if not isinstance(item, (pg.BarGraphItem, pg.PlotDataItem)):
             continue
-        name = getattr(item, "name", "")
-        if callable(name):
-            name = name()
-        if not name:
-            name = item.opts.get("name", "")
-        name = str(name).strip() or f"Series {index + 1}"
-        key, suffix = name, 2
-        while key in values:
-            key, suffix = f"{name} ({suffix})", suffix + 1
-        series = get_item_tooltip_series(item, timestamp_ns, tolerance_ns)
-        if isinstance(series.value, np.generic):
-            series = dataclasses.replace(series, value=series.value.item())
-        values[key] = series
+
+        series_name = _get_item_name(item)
+        if isinstance(item, pg.BarGraphItem):
+            series = get_bar_graph_series_hover(item, series_name, timestamp_ns)
+        else:
+            series = get_series_hover(item, series_name, timestamp_ns, tolerance_ns)
+
+        if series is None:
+            continue
+
+        values.append(series)
+
     return values
 
 

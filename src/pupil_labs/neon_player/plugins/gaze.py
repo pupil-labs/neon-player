@@ -97,7 +97,7 @@ class GazeDataPlugin(neon_player.Plugin):
             self.get_timeline().add_timeline_broken_bar(
                 "Worn",
                 list(zip(start_times, stop_times, strict=False)),
-                tooltip=default_broken_bar_tooltip(),
+                tooltip=default_broken_bar_tooltip,
             )
 
         except Exception:

@@ -508,7 +508,7 @@ class SurfaceTrackingPlugin(Plugin):
                 for start, stop, n in zip(start_times, stop_times, n_markers)
                 if n > 0
             ],
-            tooltip=default_broken_bar_tooltip(precision=0, units="markers"),
+            tooltip=default_broken_bar_tooltip,
         )
 
     def _load_surface_locations_cache(self, surface_uid: str) -> None:

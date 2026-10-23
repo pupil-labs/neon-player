@@ -21,7 +21,7 @@ class BlinksPlugin(neon_player.Plugin):
         self.get_timeline().add_timeline_broken_bar(
             "Blinks",
             self.recording.blinks[["start_time", "stop_time"]],
-            tooltip=default_broken_bar_tooltip(),
+            tooltip=default_broken_bar_tooltip,
         )
 
     def on_disabled(self) -> None:

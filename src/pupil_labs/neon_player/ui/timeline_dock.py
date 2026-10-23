@@ -45,7 +45,7 @@ from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
     TimelineTooltipConfig,
     TimelineTooltipContext,
     TimelineTooltipWidget,
-    get_timeline_row_values,
+    get_hovered_timeline_series,
 )
 from pupil_labs.neon_player.utilities import SignalDebouncer, clone_menu
 
@@ -58,6 +58,8 @@ class TimeLineDock(QWidget):
     def __init__(self) -> None:
         super().__init__()
         app = neon_player.instance()
+
+        self.recording: nr.NeonRecording | None = None
 
         self.timeline_plots: dict[str, pg.PlotItem] = {}
         self.timeline_legends: dict[str, pg.LegendItem] = {}
@@ -191,6 +193,7 @@ class TimeLineDock(QWidget):
 
     def on_recording_loaded(self, recording: nr.NeonRecording):
         app = neon_player.instance()
+        self.recording = recording
 
         self.playhead.show()
         for plot_item in self.timeline_plots.values():
@@ -217,6 +220,7 @@ class TimeLineDock(QWidget):
         self.playhead.hide()
         self.hover_marker.set_cursor_time(None)
         self.tooltip_widget.hide()
+        self.recording = None
 
     def on_playback_state_changed(self, is_playing: bool):
         icon_name = "pause.svg" if is_playing else "play.svg"
@@ -264,12 +268,15 @@ class TimeLineDock(QWidget):
             self.hover_marker.set_cursor_time(None)
 
         SignalDebouncer.debounce(
-            self.tooltip_update_requested, 0.01, pos, data_pos.x()
+            self.tooltip_update_requested, 0.01, pos, round(data_pos.x())
         )
 
-    def _update_tooltip(self, pos: QPointF, x: float):
-        recording = neon_player.instance().recording
-        if recording is None or not recording.start_time <= x <= recording.stop_time:
+    def _update_tooltip(self, pos: QPointF, timestamp_ns: int):
+        if self.recording is None:
+            self.tooltip_widget.hide()
+            return
+
+        if not self.recording.start_time <= timestamp_ns <= self.recording.stop_time:
             self.tooltip_widget.hide()
             return
 
@@ -280,7 +287,7 @@ class TimeLineDock(QWidget):
                 break
 
         tooltip_content = self._tooltip_content_for_hovered_row(
-            hovered_plot_name, x
+            hovered_plot_name, timestamp_ns
         )
 
         if isinstance(tooltip_content, QWidget):
@@ -290,36 +297,34 @@ class TimeLineDock(QWidget):
         else:
             self.tooltip_widget.hide()
 
-    def _tooltip_text_for_hovered_row(
-        self, row_name: str | None, x: float
-    ) -> str:
-        content = TimeLineDock._tooltip_content_for_hovered_row(self, row_name, x)
-        return content if isinstance(content, str) else ""
-
     def _tooltip_content_for_hovered_row(
-        self, row_name: str | None, x: float
+        self, row_name: str | None, timestamp_ns: int
     ) -> str | QWidget | None:
         if row_name is None:
             return None
-        callback = self.timeline_tooltips.get(row_name)
-        if callback is None or row_name == "Export window":
+
+        tooltip = self.timeline_tooltips.get(row_name)
+        if tooltip is None or row_name == "Export window":
             return None
+
         plot_item = self.timeline_plots[row_name]
         tolerance_ns = int(round(20 * plot_item.getViewBox().viewPixelSize()[0]))
-        timestamp_ns = int(round(x))
-        series = get_timeline_row_values(plot_item.items, timestamp_ns, tolerance_ns)
+        series = get_hovered_timeline_series(plot_item.items, timestamp_ns, tolerance_ns)
+        if not series:
+            return None
+
         try:
-            if isinstance(callback, QWidget):
-                update_tooltip = getattr(callback, "update_tooltip")
+            if isinstance(tooltip, QWidget):
+                update_tooltip = getattr(tooltip, "update_tooltip")
                 update_tooltip(
                     timestamp_ns,
-                    {name: entry.value for name, entry in series.items()},
+                    {entry.name: entry.value for entry in series},
                 )
-                return callback
+                return tooltip
 
             recording = neon_player.instance().recording
             origin_ns = recording.start_time if recording is not None else 0
-            tooltip_text = callback(
+            tooltip_text = tooltip(
                 TimelineTooltipContext(timestamp_ns, series, origin_ns)
             )
             if not isinstance(tooltip_text, str):

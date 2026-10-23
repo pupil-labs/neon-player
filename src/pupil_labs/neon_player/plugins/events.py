@@ -396,7 +396,7 @@ class EventsPlugin(neon_player.Plugin):
         event = next(
             (
                 series
-                for series in context.series.values()
+                for series in context.series
                 if series.value is not None
                 and series.index is not None
                 and series.timestamp_ns is not None
