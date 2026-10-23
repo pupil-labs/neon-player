@@ -24,6 +24,11 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, action, asset_path
 from pupil_labs.neon_player.job_manager import BackgroundJob, ProgressUpdate
 from pupil_labs.neon_player.plugins.events import _load_events_from_recording, EventsPlugin
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
+    default_broken_bar_tooltip,
+    default_line_tooltip,
+    default_scatter_tooltip,
+)
 from pupil_labs.neon_recording import NeonRecording
 
 
@@ -949,7 +954,18 @@ class XDFPlugin(Plugin):
                 continue
 
             if not plot_item.items:
-                timeline.add_timeline_scatter(timeline_row_name, [])
+                timeline.add_timeline_scatter(
+                    timeline_row_name,
+                    [],
+                    tooltip=default_scatter_tooltip(
+                        name=name,
+                        total=lambda name=name: (
+                            len(self.marker_stream.markers.get(name, []))
+                            if self.marker_stream
+                            else 0
+                        ),
+                    ),
+                )
 
             y = np.zeros_like(offset_timestamps)
             plot_item.items[0].setData(offset_timestamps, y)
@@ -985,6 +1001,7 @@ class XDFPlugin(Plugin):
             data_stream_row_name,
             [(plot_ts[0], plot_ts[-1])],
             color="#00FFFF",
+            tooltip=default_broken_bar_tooltip(prefix="Aligned"),
         )
         self._active_timeline_row_names["data"].add(data_stream_row_name)
 
@@ -1030,6 +1047,7 @@ class XDFPlugin(Plugin):
                 timeline_row_name=row_name,
                 data=plot_data_matrix,
                 plot_name="",
+                tooltip=default_line_tooltip(),
             )
             if plot_item is not None:
                 plot_item.preferred_height_2d = 60

@@ -54,7 +54,7 @@ from pupil_labs.neon_player.utilities import (
 )
 
 from .tracked_surface import TrackedSurface
-from .ui import MarkerEditWidget
+from .ui import MarkerEditWidget, SurfaceTimelineTooltip, marker_visibility_tooltip
 
 if T.TYPE_CHECKING:
     from pupil_labs.neon_recording.timeseries import GazeTimeseries
@@ -168,7 +168,7 @@ class SurfaceTrackingPlugin(Plugin):
         self.get_timeline().remove_timeline_plot("Marker visibility")
         for surface in self.surfaces:
             self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
-            self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
+            self.get_timeline().remove_timeline_plot(f"Surface: {surface.name} Gaze")
 
         for marker_widget in self.marker_edit_widgets.values():
             marker_widget.hide()
@@ -462,6 +462,17 @@ class SurfaceTrackingPlugin(Plugin):
 
             painter.setPen(old_pen)
 
+    def _add_legend_timeline_row(
+        self, row_name: str, data: T.Any, **kwargs: T.Any
+    ) -> None:
+        tooltip = SurfaceTimelineTooltip()
+        self.get_timeline().add_timeline_broken_bar(
+            row_name,
+            data,
+            tooltip=tooltip,
+            **kwargs,
+        )
+
     def _load_marker_cache(self) -> None:
         self.markers_by_frame = np.load(self.marker_cache_file, allow_pickle=True)
         self.trigger_scene_update()
@@ -496,6 +507,7 @@ class SurfaceTrackingPlugin(Plugin):
                 for start, stop, n in zip(start_times, stop_times, n_markers)
                 if n > 0
             ],
+            tooltip=marker_visibility_tooltip,
         )
 
     def _load_surface_locations_cache(self, surface_uid: str) -> None:
@@ -551,8 +563,10 @@ class SurfaceTrackingPlugin(Plugin):
             visibilities = pickle.load(f)
 
         self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
-        self.get_timeline().add_timeline_broken_bar(
-            f"Surface: {surface.name}", visibilities, color="#3273FF"
+        self._add_legend_timeline_row(
+            f"Surface: {surface.name}",
+            visibilities,
+            color="#3273FF",
         )
 
     def add_surface_gaze_timeline(self, surface: TrackedSurface) -> None:
@@ -560,10 +574,12 @@ class SurfaceTrackingPlugin(Plugin):
         if not gaze_upon_file.exists():
             return
 
-        self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
+        self.get_timeline().remove_timeline_plot(f"Surface: {surface.name} Gaze")
         with open(gaze_upon_file, "rb") as f:
-            self.get_timeline().add_timeline_broken_bar(
-                f"Surface Gaze: {surface.name}", pickle.load(f), color="#73F7FF"
+            self._add_legend_timeline_row(
+                f"Surface: {surface.name} Gaze",
+                pickle.load(f),
+                color="#73F7FF",
             )
 
     def attempt_load_surface_heatmap(self, surface_uid: str) -> None:
@@ -807,7 +823,7 @@ class SurfaceTrackingPlugin(Plugin):
                     file_path.unlink()
 
             self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
-            self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
+            self.get_timeline().remove_timeline_plot(f"Surface: {surface.name} Gaze")
 
         self.changed.emit()
 

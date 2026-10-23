@@ -1,11 +1,11 @@
+import typing as T
+
 import numpy as np
 import pyqtgraph as pg
-import typing as T
 
 from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
 
 from pupil_labs.neon_player.ui.timeline_dock_components import SmartSizePlotItem
-
 
 
 def get_clicked_plot_item(items: list[T.Any]) -> SmartSizePlotItem | None:
@@ -13,7 +13,6 @@ def get_clicked_plot_item(items: list[T.Any]) -> SmartSizePlotItem | None:
         if isinstance(item, SmartSizePlotItem):
             return item
     return None
-
 
 def get_clicked_data_point(
     plot_item: SmartSizePlotItem | None, event: MouseClickEvent

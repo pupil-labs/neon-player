@@ -7,6 +7,7 @@ from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import default_broken_bar_tooltip
 from pupil_labs.neon_recording import NeonRecording
 
 
@@ -18,7 +19,9 @@ class BlinksPlugin(neon_player.Plugin):
             return
 
         self.get_timeline().add_timeline_broken_bar(
-            "Blinks", self.recording.blinks[["start_time", "stop_time"]]
+            "Blinks",
+            self.recording.blinks[["start_time", "stop_time"]],
+            tooltip=default_broken_bar_tooltip(),
         )
 
     def on_disabled(self) -> None:

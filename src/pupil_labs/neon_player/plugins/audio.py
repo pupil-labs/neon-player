@@ -17,6 +17,7 @@ from scipy.io import wavfile
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import ProgressUpdate
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import default_line_tooltip
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.video.reader import StreamNotFound
 
@@ -160,7 +161,7 @@ class AudioPlugin(neon_player.Plugin):
 
         data = np.column_stack((timestamps, audio_data))
         timeline = self.get_timeline()
-        timeline.add_timeline_line("Audio", data)
+        timeline.add_timeline_line("Audio", data, tooltip=default_line_tooltip(precision=0))
 
     def extract_audio(self) -> T.Generator[ProgressUpdate, None, None]:
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)

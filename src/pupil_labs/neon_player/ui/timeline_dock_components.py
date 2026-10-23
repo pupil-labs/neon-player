@@ -1,13 +1,22 @@
 import math
+import typing as T
 
 import pyqtgraph as pg
 from pyqtgraph.GraphicsScene.mouseEvents import MouseDragEvent
-from PySide6.QtCore import QObject, QPoint, QPointF, QRect, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPolygon
+from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRect, Qt, Signal
+from PySide6.QtGui import (
+    QColor,
+    QFontMetrics,
+    QPaintEvent,
+    QPainter,
+    QPen,
+    QPolygon,
+)
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
     QGraphicsRectItem,
     QGraphicsSceneMouseEvent,
+    QGraphicsView,
     QLabel,
     QSizePolicy,
     QStyleOptionGraphicsItem,
@@ -16,6 +25,38 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs.neon_player.ui import GUIEventNotifier
+
+
+def format_timestamp_ns(
+    timestamp_ns: int,
+    *,
+    origin_ns: int = 0,
+    always_show_hours: bool = False,
+    show_milliseconds: bool = False,
+) -> str:
+    elapsed_ns = timestamp_ns - origin_ns
+    sign = "-" if elapsed_ns < 0 else ""
+    elapsed_ns = abs(elapsed_ns)
+
+    if show_milliseconds:
+        elapsed_units = (elapsed_ns + 500_000) // 1_000_000
+        units_per_hour = 3_600_000
+        units_per_minute = 60_000
+    else:
+        elapsed_units = elapsed_ns // 1_000_000_000
+        units_per_hour = 3_600
+        units_per_minute = 60
+
+    hours, remainder = divmod(elapsed_units, units_per_hour)
+    minutes, remainder = divmod(remainder, units_per_minute)
+    seconds, remainder = divmod(remainder, 1_000 if show_milliseconds else 1)
+    time_string = f"{minutes:02}:{seconds:02}"
+    if show_milliseconds:
+        time_string += f".{remainder:03}"
+    if always_show_hours or hours:
+        time_string = f"{hours:02}:{time_string}"
+
+    return f"{sign}{time_string}"
 
 
 class ScrubbableViewBox(pg.ViewBox):
@@ -180,20 +221,13 @@ class TimeAxisItem(pg.AxisItem):
                 strings.append("")
                 continue
 
-            relative_time_ns = val - self.recording_start_time_ns
-            hours = relative_time_ns // (1e9 * 60 * 60)
-            minutes = (relative_time_ns // (1e9 * 60)) % 60
-            seconds = (relative_time_ns // 1e9) % 60
-            ms = (relative_time_ns / 1e6) % 1000
-            string = f"{minutes:0>2.0f}:{seconds:0>2.0f}"
-
-            if self.interval < 1:
-                string += f".{ms:0>3.0f}"
-
-            if hours > 0:
-                string = f"{hours:0>2,.0f}:{string}"
-
-            strings.append(string)
+            strings.append(
+                format_timestamp_ns(
+                    int(round(val)),
+                    origin_ns=self.recording_start_time_ns,
+                    show_milliseconds=self.interval < 1,
+                )
+            )
 
         return strings
 
@@ -225,10 +259,13 @@ class TimestampLabel(QLabel):
         self.setFont(font)
 
     def set_time(self, time_ns: int) -> None:
-        hours = time_ns // (1e9 * 60 * 60)
-        minutes = (time_ns // (1e9 * 60)) % 60
-        seconds = (time_ns / 1e9) % 60
-        self.setText(f"{hours:0>2,.0f}:{minutes:0>2.0f}:{seconds:0>6.3f}")
+        self.setText(
+            format_timestamp_ns(
+                time_ns,
+                always_show_hours=True,
+                show_milliseconds=True,
+            )
+        )
 
 
 class SmartSizePlotItem(pg.PlotItem):
@@ -351,6 +388,119 @@ class PlayHead(PlotOverlay):
             painter.fillRect(QRect(x - 1, 0, 3, self.height()), self.color)
 
         painter.end()
+
+
+class TimelineHoverMarker(PlotOverlay):
+    AXIS_STRIP_HEIGHT = 20
+
+    def __init__(
+        self,
+        linked_plot: T.Any,
+        *args: object,
+        **kwargs: object,
+    ) -> None:
+        super().__init__(linked_plot, *args, **kwargs)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.cursor_time: int | None = None
+        time_axis = linked_plot.getAxis("top")
+        if not isinstance(time_axis, TimeAxisItem):
+            raise TypeError("TimelineHoverMarker requires a TimeAxisItem")
+
+        self.time_axis = time_axis
+        parent = self.parent()
+        if not isinstance(parent, QGraphicsView):
+            raise TypeError("TimelineHoverMarker must be parented to a QGraphicsView")
+
+        self._viewport = parent.viewport()
+        self._viewport.installEventFilter(self)
+        linked_plot.vb.sigRangeChanged.connect(self._on_range_changed)
+
+    def refresh_geometry(self) -> None:
+        super().refresh_geometry()
+        self.setGeometry(
+            self.x(),
+            0,
+            self.width(),
+            self.height() + self.AXIS_STRIP_HEIGHT,
+        )
+
+    def set_cursor_time(self, time: int | None) -> None:
+        if time is not None and not (
+            self.time_axis.recording_start_time_ns
+            <= time
+            <= self.time_axis.recording_stop_time_ns
+        ):
+            time = None
+
+        self.cursor_time = time
+        if time is None:
+            self.hide()
+        else:
+            self.update()
+            self.show()
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if (
+            getattr(self, "_viewport", None) is watched
+            and event.type() == QEvent.Type.Leave
+        ):
+            self.set_cursor_time(None)
+        return super().eventFilter(watched, event)
+
+    def _on_range_changed(self, *args: object) -> None:
+        self.update()
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        if self.cursor_time is None:
+            return
+
+        x = round(self.get_x_pixel_for_x_value(self.cursor_time))
+        if self.width() <= 0:
+            return
+        x = min(max(x, 0), self.width() - 1)
+
+        painter = QPainter(self)
+        label = self._format_cursor_label(self.cursor_time)
+        font_metrics = QFontMetrics(self.font())
+        badge_width = min(
+            self.width(),
+            font_metrics.horizontalAdvance(label) + 8,
+        )
+        badge_height = min(
+            self.AXIS_STRIP_HEIGHT,
+            font_metrics.height() + 4,
+        )
+        badge_x = max(
+            0,
+            min(x - badge_width // 2, self.width() - badge_width),
+        )
+        badge_y = (self.AXIS_STRIP_HEIGHT - badge_height) // 2
+        badge_rect = QRect(badge_x, badge_y, badge_width, badge_height)
+        painter.fillRect(badge_rect, QColor("#666666"))
+        painter.setPen(QColor("#ffffff"))
+        painter.drawText(
+            badge_rect,
+            Qt.AlignmentFlag.AlignCenter,
+            label,
+        )
+        painter.setPen(
+            QPen(
+                QColor(255, 255, 255, 128),
+                1,
+                Qt.PenStyle.SolidLine,
+            )
+        )
+        painter.drawLine(x, self.AXIS_STRIP_HEIGHT, x, self.height())
+        painter.end()
+
+    def _format_cursor_label(self, timestamp_ns: int) -> str:
+        return format_timestamp_ns(
+            timestamp_ns,
+            origin_ns=self.time_axis.recording_start_time_ns,
+            always_show_hours=True,
+            show_milliseconds=True,
+        )
 
 
 class TrimEndMarker(QGraphicsEllipseItem):

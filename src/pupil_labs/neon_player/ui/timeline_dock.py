@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import typing as T
 
@@ -29,26 +30,41 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     ScrubbableViewBox,
     SmartSizePlotItem,
     TimeAxisItem,
+    TimelineHoverMarker,
     TimelineTableContainer,
     TimestampLabel,
     TrimDurationMarker,
     TrimEndMarker,
 )
 from pupil_labs.neon_player.ui.timeline_dock_utils import (
-    get_clicked_data_point, get_clicked_plot_item
+    get_clicked_data_point,
+    get_clicked_plot_item,
 )
-from pupil_labs.neon_player.utilities import clone_menu
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
+    TimelineTooltipCallback,
+    TimelineTooltipConfig,
+    TimelineTooltipContext,
+    TimelineTooltipWidget,
+    _get_hovered_timeline_series,
+)
+from pupil_labs.neon_player.utilities import SignalDebouncer, clone_menu
+
 
 
 class TimeLineDock(QWidget):
     key_pressed = Signal(QKeyEvent)
+    tooltip_update_requested = Signal(QPointF, float)
 
     def __init__(self) -> None:
         super().__init__()
         app = neon_player.instance()
 
+        self.recording: nr.NeonRecording | None = None
+
         self.timeline_plots: dict[str, pg.PlotItem] = {}
         self.timeline_legends: dict[str, pg.LegendItem] = {}
+        self.timeline_tooltips: dict[str, TimelineTooltipConfig | None] = {}
+        self._tooltip_widget_rows: dict[int, tuple[QWidget, str]] = {}
         self.plot_colors = [
             QColor("#1f77b4"),
             QColor("#ff7f0e"),
@@ -108,9 +124,11 @@ class TimeLineDock(QWidget):
         self.graphics_layout.setSpacing(0)
         self.graphics_layout.setContentsMargins(0, 0, 0, 0)
         self.graphics_view.setCentralItem(self.graphics_layout)
+        self.tooltip_widget = TimelineTooltipWidget(self.graphics_view.viewport())
 
         self.graphics_view.scene().sigMouseClicked.connect(self.on_chart_area_clicked)
         self.graphics_view.scene().sigMouseMoved.connect(self.on_chart_area_mouse_moved)
+        self.tooltip_update_requested.connect(self._update_tooltip)
 
         self.scroll_area = QScrollArea()
         self.scroll_area.setHorizontalScrollBarPolicy(
@@ -145,6 +163,11 @@ class TimeLineDock(QWidget):
         )
         self.playhead.hide()
 
+        self.hover_marker = TimelineHoverMarker(
+            self.timestamps_plot, parent=self.graphics_view
+        )
+        self.hover_marker.hide()
+
         app.playback_state_changed.connect(self.on_playback_state_changed)
         app.position_changed.connect(self.on_position_changed)
         app.recording_loaded.connect(self.on_recording_loaded)
@@ -163,10 +186,14 @@ class TimeLineDock(QWidget):
         w = self.scroll_area.width() - self.scroll_area.verticalScrollBar().width()
         self.graphics_view.setFixedWidth(w)
         self.playhead.refresh_geometry()
+        self.hover_marker.refresh_geometry()
+        if self.tooltip_widget.isVisible():
+            self.tooltip_widget.show_at(QCursor.pos())
         return super().resizeEvent(event)
 
     def on_recording_loaded(self, recording: nr.NeonRecording):
         app = neon_player.instance()
+        self.recording = recording
 
         self.playhead.show()
         for plot_item in self.timeline_plots.values():
@@ -191,6 +218,9 @@ class TimeLineDock(QWidget):
         if trim_plot is not None:
             trim_plot.clear()
         self.playhead.hide()
+        self.hover_marker.set_cursor_time(None)
+        self.tooltip_widget.hide()
+        self.recording = None
 
     def on_playback_state_changed(self, is_playing: bool):
         icon_name = "pause.svg" if is_playing else "play.svg"
@@ -229,7 +259,180 @@ class TimeLineDock(QWidget):
         for tm in self.trim_markers:
             tm.set_highlighted(self.dragging == tm or tm.nearby(data_pos))
 
-    def on_whitespace_mouse_moved(self, event) -> None:
+        if any(
+            plot_item.sceneBoundingRect().contains(pos)
+            for plot_item in self.timeline_plots.values()
+        ):
+            self.hover_marker.set_cursor_time(round(data_pos.x()))
+        else:
+            self.hover_marker.set_cursor_time(None)
+
+        SignalDebouncer.debounce(
+            self.tooltip_update_requested, 0.01, pos, round(data_pos.x())
+        )
+
+    def _update_tooltip(self, pos: QPointF, timestamp_ns: int):
+        if self.recording is None:
+            self.tooltip_widget.hide()
+            return
+
+        if not self.recording.start_time <= timestamp_ns <= self.recording.stop_time:
+            self.tooltip_widget.hide()
+            return
+
+        hovered_plot_name = None
+        for name, plot_item in self.timeline_plots.items():
+            if plot_item.sceneBoundingRect().contains(pos):
+                hovered_plot_name = name
+                break
+
+        tooltip_content = self._tooltip_content_for_hovered_row(
+            hovered_plot_name, timestamp_ns
+        )
+
+        if isinstance(tooltip_content, QWidget):
+            self.tooltip_widget.show_widget(tooltip_content, QCursor.pos())
+        elif tooltip_content:
+            self.tooltip_widget.show_text(tooltip_content, QCursor.pos())
+        else:
+            self.tooltip_widget.hide()
+
+    def _tooltip_content_for_hovered_row(
+        self, row_name: str | None, timestamp_ns: int
+    ) -> str | QWidget | None:
+        if row_name is None:
+            return None
+
+        tooltip = self.timeline_tooltips.get(row_name)
+        if tooltip is None or row_name == "Export window":
+            return None
+
+        plot_item = self.timeline_plots[row_name]
+        tolerance_ns = int(round(20 * plot_item.getViewBox().viewPixelSize()[0]))
+        series = _get_hovered_timeline_series(plot_item.items, timestamp_ns, tolerance_ns)
+        if not series:
+            return None
+
+        origin_ns = self.recording.start_time if self.recording is not None else 0
+        context = TimelineTooltipContext(
+            timestamp_ns, series, origin_ns, row_name=row_name
+        )
+
+        try:
+            if isinstance(tooltip, QWidget):
+                update_tooltip = getattr(tooltip, "update_tooltip")
+                update_tooltip(context)
+                return tooltip
+
+            tooltip_text = tooltip(context)
+            if not isinstance(tooltip_text, str):
+                logging.warning(
+                    "Timeline tooltip should be provided as string"
+                )
+                return ""
+
+            return tooltip_text
+        except Exception:
+            logging.exception("Timeline tooltip callback failed for %s", row_name)
+            return None
+
+    def set_timeline_tooltip(
+        self,
+        timeline_row_name: str,
+        tooltip: TimelineTooltipConfig | None,
+    ) -> None:
+        previous = self.timeline_tooltips.get(timeline_row_name)
+        current = TimeLineDock._normalize_timeline_tooltip(self, tooltip)
+        new_widgets = {id(current): current} if isinstance(current, QWidget) else {}
+        previous_widgets = (
+            {id(previous): previous} if isinstance(previous, QWidget) else {}
+        )
+        if new_widgets:
+            TimeLineDock._validate_timeline_tooltip_widgets(
+                self, new_widgets, timeline_row_name
+            )
+
+        if new_widgets or previous_widgets:
+            tooltip_widget = getattr(self, "tooltip_widget", None)
+        else:
+            tooltip_widget = None
+        if tooltip_widget is not None and tooltip_widget.isVisible() and any(
+            widget_id not in new_widgets for widget_id in previous_widgets
+        ):
+            self.tooltip_widget.hide()
+
+        for widget_id, widget in new_widgets.items():
+            if widget_id not in self._tooltip_widget_rows:
+                self.tooltip_widget.own_content_widget(widget)
+                self._tooltip_widget_rows[widget_id] = (
+                    widget,
+                    timeline_row_name,
+                )
+
+        self.timeline_tooltips[timeline_row_name] = current
+        TimeLineDock._release_timeline_tooltip_widgets(
+            self,
+            timeline_row_name,
+            tuple(
+                widget
+                for widget_id, widget in previous_widgets.items()
+                if widget_id not in new_widgets
+            ),
+        )
+
+    def _release_timeline_tooltip_widgets(
+        self, timeline_row_name: str, configs: tuple[T.Any, ...]
+    ) -> None:
+        released: set[int] = set()
+        for config in configs:
+            if not isinstance(config, QWidget):
+                continue
+            widget_id = id(config)
+            if widget_id in released:
+                continue
+            released.add(widget_id)
+            owner = getattr(self, "_tooltip_widget_rows", {}).get(widget_id)
+            if (
+                owner is None
+                or owner[0] is not config
+                or owner[1] != timeline_row_name
+            ):
+                continue
+            self._tooltip_widget_rows.pop(widget_id, None)
+            self.tooltip_widget.release_content_widget(config)
+
+    def _normalize_timeline_tooltip(
+        self,
+        tooltip: TimelineTooltipConfig | None,
+    ) -> TimelineTooltipConfig | None:
+        if tooltip is None:
+            return None
+        if isinstance(tooltip, QWidget):
+            update_tooltip = getattr(tooltip, "update_tooltip", None)
+            if not callable(update_tooltip):
+                raise TypeError(
+                    "Timeline tooltip widgets must implement update_tooltip(context)"
+                )
+            return tooltip
+        if callable(tooltip):
+            return T.cast(TimelineTooltipCallback, tooltip)
+        raise TypeError("Timeline tooltip must be a callback, QWidget, or None")
+
+    def _validate_timeline_tooltip_widgets(
+        self, widgets: dict[int, QWidget], timeline_row_name: str
+    ) -> None:
+        for widget_id, widget in widgets.items():
+            current_owner = getattr(self, "_tooltip_widget_rows", {}).get(widget_id)
+            if current_owner is not None:
+                if current_owner[0] is not widget:
+                    raise RuntimeError("Timeline tooltip widget identity collision")
+                if current_owner[1] != timeline_row_name:
+                    raise ValueError("Timeline tooltip widget is already assigned to another row")
+                continue
+            if widget.parent() is not None:
+                raise ValueError("Timeline tooltip widgets must be parentless")
+
+    def on_whitespace_mouse_moved(self, event):
         if event.buttons() == Qt.LeftButton:
             self.on_chart_area_clicked(event)
 
@@ -362,7 +565,24 @@ class TimeLineDock(QWidget):
         if not create_if_missing:
             return None
 
-        logging.debug(f"Adding plot '{timeline_row_name}' to timeline")
+        if hasattr(self, "dead_plots") and self.dead_plots:
+            plot_item = self.dead_plots.pop()
+            if isinstance(plot_item.legend_label, pg.LabelItem):
+                plot_item.legend_label.setText(timeline_row_name)
+            self.timeline_plots[timeline_row_name] = plot_item
+
+            if self.graphics_layout.rows:
+                row = max(self.graphics_layout.rows.keys()) + 1
+            else:
+                row = 0
+            self.graphics_layout.addItem(plot_item.legend_container, row=row, col=0)
+            self.graphics_layout.addItem(plot_item, row=row, col=1)
+
+            plot_item.setVisible(True)
+            return plot_item
+
+        if not timeline_row_name.startswith("Test Event"):
+            logging.debug(f"Adding plot '{timeline_row_name}' to timeline")
 
         row = self.graphics_layout.nextRow()
         is_timestamps_row = timeline_row_name == "Export window"
@@ -465,6 +685,7 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
         plot_name: str = "",
         color: QColor | None = None,
+        tooltip: TimelineTooltipConfig | None = None,
         **kwargs: T.Any,
     ) -> pg.PlotDataItem | None:
         app = neon_player.instance()
@@ -475,6 +696,9 @@ class TimeLineDock(QWidget):
         if plot_item is None:
             return None
 
+        if tooltip is not None:
+            self.set_timeline_tooltip(timeline_row_name, tooltip)
+
         if color is None:
             plot_index = len(plot_item.items)
             color = self.plot_colors[plot_index % len(self.plot_colors)]
@@ -483,8 +707,17 @@ class TimeLineDock(QWidget):
             kwargs["pen"] = pg.mkPen(color=color, width=2, cap="flat")
 
         legend = self.timeline_legends[timeline_row_name]
-        plot_data_item = plot_item.plot(data, name=plot_name, **kwargs)
+        data = np.asarray(data)
+        if len(data) > 0:
+            plot_data_item = plot_item.plot(
+                data[:, 0], data[:, 1], name=plot_name, **kwargs
+            )
+        else:
+            plot_data_item = plot_item.plot(x=[], y=[], name=plot_name, **kwargs)
+
         plot_data_item.name = plot_name
+        if kwargs.get("is_event"):
+            plot_data_item.is_event = True
         if plot_name != "":
             legend.addItem(plot_data_item, plot_name)
 
@@ -497,19 +730,27 @@ class TimeLineDock(QWidget):
         h = sum([p.preferredHeight() for p in self.timeline_plots.values()])
         self.graphics_view.setFixedHeight(h)
         self.playhead.refresh_geometry()
+        self.hover_marker.refresh_geometry()
 
     def remove_timeline_plot(self, plot_name: str) -> None:
         plot = self.get_timeline_plot(plot_name)
         if plot is None:
             return
 
-        self.graphics_layout.removeItem(plot)
-        del self.timeline_plots[plot_name]
-
-        if plot_name in self.timeline_legends:
-            legend = self.timeline_legends[plot_name]
-            self.graphics_layout.removeItem(legend.parentItem())
+        with contextlib.suppress(ValueError):
+            if plot_name in self.timeline_tooltips:
+                self.tooltip_widget.hide()
+            self.graphics_layout.removeItem(
+                self.timeline_legends[plot_name].parentItem()
+            )
+            self.graphics_layout.removeItem(self.timeline_plots[plot_name])
+            del self.timeline_plots[plot_name]
             del self.timeline_legends[plot_name]
+            tooltip_config = self.timeline_tooltips.pop(plot_name, None)
+            if tooltip_config is not None:
+                TimeLineDock._release_timeline_tooltip_widgets(
+                    self, plot_name, (tooltip_config,)
+                )
 
         if self.plot_sorting_enabled:
             self.sort_plots()
@@ -553,12 +794,23 @@ class TimeLineDock(QWidget):
         timeline_row_name: str,
         data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
         plot_name: str = "",
+        tooltip: TimelineTooltipConfig | None = None,
         **kwargs: T.Any,
     ) -> pg.PlotDataItem | None:
-        return self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
+        return self.add_timeline_plot(
+            timeline_row_name,
+            data,
+            plot_name,
+            tooltip=tooltip,
+            **kwargs,
+        )
 
     def add_timeline_scatter(
-        self, name: str, data: list[tuple[int, T.SupportsFloat]] | np.ndarray, item_name: str = ""
+        self,
+        name: str,
+        data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
+        item_name: str = "",
+        tooltip: TimelineTooltipConfig | None = None,
     ) -> pg.PlotDataItem | None:
         return self.add_timeline_plot(
             name,
@@ -567,6 +819,7 @@ class TimeLineDock(QWidget):
             pen=None,
             symbol="d",
             symbolBrush=pg.mkColor("white"),
+            tooltip=tooltip,
         )
 
     def add_timeline_broken_bar(
@@ -575,6 +828,7 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, int, T.SupportsFloat]] | list[tuple[int, int]] | np.ndarray,
         item_name: str = "",
         color: str = "white",
+        tooltip: TimelineTooltipConfig | None = None,
     ) -> pg.PlotDataItem | None:
         """Adds a broken bar plot to the timeline where bars are colored based on a Z-value.
 
@@ -589,6 +843,9 @@ class TimeLineDock(QWidget):
         plot_widget = self.get_timeline_plot(timeline_row_name, True)
         if plot_widget is None:
             return None
+
+        if tooltip is not None:
+            self.set_timeline_tooltip(timeline_row_name, tooltip)
 
         plot_widget.getViewBox().allow_y_panning = False
         # plot_widget.getViewBox().setMouseEnabled(y=False)
@@ -614,8 +871,15 @@ class TimeLineDock(QWidget):
             pens, brushes = _resolve_bar_colors(color_values, color, len(starts_raw))
 
             bars = pg.BarGraphItem(
-                x0=starts_raw, x1=stops_raw, y0=-0.4, y1=0.4, pens=pens, brushes=brushes
+                x0=starts_raw,
+                x1=stops_raw,
+                y0=-0.4,
+                y1=0.4,
+                pens=pens,
+                brushes=brushes,
+                name=item_name,
             )
+            bars.bar_values = values
             plot_widget.addItem(bars)
         else:
             bars = []

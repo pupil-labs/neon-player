@@ -21,6 +21,9 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
 from pupil_labs.neon_player.plugins import Plugin
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
+    default_scatter_tooltip,
+)
 
 IMMUTABLE_EVENTS = ["recording.begin", "recording.end"]
 
@@ -367,7 +370,14 @@ class EventsPlugin(neon_player.Plugin):
         if existing_plot is not None:
             return
 
-        plot_item = timeline.add_timeline_scatter(f"Events - {event_type.name}", [])
+        plot_item = timeline.add_timeline_scatter(
+            f"Events - {event_type.name}",
+            [],
+            tooltip=default_scatter_tooltip(
+                name=event_type.name,
+                total=lambda name=event_type.name: len(self.events.get(name, [])),
+            ),
+        )
         if plot_item is None:
             return
         plot_item.getViewBox().allow_y_panning = False
