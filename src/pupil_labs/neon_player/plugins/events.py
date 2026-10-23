@@ -23,7 +23,7 @@ from pupil_labs.neon_player import GlobalPluginProperties, action
 from pupil_labs.neon_player.plugins import Plugin
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.ui.timeline_dock_components import format_timestamp_ns
-from pupil_labs.neon_player.ui.timeline_dock_utils import TimelineTooltipContext
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import TimelineTooltipContext
 
 IMMUTABLE_EVENTS = ["recording.begin", "recording.end"]
 

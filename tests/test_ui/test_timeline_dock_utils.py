@@ -9,12 +9,14 @@ from PySide6.QtWidgets import QLabel, QWidget
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
-from pupil_labs.neon_player.ui.timeline_dock_components import TimelineTooltipWidget
-from pupil_labs.neon_player.ui.timeline_dock_utils import (
+from pupil_labs.neon_player.ui.timeline_dock_utils import get_clicked_data_point
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
     TimelineTooltipContext,
     TimelineTooltipSeries,
-    default_timeline_tooltip,
-    get_clicked_data_point,
+    TimelineTooltipWidget,
+    default_broken_bar_tooltip,
+    default_line_tooltip,
+    default_scatter_tooltip,
     get_item_tooltip_series,
     get_timeline_row_values,
 )
@@ -69,13 +71,13 @@ def test_timeline_row_values_assigns_stable_names_for_unnamed_series():
     }
 
 
-def test_tooltip_registration_replaces_callback_with_latest_non_none():
+def test_set_timeline_tooltip_replaces_callback():
     first = lambda context: "first"
     second = lambda context: "second"
     owner = SimpleNamespace(timeline_tooltips={})
 
-    TimeLineDock._register_timeline_tooltip(owner, "row", first)
-    TimeLineDock._register_timeline_tooltip(owner, "row", second)
+    TimeLineDock.set_timeline_tooltip(owner, "row", first)
+    TimeLineDock.set_timeline_tooltip(owner, "row", second)
 
     assert owner.timeline_tooltips == {"row": second}
 
@@ -83,20 +85,38 @@ def test_tooltip_registration_replaces_callback_with_latest_non_none():
 def test_none_tooltip_clears_registered_callback():
     owner = SimpleNamespace(timeline_tooltips={"row": lambda context: "shown"})
 
-    TimeLineDock._register_timeline_tooltip(owner, "row", None)
+    TimeLineDock.set_timeline_tooltip(owner, "row", None)
 
     assert owner.timeline_tooltips == {"row": None}
 
 
-def test_omitted_tooltip_registers_default_callback():
-    owner = SimpleNamespace(timeline_tooltips={})
-    default = inspect.signature(TimeLineDock.add_timeline_plot).parameters[
-        "tooltip"
-    ].default
+def test_adding_series_without_tooltip_preserves_row_tooltip(monkeypatch):
+    callback = lambda context: "configured"
 
-    TimeLineDock._register_timeline_tooltip(owner, "row", default)
+    class PlotItem:
+        items = []
 
-    assert owner.timeline_tooltips == {"row": default_timeline_tooltip}
+        def plot(self, *args, **kwargs):
+            return SimpleNamespace(name="")
+
+    plot_item = PlotItem()
+    owner = SimpleNamespace(
+        timeline_tooltips={"row": callback},
+        get_timeline_plot=lambda *args: plot_item,
+        timeline_legends={"row": SimpleNamespace(addItem=lambda *args: None)},
+        plot_sorting_enabled=False,
+    )
+    monkeypatch.setattr(
+        neon_player,
+        "instance",
+        lambda: SimpleNamespace(recording=object()),
+    )
+
+    TimeLineDock.add_timeline_plot(
+        owner, "row", [], color=pg.mkColor("white"), tooltip=None
+    )
+
+    assert owner.timeline_tooltips["row"] is callback
 
 
 def test_custom_widget_is_adopted_and_released_when_replaced(qapp):
@@ -113,11 +133,11 @@ def test_custom_widget_is_adopted_and_released_when_replaced(qapp):
     )
     widget = CustomTooltip()
 
-    TimeLineDock._register_timeline_tooltip(owner, "row", widget)
+    TimeLineDock.set_timeline_tooltip(owner, "row", widget)
     assert widget.parent() is host
     assert owner.timeline_tooltips["row"] is widget
 
-    TimeLineDock._register_timeline_tooltip(owner, "row", lambda context: "text")
+    TimeLineDock.set_timeline_tooltip(owner, "row", lambda context: "text")
     assert widget.parent() is None
     assert id(widget) not in owner._tooltip_widget_rows
 
@@ -131,7 +151,7 @@ def test_invalid_custom_widgets_are_rejected_without_taking_ownership():
     widget_without_update = QLabel()
 
     with pytest.raises(TypeError, match="update_tooltip"):
-        TimeLineDock._register_timeline_tooltip(
+        TimeLineDock.set_timeline_tooltip(
             owner, "row", widget_without_update
         )
 
@@ -153,20 +173,12 @@ def test_parented_custom_widget_is_rejected_and_stays_caller_owned():
     )
 
     with pytest.raises(ValueError, match="parentless"):
-        TimeLineDock._register_timeline_tooltip(owner, "row", widget)
+        TimeLineDock.set_timeline_tooltip(owner, "row", widget)
 
     assert widget.parent() is parent
 
 
-def test_default_timeline_tooltip_formats_single_series_value():
-    context = TimelineTooltipContext(
-        100, {"speed": TimelineTooltipSeries(value=3.5, kind="point")}
-    )
-
-    assert default_timeline_tooltip(context) == "3.500"
-
-
-def test_default_timeline_tooltip_formats_multiple_series_and_omits_none():
+def test_line_tooltip_factory_formats_multiple_series_and_omits_none():
     context = TimelineTooltipContext(
         100,
         {
@@ -177,7 +189,7 @@ def test_default_timeline_tooltip_formats_multiple_series_and_omits_none():
     )
 
     assert (
-        default_timeline_tooltip(context)
+        default_line_tooltip()(context)
         == '<table cellspacing="0" cellpadding="0">'
         '<tr><td style="padding-right: 6px"><b>speed</b>:</td>'
         '<td style="text-align: right">3.500</td></tr>'
@@ -187,7 +199,7 @@ def test_default_timeline_tooltip_formats_multiple_series_and_omits_none():
     )
 
 
-def test_default_timeline_tooltip_formats_broken_bar_index_and_duration():
+def test_broken_bar_tooltip_factory_formats_index_duration_and_value():
     context = TimelineTooltipContext(
         100,
         {
@@ -201,10 +213,10 @@ def test_default_timeline_tooltip_formats_broken_bar_index_and_duration():
         },
     )
 
-    assert default_timeline_tooltip(context) == "#3 250ms"
+    assert default_broken_bar_tooltip()(context) == "#3 250ms (7.000)"
 
 
-def test_default_timeline_tooltip_rounds_broken_bar_duration_to_whole_ms():
+def test_broken_bar_tooltip_factory_rounds_duration_to_whole_ms():
     context = TimelineTooltipContext(
         100,
         {
@@ -218,10 +230,10 @@ def test_default_timeline_tooltip_rounds_broken_bar_duration_to_whole_ms():
         },
     )
 
-    assert default_timeline_tooltip(context) == "#3 251ms"
+    assert default_broken_bar_tooltip()(context) == "#3 251ms (7.000)"
 
 
-def test_default_timeline_tooltip_hides_when_all_values_are_none():
+def test_line_tooltip_factory_hides_when_all_values_are_none():
     context = TimelineTooltipContext(
         100,
         {
@@ -230,7 +242,100 @@ def test_default_timeline_tooltip_hides_when_all_values_are_none():
         },
     )
 
-    assert default_timeline_tooltip(context) == ""
+    assert default_line_tooltip()(context) == ""
+
+
+def test_line_tooltip_factory_formats_precision_and_units():
+    context = TimelineTooltipContext(
+        100, {"speed": TimelineTooltipSeries(value=3.5678, kind="point")}
+    )
+
+    assert default_line_tooltip()(context) == "3.568"
+    assert default_line_tooltip(precision=1, units="m/s")(context) == "3.6 m/s"
+
+
+def test_line_tooltip_factory_keeps_integer_and_nonnumeric_values_unchanged():
+    integer_context = TimelineTooltipContext(
+        100, {"count": TimelineTooltipSeries(value=42, kind="point")}
+    )
+    string_context = TimelineTooltipContext(
+        100, {"state": TimelineTooltipSeries(value="Active", kind="point")}
+    )
+
+    assert default_line_tooltip(precision=2, units="items")(integer_context) == (
+        "42 items"
+    )
+    assert default_line_tooltip(precision=2, units="m")(string_context) == "Active"
+
+
+def test_scatter_tooltip_factory_shows_sample_time_and_formatted_value():
+    context = TimelineTooltipContext(
+        200_000_000,
+        {
+            "sample": TimelineTooltipSeries(
+                value=3.5678,
+                kind="scatter",
+                index=0,
+                timestamp_ns=123_456_789,
+            )
+        },
+        origin_ns=100_000_000,
+    )
+
+    assert default_scatter_tooltip(precision=2, units="g")(context) == (
+        "00:00:00.023 (3.57 g)"
+    )
+
+
+def test_scatter_tooltip_factory_leaves_nonnumeric_value_without_units():
+    context = TimelineTooltipContext(
+        100,
+        {
+            "sample": TimelineTooltipSeries(
+                value="Active", kind="scatter", timestamp_ns=123_456_789
+            )
+        },
+    )
+
+    assert default_scatter_tooltip(units="g")(context) == (
+        "00:00:00.123 (Active)"
+    )
+
+
+def test_broken_bar_tooltip_factory_shows_index_duration_value_and_units():
+    context = TimelineTooltipContext(
+        100,
+        {
+            "interval": TimelineTooltipSeries(
+                value=7.256,
+                kind="interval",
+                index=2,
+                start_ns=100_000_000,
+                stop_ns=350_700_000,
+            )
+        },
+    )
+
+    assert default_broken_bar_tooltip(precision=1, units="°C")(context) == (
+        "#3 251ms (7.3 °C)"
+    )
+
+
+def test_broken_bar_tooltip_factory_keeps_nonnumeric_values_unchanged():
+    context = TimelineTooltipContext(
+        100,
+        {
+            "interval": TimelineTooltipSeries(
+                value="Active",
+                kind="interval",
+                index=0,
+                start_ns=10,
+                stop_ns=20,
+            )
+        },
+    )
+
+    assert default_broken_bar_tooltip(units="m")(context) == "#1 0ms (Active)"
 
 
 def test_all_timeline_add_apis_expose_optional_tooltip():
@@ -241,8 +346,12 @@ def test_all_timeline_add_apis_expose_optional_tooltip():
         "add_timeline_broken_bar",
     ):
         parameter = inspect.signature(getattr(TimeLineDock, name)).parameters["tooltip"]
-        assert parameter.default is not None
+        assert parameter.default is None
         assert "tooltip" in inspect.signature(getattr(TimeLineDock, name)).parameters
+
+
+def test_timeline_tooltip_setter_is_public():
+    assert callable(TimeLineDock.set_timeline_tooltip)
 
 
 def test_callback_receives_integral_timestamp_and_row_values():
@@ -310,7 +419,7 @@ def test_custom_widget_is_released_when_timeline_row_is_removed(qapp):
         get_timeline_plot=lambda name: object(),
         sort_plots=lambda: None,
     )
-    TimeLineDock._register_timeline_tooltip(owner, "row", widget)
+    TimeLineDock.set_timeline_tooltip(owner, "row", widget)
 
     TimeLineDock.remove_timeline_plot(owner, "row")
 

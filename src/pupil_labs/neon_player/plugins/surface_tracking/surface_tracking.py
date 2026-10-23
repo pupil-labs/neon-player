@@ -47,6 +47,7 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action
 from pupil_labs.neon_player.settings import RecordingSettings
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import default_broken_bar_tooltip
 from pupil_labs.neon_player.utilities import (
     SlotDebouncer,
     ndarray_from_qimage,
@@ -507,6 +508,7 @@ class SurfaceTrackingPlugin(Plugin):
                 for start, stop, n in zip(start_times, stop_times, n_markers)
                 if n > 0
             ],
+            tooltip=default_broken_bar_tooltip(precision=0, units="markers"),
         )
 
     def _load_surface_locations_cache(self, surface_uid: str) -> None:

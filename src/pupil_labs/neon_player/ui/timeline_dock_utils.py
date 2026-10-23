@@ -1,7 +1,3 @@
-from bisect import bisect_left
-import dataclasses
-import html
-import numbers
 import typing as T
 
 import numpy as np
@@ -9,87 +5,7 @@ import pyqtgraph as pg
 
 from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
 
-from pupil_labs.neon_player.ui.timeline_dock_components import (
-    SmartSizePlotItem,
-    format_timestamp_ns,
-)
-
-
-@dataclasses.dataclass(frozen=True)
-class TimelineTooltipSeries:
-    """Value and source details for one plotted series at the hovered time."""
-
-    value: T.Any | None
-    kind: str
-    index: int | None = None
-    start_ns: int | None = None
-    stop_ns: int | None = None
-    timestamp_ns: int | None = None
-
-
-@dataclasses.dataclass(frozen=True)
-class TimelineTooltipContext:
-    """Stable callback input with row values and optional per-series details."""
-
-    timestamp_ns: int
-    series: dict[str, TimelineTooltipSeries]
-    origin_ns: int = 0
-
-    @property
-    def values(self) -> dict[str, T.Any | None]:
-        return {name: entry.value for name, entry in self.series.items()}
-
-
-TimelineTooltipCallback: T.TypeAlias = T.Callable[[TimelineTooltipContext], str]
-
-
-def default_timeline_tooltip(context: TimelineTooltipContext) -> str:
-    """Format available row values for the timeline's default tooltip."""
-    available = [
-        (
-            name,
-            entry,
-            _format_default_series_value(entry, origin_ns=context.origin_ns),
-        )
-        for name, entry in context.series.items()
-        if entry.value is not None
-    ]
-    if not available:
-        return ""
-    if len(context.series) == 1:
-        return available[0][2]
-    rows = "".join(
-        "<tr>"
-        f'<td style="padding-right: 6px"><b>{html.escape(name)}</b>:</td>'
-        f'<td style="text-align: right">{html.escape(value)}</td>'
-        "</tr>"
-        for name, _entry, value in available
-    )
-    return f'<table cellspacing="0" cellpadding="0">{rows}</table>'
-
-
-def _format_default_series_value(
-    entry: TimelineTooltipSeries, *, origin_ns: int = 0
-) -> str:
-    if entry.kind == "scatter" and entry.timestamp_ns is not None:
-        return format_timestamp_ns(
-            entry.timestamp_ns,
-            origin_ns=origin_ns,
-            always_show_hours=True,
-            show_milliseconds=True,
-        )
-    if (
-        entry.kind == "interval"
-        and entry.index is not None
-        and entry.start_ns is not None
-        and entry.stop_ns is not None
-    ):
-        duration_ms = round((entry.stop_ns - entry.start_ns) / 1_000_000)
-        return f"#{entry.index+1} {duration_ms}ms"
-    value = entry.value
-    if isinstance(value, numbers.Real) and not isinstance(value, numbers.Integral):
-        return f"{value:.3f}"
-    return str(value)
+from pupil_labs.neon_player.ui.timeline_dock_components import SmartSizePlotItem
 
 
 def get_clicked_plot_item(items: list[T.Any]) -> SmartSizePlotItem | None:
@@ -97,7 +13,6 @@ def get_clicked_plot_item(items: list[T.Any]) -> SmartSizePlotItem | None:
         if isinstance(item, SmartSizePlotItem):
             return item
     return None
-
 
 def get_clicked_data_point(
     plot_item: SmartSizePlotItem | None, event: MouseClickEvent
@@ -135,76 +50,3 @@ def get_clicked_data_point(
         return original_ts[ts_index], T.cast(T.SupportsFloat, original_y[ts_index])
 
     return None
-
-
-def get_item_tooltip_series(
-    item: T.Any, timestamp_ns: int, tolerance_ns: int
-) -> TimelineTooltipSeries:
-    if isinstance(item, pg.PlotDataItem):
-        kind = "scatter" if item.opts.get("symbol") is not None else "point"
-        timestamps, values = item.getData()
-        if timestamps is None or values is None or len(timestamps) == 0:
-            return TimelineTooltipSeries(value=None, kind=kind)
-
-        # TODO: ensure that the timestamps are sorted
-        index = bisect_left(timestamps, timestamp_ns)
-        candidates = [i for i in (index - 1, index) if 0 <= i < len(timestamps)]
-        closest = min(candidates, key=lambda i: abs(timestamps[i] - timestamp_ns))
-        if abs(timestamps[closest] - timestamp_ns) <= tolerance_ns:
-            return TimelineTooltipSeries(
-                value=values[closest],
-                kind=kind,
-                index=closest,
-                timestamp_ns=(
-                    int(timestamps[closest]) if kind == "scatter" else None
-                ),
-            )
-        return TimelineTooltipSeries(value=None, kind=kind)
-
-    if isinstance(item, pg.BarGraphItem):
-        options = item.opts
-        starts = options.get("x0")
-        stops = options.get("x1")
-        if starts is None or stops is None:
-            return TimelineTooltipSeries(value=None, kind="interval")
-        for index, (start, stop) in enumerate(zip(starts, stops, strict=True)):
-            if start <= timestamp_ns <= stop:
-                values = getattr(item, "bar_values", None)
-                value = "Active"
-                if values is not None and index < len(values) and not np.isnan(values[index]):
-                    value = values[index]
-                return TimelineTooltipSeries(
-                    value=value,
-                    kind="interval",
-                    index=index,
-                    start_ns=int(start),
-                    stop_ns=int(stop),
-                )
-        return TimelineTooltipSeries(value=None, kind="interval")
-
-    return TimelineTooltipSeries(value=None, kind="unknown")
-
-
-def get_timeline_row_values(
-    items: T.Iterable[T.Any], timestamp_ns: int, tolerance_ns: int
-) -> dict[str, TimelineTooltipSeries]:
-    values: dict[str, TimelineTooltipSeries] = {}
-    for index, item in enumerate(items):
-        if not isinstance(item, (pg.PlotDataItem, pg.BarGraphItem)):
-            continue
-        name = getattr(item, "name", "")
-        if callable(name):
-            name = name()
-        if not name:
-            name = item.opts.get("name", "")
-        name = str(name).strip() or f"Series {index + 1}"
-        key = name
-        suffix = 2
-        while key in values:
-            key = f"{name} ({suffix})"
-            suffix += 1
-        series = get_item_tooltip_series(item, timestamp_ns, tolerance_ns)
-        if isinstance(series.value, np.generic):
-            series = dataclasses.replace(series, value=series.value.item())
-        values[key] = series
-    return values

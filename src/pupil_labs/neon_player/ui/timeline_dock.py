@@ -31,24 +31,24 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     SmartSizePlotItem,
     TimeAxisItem,
     TimelineHoverMarker,
-    TimelineTooltipWidget,
     TimelineTableContainer,
     TimestampLabel,
     TrimDurationMarker,
     TrimEndMarker,
 )
 from pupil_labs.neon_player.ui.timeline_dock_utils import (
-    TimelineTooltipCallback,
-    TimelineTooltipContext,
-    default_timeline_tooltip,
     get_clicked_data_point,
     get_clicked_plot_item,
+)
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
+    TimelineTooltipCallback,
+    TimelineTooltipConfig,
+    TimelineTooltipContext,
+    TimelineTooltipWidget,
     get_timeline_row_values,
 )
 from pupil_labs.neon_player.utilities import SignalDebouncer, clone_menu
 
-_DEFAULT_TOOLTIP = object()
-TimelineTooltipConfig: T.TypeAlias = TimelineTooltipCallback | QWidget
 
 
 class TimeLineDock(QWidget):
@@ -333,17 +333,13 @@ class TimeLineDock(QWidget):
             logging.exception("Timeline tooltip callback failed for %s", row_name)
             return None
 
-    def _register_timeline_tooltip(
+    def set_timeline_tooltip(
         self,
         timeline_row_name: str,
-        tooltip: TimelineTooltipConfig | None | object,
+        tooltip: TimelineTooltipConfig | None,
     ) -> None:
         previous = self.timeline_tooltips.get(timeline_row_name)
-        current = (
-            default_timeline_tooltip
-            if tooltip is _DEFAULT_TOOLTIP
-            else TimeLineDock._normalize_timeline_tooltip(self, tooltip)
-        )
+        current = TimeLineDock._normalize_timeline_tooltip(self, tooltip)
         new_widgets = {id(current): current} if isinstance(current, QWidget) else {}
         previous_widgets = (
             {id(previous): previous} if isinstance(previous, QWidget) else {}
@@ -404,7 +400,7 @@ class TimeLineDock(QWidget):
 
     def _normalize_timeline_tooltip(
         self,
-        tooltip: TimelineTooltipConfig | None | object,
+        tooltip: TimelineTooltipConfig | None,
     ) -> TimelineTooltipConfig | None:
         if tooltip is None:
             return None
@@ -686,7 +682,7 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
         plot_name: str = "",
         color: QColor | None = None,
-        tooltip: TimelineTooltipConfig | None | object = _DEFAULT_TOOLTIP,
+        tooltip: TimelineTooltipConfig | None = None,
         **kwargs: T.Any,
     ) -> pg.PlotDataItem | None:
         app = neon_player.instance()
@@ -697,7 +693,8 @@ class TimeLineDock(QWidget):
         if plot_item is None:
             return None
 
-        self._register_timeline_tooltip(timeline_row_name, tooltip)
+        if tooltip is not None:
+            self.set_timeline_tooltip(timeline_row_name, tooltip)
 
         if color is None:
             plot_index = len(plot_item.items)
@@ -794,7 +791,7 @@ class TimeLineDock(QWidget):
         timeline_row_name: str,
         data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
         plot_name: str = "",
-        tooltip: TimelineTooltipConfig | None | object = _DEFAULT_TOOLTIP,
+        tooltip: TimelineTooltipConfig | None = None,
         **kwargs: T.Any,
     ) -> pg.PlotDataItem | None:
         return self.add_timeline_plot(
@@ -810,7 +807,7 @@ class TimeLineDock(QWidget):
         name: str,
         data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
         item_name: str = "",
-        tooltip: TimelineTooltipConfig | None | object = _DEFAULT_TOOLTIP,
+        tooltip: TimelineTooltipConfig | None = None,
     ) -> pg.PlotDataItem | None:
         return self.add_timeline_plot(
             name,
@@ -828,7 +825,7 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, int, T.SupportsFloat]] | list[tuple[int, int]] | np.ndarray,
         item_name: str = "",
         color: str = "white",
-        tooltip: TimelineTooltipConfig | None | object = _DEFAULT_TOOLTIP,
+        tooltip: TimelineTooltipConfig | None = None,
     ) -> pg.PlotDataItem | None:
         """Adds a broken bar plot to the timeline where bars are colored based on a Z-value.
 
@@ -844,7 +841,8 @@ class TimeLineDock(QWidget):
         if plot_widget is None:
             return None
 
-        self._register_timeline_tooltip(timeline_row_name, tooltip)
+        if tooltip is not None:
+            self.set_timeline_tooltip(timeline_row_name, tooltip)
 
         plot_widget.getViewBox().allow_y_panning = False
         # plot_widget.getViewBox().setMouseEnabled(y=False)
