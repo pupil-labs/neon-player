@@ -220,8 +220,8 @@ def test_broken_bar_tooltip_formats_index_and_duration():
                 timestamp_ns=100,
                 index=2,
                 value=7.0,
-                start_ns=100_000_000,
-                stop_ns=350_000_000,
+                start_ts=100_000_000,
+                stop_ts=350_000_000,
             ),
         ],
     )
@@ -238,8 +238,8 @@ def test_broken_bar_tooltip_rounds_duration_to_whole_ms():
                 timestamp_ns=100,
                 index=2,
                 value=7.0,
-                start_ns=100_000_000,
-                stop_ns=350_700_000,
+                start_ts=100_000_000,
+                stop_ts=350_700_000,
             ),
         ],
     )
@@ -256,8 +256,8 @@ def test_broken_bar_tooltip_formats_long_duration_as_seconds():
                 timestamp_ns=100,
                 index=2,
                 value=7.0,
-                start_ns=0,
-                stop_ns=1_234_000_000,
+                start_ts=0,
+                stop_ts=1_234_000_000,
             ),
         ],
     )
@@ -269,8 +269,8 @@ def test_broken_bar_tooltip_warns_and_returns_empty_for_multiple_series(caplog):
     context = TimelineTooltipContext(
         100,
         [
-            TimelineBarSeriesHover(name="first", timestamp_ns=100, index=0, value=7.0, start_ns=0, stop_ns=1),
-            TimelineBarSeriesHover(name="second", timestamp_ns=100, index=0, value=8.0, start_ns=0, stop_ns=1),
+            TimelineBarSeriesHover(name="first", timestamp_ns=100, index=0, value=7.0, start_ts=0, stop_ts=1),
+            TimelineBarSeriesHover(name="second", timestamp_ns=100, index=0, value=8.0, start_ts=0, stop_ts=1),
         ],
     )
 
@@ -388,8 +388,8 @@ def test_broken_bar_tooltip_ignores_value():
                 timestamp_ns=100,
                 index=2,
                 value=7.256,
-                start_ns=100_000_000,
-                stop_ns=350_700_000,
+                start_ts=100_000_000,
+                stop_ts=350_700_000,
             ),
         ],
     )
@@ -406,8 +406,8 @@ def test_broken_bar_tooltip_ignores_nonnumeric_value():
                 timestamp_ns=100,
                 index=0,
                 value="Active",
-                start_ns=10,
-                stop_ns=20,
+                start_ts=10,
+                stop_ts=20,
             ),
         ],
     )

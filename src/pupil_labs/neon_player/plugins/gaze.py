@@ -19,7 +19,8 @@ from pupil_labs.neon_player import action
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
     TimelineTooltipContext,
-    TimelineBarSeriesHover
+    TimelineBarSeriesHover,
+    format_duration
 )
 from pupil_labs.neon_player.utilities import (
     cart_to_spherical,
@@ -69,12 +70,7 @@ def worn_tooltip(context: TimelineTooltipContext) -> str:
         return ""
 
     entry = context.series[0]
-    duration_ms = (entry.stop_ns - entry.start_ns) / 1_000_000
-    if duration_ms > 1_000:
-        duration = f"{duration_ms / 1_000:.2f}".rstrip(".0") + "s"
-    else:
-        duration = f"{round(duration_ms)}ms"
-
+    duration = format_duration(entry.start_ts, entry.stop_ts)
     return f"On {duration}"
 
 

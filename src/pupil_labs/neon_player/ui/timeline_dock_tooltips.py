@@ -29,9 +29,9 @@ class TimelineSeriesHover:
 
 @dataclasses.dataclass(frozen=True)
 class TimelineBarSeriesHover(TimelineSeriesHover):
-    start_ns: int
+    start_ts: int
     """The start timestamp of the hovered bar."""
-    stop_ns: int
+    stop_ts: int
     """The stop timestamp of the hovered bar."""
     value: float | None
     """The bar value that corresponds to the bar."""
@@ -68,9 +68,19 @@ TimelineTooltipCallback: T.TypeAlias = T.Callable[[TimelineTooltipContext], str]
 TimelineTooltipConfig: T.TypeAlias = TimelineTooltipCallback | QWidget
 
 
-def _format_value(value: float, precision: int, units: str) -> str:
+def format_value(value: float, precision: int, units: str) -> str:
     formatted = f"{value:.{precision}f}"
     return f"{formatted} {units}" if units else formatted
+
+
+def format_duration(start_ts: int, stop_ts: int) -> str:
+    duration_ms = (stop_ts - start_ts) / 1_000_000
+    if duration_ms > 1_000:
+        duration = f"{duration_ms / 1_000:.2f}".rstrip(".0") + "s"
+    else:
+        duration = f"{round(duration_ms)}ms"
+
+    return duration
 
 
 def _default_line_tooltip(
@@ -82,7 +92,7 @@ def _default_line_tooltip(
         logging.warning("Default line tooltip requires the plot to have only line series")
         return ""
 
-    formatted_values = [_format_value(s.value, precision, units) for s in context.series]
+    formatted_values = [format_value(s.value, precision, units) for s in context.series]
     if len(formatted_values) == 1:
         return formatted_values[0]
 
@@ -141,12 +151,7 @@ def default_broken_bar_tooltip(context: TimelineTooltipContext) -> str:
         return ""
 
     entry = context.series[0]
-    duration_ms = (entry.stop_ns - entry.start_ns) / 1_000_000
-    if duration_ms > 1_000:
-        duration = f"{duration_ms / 1_000:.2f}".rstrip(".0") + "s"
-    else:
-        duration = f"{round(duration_ms)}ms"
-
+    duration = format_duration(entry.start_ts, entry.stop_ts)
     return f"#{entry.index + 1} {duration}"
 
 
@@ -205,8 +210,8 @@ def get_bar_graph_series_hover(
         name=series_name,
         timestamp_ns=timestamp_ns,
         index=index,
-        start_ns=int(start),
-        stop_ns=int(stop),
+        start_ts=int(start),
+        stop_ts=int(stop),
     )
 
 
