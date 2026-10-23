@@ -313,22 +313,18 @@ class TimeLineDock(QWidget):
         if not series:
             return None
 
+        origin_ns = self.recording.start_time if self.recording is not None else 0
+        context = TimelineTooltipContext(
+            timestamp_ns, series, origin_ns, row_name=row_name
+        )
+
         try:
             if isinstance(tooltip, QWidget):
                 update_tooltip = getattr(tooltip, "update_tooltip")
-                update_tooltip(
-                    timestamp_ns,
-                    {entry.name: entry.value for entry in series},
-                )
+                update_tooltip(context)
                 return tooltip
 
-            recording = neon_player.instance().recording
-            origin_ns = recording.start_time if recording is not None else 0
-            tooltip_text = tooltip(
-                TimelineTooltipContext(
-                    timestamp_ns, series, origin_ns, row_name=row_name
-                )
-            )
+            tooltip_text = tooltip(context)
             if not isinstance(tooltip_text, str):
                 logging.warning(
                     "Timeline tooltip should be provided as string"
@@ -415,7 +411,7 @@ class TimeLineDock(QWidget):
             update_tooltip = getattr(tooltip, "update_tooltip", None)
             if not callable(update_tooltip):
                 raise TypeError(
-                    "Timeline tooltip widgets must implement update_tooltip(timestamp_ns, values)"
+                    "Timeline tooltip widgets must implement update_tooltip(context)"
                 )
             return tooltip
         if callable(tooltip):

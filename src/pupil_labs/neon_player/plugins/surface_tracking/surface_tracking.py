@@ -47,7 +47,6 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action
 from pupil_labs.neon_player.settings import RecordingSettings
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
-from pupil_labs.neon_player.ui.timeline_dock_tooltips import default_broken_bar_tooltip
 from pupil_labs.neon_player.utilities import (
     SlotDebouncer,
     ndarray_from_qimage,
@@ -55,7 +54,7 @@ from pupil_labs.neon_player.utilities import (
 )
 
 from .tracked_surface import TrackedSurface
-from .ui import MarkerEditWidget, SurfaceTimelineTooltip
+from .ui import MarkerEditWidget, SurfaceTimelineTooltip, marker_visibility_tooltip
 
 if T.TYPE_CHECKING:
     from pupil_labs.neon_recording.timeseries import GazeTimeseries
@@ -169,7 +168,7 @@ class SurfaceTrackingPlugin(Plugin):
         self.get_timeline().remove_timeline_plot("Marker visibility")
         for surface in self.surfaces:
             self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
-            self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
+            self.get_timeline().remove_timeline_plot(f"Surface: {surface.name} Gaze")
 
         for marker_widget in self.marker_edit_widgets.values():
             marker_widget.hide()
@@ -508,7 +507,7 @@ class SurfaceTrackingPlugin(Plugin):
                 for start, stop, n in zip(start_times, stop_times, n_markers)
                 if n > 0
             ],
-            tooltip=default_broken_bar_tooltip,
+            tooltip=marker_visibility_tooltip,
         )
 
     def _load_surface_locations_cache(self, surface_uid: str) -> None:
@@ -575,10 +574,10 @@ class SurfaceTrackingPlugin(Plugin):
         if not gaze_upon_file.exists():
             return
 
-        self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
+        self.get_timeline().remove_timeline_plot(f"Surface: {surface.name} Gaze")
         with open(gaze_upon_file, "rb") as f:
             self._add_legend_timeline_row(
-                f"Surface Gaze: {surface.name}",
+                f"Surface: {surface.name} Gaze",
                 pickle.load(f),
                 color="#73F7FF",
             )
@@ -824,7 +823,7 @@ class SurfaceTrackingPlugin(Plugin):
                     file_path.unlink()
 
             self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
-            self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
+            self.get_timeline().remove_timeline_plot(f"Surface: {surface.name} Gaze")
 
         self.changed.emit()
 

@@ -16,11 +16,30 @@ from qt_property_widgets.widgets import PropertyForm
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
+    TimelineBarSeriesHover,
+    TimelineTooltipContext
+)
 
 if TYPE_CHECKING:
     from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import (
         TrackedSurface,
     )
+
+
+def marker_visibility_tooltip(context: TimelineTooltipContext) -> str:
+    if len(context.series) != 1 or not isinstance(
+        context.series[0], TimelineBarSeriesHover
+    ):
+        return ""
+
+    entry = context.series[0]
+    if entry.value is None:
+        return ""
+
+    marker_count = int(entry.value)
+    suffix = "s" if marker_count > 1 else ""
+    return f"{marker_count} detected marker{suffix}"
 
 
 class SurfaceTimelineTooltip(QWidget):
@@ -51,8 +70,8 @@ class SurfaceTimelineTooltip(QWidget):
             row.addWidget(label)
             layout.addLayout(row)
 
-    def update_tooltip(self, timestamp_ns: int, values: dict) -> None:
-        """Static legend; row values are unused."""
+    def update_tooltip(self, context: TimelineTooltipContext) -> None:
+        """Static legend; hover context is unused."""
 
 
 class MarkerEditWidget(QPushButton):

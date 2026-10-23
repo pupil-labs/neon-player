@@ -134,7 +134,7 @@ def test_adding_series_without_tooltip_preserves_row_tooltip(monkeypatch):
 
 def test_custom_widget_is_adopted_and_released_when_replaced(qapp):
     class CustomTooltip(QLabel):
-        def update_tooltip(self, timestamp_ns, values):
+        def update_tooltip(self, context):
             pass
 
     parent = QWidget()
@@ -175,7 +175,7 @@ def test_parented_custom_widget_is_rejected_and_stays_caller_owned():
     parent = QWidget()
 
     class CustomTooltip(QLabel):
-        def update_tooltip(self, timestamp_ns, values):
+        def update_tooltip(self, context):
             pass
 
     widget = CustomTooltip(parent)
@@ -455,14 +455,14 @@ def test_callback_receives_integral_timestamp_and_row_values():
     assert received[0].series[0].index == 0
 
 
-def test_custom_widget_receives_timestamp_and_row_values(qapp):
+def test_custom_widget_receives_tooltip_context(qapp):
     class CustomTooltip(QLabel):
         def __init__(self):
             super().__init__()
             self.received = None
 
-        def update_tooltip(self, timestamp_ns, values):
-            self.received = (timestamp_ns, values)
+        def update_tooltip(self, context):
+            self.received = context
 
     widget = CustomTooltip()
     plot = SimpleNamespace(
@@ -475,12 +475,16 @@ def test_custom_widget_receives_timestamp_and_row_values(qapp):
     )
 
     assert TimeLineDock._tooltip_content_for_hovered_row(owner, "row", 100) is widget
-    assert widget.received == (100, {"value": 5})
+    assert isinstance(widget.received, TimelineTooltipContext)
+    assert widget.received.timestamp_ns == 100
+    assert widget.received.row_name == "row"
+    assert widget.received.values == {"value": 5}
+    assert widget.received.series[0].index == 0
 
 
 def test_custom_widget_is_released_when_timeline_row_is_removed(qapp):
     class CustomTooltip(QLabel):
-        def update_tooltip(self, timestamp_ns, values):
+        def update_tooltip(self, context):
             pass
 
     parent = QWidget()
