@@ -13,7 +13,7 @@ from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
 )
 from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import TrackedSurface
 
-from tests.mocks import mock_scene_timeseries
+from tests.mocks import mock_av_timeseries
 
 
 def mock_transform(x0, y0, w, h):
@@ -25,9 +25,11 @@ def mock_transform(x0, y0, w, h):
     return np.array([[w, 0, x0 - w / 2], [0, h, y0 - h / 2], [0, 0, 1]], dtype=float)
 
 
-def test_surface_tracking_plugin__to_dict__recursive(qapp, mock_neon_recording):
-    qapp.recording = mock_neon_recording()
-    qapp.plugins_by_class["GazeDataPlugin"] = GazeDataPlugin()
+def test_surface_tracking_plugin__to_dict__recursive(
+    qapp, monkeypatch, mock_neon_recording
+):
+    monkeypatch.setattr(qapp, "recording", mock_neon_recording())
+    monkeypatch.setattr(qapp, "plugins_by_class", {"GazeDataPlugin": GazeDataPlugin()})
 
     plugin = SurfaceTrackingPlugin()
     # Set the surfaces directly to a private field to skip surface initialization
@@ -64,7 +66,7 @@ def test_get_position_for_export(x0, y0, w, h, expected_nan_row_mask):
 
 def test_prepare_surface_positions_export_respects_export_window(mock_neon_recording):
     recording = mock_neon_recording(
-        scene=mock_scene_timeseries([1, 2, 3, 4, 5])
+        scene=mock_av_timeseries([1, 2, 3, 4, 5])
     )
     scene_size = (1600, 1200)
     camera = Camera(*scene_size, np.eye(3))
@@ -80,7 +82,7 @@ def test_prepare_surface_positions_export_respects_export_window(mock_neon_recor
 
 def test_prepare_surface_positions_export_drops_rows_if_no_markers(mock_neon_recording):
     recording = mock_neon_recording(
-        scene=mock_scene_timeseries([1])
+        scene=mock_av_timeseries([1])
     )
     scene_size = (1600, 1200)
     camera = Camera(*scene_size, np.eye(3))
@@ -97,7 +99,7 @@ def test_prepare_surface_positions_export_drops_rows_if_no_markers(mock_neon_rec
 
 def test_prepare_surface_positions_export_drops_rows_if_no_location(mock_neon_recording):
     recording = mock_neon_recording(
-        scene=mock_scene_timeseries([1])
+        scene=mock_av_timeseries([1])
     )
     scene_size = (1600, 1200)
     camera = Camera(*scene_size, np.eye(3))
@@ -113,7 +115,7 @@ def test_prepare_surface_positions_export_drops_rows_if_no_location(mock_neon_re
 
 def test_prepare_surface_positions_export(mock_neon_recording):
     recording = mock_neon_recording(
-        scene=mock_scene_timeseries([1, 2, 3])
+        scene=mock_av_timeseries([1, 2, 3])
     )
     scene_size = (1600, 1200)
     camera = Camera(*scene_size, np.eye(3))

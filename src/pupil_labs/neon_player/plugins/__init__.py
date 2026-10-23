@@ -120,7 +120,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
         reply = QMessageBox.question(None, title, message)
         return reply == QMessageBox.StandardButton.Yes
 
-    def get_cache_path(self) -> Path:
+    def get_cache_path(self) -> Path | None:
         if self.recording is None:
             return None
 
@@ -128,11 +128,11 @@ class Plugin(PersistentPropertiesMixin, QObject):
         return cache_dir / self.__class__.__name__
 
     def load_cached_json(self, filename: str) -> T.Any:
-        if self.recording is None:
+        cache_path = self.get_cache_path()
+        if cache_path is None:
             return None
 
-        cache_file = self.get_cache_path() / filename
-
+        cache_file = cache_path / filename
         if not cache_file.exists():
             return None
 
@@ -140,10 +140,11 @@ class Plugin(PersistentPropertiesMixin, QObject):
             return json.load(f)
 
     def save_cached_json(self, filename: str, data: T.Any) -> None:
-        if self.recording is None:
+        cache_path = self.get_cache_path()
+        if cache_path is None:
             return
 
-        cache_file = self.get_cache_path() / filename
+        cache_file = cache_path / filename
         cache_file.parent.mkdir(parents=True, exist_ok=True)
 
         with cache_file.open("w") as f:

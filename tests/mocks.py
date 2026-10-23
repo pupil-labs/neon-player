@@ -37,7 +37,7 @@ def mock_gaze_timeseries(timestamps, xs, ys):
     return data
 
 
-def mock_scene_timeseries(timestamps):
+def mock_av_timeseries(timestamps):
     data = np.array([
         np.void(
             (ts, idx),

@@ -1,8 +1,10 @@
 import av
 import fractions
+import logging
 import numpy as np
 import typing as T
 
+from pathlib import Path
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
@@ -14,11 +16,14 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 from scipy.io import wavfile
+from scipy.signal import resample_poly
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import ProgressUpdate
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.video.reader import StreamNotFound
+
+WAVEFORM_SAMPLE_RATE = 200
 
 
 def _prepare_audio_frame(
@@ -37,6 +42,23 @@ def _prepare_audio_frame(
     return audio_frame
 
 
+def _resample_audio(cache_file: Path, first_timestamp: int) -> np.ndarray:
+    sample_rate, audio_data = wavfile.read(str(cache_file))
+    resample_ratio = fractions.Fraction(WAVEFORM_SAMPLE_RATE, sample_rate)
+
+    # NOTE: resample_poly preserves the first timestamp in the transformed data
+    resampled = resample_poly(
+        audio_data,
+        up=resample_ratio.numerator,
+        down=resample_ratio.denominator,
+        axis=0,
+    )
+    timestamps = first_timestamp + np.arange(
+        len(resampled), dtype=np.int64
+    ) * (1_000_000_000 // WAVEFORM_SAMPLE_RATE)
+    return np.column_stack((timestamps, resampled))
+
+
 class AudioPlugin(neon_player.Plugin):
     label = "Audio"
 
@@ -53,7 +75,10 @@ class AudioPlugin(neon_player.Plugin):
         self.app.seeked.connect(self.on_user_seeked)
         self.app.speed_changed.connect(self.on_speed_changed)
 
-        self.cache_file = self.get_cache_path() / "audio.wav"
+        self.first_timestamp: int | None = None
+
+        if self.headless:
+            return
 
         self.volume_button = VolumeButton()
         self.volume_button.setIconSize(QSize(32, 32))
@@ -61,9 +86,29 @@ class AudioPlugin(neon_player.Plugin):
         self.volume_button.volume_changed.connect(self.on_volume_changed)
         self.get_timeline().toolbar_layout.insertWidget(1, self.volume_button)
 
+    @property
+    def cache_path(self) -> Path:
+        cache_path = self.get_cache_path()
+        if not cache_path:
+            raise RuntimeError("No recording is loaded, cannot access cache")
+
+        return cache_path
+
+    @property
+    def cache_file(self) -> Path:
+        return self.cache_path / "audio.wav"
+
+    @property
+    def resampled_audio_cache_file(self) -> Path:
+        return self.cache_path / "audio_waveform.npy"
+
     def on_disabled(self) -> None:
         self.player.stop()
         self.player.setSource(QUrl())
+
+        if self.headless:
+            return
+
         self.get_timeline().remove_timeline_plot("Audio")
         self.get_timeline().toolbar_layout.removeWidget(self.volume_button)
         self.volume_button.deleteLater()
@@ -79,7 +124,10 @@ class AudioPlugin(neon_player.Plugin):
 
         position = self.app.current_ts
         try:
-            rel_time_ms = round((position - self.recording.audio.time[0]) / 1e6)
+            if self.first_timestamp is None:
+                return
+
+            rel_time_ms = round((position - self.first_timestamp) / 1e6)
 
             # Delay playback if the audio has not yet started, but will
             # start eventually with the current playback speed
@@ -144,6 +192,16 @@ class AudioPlugin(neon_player.Plugin):
         if not self.cache_file.exists():
             return
 
+        # Load from cache or create the resampled audio waveform
+        cached_audio = None
+        if self.resampled_audio_cache_file.exists():
+            cached_audio = np.load(self.resampled_audio_cache_file, mmap_mode="r")
+            self.first_timestamp = int(cached_audio[0, 0])
+        else:
+            self.first_timestamp = int(self.recording.audio.time[0])
+            cached_audio = _resample_audio(self.cache_file, self.first_timestamp)
+            np.save(self.resampled_audio_cache_file, cached_audio)
+
         self.recording_has_audio = True
         self.player.setSource(QUrl.fromLocalFile(str(self.cache_file)))
         self.on_speed_changed(self.app.playback_speed)
@@ -152,15 +210,8 @@ class AudioPlugin(neon_player.Plugin):
         if self.headless:
             return
 
-        # load the audio data into a numpy array
-        _, audio_data = wavfile.read(str(self.cache_file))
-        timestamps = np.arange(len(audio_data)) / self.recording.audio.rate
-        timestamps *= 1e9
-        timestamps += self.recording.scene.time[0]
-
-        data = np.column_stack((timestamps, audio_data))
         timeline = self.get_timeline()
-        timeline.add_timeline_line("Audio", data)
+        timeline.add_timeline_line("Audio", cached_audio)
 
     def extract_audio(self) -> T.Generator[ProgressUpdate, None, None]:
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
@@ -213,6 +264,13 @@ class AudioPlugin(neon_player.Plugin):
             container.mux(packet)
 
         container.close()
+        logging.debug(f"Extracted audio to {self.cache_file}")
+
+        # Prepare resampled data with timestamps so plotting does not need to
+        # process the full-rate waveform during UI initialization.
+        data = _resample_audio(self.cache_file, start_time)
+        np.save(self.resampled_audio_cache_file, data)
+        logging.debug(f"Saved resampled waveform to {self.resampled_audio_cache_file}")
 
 
 class VolumeButton(QPushButton):
