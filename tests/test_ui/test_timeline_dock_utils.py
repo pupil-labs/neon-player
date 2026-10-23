@@ -226,7 +226,7 @@ def test_broken_bar_tooltip_formats_index_and_duration():
         ],
     )
 
-    assert default_broken_bar_tooltip(context) == "#3 250ms"
+    assert default_broken_bar_tooltip()(context) == "#3 250ms"
 
 
 def test_broken_bar_tooltip_rounds_duration_to_whole_ms():
@@ -244,7 +244,7 @@ def test_broken_bar_tooltip_rounds_duration_to_whole_ms():
         ],
     )
 
-    assert default_broken_bar_tooltip(context) == "#3 251ms"
+    assert default_broken_bar_tooltip()(context) == "#3 251ms"
 
 
 def test_broken_bar_tooltip_formats_long_duration_as_seconds():
@@ -262,7 +262,7 @@ def test_broken_bar_tooltip_formats_long_duration_as_seconds():
         ],
     )
 
-    assert default_broken_bar_tooltip(context) == "#3 1.23s"
+    assert default_broken_bar_tooltip()(context) == "#3 1.23s"
 
 
 def test_broken_bar_tooltip_warns_and_returns_empty_for_multiple_series(caplog):
@@ -274,7 +274,7 @@ def test_broken_bar_tooltip_warns_and_returns_empty_for_multiple_series(caplog):
         ],
     )
 
-    assert default_broken_bar_tooltip(context) == ""
+    assert default_broken_bar_tooltip()(context) == ""
     assert "requires exactly one broken-bar series" in caplog.text
 
 
@@ -325,7 +325,9 @@ def test_scatter_tooltip_shows_sample_time():
         origin_ns=100_000_000,
     )
 
-    assert default_scatter_tooltip(context) == "00:00:00.023"
+    assert default_scatter_tooltip(name="sample", total=1)(context) == (
+        "<b>sample</b> (1/1)<br>00:00:00.023"
+    )
 
 
 def test_scatter_tooltip_ignores_value():
@@ -338,7 +340,9 @@ def test_scatter_tooltip_ignores_value():
         ],
     )
 
-    assert default_scatter_tooltip(context) == "00:00:00.123"
+    assert default_scatter_tooltip(name="sample", total=1)(context) == (
+        "<b>sample</b> (1/1)<br>00:00:00.123"
+    )
 
 
 def test_scatter_tooltip_keeps_integral_values_integral():
@@ -351,7 +355,9 @@ def test_scatter_tooltip_keeps_integral_values_integral():
         ],
     )
 
-    assert default_scatter_tooltip(context) == "00:00:00.123"
+    assert default_scatter_tooltip(name="sample", total=1)(context) == (
+        "<b>sample</b> (1/1)<br>00:00:00.123"
+    )
 
 
 @pytest.mark.parametrize(
@@ -375,8 +381,25 @@ def test_scatter_tooltip_warns_and_returns_empty_for_unsupported_series(
 ):
     context = TimelineTooltipContext(100, series)
 
-    assert default_scatter_tooltip(context) == ""
+    assert default_scatter_tooltip(name="sample", total=0)(context) == ""
     assert "requires exactly one scatter series" in caplog.text
+
+
+def test_scatter_tooltip_factory_uses_dynamic_total_and_escapes_name():
+    total = [3]
+    context = TimelineTooltipContext(
+        200,
+        [
+            TimelineScatterSeriesHover(
+                name="sample", timestamp_ns=123_456_789, index=1, value=0.0
+            ),
+        ],
+    )
+    tooltip = default_scatter_tooltip(name="<sample>", total=lambda: total[0])
+
+    assert tooltip(context) == "<b>&lt;sample&gt;</b> (2/3)<br>00:00:00.123"
+    total[0] = 4
+    assert tooltip(context) == "<b>&lt;sample&gt;</b> (2/4)<br>00:00:00.123"
 
 
 def test_broken_bar_tooltip_ignores_value():
@@ -394,7 +417,7 @@ def test_broken_bar_tooltip_ignores_value():
         ],
     )
 
-    assert default_broken_bar_tooltip(context) == "#3 251ms"
+    assert default_broken_bar_tooltip()(context) == "#3 251ms"
 
 
 def test_broken_bar_tooltip_ignores_nonnumeric_value():
@@ -412,7 +435,7 @@ def test_broken_bar_tooltip_ignores_nonnumeric_value():
         ],
     )
 
-    assert default_broken_bar_tooltip(context) == "#1 0ms"
+    assert default_broken_bar_tooltip()(context) == "#1 0ms"
 
 
 def test_all_timeline_add_apis_expose_optional_tooltip():
@@ -442,6 +465,7 @@ def test_callback_receives_integral_timestamp_and_row_values():
             "row": lambda context: received.append(context) or "<b>ok</b>"
         },
         timeline_plots={"row": plot},
+        recording=None,
     )
 
     assert (
@@ -472,6 +496,7 @@ def test_custom_widget_receives_tooltip_context(qapp):
     owner = SimpleNamespace(
         timeline_tooltips={"row": widget},
         timeline_plots={"row": plot},
+        recording=None,
     )
 
     assert TimeLineDock._tooltip_content_for_hovered_row(owner, "row", 100) is widget
@@ -517,6 +542,7 @@ def test_empty_callback_result_hides_tooltip():
     owner = SimpleNamespace(
         timeline_tooltips={"row": lambda context: ""},
         timeline_plots={"row": plot},
+        recording=None,
     )
 
     assert TimeLineDock._tooltip_content_for_hovered_row(owner, "row", 1) == ""

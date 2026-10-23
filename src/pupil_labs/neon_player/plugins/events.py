@@ -1,4 +1,3 @@
-import html
 import logging
 import numpy as np
 import pandas as pd
@@ -22,10 +21,8 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
 from pupil_labs.neon_player.plugins import Plugin
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
-from pupil_labs.neon_player.ui.timeline_dock_components import format_timestamp_ns
 from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
-    TimelineScatterSeriesHover,
-    TimelineTooltipContext
+    default_scatter_tooltip,
 )
 
 IMMUTABLE_EVENTS = ["recording.begin", "recording.end"]
@@ -376,7 +373,10 @@ class EventsPlugin(neon_player.Plugin):
         plot_item = timeline.add_timeline_scatter(
             f"Events - {event_type.name}",
             [],
-            tooltip=self._format_event_tooltip,
+            tooltip=default_scatter_tooltip(
+                name=event_type.name,
+                total=lambda name=event_type.name: len(self.events.get(name, [])),
+            ),
         )
         if plot_item is None:
             return
@@ -389,30 +389,6 @@ class EventsPlugin(neon_player.Plugin):
             self.app.main_window.sort_action_menu("Timeline/Add Event")
 
         self.register_data_actions(event_type)
-
-    def _format_event_tooltip(self, context: TimelineTooltipContext) -> str:
-        event_name = context.row_name.removeprefix("Events - ")
-        if event_name not in self.events:
-            return ""
-
-        if len(context.series) != 1 or not isinstance(
-            context.series[0], TimelineScatterSeriesHover
-        ):
-            return ""
-
-        event = context.series[0]
-        total = len(self.events.get(event_name, []))
-        timestamp_ns = int(event.timestamp_ns)
-        timestamp = format_timestamp_ns(
-            timestamp_ns,
-            origin_ns=context.origin_ns,
-            always_show_hours=True,
-            show_milliseconds=True,
-        )
-        return (
-            f"<b>{html.escape(event_name)}</b> "
-            f"({event.index + 1}/{total})<br>{timestamp}"
-        )
 
     def register_data_actions(self, event_type: EventType) -> None:
         if event_type.name not in IMMUTABLE_EVENTS:

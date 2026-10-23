@@ -1,9 +1,9 @@
 import dataclasses
 import html
 import logging
+import typing as T
 import numpy as np
 import pyqtgraph as pg
-import typing as T
 
 from bisect import bisect_left
 from functools import partial
@@ -113,10 +113,11 @@ def default_line_tooltip(*, precision: int = 3, units: str = "") -> TimelineTool
     return partial(_default_line_tooltip, precision=precision, units=units)
 
 
-def default_scatter_tooltip(context: TimelineTooltipContext) -> str:
-    """Format the sample time and value for exactly one scatter series.
-
-    The tooltip shows the timestamp of the hovered scatter point."""
+def _default_scatter_tooltip(
+    context: TimelineTooltipContext,
+    name: str,
+    total: int | T.Callable[[], int],
+) -> str:
     if len(context.series) != 1 or not isinstance(
         context.series[0], TimelineScatterSeriesHover
     ):
@@ -124,13 +125,24 @@ def default_scatter_tooltip(context: TimelineTooltipContext) -> str:
         return ""
 
     entry = context.series[0]
+    total_count = total() if callable(total) else total
     timestamp = format_timestamp_ns(
         entry.timestamp_ns,
         origin_ns=context.origin_ns,
         always_show_hours=True,
         show_milliseconds=True,
     )
-    return timestamp
+    return f"<b>{html.escape(name)}</b> ({entry.index + 1}/{total_count})<br>{timestamp}"
+
+
+def default_scatter_tooltip(
+    *, name: str, total: int | T.Callable[[], int]
+) -> TimelineTooltipCallback:
+    """Create a scatter tooltip showing its name, index, total, and sample time.
+
+    ``total`` may be a callable when the number of samples can change over time.
+    """
+    return partial(_default_scatter_tooltip, name=name, total=total)
 
 
 def _default_broken_bar_tooltip(context: TimelineTooltipContext, prefix: str) -> str:
