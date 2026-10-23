@@ -957,7 +957,7 @@ class XDFPlugin(Plugin):
                 timeline.add_timeline_scatter(
                     timeline_row_name,
                     [],
-                    tooltip=default_scatter_tooltip(),
+                    tooltip=default_scatter_tooltip,
                 )
 
             y = np.zeros_like(offset_timestamps)

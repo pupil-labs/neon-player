@@ -1,14 +1,15 @@
 """Tooltip formatters, data extraction, and the timeline tooltip surface."""
 
-from bisect import bisect_left
 import dataclasses
 import html
 import logging
 import numbers
-import typing as T
-
 import numpy as np
 import pyqtgraph as pg
+import typing as T
+
+from bisect import bisect_left
+from functools import partial
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
 
@@ -38,6 +39,16 @@ class TimelineBarSeriesHover(TimelineSeriesHover):
 
 
 @dataclasses.dataclass(frozen=True)
+class TimelineLineSeriesHover(TimelineSeriesHover):
+    """The closest line point to the current hover timestamp."""
+
+
+@dataclasses.dataclass(frozen=True)
+class TimelineScatterSeriesHover(TimelineSeriesHover):
+    """The closest scatter point to the current hover timestamp"""
+
+
+@dataclasses.dataclass(frozen=True)
 class TimelineTooltipContext:
     """Stable callback input with row values and optional per-series details."""
 
@@ -54,55 +65,61 @@ TimelineTooltipCallback: T.TypeAlias = T.Callable[[TimelineTooltipContext], str]
 TimelineTooltipConfig: T.TypeAlias = TimelineTooltipCallback | QWidget
 
 
-def _format_value(value: T.Any, *, precision: int, units: str) -> str:
-    is_numeric = isinstance(value, numbers.Real) and not isinstance(value, bool)
-    formatted = f"{value:.{precision}f}" if is_numeric and not isinstance(value, numbers.Integral) else str(value)
-    return f"{formatted} {units}" if is_numeric and units else formatted
+def _format_value(value: float, precision: int, units: str) -> str:
+    formatted = f"{value:.{precision}f}"
+    return f"{formatted} {units}" if units else formatted
 
 
-def _format_series_tooltip(
+def _default_line_tooltip(
     context: TimelineTooltipContext,
-    format_series: T.Callable[[TimelineTooltipContext, TimelineSeriesHover], str],
+    precision: int = 3,
+    units: str = ""
 ) -> str:
-    available = [
-        (entry.name, format_series(context, entry))
-        for entry in context.series
-        if entry.value is not None
-    ]
-    if not available:
+    if not all(isinstance(s, TimelineLineSeriesHover) for s in context.series):
+        logging.warning("Default line tooltip requires the plot to have only line series")
         return ""
-    if len(context.series) == 1:
-        return html.escape(available[0][1])
+
+    formatted_values = [_format_value(s.value, precision, units) for s in context.series]
+    if len(formatted_values) == 1:
+        return formatted_values[0]
+
+    names = [s.name or f"Series {index + 1}" for index, s in enumerate(context.series)]
     rows = "".join(
         "<tr>"
         f'<td style="padding-right: 6px"><b>{html.escape(name)}</b>:</td>'
-        f'<td style="text-align: right">{html.escape(value)}</td>'
+        f'<td style="text-align: right">{value}</td>'
         "</tr>"
-        for name, value in available
+        for name, value in zip(names, formatted_values)
     )
     return f'<table cellspacing="0" cellpadding="0">{rows}</table>'
 
 
 def default_line_tooltip(*, precision: int = 3, units: str = "") -> TimelineTooltipCallback:
-    """Create a line tooltip formatter with optional numeric precision and units."""
-    return lambda context: _format_series_tooltip(
-        context,
-        lambda _context, entry: _format_value(entry.value, precision=precision, units=units),
+    """Create a line tooltip formatter with optional numeric precision and units.
+
+    The tooltip is formatted as `{value} {units}` if the plot contains one data series.
+    For multiple series, a 2-column table (series name, `{value} {units}`) is shown."""
+    return partial(_default_line_tooltip, precision=precision, units=units)
+
+
+def default_scatter_tooltip(context: TimelineTooltipContext) -> str:
+    """Format the sample time and value for exactly one scatter series.
+
+    The tooltip shows the timestamp of the hovered scatter point."""
+    if len(context.series) != 1 or not isinstance(
+        context.series[0], TimelineScatterSeriesHover
+    ):
+        logging.warning("Default scatter tooltip requires exactly one scatter series")
+        return ""
+
+    entry = context.series[0]
+    timestamp = format_timestamp_ns(
+        entry.timestamp_ns,
+        origin_ns=context.origin_ns,
+        always_show_hours=True,
+        show_milliseconds=True,
     )
-
-
-def default_scatter_tooltip(*, precision: int = 3, units: str = "") -> TimelineTooltipCallback:
-    """Create a scatter tooltip formatter showing sample time and value."""
-    def format_scatter(context: TimelineTooltipContext, entry: TimelineSeriesHover) -> str:
-        value = _format_value(entry.value, precision=precision, units=units)
-        if entry.timestamp_ns is None:
-            return value
-        timestamp = format_timestamp_ns(
-            entry.timestamp_ns, origin_ns=context.origin_ns,
-            always_show_hours=True, show_milliseconds=True,
-        )
-        return f"{timestamp} ({value})"
-    return lambda context: _format_series_tooltip(context, format_scatter)
+    return timestamp
 
 
 def default_broken_bar_tooltip(context: TimelineTooltipContext) -> str:
@@ -112,7 +129,9 @@ def default_broken_bar_tooltip(context: TimelineTooltipContext) -> str:
     Duration is displayed in milliseconds for bars shorter than one second, or
     in seconds otherwise."""
 
-    if len(context.series) != 1 or not isinstance(context.series[0], TimelineBarSeriesHover):
+    if len(context.series) != 1 or not isinstance(
+        context.series[0], TimelineBarSeriesHover
+    ):
         logging.warning(
             "Default broken-bar tooltip requires exactly one broken-bar series"
         )
@@ -140,7 +159,12 @@ def get_series_hover(
     candidates = [i for i in (index - 1, index) if 0 <= i < len(timestamps)]
     closest = min(candidates, key=lambda i: abs(timestamps[i] - timestamp_ns))
     if abs(timestamps[closest] - timestamp_ns) <= tolerance_ns:
-        return TimelineSeriesHover(
+        hover_type = (
+            TimelineScatterSeriesHover
+            if kind == "scatter"
+            else TimelineLineSeriesHover
+        )
+        return hover_type(
             value=values[closest],
             name=series_name,
             index=closest,

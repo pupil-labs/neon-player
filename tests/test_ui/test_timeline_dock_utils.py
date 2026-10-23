@@ -12,13 +12,16 @@ from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.timeline_dock_utils import get_clicked_data_point
 from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
     TimelineTooltipContext,
+    TimelineBarSeriesHover,
+    TimelineScatterSeriesHover,
     TimelineSeriesHover,
     TimelineTooltipWidget,
     default_broken_bar_tooltip,
     default_line_tooltip,
     default_scatter_tooltip,
-    get_item_tooltip_series,
+    get_bar_graph_series_hover,
     get_hovered_timeline_series,
+    get_series_hover,
 )
 
 
@@ -28,13 +31,13 @@ def test_get_clicked_data_point__plot_item_none():
 
 def test_timeline_row_values_uses_nearest_point_within_tolerance():
     line = pg.PlotDataItem([100, 200], [1.5, 2.5], name="speed")
-    scatter = pg.PlotDataItem([110, 210], [3, 4], name="speed")
+    scatter = pg.PlotDataItem([110, 210], [3, 4], name="speed", symbol="o")
 
     assert {
         series.name: series.value
         for series in get_hovered_timeline_series([line, scatter], 108, 10)
     } == {"speed": 1.5, "speed (2)": 3}
-    assert get_item_tooltip_series(line, 111, 10).value is None
+    assert get_series_hover(line, "speed", 111, 10) is None
 
 
 def test_timeline_row_values_includes_only_active_broken_bar_values():
@@ -47,9 +50,9 @@ def test_timeline_row_values_includes_only_active_broken_bar_values():
     )
     bars.bar_values = np.array([7.0, np.nan])
 
-    assert get_item_tooltip_series(bars, 20, 0).value == 7.0
-    assert get_item_tooltip_series(bars, 50, 0).value == "Active"
-    assert get_item_tooltip_series(bars, 35, 0).value is None
+    assert get_bar_graph_series_hover(bars, "interval", 20).value == 7.0
+    assert get_bar_graph_series_hover(bars, "interval", 50).value == "Active"
+    assert get_bar_graph_series_hover(bars, "interval", 35) is None
     interval = get_hovered_timeline_series([bars], 50, 0)[0]
     assert interval.index == 1
     assert (interval.start_ns, interval.stop_ns) == (40, 60)
@@ -179,9 +182,9 @@ def test_line_tooltip_factory_formats_multiple_series_and_omits_none():
     context = TimelineTooltipContext(
         100,
         [
-            TimelineSeriesHover(value=3.5, kind="point", name="speed"),
-            TimelineSeriesHover(value=None, kind="point", name="temperature"),
-            TimelineSeriesHover(value=42, kind="point", name="altitude"),
+            TimelineSeriesHover(name="speed", timestamp_ns=None, index=0, value=3.5),
+            TimelineSeriesHover(name="temperature", timestamp_ns=None, index=0, value=None),
+            TimelineSeriesHover(name="altitude", timestamp_ns=None, index=0, value=42),
         ],
     )
 
@@ -196,66 +199,66 @@ def test_line_tooltip_factory_formats_multiple_series_and_omits_none():
     )
 
 
-def test_broken_bar_tooltip_formats_index_duration_and_value():
+def test_broken_bar_tooltip_formats_index_and_duration():
     context = TimelineTooltipContext(
         100,
         [
-            TimelineSeriesHover(
-                value=7.0,
-                kind="interval",
+            TimelineBarSeriesHover(
                 name="interval",
+                timestamp_ns=100,
                 index=2,
+                value=7.0,
                 start_ns=100_000_000,
                 stop_ns=350_000_000,
             ),
         ],
     )
 
-    assert default_broken_bar_tooltip(context) == "#3 250ms (7.000)"
+    assert default_broken_bar_tooltip(context) == "#3 250ms"
 
 
 def test_broken_bar_tooltip_rounds_duration_to_whole_ms():
     context = TimelineTooltipContext(
         100,
         [
-            TimelineSeriesHover(
-                value=7.0,
-                kind="interval",
+            TimelineBarSeriesHover(
                 name="interval",
+                timestamp_ns=100,
                 index=2,
+                value=7.0,
                 start_ns=100_000_000,
                 stop_ns=350_700_000,
             ),
         ],
     )
 
-    assert default_broken_bar_tooltip(context) == "#3 251ms (7.000)"
+    assert default_broken_bar_tooltip(context) == "#3 251ms"
 
 
 def test_broken_bar_tooltip_formats_long_duration_as_seconds():
     context = TimelineTooltipContext(
         100,
         [
-            TimelineSeriesHover(
-                value=7.0,
-                kind="interval",
+            TimelineBarSeriesHover(
                 name="interval",
+                timestamp_ns=100,
                 index=2,
+                value=7.0,
                 start_ns=0,
                 stop_ns=1_234_000_000,
             ),
         ],
     )
 
-    assert default_broken_bar_tooltip(context) == "#3 1.2s (7.000)"
+    assert default_broken_bar_tooltip(context) == "#3 1.23s"
 
 
 def test_broken_bar_tooltip_warns_and_returns_empty_for_multiple_series(caplog):
     context = TimelineTooltipContext(
         100,
         [
-            TimelineSeriesHover(value=7.0, kind="interval", name="first"),
-            TimelineSeriesHover(value=8.0, kind="interval", name="second"),
+            TimelineBarSeriesHover(name="first", timestamp_ns=100, index=0, value=7.0, start_ns=0, stop_ns=1),
+            TimelineBarSeriesHover(name="second", timestamp_ns=100, index=0, value=8.0, start_ns=0, stop_ns=1),
         ],
     )
 
@@ -267,8 +270,8 @@ def test_line_tooltip_factory_hides_when_all_values_are_none():
     context = TimelineTooltipContext(
         100,
         [
-            TimelineSeriesHover(value=None, kind="point", name="speed"),
-            TimelineSeriesHover(value=None, kind="point", name="temperature"),
+            TimelineSeriesHover(name="speed", timestamp_ns=None, index=0, value=None),
+            TimelineSeriesHover(name="temperature", timestamp_ns=None, index=0, value=None),
         ],
     )
 
@@ -277,7 +280,7 @@ def test_line_tooltip_factory_hides_when_all_values_are_none():
 
 def test_line_tooltip_factory_formats_precision_and_units():
     context = TimelineTooltipContext(
-        100, [TimelineSeriesHover(value=3.5678, kind="point", name="speed")]
+        100, [TimelineSeriesHover(name="speed", timestamp_ns=None, index=0, value=3.5678)]
     )
 
     assert default_line_tooltip()(context) == "3.568"
@@ -286,10 +289,10 @@ def test_line_tooltip_factory_formats_precision_and_units():
 
 def test_line_tooltip_factory_keeps_integer_and_nonnumeric_values_unchanged():
     integer_context = TimelineTooltipContext(
-        100, [TimelineSeriesHover(value=42, kind="point", name="count")]
+        100, [TimelineSeriesHover(name="count", timestamp_ns=None, index=0, value=42)]
     )
     string_context = TimelineTooltipContext(
-        100, [TimelineSeriesHover(value="Active", kind="point", name="state")]
+        100, [TimelineSeriesHover(name="state", timestamp_ns=None, index=0, value="Active")]
     )
 
     assert default_line_tooltip(precision=2, units="items")(integer_context) == (
@@ -298,75 +301,108 @@ def test_line_tooltip_factory_keeps_integer_and_nonnumeric_values_unchanged():
     assert default_line_tooltip(precision=2, units="m")(string_context) == "Active"
 
 
-def test_scatter_tooltip_factory_shows_sample_time_and_formatted_value():
+def test_scatter_tooltip_shows_sample_time_and_default_formatted_value():
     context = TimelineTooltipContext(
         200_000_000,
         [
-            TimelineSeriesHover(
-                value=3.5678,
-                kind="scatter",
+            TimelineScatterSeriesHover(
                 name="sample",
-                index=0,
                 timestamp_ns=123_456_789,
+                index=0,
+                value=3.5678,
             ),
         ],
         origin_ns=100_000_000,
     )
 
-    assert default_scatter_tooltip(precision=2, units="g")(context) == (
-        "00:00:00.023 (3.57 g)"
-    )
+    assert default_scatter_tooltip(context) == "00:00:00.023 (3.568)"
 
 
-def test_scatter_tooltip_factory_leaves_nonnumeric_value_without_units():
+def test_scatter_tooltip_leaves_nonnumeric_value_unchanged():
     context = TimelineTooltipContext(
         100,
         [
-            TimelineSeriesHover(
-                value="Active", kind="scatter", name="sample", timestamp_ns=123_456_789
+            TimelineScatterSeriesHover(
+                name="sample", timestamp_ns=123_456_789, index=0, value="Active"
             ),
         ],
     )
 
-    assert default_scatter_tooltip(units="g")(context) == (
-        "00:00:00.123 (Active)"
+    assert default_scatter_tooltip(context) == "00:00:00.123 (Active)"
+
+
+def test_scatter_tooltip_keeps_integral_values_integral():
+    context = TimelineTooltipContext(
+        200_000_000,
+        [
+            TimelineScatterSeriesHover(
+                name="sample", timestamp_ns=123_456_789, index=0, value=42
+            ),
+        ],
     )
+
+    assert default_scatter_tooltip(context) == "00:00:00.123 (42)"
+
+
+@pytest.mark.parametrize(
+    "series",
+    [
+        [],
+        [TimelineSeriesHover(name="line", timestamp_ns=123, index=0, value=1.5)],
+        [
+            TimelineScatterSeriesHover(
+                name="first", timestamp_ns=123, index=0, value=1.5
+            ),
+            TimelineScatterSeriesHover(
+                name="second", timestamp_ns=456, index=1, value=2.5
+            ),
+        ],
+    ],
+    ids=["empty", "non-scatter", "multiple-scatter"],
+)
+def test_scatter_tooltip_warns_and_returns_empty_for_unsupported_series(
+    series, caplog
+):
+    context = TimelineTooltipContext(100, series)
+
+    assert default_scatter_tooltip(context) == ""
+    assert "requires exactly one scatter series" in caplog.text
 
 
 def test_broken_bar_tooltip_uses_default_precision_without_units():
     context = TimelineTooltipContext(
         100,
         [
-            TimelineSeriesHover(
-                value=7.256,
-                kind="interval",
+            TimelineBarSeriesHover(
                 name="interval",
+                timestamp_ns=100,
                 index=2,
+                value=7.256,
                 start_ns=100_000_000,
                 stop_ns=350_700_000,
             ),
         ],
     )
 
-    assert default_broken_bar_tooltip(context) == "#3 251ms (7.256)"
+    assert default_broken_bar_tooltip(context) == "#3 251ms"
 
 
 def test_broken_bar_tooltip_keeps_nonnumeric_values_unchanged():
     context = TimelineTooltipContext(
         100,
         [
-            TimelineSeriesHover(
-                value="Active",
-                kind="interval",
+            TimelineBarSeriesHover(
                 name="interval",
+                timestamp_ns=100,
                 index=0,
+                value="Active",
                 start_ns=10,
                 stop_ns=20,
             ),
         ],
     )
 
-    assert default_broken_bar_tooltip(context) == "#1 0ms (Active)"
+    assert default_broken_bar_tooltip(context) == "#1 0ms"
 
 
 def test_all_timeline_add_apis_expose_optional_tooltip():
@@ -399,7 +435,7 @@ def test_callback_receives_integral_timestamp_and_row_values():
     )
 
     assert (
-        TimeLineDock._tooltip_text_for_hovered_row(owner, "row", 100.4)
+        TimeLineDock._tooltip_content_for_hovered_row(owner, "row", 100)
         == "<b>ok</b>"
     )
     assert isinstance(received[0], TimelineTooltipContext)
@@ -427,7 +463,7 @@ def test_custom_widget_receives_timestamp_and_row_values(qapp):
         timeline_plots={"row": plot},
     )
 
-    assert TimeLineDock._tooltip_content_for_hovered_row(owner, "row", 100.4) is widget
+    assert TimeLineDock._tooltip_content_for_hovered_row(owner, "row", 100) is widget
     assert widget.received == (100, {"value": 5})
 
 
@@ -461,28 +497,22 @@ def test_custom_widget_is_released_when_timeline_row_is_removed(qapp):
 def test_empty_callback_result_hides_tooltip():
     plot = SimpleNamespace(
         getViewBox=lambda: SimpleNamespace(viewPixelSize=lambda: (1.0, 1.0)),
-        items=[],
+        items=[pg.PlotDataItem([1], [2], name="value")],
     )
     owner = SimpleNamespace(
         timeline_tooltips={"row": lambda context: ""},
         timeline_plots={"row": plot},
     )
 
-    assert TimeLineDock._tooltip_text_for_hovered_row(owner, "row", 1) == ""
+    assert TimeLineDock._tooltip_content_for_hovered_row(owner, "row", 1) == ""
 
 
-def test_update_tooltip_hides_outside_recording_bounds(monkeypatch):
+def test_update_tooltip_hides_outside_recording_bounds():
     hidden = []
     owner = SimpleNamespace(
+        recording=SimpleNamespace(start_time=100, stop_time=200),
         tooltip_widget=SimpleNamespace(hide=lambda: hidden.append(True)),
         timeline_plots={},
-    )
-    monkeypatch.setattr(
-        neon_player,
-        "instance",
-        lambda: SimpleNamespace(
-            recording=SimpleNamespace(start_time=100, stop_time=200)
-        ),
     )
 
     TimeLineDock._update_tooltip(owner, QPointF(), 201)
