@@ -23,7 +23,10 @@ from pupil_labs.neon_player import GlobalPluginProperties, action
 from pupil_labs.neon_player.plugins import Plugin
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.ui.timeline_dock_components import format_timestamp_ns
-from pupil_labs.neon_player.ui.timeline_dock_tooltips import TimelineTooltipContext
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
+    TimelineScatterSeriesHover,
+    TimelineTooltipContext
+)
 
 IMMUTABLE_EVENTS = ["recording.begin", "recording.end"]
 
@@ -370,11 +373,10 @@ class EventsPlugin(neon_player.Plugin):
         if existing_plot is not None:
             return
 
-        tooltip = lambda context: self._format_event_tooltip(event_type, context)
         plot_item = timeline.add_timeline_scatter(
             f"Events - {event_type.name}",
             [],
-            tooltip=tooltip,
+            tooltip=self._format_event_tooltip,
         )
         if plot_item is None:
             return
@@ -388,25 +390,18 @@ class EventsPlugin(neon_player.Plugin):
 
         self.register_data_actions(event_type)
 
-    def _format_event_tooltip(
-        self,
-        event_type: EventType,
-        context: TimelineTooltipContext,
-    ) -> str:
-        event = next(
-            (
-                series
-                for series in context.series
-                if series.value is not None
-                and series.index is not None
-                and series.timestamp_ns is not None
-            ),
-            None,
-        )
-        if event is None:
+    def _format_event_tooltip(self, context: TimelineTooltipContext) -> str:
+        event_name = context.row_name.removeprefix("Events - ")
+        if event_name not in self.events:
             return ""
 
-        total = len(self._events.get(event_type.uid, []))
+        if len(context.series) != 1 or not isinstance(
+            context.series[0], TimelineScatterSeriesHover
+        ):
+            return ""
+
+        event = context.series[0]
+        total = len(self.events.get(event_name, []))
         timestamp_ns = int(event.timestamp_ns)
         timestamp = format_timestamp_ns(
             timestamp_ns,
@@ -415,7 +410,7 @@ class EventsPlugin(neon_player.Plugin):
             show_milliseconds=True,
         )
         return (
-            f"<b>{html.escape(event_type.name)}</b> "
+            f"<b>{html.escape(event_name)}</b> "
             f"({event.index + 1}/{total})<br>{timestamp}"
         )
 

@@ -56,7 +56,7 @@ def test_bar_graph_series_hover_returns_hovered_interval_and_value():
     assert _get_bar_graph_series_hover(bars, "interval", 35) is None
     interval = _get_hovered_timeline_series([bars], 50, 0)[0]
     assert interval.index == 1
-    assert (interval.start_ns, interval.stop_ns) == (40, 60)
+    assert (interval.start_ts, interval.stop_ts) == (40, 60)
 
 
 def test_bar_graph_series_hover_without_bar_values_returns_none_value():
@@ -450,6 +450,7 @@ def test_callback_receives_integral_timestamp_and_row_values():
     )
     assert isinstance(received[0], TimelineTooltipContext)
     assert received[0].timestamp_ns == 100
+    assert received[0].row_name == "row"
     assert received[0].values == {"value": 5}
     assert received[0].series[0].index == 0
 

@@ -11,6 +11,10 @@ from pupil_labs.neon_player.plugins.events import (
     EventType,
     EventsPlugin
 )
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
+    TimelineScatterSeriesHover,
+    TimelineTooltipContext,
+)
 
 from tests.mocks import mock_event_timeseries
 
@@ -124,6 +128,30 @@ def test_events_plugin__create_event_type():
     new_et = plugin.create_event_type()
 
     assert new_et.name == "event-2", "Expected event type to have a unique name"
+
+
+def test_events_plugin__tooltip_uses_row_name_and_event_series():
+    plugin = EventsPlugin()
+    event_type = EventType.from_name("trial.begin")
+    plugin.event_types = [event_type]
+    plugin._events = {event_type.uid: [100_000_000, 600_000_000]}
+    context = TimelineTooltipContext(
+        timestamp_ns=600_000_000,
+        series=[
+            TimelineScatterSeriesHover(
+                name="trial.begin",
+                timestamp_ns=600_000_000,
+                index=1,
+                value=0.0,
+            )
+        ],
+        origin_ns=100_000_000,
+        row_name="Events - trial.begin",
+    )
+
+    assert plugin._format_event_tooltip(context) == (
+        "<b>trial.begin</b> (2/2)<br>00:00:00.500"
+    )
 
 
 def test_events_plugin__add_event_type(qtbot):

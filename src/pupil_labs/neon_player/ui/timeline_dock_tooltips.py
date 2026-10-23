@@ -1,5 +1,3 @@
-"""Tooltip formatters, data extraction, and the timeline tooltip surface."""
-
 import dataclasses
 import html
 import logging
@@ -17,18 +15,19 @@ from pupil_labs.neon_player.ui.timeline_dock_components import format_timestamp_
 
 @dataclasses.dataclass(frozen=True)
 class TimelineSeriesHover:
-    """Value and source details for one plotted series at the hovered time."""
-
     name: str
     """The name of the time series, empty if not set."""
     timestamp_ns: int
     """The timestamp of the hovered data point."""
     index: int
     """The index of the hovered data point."""
+    value: float
+    """The y-axis value that corresponds to the data point."""
 
 
 @dataclasses.dataclass(frozen=True)
 class TimelineBarSeriesHover(TimelineSeriesHover):
+    """Value and source details for one plotted series at the hovered time."""
     start_ts: int
     """The start timestamp of the hovered bar."""
     stop_ts: int
@@ -40,15 +39,11 @@ class TimelineBarSeriesHover(TimelineSeriesHover):
 @dataclasses.dataclass(frozen=True)
 class TimelineLineSeriesHover(TimelineSeriesHover):
     """The closest line point to the current hover timestamp."""
-    value: float
-    """The y-axis value that corresponds to the data point."""
 
 
 @dataclasses.dataclass(frozen=True)
 class TimelineScatterSeriesHover(TimelineSeriesHover):
     """The closest scatter point to the current hover timestamp"""
-    value: float
-    """The y-axis value that corresponds to the data point."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -56,8 +51,11 @@ class TimelineTooltipContext:
     """Stable callback input with row values and optional per-series details."""
 
     timestamp_ns: int
+    """The timestamp of the hover marker."""
     series: list[TimelineSeriesHover]
     origin_ns: int = 0
+    row_name: str = ""
+    """The name of the hovered timeline row."""
 
     @property
     def values(self) -> dict[str, T.Any | None]:

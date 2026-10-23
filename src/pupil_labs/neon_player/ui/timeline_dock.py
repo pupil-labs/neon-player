@@ -325,7 +325,9 @@ class TimeLineDock(QWidget):
             recording = neon_player.instance().recording
             origin_ns = recording.start_time if recording is not None else 0
             tooltip_text = tooltip(
-                TimelineTooltipContext(timestamp_ns, series, origin_ns)
+                TimelineTooltipContext(
+                    timestamp_ns, series, origin_ns, row_name=row_name
+                )
             )
             if not isinstance(tooltip_text, str):
                 logging.warning(
