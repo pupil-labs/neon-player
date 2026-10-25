@@ -83,7 +83,7 @@ class ScalingWidget(QOpenGLWidget):
         painter.translate(self.offset)
         painter.scale(self.scale, self.scale)
 
-    def paintEvent(self, event: QPaintEvent) -> None:
+    def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setRenderHints(
             QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform

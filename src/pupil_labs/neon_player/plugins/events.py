@@ -1,6 +1,7 @@
 import logging
 import typing as T
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
@@ -156,7 +157,7 @@ class EventTypeListWidget(ValueListWidget):
 
 
 def _load_events_from_recording(
-    recording: NeonRecording, global_event_types: list[str] = []
+    recording: NeonRecording, global_event_types: Sequence[str] = ()
 ) -> tuple[list[EventType], dict[str, list[int]]]:
     """
     Loads events from the recording and additionally creates event types that
@@ -338,8 +339,8 @@ class EventsPlugin(neon_player.Plugin):
 
     def _update_gui_for_event_types(
         self,
-        event_types_to_add: list[EventType] = [],
-        event_types_to_remove: list[EventType] = [],
+        event_types_to_add: Sequence[EventType] = (),
+        event_types_to_remove: Sequence[EventType] = (),
     ) -> None:
         if self.headless:
             return

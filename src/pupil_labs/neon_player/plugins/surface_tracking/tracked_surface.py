@@ -108,7 +108,7 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
-    def export_video(self, destination: Path = Path()):
+    def export_video(self, destination: Path = Path()) -> BackgroundJob | None:
         tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
         self.export_job = tracker_plugin.job_manager.run_background_action(
             f"{self._tracked_surface.name} Surface Video Export",

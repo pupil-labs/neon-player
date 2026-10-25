@@ -23,9 +23,15 @@ def instance() -> "NeonPlayerApp":
     return NeonPlayerApp.instance()
 
 
-def action(func: T.Callable) -> T.Any:
+ActionParams = T.ParamSpec("ActionParams")
+ActionResult = T.TypeVar("ActionResult")
+
+
+def action(func: T.Callable[ActionParams, ActionResult]) -> T.Any:
     @functools.wraps(func)
-    def wrapper(*args: T.Any, **kwargs: T.Any) -> T.Any:
+    def wrapper(
+        *args: ActionParams.args, **kwargs: ActionParams.kwargs
+    ) -> ActionResult:
         return func(*args, **kwargs)
 
     return object_action(wrapper)

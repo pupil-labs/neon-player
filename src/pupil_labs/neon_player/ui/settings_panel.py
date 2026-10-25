@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QPoint, Qt
@@ -47,7 +47,7 @@ class RecordingInfoWidget(QWidget):
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.recording_id_label.setText(recording.info["recording_id"])
-        start_time = datetime.fromtimestamp(recording.info["start_time"] / 1e9)
+        start_time = datetime.fromtimestamp(recording.info["start_time"] / 1e9, tz=UTC)
         start_time_str = start_time.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
         self.recording_date_label.setText(start_time_str)
         self.wearer_label.setText(recording.wearer["name"])

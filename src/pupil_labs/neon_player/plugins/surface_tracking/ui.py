@@ -88,7 +88,7 @@ class SurfaceHandle(QWidget):
             (0, 1): 90,
         }
 
-    def paintEvent(self, event: QPaintEvent) -> None:
+    def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
         pen = painter.pen()
         pen.setColor("#039be5")
@@ -145,7 +145,7 @@ class SurfaceViewWidget(VideoRenderWidget):
         self.fit_rect(QSize(*self.surface.preview_options.render_size))
         self.update()
 
-    def paintEvent(self, event: QPaintEvent) -> None:
+    def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
         if self.tracker_plugin.is_time_gray() or self.surface.location is None:
             painter.fillRect(0, 0, self.width(), self.height(), Qt.GlobalColor.gray)

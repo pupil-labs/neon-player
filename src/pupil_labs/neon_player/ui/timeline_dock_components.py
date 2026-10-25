@@ -6,6 +6,7 @@ from PySide6.QtCore import QObject, QPoint, QPointF, QRect, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPolygon
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
+    QGraphicsItem,
     QGraphicsRectItem,
     QGraphicsSceneMouseEvent,
     QGraphicsSceneWheelEvent,
@@ -174,7 +175,7 @@ class TimeAxisItem(pg.AxisItem):
         return [(1.0, major_ticks), (0.5, minor_tick_list)]
 
     def tickStrings(
-        self, values: list[float], scale: float, spacing: float
+        self, values: list[float], _scale: float, _spacing: float
     ) -> list[str]:
         if self.recording_start_time_ns == 0:
             return ["" for _ in values]
@@ -299,8 +300,8 @@ class SmartSizePlotItem(pg.PlotItem):
 
 
 class PlotOverlay(QWidget):
-    def __init__(self, linked_plot: pg.PlotItem, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, linked_plot: pg.PlotItem, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
         self.linked_plot = linked_plot
 
         linked_plot.vb.sigResized.connect(self.refresh_geometry)
@@ -319,8 +320,8 @@ class PlotOverlay(QWidget):
 
 
 class PlayHead(PlotOverlay):
-    def __init__(self, *args: object, **kwargs: object) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, linked_plot: pg.PlotItem, parent: QWidget | None = None) -> None:
+        super().__init__(linked_plot, parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.color = QColor("#6D7BE0")
         self.t = 0
@@ -329,7 +330,7 @@ class PlayHead(PlotOverlay):
         self.t = t
         self.update()
 
-    def paintEvent(self, event: QPaintEvent) -> None:
+    def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setPen(self.color)
         painter.setBrush(self.color)
@@ -365,8 +366,10 @@ class PlayHead(PlotOverlay):
 
 
 class TrimEndMarker(QGraphicsEllipseItem):
-    def __init__(self, time: int, plot: pg.PlotItem, *args, **kwargs) -> None:
-        super().__init__(time, -1, 0, 2, *args, **kwargs)
+    def __init__(
+        self, time: int, plot: pg.PlotItem, parent: QGraphicsItem | None = None
+    ) -> None:
+        super().__init__(time, -1, 0, 2, parent)
         self._time = time
         self._plot = plot
 
@@ -431,10 +434,9 @@ class TrimDurationMarker(QGraphicsRectItem):
         self,
         start_marker: TrimEndMarker,
         end_marker: TrimEndMarker,
-        *args,
-        **kwargs,
+        parent: QGraphicsItem | None = None,
     ) -> None:
-        super().__init__(*args, **kwargs)
+        super().__init__(parent)
 
         self.setPen(pg.mkPen("#ccc", width=0))
         self.setBrush(pg.mkBrush("#ccc"))

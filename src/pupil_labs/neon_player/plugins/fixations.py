@@ -1,5 +1,6 @@
 import logging
 import typing as T
+from collections.abc import Iterable
 from pathlib import Path
 
 import cv2
@@ -8,6 +9,8 @@ import numpy.typing as npt
 import pandas as pd
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.timeseries import FixationTimeseries
+from pupil_labs.neon_recording.timeseries.av.base_av import BaseAVFrame
+from pupil_labs.neon_recording.timeseries.gaze import GazeRecord
 from PySide6.QtCore import QKeyCombination, QObject, QPointF, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter
 from qt_property_widgets.utilities import (
@@ -314,7 +317,15 @@ class FixationsPlugin(neon_player.Plugin):
             if ref_scene_img is None:
                 continue
 
-            def track_frames(frame_sequence, start_point, start_img) -> None:
+            def track_frames(
+                frame_sequence: Iterable[BaseAVFrame],
+                start_point: npt.NDArray[np.float64],
+                start_img: npt.NDArray[np.uint8],
+                *,
+                use_cache: bool = use_cache,
+                ref_gaze: GazeRecord = ref_gaze,
+                fidx: int = fidx,
+            ) -> None:
                 current_point = start_point
                 current_img = start_img
 
@@ -703,7 +714,7 @@ def calc_optic_flow(
         "minEigThreshold": lk_min_eig_threshold,
     }
 
-    corrected_points, _status, _err = cv2.calcOpticalFlowPyrLK(  # type: ignore
+    corrected_points, _status, _err = cv2.calcOpticalFlowPyrLK(
         previous_frame, current_frame, points.reshape([-1, 1, 2]), None, **lk_params
     )
     return corrected_points.reshape(points.shape)

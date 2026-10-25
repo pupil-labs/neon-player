@@ -17,7 +17,7 @@ def test_prepare_audio_frame__correct_data() -> None:
     mock_stream = MockAudioStream(
         layout=mock_layout, rate=44100, time_base=fractions.Fraction(1, 44100)
     )
-    frame = _prepare_audio_frame(data, format="s16", time=0.5, stream=mock_stream)
+    frame = _prepare_audio_frame(data, audio_format="s16", time=0.5, stream=mock_stream)
 
     assert np.allclose(frame.to_ndarray(), data)
     assert frame.pts == 22050
@@ -32,7 +32,7 @@ def test_prepare_audio_frame__uses_stream_params() -> None:
     mock_stream = MockAudioStream(
         layout=mock_layout, rate=44100, time_base=fractions.Fraction(1, 44100)
     )
-    frame = _prepare_audio_frame(data, format="s16", time=0.5, stream=mock_stream)
+    frame = _prepare_audio_frame(data, audio_format="s16", time=0.5, stream=mock_stream)
 
     assert frame.layout.name == mock_stream.layout.name
     assert frame.sample_rate == mock_stream.rate

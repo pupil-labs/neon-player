@@ -1,5 +1,4 @@
 import logging
-import typing as T
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
@@ -82,8 +81,8 @@ class QTextEditLogger(logging.Handler):
 
 
 class JobProgressBar(QWidget):
-    def __init__(self, job: BackgroundJob, *args: T.Any, **kwargs: T.Any) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, job: BackgroundJob, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
 
         self.main_layout = QHBoxLayout()
         self.main_layout.setContentsMargins(0, 0, 0, 0)

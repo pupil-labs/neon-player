@@ -22,12 +22,12 @@ from pupil_labs.neon_player.job_manager import ProgressUpdate
 
 
 def _prepare_audio_frame(
-    audio_data: np.ndarray, format: str, time: float, stream: av.AudioStream
+    audio_data: np.ndarray, audio_format: str, time: float, stream: av.AudioStream
 ) -> av.AudioFrame:
     assert stream.time_base is not None
 
     audio_frame = av.AudioFrame.from_ndarray(
-        audio_data, format=format, layout=stream.layout.name
+        audio_data, format=audio_format, layout=stream.layout.name
     )
     audio_frame.sample_rate = stream.rate
     audio_frame.time_base = stream.time_base
@@ -94,7 +94,7 @@ class AudioPlugin(neon_player.Plugin):
         except StreamNotFound:
             pass
 
-    def on_speed_changed(self, speed: float) -> None:
+    def on_speed_changed(self, _speed: float) -> None:
         # NOTE: On MacOS, setting negative playback rates often leads to a bus error
         # and crashes the application. To prevent this, we stop playback instead of
         # setting a negative playback rate.
@@ -110,7 +110,7 @@ class AudioPlugin(neon_player.Plugin):
     def on_volume_changed(self, volume: float) -> None:
         self.audio_output.setVolume(volume)
 
-    def on_user_seeked(self, position: int) -> None:
+    def on_user_seeked(self, _position: int) -> None:
         self.sync_position()
 
     def on_playback_state_changed(self, is_playing: bool) -> None:

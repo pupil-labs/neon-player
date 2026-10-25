@@ -1,7 +1,7 @@
-from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
-from packaging.utils import canonicalize_name
 
 from pupil_labs.neon_player.plugin_management.dependencies import (
     _check_dependencies_for_plugin_script,
@@ -23,12 +23,16 @@ import os
 """
 
 
-@patch("importlib.metadata.distributions", return_value=["huggingface_hub", "tf_keras"])
-def test_get_installed_packages__names_are_normalized(
-    mock_distributions: MagicMock,
-) -> None:
-    for package in get_installed_packages():
-        assert package == canonicalize_name(package)
+def test_get_installed_packages__names_are_normalized() -> None:
+    fake_package = SimpleNamespace(
+        metadata={"name": "huggingface_hub", "version": "1.0"},
+    )
+
+    with patch(
+        "importlib.metadata.distributions",
+        return_value=[fake_package],
+    ):
+        assert get_installed_packages() == {"huggingface-hub": "1.0"}
 
 
 def test_is_dependency_installed__installed() -> None:

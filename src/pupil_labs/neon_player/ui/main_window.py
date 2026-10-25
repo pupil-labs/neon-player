@@ -92,7 +92,7 @@ class SplashWidget(Ui_Class, QtBaseClass):
 
         event.ignore()
 
-    def dragLeaveEvent(self, event: QDragLeaveEvent) -> None:
+    def dragLeaveEvent(self, _event: QDragLeaveEvent) -> None:
         self.dropbox.setStyleSheet("#dropbox { background: #080808 }")
 
     def dropEvent(self, event: QDropEvent) -> None:
@@ -108,8 +108,8 @@ class SplashWidget(Ui_Class, QtBaseClass):
 
 
 class HoverRowTable(QTableWidget):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
         self.setMouseTracking(True)
 
     def update_hovered_row(self, cursor_position: QPoint) -> None:
@@ -253,7 +253,7 @@ class RecentWidget(QWidget):
         self.table.setSortingEnabled(True)
         self.table.sortByColumn(2, Qt.SortOrder.DescendingOrder)
 
-    def on_table_cell_clicked(self, row: int, column: int) -> None:
+    def on_table_cell_clicked(self, row: int, _column: int) -> None:
         item = self.table.item(row, 0)
         path_str = item.data(Qt.ItemDataRole.UserRole)
         if not path_str:
@@ -670,7 +670,7 @@ class MainWindow(QMainWindow):
             for action in menu.actions():
                 text_matches = action.text().replace("&", "") == part.replace("&", "")
                 if action.menu() is not None and text_matches:
-                    menu = action.menu()  # type: ignore
+                    menu = action.menu()  # type: ignore[assignment]
                     break
             else:
                 if not auto_create:

@@ -76,18 +76,18 @@ def _check_dependencies_for_plugin_script(script: str, plugin_name: str) -> list
         logging.error(
             f"Plugin {plugin_name} requires an incompatible Python version: {e}"
         )
-        raise e
+        raise
     except MalformedPEP723Error as e:
         logging.error(f"Plugin {plugin_name} has a malformed PEP 723 block: {e}")
-        raise e
+        raise
     except InvalidRequirement as e:
         logging.error(
             f"Plugin {plugin_name} has an invalid dependency requirement: {e}"
         )
-        raise e
+        raise
     except Exception as e:
         logging.exception(f"Could not parse dependencies for {plugin_name}. Error: {e}")
-        raise e
+        raise
 
     if not dependencies:
         return []

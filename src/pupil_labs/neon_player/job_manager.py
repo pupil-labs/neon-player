@@ -31,7 +31,7 @@ class BackgroundJob(QObject):
         job_id: int,
         recording_path: Path,
         action_name: str,
-        *args: T.Any,
+        *args: object,
     ) -> None:
         super().__init__()
 
@@ -50,7 +50,7 @@ class BackgroundJob(QObject):
 
         self.server.newConnection.connect(self._handle_connection)
 
-        args = [
+        command_args = [
             str(recording_path),
             "--progress-ipc-name",
             server_name,
@@ -59,9 +59,9 @@ class BackgroundJob(QObject):
         ] + [str(arg) for arg in args]
 
         if neon_player.is_frozen():
-            cmd = [sys.executable, *args]
+            cmd = [sys.executable, *command_args]
         else:
-            cmd = [sys.executable, "-m", "pupil_labs.neon_player", *args]
+            cmd = [sys.executable, "-m", "pupil_labs.neon_player", *command_args]
 
         logging.debug(f"Executing bg job {' '.join(cmd)}")
 
@@ -169,7 +169,7 @@ class JobManager(QObject):
                     pbar.refresh()
 
     def run_background_action(
-        self, name: str, action_name: str, *args: T.Any
+        self, name: str, action_name: str, *args: object
     ) -> BackgroundJob:
         if neon_player.instance().headless:
             logging.warning("Not starting background job in headless mode")

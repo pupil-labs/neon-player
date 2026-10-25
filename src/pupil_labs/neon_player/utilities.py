@@ -146,7 +146,7 @@ class SignalDebouncer:
     _signal_debouncer_map: T.ClassVar[dict[SignalInstance, "SignalDebouncer"]] = {}
 
     @staticmethod
-    def debounce(signal: SignalInstance, delay: float = 1.5, *args: T.Any) -> None:
+    def debounce(signal: SignalInstance, delay: float = 1.5, *args: object) -> None:
         if signal not in SignalDebouncer._signal_debouncer_map:
             SignalDebouncer._signal_debouncer_map[signal] = SignalDebouncer(signal)
 
@@ -190,7 +190,7 @@ class SlotDebouncer:
         self.signals.append(signal)
         signal.connect(self.on_signal)
 
-    def on_signal(self, *args: T.Any) -> None:
+    def on_signal(self, *args: object) -> None:
         self.args = args
         self.timer.start()
 

@@ -94,7 +94,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
         my_prop_form.add_action(name, func)
 
     @classmethod
-    def __init_subclass__(cls: type["Plugin"], **kwargs: dict) -> None:  # type: ignore
+    def __init_subclass__(cls: type["Plugin"], **kwargs: dict) -> None:  # type: ignore[type-arg]
         super().__init_subclass__(**kwargs)
         if cls.__name__ not in [c.__name__ for c in Plugin.known_classes]:
             Plugin.known_classes.append(cls)
@@ -137,7 +137,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
         with cache_file.open("r") as f:
             return json.load(f)
 
-    def save_cached_json(self, filename: str, data: T.Any) -> None:
+    def save_cached_json(self, filename: str, data: object) -> None:
         if self.recording is None:
             return
 

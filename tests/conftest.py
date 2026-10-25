@@ -61,8 +61,8 @@ class MockNeonPlayerApp(QApplication):
 
     export_window_changed = Signal(tuple[int, int])
 
-    def __init__(self, *args) -> None:
-        super().__init__(*args)
+    def __init__(self, argv: list[str]) -> None:
+        super().__init__(argv)
         self.headless = True
         self.plugins_by_class = {}
         self.recording = None

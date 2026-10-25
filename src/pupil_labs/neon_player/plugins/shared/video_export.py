@@ -100,7 +100,7 @@ def bg_export_video(
     audio_frame_timestamps = recording.audio.time[
         (recording.audio.time >= start_time) & (recording.audio.time <= stop_time)
     ]
-    audio_iterator = iter(recording.audio.sample(audio_frame_timestamps))  # type: ignore
+    audio_iterator = iter(recording.audio.sample(audio_frame_timestamps))  # type: ignore[arg-type]
     audio_frame: BaseAVFrame | None = next(audio_iterator)
     audio_frame_idx = 0
 
