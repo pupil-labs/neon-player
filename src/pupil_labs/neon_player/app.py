@@ -87,7 +87,18 @@ class NeonPlayerApp(QApplication):
         self.playback_start_anchor = 0
         self.current_ts = 0
         self.playback_speed_options = [
-            -4.0, -2.0, -1.0, -0.5, -0.25, -0.125, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0
+            -4.0,
+            -2.0,
+            -1.0,
+            -0.5,
+            -0.25,
+            -0.125,
+            0.125,
+            0.25,
+            0.5,
+            1.0,
+            2.0,
+            4.0,
         ]
         self.playback_speed = 1.0
 
@@ -142,7 +153,9 @@ class NeonPlayerApp(QApplication):
             logging.exception("Failed to load settings")
 
         try:
-            self.recording_history = RecordingHistory.from_dict(self.load_recording_history())
+            self.recording_history = RecordingHistory.from_dict(
+                self.load_recording_history()
+            )
         except FileNotFoundError:
             logging.warning("Recording history file not found")
         except Exception:
@@ -159,7 +172,7 @@ class NeonPlayerApp(QApplication):
 
         self.aboutToQuit.connect(self.unload)
 
-    def run_jobs(self, job):
+    def run_jobs(self, job) -> None:
         plugin_name, action_name = job[0].split(".")
         job_args = job[1:]
 
@@ -177,7 +190,7 @@ class NeonPlayerApp(QApplication):
                 if len(keys) > 0 and keys[0] == "self":
                     keys = keys[1:]
 
-                args = dict(zip(keys, job_args))
+                args = dict(zip(keys, job_args, strict=False))
                 action_obj.__setstate__(args)
                 self.job_manager.work_job(action_obj())
 
@@ -388,7 +401,9 @@ class NeonPlayerApp(QApplication):
 
         settings_path = path / ".neon_player" / "settings.json"
         self.recording_settings = load_recording_settings(settings_path, self.recording)
-        self.recording_settings.export_window_changed.connect(self.export_window_changed.emit)
+        self.recording_settings.export_window_changed.connect(
+            self.export_window_changed.emit
+        )
         logging.info("Recording settings loaded")
 
         if self.settings.skip_gray_frames_on_load:

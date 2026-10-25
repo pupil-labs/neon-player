@@ -5,7 +5,9 @@ from pathlib import Path
 
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import (
+    QEvent,
     QKeyCombination,
+    QPoint,
     Qt,
     QTimer,
     QUrl,
@@ -14,9 +16,14 @@ from PySide6.QtGui import (
     QAction,
     QColor,
     QDesktopServices,
+    QDragEnterEvent,
+    QDragLeaveEvent,
+    QDropEvent,
     QIcon,
+    QMouseEvent,
     QPalette,
     QPixmap,
+    QWheelEvent,
 )
 from PySide6.QtUiTools import loadUiType
 from PySide6.QtWidgets import (
@@ -72,7 +79,7 @@ class SplashWidget(Ui_Class, QtBaseClass):
         self.recent_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setAcceptDrops(True)
 
-    def dragEnterEvent(self, event) -> None:
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         # Accept directories only
         if event.mimeData().hasUrls():
             urls = event.mimeData().urls()
@@ -85,10 +92,10 @@ class SplashWidget(Ui_Class, QtBaseClass):
 
         event.ignore()
 
-    def dragLeaveEvent(self, event) -> None:
+    def dragLeaveEvent(self, event: QDragLeaveEvent) -> None:
         self.dropbox.setStyleSheet("#dropbox { background: #080808 }")
 
-    def dropEvent(self, event) -> None:
+    def dropEvent(self, event: QDropEvent) -> None:
         urls = event.mimeData().urls()
         if urls and urls[0].isLocalFile():
             path = Path(urls[0].toLocalFile())
@@ -105,21 +112,21 @@ class HoverRowTable(QTableWidget):
         super().__init__(*args, **kwargs)
         self.setMouseTracking(True)
 
-    def update_hovered_row(self, cursor_position):
+    def update_hovered_row(self, cursor_position: QPoint) -> None:
         idx = self.indexAt(cursor_position)
         if idx.isValid():
             self.setCurrentCell(idx.row(), 0)
             self.setCursor(Qt.CursorShape.PointingHandCursor)
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
         self.update_hovered_row(event.pos())
         super().mouseMoveEvent(event)
 
-    def wheelEvent(self, event):
+    def wheelEvent(self, event: QWheelEvent) -> None:
         self.update_hovered_row(event.position().toPoint())
         super().wheelEvent(event)
 
-    def leaveEvent(self, event):
+    def leaveEvent(self, event: QEvent) -> None:
         self.clearSelection()
         self.setCurrentCell(-1, -1)
         self.setCursor(Qt.CursorShape.ArrowCursor)
@@ -144,7 +151,9 @@ class RecentWidget(QWidget):
         title_layout.addWidget(QLabel("<h2>Recently Opened</h2>"))
         title_layout.addStretch()
 
-        self.empty_history_label = QLabel("Recently opened recordings will appear here.")
+        self.empty_history_label = QLabel(
+            "Recently opened recordings will appear here."
+        )
         self.empty_history_label.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.empty_history_label.setSizePolicy(
             QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
@@ -158,13 +167,15 @@ class RecentWidget(QWidget):
         self.table.setWordWrap(False)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels([
-            "Recording name",
-            "Wearer",
-            "Last opened",
-            "Recorded",
-            "Path",
-        ])
+        self.table.setHorizontalHeaderLabels(
+            [
+                "Recording name",
+                "Wearer",
+                "Last opened",
+                "Recorded",
+                "Path",
+            ]
+        )
         self.table.cellClicked.connect(self.on_table_cell_clicked)
 
         horiz_header = self.table.horizontalHeader()
@@ -533,7 +544,7 @@ class MainWindow(QMainWindow):
         self.on_recording_closed()
         self.status_label.clicked.connect(self.console_window.show)
 
-    def reset_docks(self):
+    def reset_docks(self) -> None:
         docks_and_areas = {
             self.timeline_dock: Qt.DockWidgetArea.BottomDockWidgetArea,
             self.settings_dock: Qt.DockWidgetArea.RightDockWidgetArea,
@@ -544,7 +555,7 @@ class MainWindow(QMainWindow):
             dock.setFloating(False)
             dock.show()
 
-    def on_recording_opened(self):
+    def on_recording_opened(self) -> None:
         self.greeting_switcher.setCurrentIndex(1)
         self.timeline_dock.show()
         self.settings_dock.show()
@@ -552,7 +563,7 @@ class MainWindow(QMainWindow):
         self.statusBar().show()
         QTimer.singleShot(1, self.timeline.reset_view)
 
-    def on_recording_closed(self):
+    def on_recording_closed(self) -> None:
         self.greeting_switcher.setCurrentIndex(0)
         self.timeline_dock.hide()
         self.settings_dock.hide()
@@ -628,10 +639,10 @@ class MainWindow(QMainWindow):
         url = QUrl.fromLocalFile(str(app.recording._rec_dir / ".neon_player"))
         QDesktopServices.openUrl(url)
 
-    def dragEnterEvent(self, event):
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         return self.splash_widget.dragEnterEvent(event)
 
-    def dropEvent(self, event):
+    def dropEvent(self, event: QDropEvent) -> None:
         return self.splash_widget.dropEvent(event)
 
     def on_play_action(self) -> None:
@@ -701,7 +712,7 @@ class MainWindow(QMainWindow):
 
         raise ValueError(f"Action {action_path} not found")
 
-    def sort_action_menu(self, menu_path: str):
+    def sort_action_menu(self, menu_path: str) -> None:
         menu = self.get_menu(menu_path)
         sorted_actions = sorted(menu.actions(), key=lambda a: a.text().lower())
         for action in sorted_actions:
@@ -729,7 +740,7 @@ class MainWindow(QMainWindow):
 
         return action
 
-    def unregister_action(self, action_path: str):
+    def unregister_action(self, action_path: str) -> None:
         menu_path, action_name = action_path.rsplit("/", 1)
 
         menu = self.get_menu(menu_path)

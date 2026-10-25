@@ -77,8 +77,8 @@ class SurfaceImportDialog(QDialog):
         surfaces_to_import: list[SurfaceData],
         existing_surfaces: list[TrackedSurface],
         import_callback: T.Callable[[SurfaceData], None],
-        parent: QWidget | None = None
-    ):
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.surfaces_to_import = surfaces_to_import
         self.existing_surfaces = existing_surfaces
@@ -96,7 +96,9 @@ class SurfaceImportDialog(QDialog):
         layout.addLayout(self.surface_grid)
         self._populate_surface_grid()
 
-        spacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+        spacer = QSpacerItem(
+            20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding
+        )
         layout.addItem(spacer)
 
         close_button = QPushButton("Close")
@@ -256,7 +258,9 @@ class SurfaceTrackingPlugin(Plugin):
     def render(self, painter: QPainter, time_in_recording: int) -> None:  # noqa: C901
         self._update_displays()
         if not self._export_overlays:
-            exporter = T.cast("VideoExporter", Plugin.get_instance_by_name("VideoExporter"))
+            exporter = T.cast(
+                "VideoExporter", Plugin.get_instance_by_name("VideoExporter")
+            )
             if exporter is not None and exporter.is_exporting:
                 return
 
@@ -294,11 +298,14 @@ class SurfaceTrackingPlugin(Plugin):
             if show_heatmap and surface._heatmap is not None:
                 export_window = self.app.get_export_window()
                 if export_window[0] <= time_in_recording <= export_window[1]:
-                    scalar = np.array([
-                        [1 / surface._heatmap.shape[1], 0.0, 0.0],
-                        [0.0, 1 / surface._heatmap.shape[0], 0.0],
-                        [0.0, 0.0, 1.0],
-                    ], dtype=np.float64)
+                    scalar = np.array(
+                        [
+                            [1 / surface._heatmap.shape[1], 0.0, 0.0],
+                            [0.0, 1 / surface._heatmap.shape[0], 0.0],
+                            [0.0, 0.0, 1.0],
+                        ],
+                        dtype=np.float64,
+                    )
 
                     heatmap_to_scene = location[1] @ scalar
                     scene_size = self.recording.scene.width, self.recording.scene.height
@@ -325,10 +332,12 @@ class SurfaceTrackingPlugin(Plugin):
                     # @TODO: use optimal matrix to have less edge truncation
                     distorted_heatmap = self.camera.distort_image(undistorted_heatmap)
                     distorted_mask = self.camera.distort_image(undistorted_mask)
-                    distorted_heatmap_rgba = np.dstack((
-                        distorted_heatmap,
-                        distorted_mask,
-                    ))
+                    distorted_heatmap_rgba = np.dstack(
+                        (
+                            distorted_heatmap,
+                            distorted_mask,
+                        )
+                    )
 
                     painter.setOpacity(surface.heatmap_alpha)
                     painter.drawImage(0, 0, qimage_from_frame(distorted_heatmap_rgba))
@@ -480,10 +489,12 @@ class SurfaceTrackingPlugin(Plugin):
         )
         change_indices = np.where(np.diff(marker_count_by_frame) != 0)[0]
         start_indices = np.concatenate(([0], change_indices + 1))
-        stop_indices = np.concatenate((
-            change_indices,
-            [len(marker_count_by_frame) - 1],
-        ))
+        stop_indices = np.concatenate(
+            (
+                change_indices,
+                [len(marker_count_by_frame) - 1],
+            )
+        )
 
         start_times = self.recording.scene.time[start_indices].tolist()
         stop_times = self.recording.scene.time[stop_indices].tolist()
@@ -494,7 +505,9 @@ class SurfaceTrackingPlugin(Plugin):
             "Marker visibility",
             [
                 (start, stop, n)
-                for start, stop, n in zip(start_times, stop_times, n_markers)
+                for start, stop, n in zip(
+                    start_times, stop_times, n_markers, strict=False
+                )
                 if n > 0
             ],
         )
@@ -510,12 +523,16 @@ class SurfaceTrackingPlugin(Plugin):
         if locations_path.exists():
             data = np.load(locations_path, allow_pickle=True)
             self.surface_locations[surface_uid] = [
-                None if location is None else tuple(np.array(v, dtype=np.float64) for v in location)
+                None
+                if location is None
+                else tuple(np.array(v, dtype=np.float64) for v in location)
                 for location in data
             ]
 
             if surface.preview_options.render_size == (0, 0):
-                surface2image = self.surface_locations[surface_uid][surface.defining_frame_index][1]
+                surface2image = self.surface_locations[surface_uid][
+                    surface.defining_frame_index
+                ][1]
 
                 # set surface size
                 image = utils.crop_image(
@@ -800,7 +817,7 @@ class SurfaceTrackingPlugin(Plugin):
                 "locations.npy",
                 "heatmap.png",
                 "surface_visibility.pkl",
-                "gazes.pkl"
+                "gazes.pkl",
             ]
             for surface_file in surface_files:
                 file_path = self.get_cache_path() / f"{surface.uid}_{surface_file}"
@@ -828,7 +845,7 @@ class SurfaceTrackingPlugin(Plugin):
     def on_locations_invalidated(self, surface: "TrackedSurface") -> None:
         locations_path = self.get_cache_path() / f"{surface.uid}_locations.npy"
         if locations_path.exists():
-           locations_path.unlink()
+            locations_path.unlink()
 
         surf_path = self.get_cache_path() / f"{surface.uid}_surface.pkl"
         with surf_path.open("wb") as f:
@@ -961,27 +978,30 @@ class SurfaceTrackingPlugin(Plugin):
                     frame_pixels = ndarray_from_qimage(frame)
                     av_frame = av.VideoFrame.from_ndarray(frame_pixels, format="bgr24")
 
-                    plv_frame = plv.VideoFrame(av_frame=av_frame, index=output_idx, time=rel_ts, source="")
+                    plv_frame = plv.VideoFrame(
+                        av_frame=av_frame, index=output_idx, time=rel_ts, source=""
+                    )
                     writer.write_frame(plv_frame)
 
                 yield ProgressUpdate((output_idx + 1) / len(scene_frames))
 
     @action
     @action_params(
-        compact=True,
-        icon=QIcon(str(neon_player.asset_path("duplicate.svg")))
+        compact=True, icon=QIcon(str(neon_player.asset_path("duplicate.svg")))
     )
     def import_surface_definitions(self, source: Path = Path()) -> None:
         # get surface definitions from json
         json_path = source / ".neon_player" / "settings.json"
         other_recording = RecordingSettings.from_dict(json.load(json_path.open("r")))
-        surface_settings = other_recording.plugin_states.get("SurfaceTrackingPlugin", {})
+        surface_settings = other_recording.plugin_states.get(
+            "SurfaceTrackingPlugin", {}
+        )
         surfaces = surface_settings.get("surfaces", [])
         if len(surfaces) == 0:
             QMessageBox.information(
                 None,
                 "Import Surface Definitions",
-                "No surface definitions found in the selected recording."
+                "No surface definitions found in the selected recording.",
             )
             return
 
@@ -989,12 +1009,15 @@ class SurfaceTrackingPlugin(Plugin):
         dialog = SurfaceImportDialog(
             surfaces,
             self.surfaces,
-            lambda surface_data: self._import_surface(surface_data, source)
+            lambda surface_data: self._import_surface(surface_data, source),
         )
         dialog.exec()
 
     def _import_surface(self, surface_data: dict, source_path: Path) -> None:
-        logging.info(f"Importing {surface_data['name']} ({surface_data['uid']}) from {source_path}")
+        logging.info(
+            f"Importing {surface_data['name']} ({surface_data['uid']}) "
+            f"from {source_path}"
+        )
         src_def_file = (
             source_path
             / ".neon_player"
@@ -1032,7 +1055,8 @@ class SurfaceTrackingPlugin(Plugin):
                         "and try again."
                     )
                 logging.warning(
-                    f"Surface locations are not available for surface `{surface.name}`, "
+                    f"Surface locations are not available for surface "
+                    f"`{surface.name}`, "
                     f"skipping it in the export.{jobs_running}"
                 )
                 continue
@@ -1095,7 +1119,7 @@ class SurfaceTrackingPlugin(Plugin):
             self.app.get_export_window(),
             self.markers_by_frame,
             self.surface_locations[surface_uid],
-            self.camera
+            self.camera,
         )
         positions.to_csv(
             destination / f"surface_positions_{surface.name}.csv", index=False
@@ -1112,8 +1136,7 @@ def _prepare_surface_positions_export(
 ) -> pd.DataFrame:
     start_time, stop_time = export_window
     export_mask = np.logical_and(
-        recording.scene.time >= start_time,
-        recording.scene.time <= stop_time
+        recording.scene.time >= start_time, recording.scene.time <= stop_time
     )
     export_indices = np.flatnonzero(export_mask)
     num_indices = len(export_indices)
@@ -1147,10 +1170,8 @@ def _prepare_surface_positions_export(
 
     # NOTE: the order of names below should always match the output of
     # `normalized_corners().flatten()`
-    corner_names = [
-        "tl x", "tl y", "tr x", "tr y", "br x", "br y", "bl x", "bl y"
-    ]
-    for name, coords in zip(corner_names, corner_coords.T):
+    corner_names = ["tl x", "tl y", "tr x", "tr y", "br x", "br y", "bl x", "bl y"]
+    for name, coords in zip(corner_names, corner_coords.T, strict=False):
         positions[f"{name} [px]"] = coords
 
     positions_df = pd.DataFrame(positions)
@@ -1159,9 +1180,7 @@ def _prepare_surface_positions_export(
 
 
 def _get_position_for_export(
-    location: SurfaceLocation,
-    camera: Camera,
-    scene_size: tuple[int, int]
+    location: SurfaceLocation, camera: Camera, scene_size: tuple[int, int]
 ) -> np.ndarray:
     corners = perspective_transform(normalized_corners(), location[1])
     corners = camera.distort_points(corners)

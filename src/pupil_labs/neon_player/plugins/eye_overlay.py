@@ -49,7 +49,7 @@ class EyeOverlayPlugin(neon_player.Plugin):
         else:
             self.on_hover(event)
 
-    def align(self, rect, corner):
+    def align(self, rect, corner) -> None:
         v = getattr(self.start_geometry, corner)()
         getattr(rect, f"move{corner.title()}")(v)
 
@@ -138,7 +138,7 @@ class EyeOverlayPlugin(neon_player.Plugin):
 
         self._update_cursor()
 
-    def _update_cursor(self):
+    def _update_cursor(self) -> None:
         if self._mouse_mode == ModifyDirection(0):
             self.video_widget.unsetCursor()
 

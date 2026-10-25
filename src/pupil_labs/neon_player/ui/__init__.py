@@ -24,7 +24,7 @@ class GUIEventNotifier:
     mouse_wheel_moved = Signal(QWheelEvent)
     resized = Signal(QResizeEvent)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._mouse_down = False
 
@@ -56,13 +56,13 @@ class GUIEventNotifier:
 
 
 class HeaderAction:
-    def __init__(self, callback, name):
+    def __init__(self, callback, name) -> None:
         self.callback = callback
         self.name = name
 
 
 class ListPropertyAppenderAction(HeaderAction):
-    def __init__(self, property_name, name):
+    def __init__(self, property_name, name) -> None:
         super().__init__(None, name)
         self.property_name = property_name
         self.form = None

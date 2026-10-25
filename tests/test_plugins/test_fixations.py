@@ -5,7 +5,9 @@ from pupil_labs.neon_player.plugins.fixations import (
 )
 
 
-def test_fixations_plugin__to_dict__viz_have_class_names(qapp, mock_neon_recording):
+def test_fixations_plugin__to_dict__viz_have_class_names(
+    qapp, mock_neon_recording
+) -> None:
     qapp.recording = mock_neon_recording()
 
     plugin = FixationsPlugin()

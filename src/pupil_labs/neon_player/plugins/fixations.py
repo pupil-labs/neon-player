@@ -34,7 +34,10 @@ class FixationsPlugin(neon_player.Plugin):
     def __init__(self) -> None:
         super().__init__()
 
-        self._visualizations: list[FixationVisualization] = [ScanpathViz(), FixationCircleViz()]
+        self._visualizations: list[FixationVisualization] = [
+            ScanpathViz(),
+            FixationCircleViz(),
+        ]
 
         self.flow_dict: dict[int, dict[int, np.ndarray]] = {}
         self.header_action = ListPropertyAppenderAction("visualizations", "+ Add viz")
@@ -169,9 +172,7 @@ class FixationsPlugin(neon_player.Plugin):
         fixation_ids = fixations_ids[start_mask & stop_mask]
 
         offset_means = apply_offset(
-            self.recording,
-            fixations.mean_gaze_point,
-            self.get_gaze_offset()
+            self.recording, fixations.mean_gaze_point, self.get_gaze_offset()
         )
 
         scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(
@@ -185,17 +186,19 @@ class FixationsPlugin(neon_player.Plugin):
             )
         )
 
-        export_data = pd.DataFrame({
-            "recording id": self.recording.info["recording_id"],
-            "fixation id": fixation_ids,
-            "start timestamp [ns]": fixations.start_time,
-            "end timestamp [ns]": fixations.stop_time,
-            "duration [ms]": (fixations.stop_time - fixations.start_time) / 1e6,
-            "fixation x [px]": offset_means[:, 0],
-            "fixation y [px]": offset_means[:, 1],
-            "azimuth [deg]": spherical_coords[2],
-            "elevation [deg]": spherical_coords[1],
-        })
+        export_data = pd.DataFrame(
+            {
+                "recording id": self.recording.info["recording_id"],
+                "fixation id": fixation_ids,
+                "start timestamp [ns]": fixations.start_time,
+                "end timestamp [ns]": fixations.stop_time,
+                "duration [ms]": (fixations.stop_time - fixations.start_time) / 1e6,
+                "fixation x [px]": offset_means[:, 0],
+                "fixation y [px]": offset_means[:, 1],
+                "azimuth [deg]": spherical_coords[2],
+                "elevation [deg]": spherical_coords[1],
+            }
+        )
 
         return export_data
 
@@ -209,16 +212,18 @@ class FixationsPlugin(neon_player.Plugin):
         saccades = self.recording.saccades[start_mask & stop_mask]
         saccade_ids = saccades_ids[start_mask & stop_mask]
 
-        export_data = pd.DataFrame({
-            "recording id": self.recording.info["recording_id"],
-            "saccade id": saccade_ids,
-            "start timestamp [ns]": saccades.start_time,
-            "end timestamp [ns]": saccades.stop_time,
-            "duration [ms]": (saccades.stop_time - saccades.start_time) / 1e6,
-            "amplitude [deg]": saccades.amplitude,
-            "mean velocity [px/s]": saccades.mean_velocity,
-            "peak velocity [px/s]": saccades.max_velocity,
-        })
+        export_data = pd.DataFrame(
+            {
+                "recording id": self.recording.info["recording_id"],
+                "saccade id": saccade_ids,
+                "start timestamp [ns]": saccades.start_time,
+                "end timestamp [ns]": saccades.stop_time,
+                "duration [ms]": (saccades.stop_time - saccades.start_time) / 1e6,
+                "amplitude [deg]": saccades.amplitude,
+                "mean velocity [px/s]": saccades.mean_velocity,
+                "peak velocity [px/s]": saccades.max_velocity,
+            }
+        )
 
         return export_data
 
@@ -309,7 +314,7 @@ class FixationsPlugin(neon_player.Plugin):
             if ref_scene_img is None:
                 continue
 
-            def track_frames(frame_sequence, start_point, start_img):
+            def track_frames(frame_sequence, start_point, start_img) -> None:
                 current_point = start_point
                 current_img = start_img
 
@@ -324,12 +329,14 @@ class FixationsPlugin(neon_player.Plugin):
                     next_point = calc_optic_flow(current_img, next_img, current_point)
                     raw_offset = ref_gaze.point - next_point
 
-                    flow_records.append({
-                        "fidx": fidx,
-                        "frame_idx": frame.index,
-                        "offset_x": raw_offset[0],
-                        "offset_y": raw_offset[1],
-                    })
+                    flow_records.append(
+                        {
+                            "fidx": fidx,
+                            "frame_idx": frame.index,
+                            "offset_x": raw_offset[0],
+                            "offset_y": raw_offset[1],
+                        }
+                    )
 
                     current_point = next_point
                     current_img = next_img
@@ -342,10 +349,12 @@ class FixationsPlugin(neon_player.Plugin):
             yield ProgressUpdate(fidx / len(recording.fixations))
 
         if len(flow_records) > 0:
-            flow_array = np.array([
-                [r["fidx"], r["frame_idx"], r["offset_x"], r["offset_y"]]
-                for r in flow_records
-            ])
+            flow_array = np.array(
+                [
+                    [r["fidx"], r["frame_idx"], r["offset_x"], r["offset_y"]]
+                    for r in flow_records
+                ]
+            )
         else:
             flow_array = np.zeros((0, 4))
 
@@ -393,12 +402,12 @@ class FixationVisualization(PersistentPropertiesMixin, QObject):
         self,
         include_class_name: bool = False,
         condition: T.Callable[[dict], bool] | None = None,
-        recursive: bool = False
+        recursive: bool = False,
     ) -> dict:
         state = super().to_dict(
             include_class_name=include_class_name,
             condition=condition,
-            recursive=recursive
+            recursive=recursive,
         )
 
         # NOTE: Fixation visualizations require the class name to be loaded correctly
@@ -455,14 +464,14 @@ class FixationCircleViz(FixationVisualization):
         offset_mean_gaze_points = apply_offset(
             self.recording,
             fixations.mean_gaze_point,
-            gaze_offset if self._use_offset else (0.0, 0.0)
+            gaze_offset if self._use_offset else (0.0, 0.0),
         )
 
         width = self.recording.scene.width
         height = self.recording.scene.height
 
         for fixation_id, fixation, offset_mean_gaze_point in zip(
-            fixation_ids, fixations, offset_mean_gaze_points
+            fixation_ids, fixations, offset_mean_gaze_points, strict=False
         ):
             is_active = (fixation.start_time <= time_in_recording) and (
                 fixation.stop_time > time_in_recording
@@ -573,7 +582,7 @@ class ScanpathViz(FixationVisualization):
         offset_mean_gaze_points = apply_offset(
             self.recording,
             fixations.mean_gaze_point,
-            gaze_offset if self._use_offset else (0.0, 0.0)
+            gaze_offset if self._use_offset else (0.0, 0.0),
         )
 
         width = self.recording.scene.width
@@ -581,7 +590,7 @@ class ScanpathViz(FixationVisualization):
         previous_center = None
 
         for fixation_id, fixation, offset_mean_gaze_point in zip(
-            fixation_ids, fixations, offset_mean_gaze_points
+            fixation_ids, fixations, offset_mean_gaze_points, strict=False
         ):
             internal_fidx = fixation_id - 1
 
@@ -694,7 +703,7 @@ def calc_optic_flow(
         "minEigThreshold": lk_min_eig_threshold,
     }
 
-    corrected_points, status, err = cv2.calcOpticalFlowPyrLK(  # type: ignore
+    corrected_points, _status, _err = cv2.calcOpticalFlowPyrLK(  # type: ignore
         previous_frame, current_frame, points.reshape([-1, 1, 2]), None, **lk_params
     )
     return corrected_points.reshape(points.shape)

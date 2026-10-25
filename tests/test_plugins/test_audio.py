@@ -9,8 +9,10 @@ MockAudioStream = namedtuple("MockAudioStream", ["layout", "rate", "time_base"])
 MockAudioLayout = namedtuple("MockAudioLayout", ["name"])
 
 
-def test_prepare_audio_frame__correct_data():
-    data = np.random.default_rng().integers(-32768, 32767, size=(1, 1024), dtype=np.int16)
+def test_prepare_audio_frame__correct_data() -> None:
+    data = np.random.default_rng().integers(
+        -32768, 32767, size=(1, 1024), dtype=np.int16
+    )
     mock_layout = MockAudioLayout(name="mono")
     mock_stream = MockAudioStream(
         layout=mock_layout, rate=44100, time_base=fractions.Fraction(1, 44100)
@@ -22,8 +24,10 @@ def test_prepare_audio_frame__correct_data():
     assert frame.dts == 22050
 
 
-def test_prepare_audio_frame__uses_stream_params():
-    data = np.random.default_rng().integers(-32768, 32767, size=(1, 1024), dtype=np.int16)
+def test_prepare_audio_frame__uses_stream_params() -> None:
+    data = np.random.default_rng().integers(
+        -32768, 32767, size=(1, 1024), dtype=np.int16
+    )
     mock_layout = MockAudioLayout(name="mono")
     mock_stream = MockAudioStream(
         layout=mock_layout, rate=44100, time_base=fractions.Fraction(1, 44100)

@@ -157,7 +157,7 @@ class SettingsPanel(QScrollArea):
             tb.setCursor(Qt.CursorShape.PointingHandCursor)
             if isinstance(header_action, ListPropertyAppenderAction):
 
-                def do_add():
+                def do_add() -> None:
                     widget = settings_form.property_widgets.get(
                         header_action.property_name, None
                     )

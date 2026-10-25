@@ -253,6 +253,6 @@ class VolumeButton(QPushButton):
         QTimer.singleShot(1, set_position)
 
     def on_slider_moved(self, value: int) -> None:
-        self.setIcon(QPixmap(neon_player.asset_path(f"volume-{value//25}.svg")))
+        self.setIcon(QPixmap(neon_player.asset_path(f"volume-{value // 25}.svg")))
         self._volume = value / 100
         self.volume_changed.emit(self._volume)

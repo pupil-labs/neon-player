@@ -5,22 +5,20 @@ from pupil_labs.neon_player.settings import load_recording_settings
 
 def mock_settings_path(contents: dict, corrupt: bool = False):
     """A minimal mock of a Path object that returns settings-like text contents."""
+
     class MockSettingsPath:
-        def exists(self):
+        def exists(self) -> bool:
             return True
 
-        def read_text(self):
+        def read_text(self) -> str:
             result = json.dumps(contents)
             return result[:10] if corrupt else result
 
     return MockSettingsPath()
 
 
-def test_load_recording_settings__valid(mock_neon_recording):
-    contents = {
-        "export_window": [2, 5],
-        "enabled_plugins": {"Plugin": True}
-    }
+def test_load_recording_settings__valid(mock_neon_recording) -> None:
+    contents = {"export_window": [2, 5], "enabled_plugins": {"Plugin": True}}
     rec = mock_neon_recording(start_time=0, stop_time=10)
     settings = load_recording_settings(mock_settings_path(contents), rec)
 
@@ -28,11 +26,8 @@ def test_load_recording_settings__valid(mock_neon_recording):
     assert settings.enabled_plugins["Plugin"]
 
 
-def test_load_recording_settings__invalid_export_window(mock_neon_recording):
-    contents = {
-        "export_window": [0],
-        "enabled_plugins": {"Plugin": True}
-    }
+def test_load_recording_settings__invalid_export_window(mock_neon_recording) -> None:
+    contents = {"export_window": [0], "enabled_plugins": {"Plugin": True}}
     rec = mock_neon_recording(start_time=0, stop_time=10)
     settings = load_recording_settings(mock_settings_path(contents), rec)
 
@@ -40,11 +35,8 @@ def test_load_recording_settings__invalid_export_window(mock_neon_recording):
     assert settings.enabled_plugins["Plugin"]
 
 
-def test_load_recording_settings__corrupted_settings(mock_neon_recording):
-    contents = {
-        "export_window": [0],
-        "enabled_plugins": {"Plugin": True}
-    }
+def test_load_recording_settings__corrupted_settings(mock_neon_recording) -> None:
+    contents = {"export_window": [0], "enabled_plugins": {"Plugin": True}}
     rec = mock_neon_recording(start_time=0, stop_time=10)
     settings = load_recording_settings(mock_settings_path(contents, corrupt=True), rec)
 

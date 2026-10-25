@@ -10,7 +10,7 @@ from pupil_labs.neon_player.plugin_management.pep723 import (
 )
 
 
-def test_parse_pep723_dependencies__valid_block():
+def test_parse_pep723_dependencies__valid_block() -> None:
     script = """\
 # /// script
 # requires-python = ">=3.12"
@@ -25,12 +25,12 @@ def test_parse_pep723_dependencies__valid_block():
     assert "librosa" in result
 
 
-def test_parse_pep723_dependencies__no_block():
+def test_parse_pep723_dependencies__no_block() -> None:
     script = "import os\nprint('hello')\n"
     assert not parse_pep723_dependencies(script)
 
 
-def test_parse_pep723_dependencies__empty_dependencies():
+def test_parse_pep723_dependencies__empty_dependencies() -> None:
     script = """\
 # /// script
 # dependencies = []
@@ -39,7 +39,7 @@ def test_parse_pep723_dependencies__empty_dependencies():
     assert not parse_pep723_dependencies(script)
 
 
-def test_parse_pep723_dependencies__python_version_mismatch():
+def test_parse_pep723_dependencies__python_version_mismatch() -> None:
     script = """\
 # /// script
 # requires-python = "<3.11"
@@ -50,7 +50,7 @@ def test_parse_pep723_dependencies__python_version_mismatch():
         parse_pep723_dependencies(script)
 
 
-def test_parse_pep723_dependencies__malformed_toml():
+def test_parse_pep723_dependencies__malformed_toml() -> None:
     script = """\
 # /// script
 # this is not valid toml ][
@@ -60,7 +60,7 @@ def test_parse_pep723_dependencies__malformed_toml():
         parse_pep723_dependencies(script)
 
 
-def test_parse_pep723_dependencies__malformed_dependency():
+def test_parse_pep723_dependencies__malformed_dependency() -> None:
     script = """\
 # /// script
 # dependencies = [
@@ -72,7 +72,7 @@ def test_parse_pep723_dependencies__malformed_dependency():
         parse_pep723_dependencies(script)
 
 
-def test_parse_pep723_dependencies__with_platform_markers():
+def test_parse_pep723_dependencies__with_platform_markers() -> None:
     script = """\
 # /// script
 # requires-python = ">=3.12"

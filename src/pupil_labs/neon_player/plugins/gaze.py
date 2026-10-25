@@ -35,7 +35,7 @@ class Aggregation(enum.Enum):
     First = "First"
     Last = "Last"
 
-    def apply(self, samples):
+    def apply(self, samples: npt.NDArray) -> npt.NDArray:
         if self is Aggregation.Raw or len(samples) == 0:
             v = samples
 
@@ -178,10 +178,7 @@ class GazeDataPlugin(neon_player.Plugin):
             return
 
         gaze = _prepare_gaze_export(
-            self.recording,
-            self.worn_data,
-            self.app.get_export_window(),
-            self.offset
+            self.recording, self.worn_data, self.app.get_export_window(), self.offset
         )
 
         if gaze.empty:
@@ -269,12 +266,12 @@ class GazeVisualization(PersistentPropertiesMixin, QObject):
         self,
         include_class_name: bool = False,
         condition: T.Callable[[dict], bool] | None = None,
-        recursive: bool = False
+        recursive: bool = False,
     ) -> dict:
         state = super().to_dict(
             include_class_name=include_class_name,
             condition=condition,
-            recursive=recursive
+            recursive=recursive,
         )
 
         # NOTE: Gaze visualizations require the class name to be loaded correctly
@@ -378,6 +375,7 @@ class CircleViz(GazeVisualization):
     def stroke_width(self, value: int) -> None:
         self._stroke_width = value
         self.cap_radius_stroke()
+
 
 class CrosshairViz(GazeVisualization):
     label = "Crosshair"
@@ -484,23 +482,23 @@ class CrosshairViz(GazeVisualization):
 
 
 def apply_offset(
-    recording: NeonRecording,
-    gazes: np.ndarray,
-    offset: tuple[float, float]
+    recording: NeonRecording, gazes: np.ndarray, offset: tuple[float, float]
 ) -> np.ndarray:
     exit_conditions = [
         recording is None,
         recording.scene.width is None,
-        recording.scene.height is None
+        recording.scene.height is None,
     ]
     if any(exit_conditions):
         return gazes
 
     offset_x, offset_y = offset
-    offset_pixels = np.array([
-        offset_x * recording.scene.width,
-        offset_y * recording.scene.height,
-    ])
+    offset_pixels = np.array(
+        [
+            offset_x * recording.scene.width,
+            offset_y * recording.scene.height,
+        ]
+    )
     return gazes + offset_pixels
 
 
@@ -529,14 +527,16 @@ def _prepare_gaze_export(
         )
     )
 
-    gaze = pd.DataFrame({
-        "recording id": recording.info["recording_id"],
-        "timestamp [ns]": export_gazes.time,
-        "gaze x [px]": export_gaze_points[:, 0],
-        "gaze y [px]": export_gaze_points[:, 1],
-        "azimuth [deg]": spherical_coords[2],
-        "elevation [deg]": spherical_coords[1],
-    })
+    gaze = pd.DataFrame(
+        {
+            "recording id": recording.info["recording_id"],
+            "timestamp [ns]": export_gazes.time,
+            "gaze x [px]": export_gaze_points[:, 0],
+            "gaze y [px]": export_gaze_points[:, 1],
+            "azimuth [deg]": spherical_coords[2],
+            "elevation [deg]": spherical_coords[1],
+        }
+    )
     if worn_data:
         gaze["worn"] = _prepare_worn_export(export_gazes, worn_data)
     else:

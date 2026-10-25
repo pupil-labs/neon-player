@@ -46,7 +46,7 @@ class ClickMeWidget(PropertyWidget):
     def from_type(cls: type) -> "ClickMeWidget":
         return ClickMeWidget()
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._value = 0
 
@@ -59,10 +59,10 @@ class ClickMeWidget(PropertyWidget):
         self.grid_layout.addWidget(self.label, 0, 0)
         self.grid_layout.addWidget(self.button, 0, 1)
 
-    def _update_label_text(self):
+    def _update_label_text(self) -> None:
         self.label.setText(f"Clicks so far: {self._value}")
 
-    def on_button_clicked(self):
+    def on_button_clicked(self) -> None:
         self.value += 1
 
     @property
@@ -85,7 +85,7 @@ class OptionsEnum(Enum):
 class CustomType(PersistentPropertiesMixin, QObject):
     changed = Signal()
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._name = ""
         self._value = 0
@@ -112,7 +112,7 @@ class CustomType(PersistentPropertiesMixin, QObject):
 class DemoWidgets(Plugin):
     label = "Widgets Demo"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         self._bool_property = False
@@ -233,8 +233,8 @@ class DemoWidgets(Plugin):
 
     @property
     @property_params(
-        prevent_add=False,             # set to True to hide the "Add" button
-        add_button_text="Add item",    # changes the text of the "Add" button
+        prevent_add=False,  # set to True to hide the "Add" button
+        add_button_text="Add item",  # changes the text of the "Add" button
     )
     def list_property(self) -> list[str]:
         return self._list_property
@@ -244,12 +244,7 @@ class DemoWidgets(Plugin):
         self._list_property = value
 
     @property
-    @property_params(
-        prevent_add=True,
-        item_params={
-            "label_field": "name"
-        }
-    )
+    @property_params(prevent_add=True, item_params={"label_field": "name"})
     def custom_type_list(self) -> list[CustomType]:
         return self._custom_type_list
 

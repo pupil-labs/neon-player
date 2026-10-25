@@ -31,23 +31,25 @@ class IMUPlugin(neon_player.Plugin):
         rotations = Rotation.from_quat(recording.imu.rotation)
         eulers = rotations.as_euler(seq="yxz", degrees=True)
 
-        self.imu_data = pd.DataFrame({
-            "recording id": recording.info["recording_id"],
-            "timestamp [ns]": recording.imu.time,
-            "gyro x [deg/s]": recording.imu.angular_velocity[:, 0],
-            "gyro y [deg/s]": recording.imu.angular_velocity[:, 1],
-            "gyro z [deg/s]": recording.imu.angular_velocity[:, 2],
-            "acceleration x [g]": recording.imu.acceleration[:, 0],
-            "acceleration y [g]": recording.imu.acceleration[:, 1],
-            "acceleration z [g]": recording.imu.acceleration[:, 2],
-            "roll [deg]": eulers[:, 0],
-            "pitch [deg]": eulers[:, 1],
-            "yaw [deg]": eulers[:, 2],
-            "quaternion x": recording.imu.rotation[:, 0],
-            "quaternion y": recording.imu.rotation[:, 1],
-            "quaternion z": recording.imu.rotation[:, 2],
-            "quaternion w": recording.imu.rotation[:, 3],
-        })
+        self.imu_data = pd.DataFrame(
+            {
+                "recording id": recording.info["recording_id"],
+                "timestamp [ns]": recording.imu.time,
+                "gyro x [deg/s]": recording.imu.angular_velocity[:, 0],
+                "gyro y [deg/s]": recording.imu.angular_velocity[:, 1],
+                "gyro z [deg/s]": recording.imu.angular_velocity[:, 2],
+                "acceleration x [g]": recording.imu.acceleration[:, 0],
+                "acceleration y [g]": recording.imu.acceleration[:, 1],
+                "acceleration z [g]": recording.imu.acceleration[:, 2],
+                "roll [deg]": eulers[:, 0],
+                "pitch [deg]": eulers[:, 1],
+                "yaw [deg]": eulers[:, 2],
+                "quaternion x": recording.imu.rotation[:, 0],
+                "quaternion y": recording.imu.rotation[:, 1],
+                "quaternion z": recording.imu.rotation[:, 2],
+                "quaternion w": recording.imu.rotation[:, 3],
+            }
+        )
 
         self.update_plots()
 

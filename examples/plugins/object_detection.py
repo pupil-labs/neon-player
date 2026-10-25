@@ -27,7 +27,7 @@ class DetectionModel(Enum):
 class ObjectDetection(neon_player.Plugin):
     label = "Object Detection"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.gens = None
 
@@ -114,11 +114,13 @@ class ObjectDetection(neon_player.Plugin):
                 for xy_polygon, conf, cls in zip(
                     results.masks.xy, results.boxes.conf, results.boxes.cls, strict=True
                 ):
-                    serializable_results.append({
-                        "polygon": xy_polygon.tolist(),
-                        "confidence": conf.item(),
-                        "class": results.names[cls.item()],
-                    })
+                    serializable_results.append(
+                        {
+                            "polygon": xy_polygon.tolist(),
+                            "confidence": conf.item(),
+                            "class": results.names[cls.item()],
+                        }
+                    )
 
             results_by_frame.append(serializable_results)
 

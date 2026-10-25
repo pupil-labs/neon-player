@@ -34,13 +34,15 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
         plugin_names = [k.__name__ for k in Plugin.known_classes]
         plugin_names.sort()
         self._default_plugins = dict.fromkeys(plugin_names, False)
-        self._default_plugins.update({
-            "GazeDataPlugin": True,
-            "AudioPlugin": True,
-            "SceneRendererPlugin": True,
-            "EventsPlugin": True,
-            "ExportAllPlugin": True,
-        })
+        self._default_plugins.update(
+            {
+                "GazeDataPlugin": True,
+                "AudioPlugin": True,
+                "SceneRendererPlugin": True,
+                "EventsPlugin": True,
+                "ExportAllPlugin": True,
+            }
+        )
 
     @property
     def skip_gray_frames_on_load(self) -> bool:
@@ -176,7 +178,9 @@ def load_recording_settings(
             recording.stop_time,
         )
 
-    if len(settings.export_window) != 2 or any([el < 0 for el in settings.export_window]):
+    if len(settings.export_window) != 2 or any(
+        [el < 0 for el in settings.export_window]
+    ):
         logging.warning("Invalid export window in settings")
         settings.export_window = (
             recording.start_time,

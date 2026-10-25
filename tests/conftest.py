@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import PropertyMock
 
 import pytest
@@ -22,8 +23,8 @@ FIELD_CLASS_MAPPING = {
 
 
 @pytest.fixture(autouse=False)
-def mock_neon_recording(tmp_path):
-    def inner(**kwargs):
+def mock_neon_recording(tmp_path: Path):
+    def inner(**kwargs) -> NeonRecording:
         # Use a temporary folder to initialize mock NeonRecording
         rec = NeonRecording(tmp_path)
 
@@ -56,9 +57,10 @@ class MockNeonPlayerApp(QApplication):
     instance. Properties are replaced with ordinary fields that can be set directly
     before executing the respective test.
     """
+
     export_window_changed = Signal(tuple[int, int])
 
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         super().__init__(*args)
         self.headless = True
         self.plugins_by_class = {}
@@ -68,5 +70,5 @@ class MockNeonPlayerApp(QApplication):
 
 
 @pytest.fixture(scope="session")
-def qapp_cls():
+def qapp_cls() -> type[MockNeonPlayerApp]:
     return MockNeonPlayerApp

@@ -141,9 +141,7 @@ class TimeLineDock(QWidget):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
 
-        self.playhead = PlayHead(
-            self.timestamps_plot, parent=self.graphics_view
-        )
+        self.playhead = PlayHead(self.timestamps_plot, parent=self.graphics_view)
         self.playhead.hide()
 
         app.playback_state_changed.connect(self.on_playback_state_changed)
@@ -157,7 +155,7 @@ class TimeLineDock(QWidget):
     def sizeHint(self) -> QSize:
         return QSize(100, 150)
 
-    def keyPressEvent(self, event: QKeyEvent):
+    def keyPressEvent(self, event: QKeyEvent) -> None:
         self.key_pressed.emit(event)
 
     def resizeEvent(self, event):
@@ -166,7 +164,7 @@ class TimeLineDock(QWidget):
         self.playhead.refresh_geometry()
         return super().resizeEvent(event)
 
-    def on_recording_loaded(self, recording: nr.NeonRecording):
+    def on_recording_loaded(self, recording: nr.NeonRecording) -> None:
         app = neon_player.instance()
 
         self.playhead.show()
@@ -187,21 +185,21 @@ class TimeLineDock(QWidget):
         for tm in [*self.trim_markers, self.duration_marker]:
             trim_plot.addItem(tm)
 
-    def on_recording_unloaded(self):
+    def on_recording_unloaded(self) -> None:
         trim_plot = self.get_timeline_plot("Export window", create_if_missing=False)
         if trim_plot is not None:
             trim_plot.clear()
         self.playhead.hide()
 
-    def on_playback_state_changed(self, is_playing: bool):
+    def on_playback_state_changed(self, is_playing: bool) -> None:
         icon_name = "pause.svg" if is_playing else "play.svg"
         self.play_button.setIcon(QIcon(str(neon_player.asset_path(icon_name))))
 
-    def on_playback_speed_changed(self, speed: float):
+    def on_playback_speed_changed(self, speed: float) -> None:
         prefix = " " if speed > 0 else ""
         self.speed_control.setCurrentText(f"{prefix}{speed:.3g}x")
 
-    def on_position_changed(self, t: int):
+    def on_position_changed(self, t: int) -> None:
         app = neon_player.instance()
         if app.recording is None:
             return
@@ -225,7 +223,7 @@ class TimeLineDock(QWidget):
         context_menu = QMenu() if menu is None else clone_menu(menu)
         context_menu.exec(global_position)
 
-    def on_chart_area_mouse_moved(self, pos: QPointF):
+    def on_chart_area_mouse_moved(self, pos: QPointF) -> None:
         data_pos = self.timestamps_plot.getViewBox().mapSceneToView(pos)
         for tm in self.trim_markers:
             tm.set_highlighted(self.dragging == tm or tm.nearby(data_pos))
@@ -245,7 +243,7 @@ class TimeLineDock(QWidget):
             scene_pos = self.graphics_view.mapToScene(view_pos)
 
             class SyntheticEvent:
-                def __init__(self, scene_pos, screen_pos):
+                def __init__(self, scene_pos, screen_pos) -> None:
                     self._scene_pos = scene_pos
                     self._screen_pos = screen_pos
 
@@ -258,10 +256,10 @@ class TimeLineDock(QWidget):
                 def globalPos(self):
                     return self._screen_pos
 
-                def isAccepted(self):
+                def isAccepted(self) -> bool:
                     return False
 
-                def accept(self):
+                def accept(self) -> None:
                     pass
 
             synth_event = SyntheticEvent(scene_pos, event.globalPos())
@@ -411,7 +409,7 @@ class TimeLineDock(QWidget):
             legend=legend,
             row_name=timeline_row_name,
             axisItems={"top": time_axis},
-            viewBox=vb
+            viewBox=vb,
         )
 
         if is_timestamps_row:
@@ -449,7 +447,9 @@ class TimeLineDock(QWidget):
 
         return plot_item
 
-    def get_timeline_series(self, plot_name: str, series_name: str) -> pg.PlotDataItem | None:
+    def get_timeline_series(
+        self, plot_name: str, series_name: str
+    ) -> pg.PlotDataItem | None:
         plot_item = self.get_timeline_plot(plot_name)
         if plot_item is None:
             return None
@@ -559,7 +559,10 @@ class TimeLineDock(QWidget):
         return self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
 
     def add_timeline_scatter(
-        self, name: str, data: list[tuple[int, T.SupportsFloat]] | np.ndarray, item_name: str = ""
+        self,
+        name: str,
+        data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
+        item_name: str = "",
     ) -> pg.PlotDataItem | None:
         return self.add_timeline_plot(
             name,
@@ -573,11 +576,13 @@ class TimeLineDock(QWidget):
     def add_timeline_broken_bar(
         self,
         timeline_row_name: str,
-        data: list[tuple[int, int, T.SupportsFloat]] | list[tuple[int, int]] | np.ndarray,
+        data: list[tuple[int, int, T.SupportsFloat]]
+        | list[tuple[int, int]]
+        | np.ndarray,
         item_name: str = "",
         color: str = "white",
     ) -> pg.PlotDataItem | None:
-        """Adds a broken bar plot to the timeline where bars are colored based on a Z-value.
+        """Add a broken bar plot to the timeline with bars colored by Z-value.
 
         Args:
             timeline: The instance of TimeLineDock.
@@ -585,7 +590,8 @@ class TimeLineDock(QWidget):
             data: A list of tuples (start, stop, value) or (start, stop).
                   'value' is used for the colormap.
             item_name: Name for the legend.
-            color: Name of the pyqtgraph colormap or color(e.g., 'viridis', 'white', ...)
+            color: Name of the pyqtgraph colormap or color
+                (e.g., 'viridis', 'white', ...)
         """
         plot_widget = self.get_timeline_plot(timeline_row_name, True)
         if plot_widget is None:
@@ -685,9 +691,7 @@ class TimeLineDock(QWidget):
 
         self.data_point_actions[row_name][action_name] = callback
 
-    def unregister_data_point_action(
-        self, row_name: str, action_name: str
-    ) -> None:
+    def unregister_data_point_action(self, row_name: str, action_name: str) -> None:
         if row_name not in self.data_point_actions:
             return
 

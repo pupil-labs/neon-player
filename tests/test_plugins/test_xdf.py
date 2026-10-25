@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -34,17 +36,20 @@ MOCK_XDF_MARKER_STREAM_INFO = {
 }
 MOCK_XDF_MARKERS = {
     "time_stamps": np.array([1.0, 2.0, 3.0], dtype=np.float64),
-    "time_series": [["first"], ["second"], ["first"]]
+    "time_series": [["first"], ["second"], ["first"]],
 }
 
 
 @pytest.mark.parametrize(
-    "stream_info, stream_type, fs, channel_count, channel_format", [
+    ("stream_info", "stream_type", "fs", "channel_count", "channel_format"),
+    [
         (MOCK_XDF_DATA_STREAM_INFO, "Gaze", 250.0, 10, "float32"),
-        (MOCK_XDF_MARKER_STREAM_INFO, "Markers", 0.0, 1, "string")
-    ]
+        (MOCK_XDF_MARKER_STREAM_INFO, "Markers", 0.0, 1, "string"),
+    ],
 )
-def test_xdf_stream_parse_info(stream_info, stream_type, fs, channel_count, channel_format):
+def test_xdf_stream_parse_info(
+    stream_info, stream_type, fs, channel_count, channel_format
+) -> None:
     xdf_stream = XDFStream()
     xdf_stream.parse_info(stream_info)
     assert xdf_stream.xdf_id == 1
@@ -56,17 +61,14 @@ def test_xdf_stream_parse_info(stream_info, stream_type, fs, channel_count, chan
     assert xdf_stream.channel_format == channel_format
 
 
-def test_xdf_stream_from_xdf_dict_parses_markers():
-    xdf_dict = {
-        "info": MOCK_XDF_MARKER_STREAM_INFO,
-        **MOCK_XDF_MARKERS
-    }
+def test_xdf_stream_from_xdf_dict_parses_markers() -> None:
+    xdf_dict = {"info": MOCK_XDF_MARKER_STREAM_INFO, **MOCK_XDF_MARKERS}
     xdf_stream = XDFStream.from_xdf_dict(xdf_dict)
     assert isinstance(xdf_stream, MarkerXDFStream)
     assert len(xdf_stream.markers) == 2
 
 
-def test_xdf_stream_from_xdf_dict_parse_data_out_of_order_ts():
+def test_xdf_stream_from_xdf_dict_parse_data_out_of_order_ts() -> None:
     xdf_dict = {
         "info": MOCK_XDF_DATA_STREAM_INFO,
         "time_stamps": np.array([1.0, 3.0, 2.0]),
@@ -78,7 +80,7 @@ def test_xdf_stream_from_xdf_dict_parse_data_out_of_order_ts():
     assert np.allclose(np.squeeze(xdf_stream.data), [0.0, 1.0, 0.0])
 
 
-def test_xdf_stream_from_xdf_dict_parse_data_fallback_channel_names():
+def test_xdf_stream_from_xdf_dict_parse_data_fallback_channel_names() -> None:
     xdf_dict = {
         "info": MOCK_XDF_DATA_STREAM_INFO,
         "time_stamps": np.array([1.0, 3.0, 2.0]),
@@ -89,11 +91,8 @@ def test_xdf_stream_from_xdf_dict_parse_data_fallback_channel_names():
     assert xdf_stream.channel_names == ["Ch1"]
 
 
-def test_marker_xdf_stream_load_save(tmp_path):
-    xdf_dict = {
-        "info": MOCK_XDF_MARKER_STREAM_INFO,
-        **MOCK_XDF_MARKERS
-    }
+def test_marker_xdf_stream_load_save(tmp_path: Path) -> None:
+    xdf_dict = {"info": MOCK_XDF_MARKER_STREAM_INFO, **MOCK_XDF_MARKERS}
     xdf_stream = MarkerXDFStream.from_xdf_dict(xdf_dict)
 
     cache_path = tmp_path / "xdf_markers.json"
@@ -102,7 +101,7 @@ def test_marker_xdf_stream_load_save(tmp_path):
     assert len(xdf_stream.markers) == 2
 
 
-def test_data_xdf_stream_load_save(tmp_path):
+def test_data_xdf_stream_load_save(tmp_path: Path) -> None:
     xdf_dict = {
         "info": MOCK_XDF_DATA_STREAM_INFO,
         "time_stamps": np.array([1.0, 2.0, 3.0]),
@@ -118,24 +117,21 @@ def test_data_xdf_stream_load_save(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "info, key, default, expected", [
-        ({}, "key", 1, 1),
-        ({"key": 2}, "key", 1, 2),
-        ({"key": [3, 4]}, "key", 1, 3)
-    ]
+    ("info", "key", "default", "expected"),
+    [({}, "key", 1, 1), ({"key": 2}, "key", 1, 2), ({"key": [3, 4]}, "key", 1, 3)],
 )
-def test_first(info, key, default, expected):
+def test_first(info, key, default, expected) -> None:
     assert first(info, key, default) == expected
 
 
-def test_parse_markers():
+def test_parse_markers() -> None:
     markers = parse_markers(MOCK_XDF_MARKERS)
     assert len(markers) == 2
     assert markers["first"] == [1.0, 3.0]
     assert markers["second"] == [2.0]
 
 
-def test_parse_channel_names():
+def test_parse_channel_names() -> None:
     info_dict = {
         "desc": [
             {
@@ -148,9 +144,7 @@ def test_parse_channel_names():
                             {
                                 "label": "A2",
                             },
-                            {
-                                "label": "A3"
-                            }
+                            {"label": "A3"},
                         ]
                     }
                 ]
@@ -161,11 +155,11 @@ def test_parse_channel_names():
     assert channel_names == ["A1", "A2", "A3"]
 
 
-def test_fallback_channel_names():
+def test_fallback_channel_names() -> None:
     assert fallback_channel_names(3) == ["Ch1", "Ch2", "Ch3"]
 
 
-def test_estimate_apply_offset():
+def test_estimate_apply_offset() -> None:
     xdf_timestamp_s = 1.1
     neon_timestamp_ns = int(1.2 * 1e9)
 

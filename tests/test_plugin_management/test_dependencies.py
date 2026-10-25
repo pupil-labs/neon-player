@@ -24,43 +24,48 @@ import os
 
 
 @patch("importlib.metadata.distributions", return_value=["huggingface_hub", "tf_keras"])
-def test_get_installed_packages__names_are_normalized(mock_distributions):
+def test_get_installed_packages__names_are_normalized(mock_distributions) -> None:
     for package in get_installed_packages():
         assert package == canonicalize_name(package)
 
 
-def test_is_dependency_installed__installed():
+def test_is_dependency_installed__installed() -> None:
     installed_packages = {"numpy": "2.0"}
     assert is_dependency_installed("numpy", installed_packages)
 
 
-def test_is_dependency_installed__not_installed():
+def test_is_dependency_installed__not_installed() -> None:
     installed_packages = {"numpy": "2.0"}
     assert not is_dependency_installed("pandas", installed_packages)
 
 
-def test_is_dependency_installed__installed_version_satisfies_specifier():
+def test_is_dependency_installed__installed_version_satisfies_specifier() -> None:
     installed_packages = {"numpy": "2.0"}
     assert is_dependency_installed("numpy>=2.0", installed_packages)
 
 
-def test_is_dependency_installed__installed_version_does_not_satisfy_specifier():
+def test_is_dependency_installed__installed_version_does_not_satisfy_specifier() -> (
+    None
+):
     installed_packages = {"numpy": "2.0"}
     assert not is_dependency_installed("numpy<2.0", installed_packages)
 
 
-@pytest.mark.parametrize("dependency_name", [
-    "some-package",
-    "some_package",
-    "some.package",
-    "Some_Package",
-])
-def test_is_dependency_installed__name_is_normalized(dependency_name):
+@pytest.mark.parametrize(
+    "dependency_name",
+    [
+        "some-package",
+        "some_package",
+        "some.package",
+        "Some_Package",
+    ],
+)
+def test_is_dependency_installed__name_is_normalized(dependency_name: str) -> None:
     installed_packages = {"some-package": "1.0"}
     assert is_dependency_installed(dependency_name, installed_packages)
 
 
-def test_check_dependencies_for_plugin_script__all_deps_installed():
+def test_check_dependencies_for_plugin_script__all_deps_installed() -> None:
     script = _plugin_script(["numpy", "pandas"])
     with patch(
         "pupil_labs.neon_player.plugin_management.dependencies.get_installed_packages",
@@ -69,7 +74,7 @@ def test_check_dependencies_for_plugin_script__all_deps_installed():
         assert not _check_dependencies_for_plugin_script(script, "test_plugin")
 
 
-def test_check_dependencies_for_plugin_script__missing_dep():
+def test_check_dependencies_for_plugin_script__missing_dep() -> None:
     script = _plugin_script(["numpy", "some-missing-lib"])
     with patch(
         "pupil_labs.neon_player.plugin_management.dependencies.get_installed_packages",
@@ -80,7 +85,9 @@ def test_check_dependencies_for_plugin_script__missing_dep():
         assert "some-missing-lib" in result[0]
 
 
-def test_check_dependencies_for_plugin_script__snake_dep_detected_as_installed():
+def test_check_dependencies_for_plugin_script__snake_dep_detected_as_installed() -> (
+    None
+):
     script = _plugin_script(["some_package>=1.0"])
     with patch(
         "pupil_labs.neon_player.plugin_management.dependencies.get_installed_packages",

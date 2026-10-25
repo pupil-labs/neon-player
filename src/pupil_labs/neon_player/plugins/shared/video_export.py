@@ -30,29 +30,26 @@ from pupil_labs.neon_player.utilities import ndarray_from_qimage
 
 
 def _prepare_timestamps(
-    recording: NeonRecording,
-    export_window: tuple[int, int],
-    fps: int = 30
+    recording: NeonRecording, export_window: tuple[int, int], fps: int = 30
 ) -> np.ndarray:
     # Add timestamps for gray frames that extend the video to match
     # recording start and stop time
     gray_preamble = np.arange(
-        recording.start_time,
-        recording.scene.time[0],
-        step=1e9 // fps,
-        dtype=np.int64
+        recording.start_time, recording.scene.time[0], step=1e9 // fps, dtype=np.int64
     )
     gray_epilogue = np.arange(
         recording.scene.time[-1] + 1e9 // fps,
         recording.stop_time,
         step=1e9 // fps,
-        dtype=np.int64
+        dtype=np.int64,
     )
-    combined_timestamps = np.concatenate((
-        gray_preamble,
-        recording.scene.time,
-        gray_epilogue,
-    ))
+    combined_timestamps = np.concatenate(
+        (
+            gray_preamble,
+            recording.scene.time,
+            gray_epilogue,
+        )
+    )
 
     # Filter timestamps according to the export window
     start_time, stop_time = export_window
@@ -69,11 +66,13 @@ def _prepare_timestamps(
         gap_start = combined_timestamps[gap]
         gap_end = combined_timestamps[gap + 1] - 1e9 // (2 * fps)
         gap_timestamps = np.arange(gap_start, gap_end, 1e9 // fps, dtype=np.int64)
-        combined_timestamps = np.concatenate((
-            combined_timestamps[:gap],
-            gap_timestamps,
-            combined_timestamps[gap + 1 :],
-        ))
+        combined_timestamps = np.concatenate(
+            (
+                combined_timestamps[:gap],
+                gap_timestamps,
+                combined_timestamps[gap + 1 :],
+            )
+        )
 
     return combined_timestamps
 
@@ -84,7 +83,7 @@ def bg_export_video(
     render_fn: T.Callable[[QPainter, int], None],
     destination: Path,
     output_video_filename: str,
-    output_timestamps_filename: str
+    output_timestamps_filename: str,
 ) -> T.Generator[ProgressUpdate, None, None]:
     logging.getLogger("pupil_labs.video.writer").setLevel(logging.ERROR)
 
@@ -95,9 +94,7 @@ def bg_export_video(
         for ts in combined_timestamps:
             csv_writer.writerow({"recording id": recording.id, "timestamp [ns]": ts})
 
-    frame_size = QSize(
-        recording.scene.width or 1600, recording.scene.height or 1200
-    )
+    frame_size = QSize(recording.scene.width or 1600, recording.scene.height or 1200)
 
     start_time, stop_time = export_window
     audio_frame_timestamps = recording.audio.time[
@@ -120,7 +117,7 @@ def bg_export_video(
                 audio_frame.av_frame,
                 index=audio_frame_idx,
                 time=audio_rel_ts,
-                source=""
+                source="",
             )
             writer.write_frame(plv_audio_frame)
             try:
@@ -138,11 +135,7 @@ def bg_export_video(
             frame = QImage(frame_size, QImage.Format.Format_BGR888)
             painter = QPainter(frame)
             painter.fillRect(
-                0,
-                0,
-                frame_size.width(),
-                frame_size.height(),
-                QColorConstants.Gray
+                0, 0, frame_size.width(), frame_size.height(), QColorConstants.Gray
             )
             render_fn(painter, int(ts))
             painter.end()
@@ -150,7 +143,9 @@ def bg_export_video(
             frame_pixels = ndarray_from_qimage(frame)
             av_frame = av.VideoFrame.from_ndarray(frame_pixels, format="bgr24")
 
-            plv_frame = plv.VideoFrame(av_frame=av_frame, index=frame_idx, time=rel_ts, source="")
+            plv_frame = plv.VideoFrame(
+                av_frame=av_frame, index=frame_idx, time=rel_ts, source=""
+            )
             writer.write_frame(plv_frame)
 
             progress = (frame_idx + 1) / len(combined_timestamps)

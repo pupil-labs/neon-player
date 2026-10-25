@@ -103,7 +103,7 @@ class JobProgressBar(QWidget):
         self.worker = job
         self.worker.progress_changed.connect(self.on_worker_progress)
 
-    def on_worker_progress(self, v: float):
+    def on_worker_progress(self, v: float) -> None:
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(v * 100)
 

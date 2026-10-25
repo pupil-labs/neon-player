@@ -24,7 +24,9 @@ def get_clicked_data_point(
         if not isinstance(item, pg.PlotDataItem):
             continue
 
-        if not hasattr(item, "scatter") or not isinstance(item.scatter, pg.ScatterPlotItem):
+        if not hasattr(item, "scatter") or not isinstance(
+            item.scatter, pg.ScatterPlotItem
+        ):
             continue
 
         scatter = item.scatter

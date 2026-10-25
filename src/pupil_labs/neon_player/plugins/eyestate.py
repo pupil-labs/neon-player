@@ -12,7 +12,7 @@ from pupil_labs.neon_player import GlobalPluginProperties, action
 
 
 class PlotProps:
-    def __init__(self):
+    def __init__(self) -> None:
         self._pupil_diameter_plots = dict.fromkeys(("Left", "Right"), True)
         self._eyeball_center_plots = {
             f"{side} {component}": True
@@ -31,7 +31,7 @@ class PlotProps:
         }
         self._eyelid_aperture_plots = dict.fromkeys(("Left", "Right"), True)
 
-    def on_plot_visibilities_changed(self, name, value):
+    def on_plot_visibilities_changed(self, name: str, value: dict[str, bool]) -> None:
         pass
 
     @property
@@ -115,7 +115,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
             "bottom right": QColor("#9467bd"),
         }
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: dict) -> None:
         if state != {}:
             neon_player.Plugin.__setstate__(self, state)
         else:
@@ -183,7 +183,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         timeline.remove_timeline_plot("Eyestate - Eyelid angle")
         timeline.remove_timeline_plot("Eyestate - Eyelid aperture")
 
-    def on_plot_visibilities_changed(self, name, value):
+    def on_plot_visibilities_changed(self, name: str, value: dict[str, bool]) -> None:
         return self._update_plot_visibilities(name, value)
 
     def _update_plot_visibilities(

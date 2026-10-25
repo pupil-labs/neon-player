@@ -25,7 +25,7 @@ def mock_transform(x0, y0, w, h):
     return np.array([[w, 0, x0 - w / 2], [0, h, y0 - h / 2], [0, 0, 1]], dtype=float)
 
 
-def test_surface_tracking_plugin__to_dict__recursive(qapp, mock_neon_recording):
+def test_surface_tracking_plugin__to_dict__recursive(qapp, mock_neon_recording) -> None:
     qapp.recording = mock_neon_recording()
     qapp.plugins_by_class["GazeDataPlugin"] = GazeDataPlugin()
 
@@ -35,22 +35,26 @@ def test_surface_tracking_plugin__to_dict__recursive(qapp, mock_neon_recording):
     plugin_dict = plugin.to_dict(recursive=True)
 
     for el in plugin_dict["surfaces"]:
-        assert isinstance(el, dict), \
+        assert isinstance(el, dict), (
             f"Expected surface to be serialized to dict, but got {type(el)}"
-        assert not el["edit"], \
+        )
+        assert not el["edit"], (
             f"Expected surface to be serialized with edit=False, but got {el['edit']}"
+        )
 
-        assert isinstance(el["preview_options"], dict), \
+        assert isinstance(el["preview_options"], dict), (
             "Expected surface preview_options to be serialized to dict"
+        )
 
 
 @pytest.mark.parametrize(
-    "x0,y0,w,h,expected_nan_row_mask", [
+    ("x0", "y0", "w", "h", "expected_nan_row_mask"),
+    [
         (800, 600, 400, 300, np.array([False, False, False, False])),
         (1500, 100, 300, 300, np.array([True, True, True, False])),
-    ]
+    ],
 )
-def test_get_position_for_export(x0, y0, w, h, expected_nan_row_mask):
+def test_get_position_for_export(x0, y0, w, h, expected_nan_row_mask) -> None:
     # No distortion to simplify the calculations
     scene_size = (1600, 1200)
     camera = Camera(*scene_size, np.eye(3))
@@ -62,10 +66,10 @@ def test_get_position_for_export(x0, y0, w, h, expected_nan_row_mask):
     assert np.all(~np.isnan(corners[~expected_nan_row_mask, :]))
 
 
-def test_prepare_surface_positions_export_respects_export_window(mock_neon_recording):
-    recording = mock_neon_recording(
-        scene=mock_scene_timeseries([1, 2, 3, 4, 5])
-    )
+def test_prepare_surface_positions_export_respects_export_window(
+    mock_neon_recording,
+) -> None:
+    recording = mock_neon_recording(scene=mock_scene_timeseries([1, 2, 3, 4, 5]))
     scene_size = (1600, 1200)
     camera = Camera(*scene_size, np.eye(3))
     positions_df = _prepare_surface_positions_export(
@@ -73,57 +77,51 @@ def test_prepare_surface_positions_export_respects_export_window(mock_neon_recor
         (6, 8),  # no scene timestamps satisfy the window
         None,
         None,
-        camera
+        camera,
     )
     assert positions_df.empty
 
 
-def test_prepare_surface_positions_export_drops_rows_if_no_markers(mock_neon_recording):
-    recording = mock_neon_recording(
-        scene=mock_scene_timeseries([1])
-    )
+def test_prepare_surface_positions_export_drops_rows_if_no_markers(
+    mock_neon_recording,
+) -> None:
+    recording = mock_neon_recording(scene=mock_scene_timeseries([1]))
     scene_size = (1600, 1200)
     camera = Camera(*scene_size, np.eye(3))
     location = [None, mock_transform(800, 600, 400, 300)]
     positions_df = _prepare_surface_positions_export(
-        recording,
-        (0, 3),
-        [[]],
-        [location],
-        camera
+        recording, (0, 3), [[]], [location], camera
     )
     assert positions_df.empty
 
 
-def test_prepare_surface_positions_export_drops_rows_if_no_location(mock_neon_recording):
-    recording = mock_neon_recording(
-        scene=mock_scene_timeseries([1])
-    )
+def test_prepare_surface_positions_export_drops_rows_if_no_location(
+    mock_neon_recording,
+) -> None:
+    recording = mock_neon_recording(scene=mock_scene_timeseries([1]))
     scene_size = (1600, 1200)
     camera = Camera(*scene_size, np.eye(3))
     positions_df = _prepare_surface_positions_export(
-        recording,
-        (0, 3),
-        [[DetectedMarker(0, normalized_corners())]],
-        [None],
-        camera
+        recording, (0, 3), [[DetectedMarker(0, normalized_corners())]], [None], camera
     )
     assert positions_df.empty
 
 
-def test_prepare_surface_positions_export(mock_neon_recording):
-    recording = mock_neon_recording(
-        scene=mock_scene_timeseries([1, 2, 3])
-    )
+def test_prepare_surface_positions_export(mock_neon_recording) -> None:
+    recording = mock_neon_recording(scene=mock_scene_timeseries([1, 2, 3]))
     scene_size = (1600, 1200)
     camera = Camera(*scene_size, np.eye(3))
     location = [None, mock_transform(800, 600, 400, 300)]
     positions_df = _prepare_surface_positions_export(
         recording,
         (1, 3),
-        [[], [], [DetectedMarker(tag_id, normalized_corners()) for tag_id in [0, 1, 2, 3]]],
+        [
+            [],
+            [],
+            [DetectedMarker(tag_id, normalized_corners()) for tag_id in [0, 1, 2, 3]],
+        ],
         [None, None, location],
-        camera
+        camera,
     )
     assert len(positions_df) == 1
     row = positions_df.iloc[0, :]

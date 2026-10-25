@@ -111,7 +111,9 @@ class EventTypeListWidget(ValueListWidget):
     def from_property_impl(prop: property) -> "EventTypeListWidget":
         source_params: dict[str, T.Any] = {}
         if hasattr(prop, "fget") and prop.fget is not None:
-            source_params = prop.fget.parameters if hasattr(prop.fget, "parameters") else {}
+            source_params = (
+                prop.fget.parameters if hasattr(prop.fget, "parameters") else {}
+            )
 
         return EventTypeListWidget(EventType, source_params)
 
@@ -142,7 +144,8 @@ class EventTypeListWidget(ValueListWidget):
             suffix = "" if len(events) == 1 else "s"
             confirmed = plugin.user_confirm(
                 "Confirm event type deletion",
-                f"Deleting event type '{event_type.name}' will also delete its {len(events)}"
+                f"Deleting event type '{event_type.name}' will also delete its "
+                f"{len(events)}"
                 f" instance{suffix}. Do you want to proceed?",
             )
             if not confirmed:
@@ -273,7 +276,9 @@ class EventsPlugin(neon_player.Plugin):
             if event_type.shortcut.lower() == key_text:
                 self._add_event(event_type)
 
-    def _load_events(self, recording: NeonRecording) -> tuple[list[EventType], dict, str]:
+    def _load_events(
+        self, recording: NeonRecording
+    ) -> tuple[list[EventType], dict, str]:
         events: dict[str, list[int]] = {}
         event_types: list[EventType] = []
 
@@ -303,7 +308,9 @@ class EventsPlugin(neon_player.Plugin):
             # When loading from recording, only mutable event types need to be saved,
             # but the UI needs to be set up for all event types
             mutable_event_types = _filter_event_types(event_types, mutable=True)
-            self._immutable_event_types = _filter_event_types(event_types, mutable=False)
+            self._immutable_event_types = _filter_event_types(
+                event_types, mutable=False
+            )
             event_types_to_setup_ui_for = event_types
             self.event_types = mutable_event_types
             self.save_cached_json("events.json", events)
@@ -311,7 +318,9 @@ class EventsPlugin(neon_player.Plugin):
             # When loading from cache, all event types are expected to have been loaded
             # from plugin settings, so self.event_types is already correct, but the UI
             # still needs to be set up for stored and immutable event types
-            self._immutable_event_types = _filter_event_types(event_types, mutable=False)
+            self._immutable_event_types = _filter_event_types(
+                event_types, mutable=False
+            )
             event_types_to_setup_ui_for = self.event_types + self._immutable_event_types
 
         logging.info(f"Loaded {sum(len(v) for v in self._events.values())} events")
@@ -322,13 +331,15 @@ class EventsPlugin(neon_player.Plugin):
         if self.headless or self.recording is None:
             return
 
-        event_types = list(self._event_types_by_name.values()) + self._immutable_event_types
+        event_types = (
+            list(self._event_types_by_name.values()) + self._immutable_event_types
+        )
         self._update_gui_for_event_types(event_types_to_remove=event_types)
 
     def _update_gui_for_event_types(
         self,
         event_types_to_add: list[EventType] = [],
-        event_types_to_remove: list[EventType] = []
+        event_types_to_remove: list[EventType] = [],
     ) -> None:
         if self.headless:
             return
@@ -374,7 +385,9 @@ class EventsPlugin(neon_player.Plugin):
 
         if event_type.name not in IMMUTABLE_EVENTS:
             self.register_timeline_action(
-                f"Add Event/{event_type.name}", None, lambda: self._add_event(event_type)
+                f"Add Event/{event_type.name}",
+                None,
+                lambda: self._add_event(event_type),
             )
             self.app.main_window.sort_action_menu("Timeline/Add Event")
 
@@ -396,12 +409,16 @@ class EventsPlugin(neon_player.Plugin):
         self.register_data_point_action(
             f"Events - {event_type.name}",
             f"Set this {event_type.name} as the left export window boundary",
-            lambda dp, et=event_type: self.set_event_as_export_boundary(dp, et, left=True),
+            lambda dp, et=event_type: self.set_event_as_export_boundary(
+                dp, et, left=True
+            ),
         )
         self.register_data_point_action(
             f"Events - {event_type.name}",
             f"Set this {event_type.name} as the right export window boundary",
-            lambda dp, et=event_type: self.set_event_as_export_boundary(dp, et, left=False),
+            lambda dp, et=event_type: self.set_event_as_export_boundary(
+                dp, et, left=False
+            ),
         )
 
     def _remove_gui_for_event_name(self, event_name: str) -> None:
@@ -416,9 +433,7 @@ class EventsPlugin(neon_player.Plugin):
             f"Set this {event_name} as the right export window boundary",
         ]
         for action_name in data_point_actions:
-            timeline.unregister_data_point_action(
-                f"Events - {event_name}", action_name
-            )
+            timeline.unregister_data_point_action(f"Events - {event_name}", action_name)
 
         if event_name in IMMUTABLE_EVENTS:
             return
@@ -444,9 +459,7 @@ class EventsPlugin(neon_player.Plugin):
 
     def add_event_type(self, event_type: EventType) -> None:
         if event_type.name in self._event_types_by_name:
-            raise ValueError(
-                f"Event type {event_type.name} already exists."
-            )
+            raise ValueError(f"Event type {event_type.name} already exists.")
 
         self._event_types_by_name[event_type.name] = event_type
         self._update_gui_for_event_types(event_types_to_add=[event_type])
@@ -454,9 +467,7 @@ class EventsPlugin(neon_player.Plugin):
 
     def delete_event_type(self, event_type: EventType) -> None:
         if event_type.name in IMMUTABLE_EVENTS:
-            raise ValueError(
-                f"Event type {event_type.name} cannot be deleted."
-            )
+            raise ValueError(f"Event type {event_type.name} cannot be deleted.")
 
         if event_type.uid in self._events:
             del self._events[event_type.uid]
@@ -496,9 +507,7 @@ class EventsPlugin(neon_player.Plugin):
         self, data_point: tuple[int, T.SupportsFloat], event_type: EventType
     ) -> None:
         if event_type.name in IMMUTABLE_EVENTS:
-            raise ValueError(
-                f"Instances of {event_type.name} event cannot be deleted."
-            )
+            raise ValueError(f"Instances of {event_type.name} event cannot be deleted.")
 
         closest_event = self._find_closest_event(event_type, data_point[0])
         if closest_event is None:
@@ -562,7 +571,7 @@ class EventsPlugin(neon_player.Plugin):
         event_id_name_mapping = {et.uid: et.name for et in self.event_types}
         events_by_name = {}
         for event_id, timestamps in self._events.items():
-            # Use IDs as fallback for immutable events that are not included in event_types
+            # Use IDs as fallback for immutable events missing from event_types
             event_name = event_id_name_mapping.get(event_id, event_id)
             events_by_name[event_name] = timestamps
         return events_by_name
@@ -604,7 +613,8 @@ class EventsPlugin(neon_player.Plugin):
     ) -> None:
         """
         Delete events specified in the provided dictionary from the existing ones.
-        The expected format of the dictionary is {event name: list of timestamps to remove}.
+        The expected dictionary format is:
+        {event name: list of timestamps to remove}.
         Event types, for which all events are removed, are not deleted by default,
         but can optionally be removed if `remove_empty_types` is set to True.
         """
@@ -639,7 +649,9 @@ class EventsPlugin(neon_player.Plugin):
 
         self.save_cached_json("events.json", self._events)
         if event_types_to_remove:
-            self._update_gui_for_event_types(event_types_to_remove=event_types_to_remove)
+            self._update_gui_for_event_types(
+                event_types_to_remove=event_types_to_remove
+            )
             self.changed.emit()
         for event_type in event_types_to_update:
             self._update_timeline_data(event_type)
@@ -689,11 +701,13 @@ class EventsPlugin(neon_player.Plugin):
     ) -> pd.DataFrame:
         start_time, stop_time = export_window
         events = self.events
-        events_df = pd.DataFrame({
-            "recording id": recording.info["recording_id"],
-            "timestamp [ns]": list(events.values()),
-            "name": list(events.keys()),
-        })
+        events_df = pd.DataFrame(
+            {
+                "recording id": recording.info["recording_id"],
+                "timestamp [ns]": list(events.values()),
+                "name": list(events.keys()),
+            }
+        )
 
         events_df = events_df.explode("timestamp [ns]").reset_index(drop=True).dropna()
         events_df["timestamp [ns]"] = events_df["timestamp [ns]"].astype(

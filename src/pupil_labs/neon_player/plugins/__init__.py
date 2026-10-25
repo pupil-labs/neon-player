@@ -29,12 +29,12 @@ class GlobalPluginProperties(PersistentPropertiesMixin):
         self,
         include_class_name: bool = False,
         condition: T.Callable[[dict], bool] | None = None,
-        recursive: bool = False
+        recursive: bool = False,
     ) -> dict:
         state = super().to_dict(
             include_class_name=include_class_name,
             condition=condition,
-            recursive=recursive
+            recursive=recursive,
         )
 
         # NOTE: Class name is required to correctly select the properties class
@@ -82,9 +82,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
             event_name, action_name, callback
         )
 
-    def unregister_data_point_action(
-        self, event_name: str, action_name: str
-    ):
+    def unregister_data_point_action(self, event_name: str, action_name: str) -> None:
         self.app.main_window.timeline.unregister_data_point_action(
             event_name, action_name
         )

@@ -13,7 +13,7 @@ from pupil_labs import neon_player
 class PluginInstallationDialog(QDialog):
     def __init__(
         self, dependencies_to_install: list[str], plugin_req: str, parent=None
-    ):
+    ) -> None:
         super().__init__(parent)
         self.dependencies_to_install = dependencies_to_install
 
@@ -32,9 +32,9 @@ class PluginInstallationDialog(QDialog):
         layout.addWidget(self.label)
 
         self.dependency_bullets = QLabel(
-            "<html><ul>" +
-            "\n".join([f"<li>{dep}</li>"
-            for dep in dependencies_to_install]) + "</ul></html>"
+            "<html><ul>"
+            + "\n".join([f"<li>{dep}</li>" for dep in dependencies_to_install])
+            + "</ul></html>"
         )
         layout.addWidget(self.dependency_bullets)
 
@@ -54,7 +54,7 @@ class PluginInstallationDialog(QDialog):
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
 
-    def start_installation(self):
+    def start_installation(self) -> None:
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)
         self.button_box.setEnabled(False)

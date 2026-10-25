@@ -47,9 +47,7 @@ class MarkerEditWidget(QPushButton):
 
     def set_surface(self, surface: "TrackedSurface") -> None:
         self.surface = surface
-        self.setChecked(
-            self.marker_uid in surface.tracker_surface.markers.keys()
-        )
+        self.setChecked(self.marker_uid in surface.tracker_surface.markers.keys())
         self._update_tooltip(self.isChecked())
 
     def _update_tooltip(self, checked: bool) -> None:
@@ -69,7 +67,7 @@ class MarkerEditWidget(QPushButton):
 class SurfaceHandle(QWidget):
     position_changed = Signal(QPointF)
 
-    def __init__(self, surface, corner_id):
+    def __init__(self, surface, corner_id) -> None:
         super().__init__()
         self.surface = surface
         self.corner_id = corner_id
@@ -90,7 +88,7 @@ class SurfaceHandle(QWidget):
             (0, 1): 90,
         }
 
-    def paintEvent(self, event: QPaintEvent):
+    def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         pen = painter.pen()
         pen.setColor("#039be5")
@@ -100,7 +98,7 @@ class SurfaceHandle(QWidget):
         painter.drawEllipse(3, 3, self.width() - 4, self.height() - 4)
         painter.end()
 
-    def mouseMoveEvent(self, event: QMouseEvent):
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
         if event.buttons() & Qt.MouseButton.LeftButton:
             self.moved = True
             pos = self.mapToParent(event.pos())
@@ -112,19 +110,19 @@ class SurfaceHandle(QWidget):
 
         neon_player.instance().main_window.video_widget.update()
 
-    def mouseReleaseEvent(self, event: QMouseEvent):
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if not (event.buttons() & Qt.MouseButton.LeftButton) and self.moved:
             self.position_changed_debounce_timer.start()
             self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.moved = False
 
-    def set_scene_pos(self, scene_pos: np.ndarray):
+    def set_scene_pos(self, scene_pos: np.ndarray) -> None:
         self.scene_pos = scene_pos
         self.parent().set_child_scaled_center(self, *scene_pos)
         self.show()
 
-    def emit_new_position(self):
+    def emit_new_position(self) -> None:
         self.position_changed.emit(self.new_pos)
 
 

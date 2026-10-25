@@ -37,13 +37,15 @@ class BlinksPlugin(neon_player.Plugin):
         blinks = blinks[start_mask & stop_mask]
         blink_ids = blink_ids[start_mask & stop_mask]
 
-        export_data = pd.DataFrame({
-            "recording id": self.recording.info["recording_id"],
-            "blink id": blink_ids,
-            "start timestamp [ns]": blinks.start_time,
-            "end timestamp [ns]": blinks.stop_time,
-            "duration [ms]": (blinks.stop_time - blinks.start_time) / 1e6,
-        })
+        export_data = pd.DataFrame(
+            {
+                "recording id": self.recording.info["recording_id"],
+                "blink id": blink_ids,
+                "start timestamp [ns]": blinks.start_time,
+                "end timestamp [ns]": blinks.stop_time,
+                "duration [ms]": (blinks.stop_time - blinks.start_time) / 1e6,
+            }
+        )
 
         export_file = destination / "blinks.csv"
         export_data.to_csv(export_file, index=False)

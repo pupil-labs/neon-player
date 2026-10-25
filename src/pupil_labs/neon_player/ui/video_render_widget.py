@@ -25,7 +25,7 @@ class ScalingWidget(QOpenGLWidget):
     mouse_clicked = Signal(QMouseEvent)
     mouse_moved = Signal(QMouseEvent)
 
-    def __init__(self, parent: QWidget):
+    def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
 
         surface_format = self.format()
@@ -56,23 +56,23 @@ class ScalingWidget(QOpenGLWidget):
         self.offset = QPointF(0, 0)
         self.scale = 1.0
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self._mouse_down = True
 
         self.mouse_pressed.emit(event)
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton and self._mouse_down:
             self.mouse_clicked.emit(event)
             self._mouse_down = False
 
         self.mouse_released.emit(event)
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
         self.mouse_moved.emit(event)
 
-    def on_fade_finished(self):
+    def on_fade_finished(self) -> None:
         self._last_frame_time = None
 
     def map_point(self, point: QPoint | QPointF) -> QPointF:

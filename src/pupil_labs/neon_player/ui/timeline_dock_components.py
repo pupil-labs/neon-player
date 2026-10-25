@@ -24,7 +24,7 @@ class ScrubbableViewBox(pg.ViewBox):
     scrubbed = Signal(object)
     zoomed = Signal()
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__()
         self.allow_y_panning = True
 
@@ -76,7 +76,7 @@ class ScrubbableViewBox(pg.ViewBox):
 
 
 class TimeAxisItem(pg.AxisItem):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, tickPen=pg.mkPen({"color": "#aaaaaa"}), **kwargs)
         self.recording_start_time_ns = 0
         self.recording_stop_time_ns = 0
@@ -197,7 +197,7 @@ class TimeAxisItem(pg.AxisItem):
 
         return strings
 
-    def set_time_frame(self, start: int, end: int):
+    def set_time_frame(self, start: int, end: int) -> None:
         self.recording_start_time_ns = start
         self.recording_stop_time_ns = end
 
@@ -206,11 +206,11 @@ class FixedLegend(pg.LegendItem):
     def mouseDragEvent(self, event: MouseDragEvent) -> None:
         event.ignore()
 
-    def addItem(self, *args, **kwargs):
+    def addItem(self, *args, **kwargs) -> None:
         super().addItem(*args, **kwargs)
         self.setColumnCount(max(1, math.ceil(len(self.items) / 3)))
 
-    def removeItem(self, *args, **kwargs):
+    def removeItem(self, *args, **kwargs) -> None:
         super().removeItem(*args, **kwargs)
         self.setColumnCount(max(1, math.ceil(len(self.items) / 3)))
 
@@ -253,7 +253,7 @@ class SmartSizePlotItem(pg.PlotItem):
         super().removeItem(*args, **kwargs)
         self.adjust_size()
 
-    def adjust_size(self):
+    def adjust_size(self) -> None:
         height = self.preferred_height_2d if self.has_line else self.preferred_height_1d
 
         self.setFixedHeight(height)
@@ -331,20 +331,24 @@ class PlayHead(PlotOverlay):
 
         if x < 0:
             painter.drawPolygon(
-                QPolygon([
-                    QPoint(0, 10),
-                    QPoint(10, 0),
-                    QPoint(10, 20),
-                ])
+                QPolygon(
+                    [
+                        QPoint(0, 10),
+                        QPoint(10, 0),
+                        QPoint(10, 20),
+                    ]
+                )
             )
 
         elif x > self.width():
             painter.drawPolygon(
-                QPolygon([
-                    QPoint(self.rect().right(), 10),
-                    QPoint(self.rect().right() - 10, 0),
-                    QPoint(self.rect().right() - 10, 20),
-                ])
+                QPolygon(
+                    [
+                        QPoint(self.rect().right(), 10),
+                        QPoint(self.rect().right() - 10, 0),
+                        QPoint(self.rect().right() - 10, 20),
+                    ]
+                )
             )
 
         else:
@@ -411,7 +415,7 @@ class TrimEndMarker(QGraphicsEllipseItem):
 
 
 class TrimDurationMarker(QGraphicsRectItem):
-    def __init__(self, start_marker, end_marker, *args, **kwargs):
+    def __init__(self, start_marker, end_marker, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
         self.setPen(pg.mkPen("#ccc", width=0))
@@ -436,7 +440,7 @@ class TrimDurationMarker(QGraphicsRectItem):
 
 
 class TimelineTableContainer(GUIEventNotifier, QWidget):
-    def __init__(self, table):
+    def __init__(self, table) -> None:
         super().__init__()
         self.setMouseTracking(True)
 

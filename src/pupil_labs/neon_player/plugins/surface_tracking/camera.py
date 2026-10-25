@@ -33,7 +33,7 @@ class OptimalCamera(Camera):
 
         self.distortion_maps = self._build_distort_maps()
 
-    def _build_distort_maps(self):
+    def _build_distort_maps(self) -> tuple[npt.NDArray, npt.NDArray]:
         w_dst, h_dst = self.resolution
 
         # create grid of pixel coordinates in the distorted image
@@ -60,13 +60,15 @@ class OptimalCamera(Camera):
 
         return map_xy[..., 0], map_xy[..., 1]
 
-    def undistort_points(self, points: npt.ArrayLike):
+    def undistort_points(self, points: npt.ArrayLike) -> npt.NDArray:
         return self._map_points(points, self.distortion_maps)
 
-    def distort_points(self, points: npt.ArrayLike):
+    def distort_points(self, points: npt.ArrayLike) -> npt.NDArray:
         return self._map_points(points, self.undistortion_maps)
 
-    def _map_points(self, points, maps):
+    def _map_points(
+        self, points: npt.ArrayLike, maps: tuple[npt.NDArray, npt.NDArray]
+    ) -> npt.NDArray:
         points = np.asarray(points).reshape(-1, 2)
         ix = np.clip(np.round(points[:, 0]).astype(int), 0, self.resolution[0] - 1)
         iy = np.clip(np.round(points[:, 1]).astype(int), 0, self.resolution[1] - 1)
@@ -79,7 +81,7 @@ class OptimalCamera(Camera):
     ) -> npt.NDArray:
         return cv2.remap(img, *self.undistortion_maps, interpolation=cv2.INTER_LINEAR)
 
-    def distort_image(self, img):
+    def distort_image(self, img: npt.NDArray) -> npt.NDArray:
         distorted_img = cv2.remap(
             img,
             *self.distortion_maps,

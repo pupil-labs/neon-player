@@ -123,7 +123,8 @@ class IPCLogger(logging.Handler):
         if record.exc_info:
             record.exc_info = record.exc_info[0:1]
 
-        assert self.log_socket is not None and self.log_stream is not None
+        assert self.log_socket is not None
+        assert self.log_stream is not None
         data = pickle.dumps(record)
         self.log_stream.writeUInt32(len(data))
         self.log_stream.writeRawData(data)

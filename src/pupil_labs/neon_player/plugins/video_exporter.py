@@ -43,13 +43,13 @@ class VideoExporter(neon_player.Plugin):
             render_fn=self.render_for_export,
             destination=destination,
             output_video_filename="world.mp4",
-            output_timestamps_filename="world_timestamps.csv"
+            output_timestamps_filename="world_timestamps.csv",
         )
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export_current_frame(self) -> None:
-        file_path_str, type_selection = QFileDialog.getSaveFileName(
+        file_path_str, _type_selection = QFileDialog.getSaveFileName(
             None, "Export frame", "", "PNG Images (*.png)"
         )
         if not file_path_str:

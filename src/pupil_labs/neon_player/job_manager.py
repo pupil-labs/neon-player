@@ -32,7 +32,7 @@ class BackgroundJob(QObject):
         recording_path: Path,
         action_name: str,
         *args: T.Any,
-    ):
+    ) -> None:
         super().__init__()
 
         self.name = name
@@ -69,28 +69,30 @@ class BackgroundJob(QObject):
 
         logging.info(f"Background job started: {self.name}")
 
-    def _handle_connection(self):
+    def _handle_connection(self) -> None:
         self.socket = self.server.nextPendingConnection()
         self.socket.readyRead.connect(self._read_progress_update)
         self.socket.errorOccurred.connect(self._on_socket_error)
         self.socket.disconnected.connect(self._on_socket_disconnected)
         self.server.close()
 
-    def _on_socket_error(self, err):
+    def _on_socket_error(self, err: QLocalSocket.LocalSocketError) -> None:
         if err == QLocalSocket.LocalSocketError.PeerClosedError:
             return
 
         logging.error("Job %s failed with unexpectedly with error %s", self.name, err)
         self.cancel()
 
-    def _on_socket_disconnected(self):
+    def _on_socket_disconnected(self) -> None:
         err = self.socket.error()
         if err not in (None, QLocalSocket.LocalSocketError.PeerClosedError):
-            logging.warning(f"Unexpected job socket disconnection {err} for job {self.name}")
+            logging.warning(
+                f"Unexpected job socket disconnection {err} for job {self.name}"
+            )
 
         self.finished.emit()
 
-    def _read_progress_update(self):
+    def _read_progress_update(self) -> None:
         if not self.socket:
             return
 
@@ -114,7 +116,7 @@ class BackgroundJob(QObject):
             except Exception:
                 logging.exception("Could not unpickle progress update")
 
-    def cancel(self):
+    def cancel(self) -> None:
         self.proc.terminate()
         self.proc.wait()
         self.canceled.emit()
@@ -126,7 +128,7 @@ class JobManager(QObject):
     job_finished = Signal(BackgroundJob)
     job_canceled = Signal(BackgroundJob)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.current_jobs = []
         self.job_counter = 0

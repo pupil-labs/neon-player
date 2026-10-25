@@ -24,7 +24,7 @@ SITE_PACKAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 def get_installed_packages() -> dict[NormalizedName, str]:
     """
-    Get a dictionary of installed package names and their versions in the shared site-packages.
+    Get installed package names and versions in the shared site-packages.
 
     Dependency names are normalized according to:
     https://packaging.python.org/en/latest/specifications/name-normalization/#name-normalization.
@@ -41,7 +41,9 @@ def get_installed_packages() -> dict[NormalizedName, str]:
         return {}
 
 
-def is_dependency_installed(dependency: str, installed_packages: dict[NormalizedName, str]) -> bool:
+def is_dependency_installed(
+    dependency: str, installed_packages: dict[NormalizedName, str]
+) -> bool:
     """Check if a dependency is already installed in the shared site-packages."""
     req = Requirement(dependency)
     req_name = canonicalize_name(req.name)
@@ -71,13 +73,17 @@ def _check_dependencies_for_plugin_script(script: str, plugin_name: str) -> list
     try:
         dependencies = parse_pep723_dependencies(script)
     except PythonVersionMismatchError as e:
-        logging.error(f"Plugin {plugin_name} requires an incompatible Python version: {e}")
+        logging.error(
+            f"Plugin {plugin_name} requires an incompatible Python version: {e}"
+        )
         raise e
     except MalformedPEP723Error as e:
         logging.error(f"Plugin {plugin_name} has a malformed PEP 723 block: {e}")
         raise e
     except InvalidRequirement as e:
-        logging.error(f"Plugin {plugin_name} has an invalid dependency requirement: {e}")
+        logging.error(
+            f"Plugin {plugin_name} has an invalid dependency requirement: {e}"
+        )
         raise e
     except Exception as e:
         logging.exception(f"Could not parse dependencies for {plugin_name}. Error: {e}")
@@ -88,26 +94,29 @@ def _check_dependencies_for_plugin_script(script: str, plugin_name: str) -> list
 
     installed_packages = get_installed_packages()
     deps_to_install = [
-        dep for dep in dependencies if not is_dependency_installed(dep, installed_packages)
+        dep
+        for dep in dependencies
+        if not is_dependency_installed(dep, installed_packages)
     ]
 
     if not deps_to_install:
         return []
 
-    logging.info(f"Found missing dependencies for {plugin_name} plugin: {deps_to_install}")
+    logging.info(
+        f"Found missing dependencies for {plugin_name} plugin: {deps_to_install}"
+    )
     return deps_to_install
 
 
-def install_dependencies(dependencies: list[str]) -> T.Generator[ProgressUpdate, None, None]:
+def install_dependencies(
+    dependencies: list[str],
+) -> T.Generator[ProgressUpdate, None, None]:
     """Install dependencies into the shared site-packages directory using uv."""
     if not dependencies:
         logging.info("No new dependencies to install.")
         return
 
-    if neon_player.is_frozen():
-        uv_cmd = str(Path(sys.argv[0]).parent / "uv")
-    else:
-        uv_cmd = "uv"
+    uv_cmd = str(Path(sys.argv[0]).parent / "uv") if neon_player.is_frozen() else "uv"
 
     pyver = sys.version_info
 
@@ -124,8 +133,7 @@ def install_dependencies(dependencies: list[str]) -> T.Generator[ProgressUpdate,
         proc = subprocess.run(
             command,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         )
         if proc.stdout:
             logging.info(proc.stdout.rstrip())

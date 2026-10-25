@@ -15,7 +15,7 @@ from pupil_labs import neon_player
 class ExportAllPlugin(neon_player.Plugin):
     label = "Export All"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._export_meta_data = True
         self._export_camera_calibrations = True
@@ -38,7 +38,7 @@ class ExportAllPlugin(neon_player.Plugin):
 
     @neon_player.action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
-    def export_all_enabled_plugins(self, path: Path = Path(".")):
+    def export_all_enabled_plugins(self, path: Path = Path(".")) -> None:
         if self.recording is None:
             return
 
@@ -85,7 +85,9 @@ class ExportAllPlugin(neon_player.Plugin):
                 "Export Date": now.strftime("%d.%m.%Y"),
                 "Export Time": now.strftime("%H:%M:%S"),
                 "Frame Index Range": f"{frame_indicies[0]} - {frame_indicies[1]}",
-                "Relative Time Range": f"{rel_times_formatted[0]} - {rel_times_formatted[1]}",
+                "Relative Time Range": (
+                    f"{rel_times_formatted[0]} - {rel_times_formatted[1]}"
+                ),
                 "Absolute Time Range": f"{export_window[0]} - {export_window[1]}",
             }
             export_file = destination / "export_info.csv"

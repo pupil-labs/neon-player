@@ -29,21 +29,23 @@ class RecordingHistory(QObject):
 
     def __init__(self, capacity: int = 10) -> None:
         super().__init__()
-        self._recent_recordings : OrderedDict[str, dict[str, str]] = OrderedDict()
-        self.capacity : int = capacity
+        self._recent_recordings: OrderedDict[str, dict[str, str]] = OrderedDict()
+        self.capacity: int = capacity
 
     def _cleanup(self) -> None:
         """Remove non-existing recent_recordings and enforce capacity limit."""
-        self._recent_recordings = OrderedDict({
-            path: meta
-            for path, meta in self._recent_recordings.items()
-            if Path(path).exists()
-        })
+        self._recent_recordings = OrderedDict(
+            {
+                path: meta
+                for path, meta in self._recent_recordings.items()
+                if Path(path).exists()
+            }
+        )
 
         while len(self._recent_recordings) > self.capacity:
             self._recent_recordings.popitem()
 
-    def add_recording(self, path: Path, recording: NeonRecording):
+    def add_recording(self, path: Path, recording: NeonRecording) -> None:
         metadata = create_recording_metadata(path, recording)
         key = str(path.resolve())
 
@@ -56,11 +58,11 @@ class RecordingHistory(QObject):
         self.changed.emit()
 
     @property
-    def recent_recordings(self):
+    def recent_recordings(self) -> OrderedDict[str, dict[str, str]]:
         return self._recent_recordings
 
     @classmethod
-    def from_dict(cls, recent_recordings):
+    def from_dict(cls, recent_recordings) -> "RecordingHistory":
         instance = cls()
         instance._recent_recordings = OrderedDict(recent_recordings)
         instance._cleanup()

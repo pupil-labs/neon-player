@@ -107,12 +107,14 @@ class SceneRendererPlugin(Plugin):
     def render_for_export(self, painter: QPainter, time_in_recording: int) -> None:
         self.render(painter, time_in_recording)
 
-    def bg_export(self, destination: Path = Path()) -> T.Generator[ProgressUpdate, None, None]:
+    def bg_export(
+        self, destination: Path = Path()
+    ) -> T.Generator[ProgressUpdate, None, None]:
         yield from bg_export_video(
             recording=self.recording,
             export_window=self.app.get_export_window(),
             render_fn=self.render_for_export,
             destination=destination,
             output_video_filename="scene.mp4",
-            output_timestamps_filename="scene_timestamps.csv"
+            output_timestamps_filename="scene_timestamps.csv",
         )

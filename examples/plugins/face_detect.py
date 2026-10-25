@@ -23,7 +23,7 @@ from pupil_labs.neon_player import Plugin, ProgressUpdate, action, utilities
 class FaceDetection(Plugin):
     label = "Face Detection"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         self.detection_job = None

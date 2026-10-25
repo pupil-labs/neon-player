@@ -62,7 +62,9 @@ def parse_markers(xdf_dict: dict) -> dict[str, list[float]]:
         return {}
 
     markers: dict[str, list[float]] = {}
-    for ts, marker in zip(xdf_dict["time_stamps"], xdf_dict["time_series"]):
+    for ts, marker in zip(
+        xdf_dict["time_stamps"], xdf_dict["time_series"], strict=False
+    ):
         marker_to_parse = marker[0] if isinstance(marker, list) else str(marker)
         name = parse_event_name(marker_to_parse)
         if name not in markers:
@@ -81,9 +83,7 @@ def get_fs_from_timestamps(timestamps: np.ndarray) -> float:
     return 1.0 / float(np.median(dt)) if len(dt) > 0 else 0.0
 
 
-def parse_stream_data(
-    xdf_dict: dict
-) -> tuple[np.ndarray | None, np.ndarray | None]:
+def parse_stream_data(xdf_dict: dict) -> tuple[np.ndarray | None, np.ndarray | None]:
     """Parse XDF stream data."""
     if "time_series" not in xdf_dict or "time_stamps" not in xdf_dict:
         return None, None
@@ -112,12 +112,12 @@ def parse_channel_names(info: dict) -> list[str]:
 
     channel_names = []
     for i, ch in enumerate(ch_list):
-        channel_names.append(str(first(ch, "label", f"Ch{i+1}")))
+        channel_names.append(str(first(ch, "label", f"Ch{i + 1}")))
     return channel_names
 
 
 def fallback_channel_names(channel_count: int) -> list[str]:
-    return [f"Ch{i+1}" for i in range(max(0, channel_count))]
+    return [f"Ch{i + 1}" for i in range(max(0, channel_count))]
 
 
 def estimate_offset_ns(xdf_timestamp: float, neon_timestamp: int) -> int:
@@ -213,11 +213,11 @@ class XDFStream(PersistentPropertiesMixin):
         self,
         include_class_name: bool = False,
         condition: Callable[[dict], bool] | None = None,
-        recursive: bool = False
+        recursive: bool = False,
     ) -> dict[str, Any]:
         state = super().to_dict(include_class_name, condition, recursive)
 
-        # NOTE: class name is required to restore whether it is a marker or a data stream
+        # NOTE: class name distinguishes marker streams from data streams
         state["__class__"] = self.__class__.__name__
         return state
 
@@ -402,7 +402,7 @@ class XDFPlugin(Plugin):
     @property_params(
         label="File Path (.xdf)",
         dialog_title="Open an XDF file",
-        file_filter="XDF files (*.xdf)"
+        file_filter="XDF files (*.xdf)",
     )
     def file_path(self) -> FilePath:
         # Returning None keeps FilePathWidget visually empty.
@@ -462,17 +462,18 @@ class XDFPlugin(Plugin):
         self._data_stream_uid = value
         self._data_stream = (
             self._data_streams_by_uid.get(self._data_stream_uid)
-            if self._data_stream_uid is not None else None
+            if self._data_stream_uid is not None
+            else None
         )
-        should_load = self._state_initialized and self.file_path_valid and self._data_stream
+        should_load = (
+            self._state_initialized and self.file_path_valid and self._data_stream
+        )
         if not should_load:
             self._update_channel_selection()
             return
 
         if not self._load_data_stream_from_cache():
-            logging.warning(
-                "Could not load XDF data from cache, re-building the cache"
-            )
+            logging.warning("Could not load XDF data from cache, re-building the cache")
             self._clear_cache()
             self.load_xdf()
 
@@ -517,9 +518,12 @@ class XDFPlugin(Plugin):
         self._marker_stream_uid = value
         self._marker_stream = (
             self._marker_streams_by_uid.get(self._marker_stream_uid)
-            if self._marker_stream_uid is not None else None
+            if self._marker_stream_uid is not None
+            else None
         )
-        should_load = self._state_initialized and self.file_path_valid and self._marker_stream
+        should_load = (
+            self._state_initialized and self.file_path_valid and self._marker_stream
+        )
         if not should_load:
             self._update_events()
             self._reset_aligned_state()
@@ -618,7 +622,9 @@ class XDFPlugin(Plugin):
         if not selected and unique_names:
             selected = unique_names[0]
 
-        changed = (unique_names != self._available_sync_events) or (selected != self._sync_event)
+        changed = (unique_names != self._available_sync_events) or (
+            selected != self._sync_event
+        )
         self._available_sync_events = unique_names
         self._sync_event = selected
         self.sync_events_changed.emit()
@@ -812,9 +818,7 @@ class XDFPlugin(Plugin):
             meta_payload = json.load(meta_fp)
 
         if meta_payload.get("cache_version") != self._XDF_CACHE_VERSION:
-            logging.debug(
-                "Cached data needs to be re-built due to an outdated format"
-            )
+            logging.debug("Cached data needs to be re-built due to an outdated format")
             self._clear_cache()
             return False
 
@@ -839,7 +843,10 @@ class XDFPlugin(Plugin):
         for cached_stream in meta_payload.get("marker_streams", []):
             xdf_stream = MarkerXDFStream.from_dict(cached_stream)
             cached_marker_streams[xdf_stream.uid] = xdf_stream
-        if self.marker_stream_uid and self.marker_stream_uid not in cached_marker_streams:
+        if (
+            self.marker_stream_uid
+            and self.marker_stream_uid not in cached_marker_streams
+        ):
             self.marker_stream_uid = None
         self.available_marker_streams = list(cached_marker_streams.values())
 
@@ -973,7 +980,9 @@ class XDFPlugin(Plugin):
         offset_ts = apply_offset(self.data_stream.timestamps, self._offset_ns)
 
         # Filter data to fit within the recording bounds
-        mask = (offset_ts >= self.recording.start_time) & (offset_ts <= self.recording.stop_time)
+        mask = (offset_ts >= self.recording.start_time) & (
+            offset_ts <= self.recording.stop_time
+        )
 
         if not np.any(mask):
             logging.warning("No data found within recording bounds.")
@@ -992,15 +1001,15 @@ class XDFPlugin(Plugin):
         self._active_timeline_row_names["data"].add(data_stream_row_name)
 
         selected_names = [
-            n for n in self.data_stream.channel_names
-            if self.channels.get(n, False)
+            n for n in self.data_stream.channel_names if self.channels.get(n, False)
         ]
 
         if not selected_names:
             return
 
         indices = [
-            idx for idx, n in enumerate(self.data_stream.channel_names)
+            idx
+            for idx, n in enumerate(self.data_stream.channel_names)
             if self.channels.get(n, False)
         ]
 
@@ -1065,10 +1074,9 @@ class XDFPlugin(Plugin):
         export_ts = offset_ts[mask]
         export_data = self.data_stream.data[mask]
 
-        df = pd.DataFrame({
-            "recording id": self.recording.id,
-            "timestamp [ns]": export_ts
-        })
+        df = pd.DataFrame(
+            {"recording id": self.recording.id, "timestamp [ns]": export_ts}
+        )
         for i, name in enumerate(self.data_stream.channel_names):
             df[name] = export_data[:, i].astype(np.float32)
 
@@ -1098,7 +1106,9 @@ class XDFPlugin(Plugin):
         xdf_events: list[tuple[str, float, int]] = []
         for marker_name, xdf_timestamps in self.marker_stream.markers.items():
             offset_timestamps = apply_offset(np.array(xdf_timestamps), self._offset_ns)
-            for xdf_ts, offset_ts in zip(xdf_timestamps, offset_timestamps):
+            for xdf_ts, offset_ts in zip(
+                xdf_timestamps, offset_timestamps, strict=False
+            ):
                 xdf_events.append((marker_name, xdf_ts, offset_ts))
         for name, xdf_ts, offset_ts in xdf_events:
             logging.info(f"XDF: '{name}' @ {offset_ts} (ts={xdf_ts})")

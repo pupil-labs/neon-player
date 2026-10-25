@@ -3,7 +3,7 @@ import numpy as np
 from pupil_labs.neon_player.utilities import find_ranged_index
 
 
-def test_find_ranged_index():
+def test_find_ranged_index() -> None:
     #                   fix1              fix2
     #                   <--->             <---->
     gaze_ts = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
