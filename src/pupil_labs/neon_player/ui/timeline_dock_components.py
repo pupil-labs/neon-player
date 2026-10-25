@@ -25,7 +25,7 @@ class ScrubbableViewBox(pg.ViewBox):
     scrubbed = Signal(object)
     zoomed = Signal()
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *_args: object, **_kwargs: object) -> None:
         super().__init__()
         self.allow_y_panning = True
 
@@ -77,7 +77,7 @@ class ScrubbableViewBox(pg.ViewBox):
 
 
 class TimeAxisItem(pg.AxisItem):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, tickPen=pg.mkPen({"color": "#aaaaaa"}), **kwargs)
         self.recording_start_time_ns = 0
         self.recording_stop_time_ns = 0
@@ -211,11 +211,11 @@ class FixedLegend(pg.LegendItem):
     def mouseDragEvent(self, event: MouseDragEvent) -> None:
         event.ignore()
 
-    def addItem(self, *args, **kwargs) -> None:
+    def addItem(self, *args: object, **kwargs: object) -> None:
         super().addItem(*args, **kwargs)
         self.setColumnCount(max(1, math.ceil(len(self.items) / 3)))
 
-    def removeItem(self, *args, **kwargs) -> None:
+    def removeItem(self, *args: object, **kwargs: object) -> None:
         super().removeItem(*args, **kwargs)
         self.setColumnCount(max(1, math.ceil(len(self.items) / 3)))
 
@@ -237,7 +237,9 @@ class TimestampLabel(QLabel):
 
 
 class SmartSizePlotItem(pg.PlotItem):
-    def __init__(self, legend: FixedLegend, row_name: str, *args, **kwargs) -> None:
+    def __init__(
+        self, legend: FixedLegend, row_name: str, *args: object, **kwargs: object
+    ) -> None:
         super().__init__(*args, **kwargs)
 
         self.setDownsampling(auto=True, mode="subsample")
@@ -250,11 +252,11 @@ class SmartSizePlotItem(pg.PlotItem):
         self.preferred_height_2d = 150
         self.adjust_size()
 
-    def addItem(self, *args, **kwargs) -> None:
+    def addItem(self, *args: object, **kwargs: object) -> None:
         super().addItem(*args, **kwargs)
         self.adjust_size()
 
-    def removeItem(self, *args, **kwargs) -> None:
+    def removeItem(self, *args: object, **kwargs: object) -> None:
         super().removeItem(*args, **kwargs)
         self.adjust_size()
 
@@ -317,7 +319,7 @@ class PlotOverlay(QWidget):
 
 
 class PlayHead(PlotOverlay):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.color = QColor("#6D7BE0")
@@ -426,7 +428,11 @@ class TrimEndMarker(QGraphicsEllipseItem):
 
 class TrimDurationMarker(QGraphicsRectItem):
     def __init__(
-        self, start_marker: TrimEndMarker, end_marker: TrimEndMarker, *args, **kwargs
+        self,
+        start_marker: TrimEndMarker,
+        end_marker: TrimEndMarker,
+        *args,
+        **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
 

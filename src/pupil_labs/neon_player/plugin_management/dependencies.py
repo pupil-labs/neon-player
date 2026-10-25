@@ -134,6 +134,7 @@ def install_dependencies(
             command,
             text=True,
             capture_output=True,
+            check=False,
         )
         if proc.stdout:
             logging.info(proc.stdout.rstrip())

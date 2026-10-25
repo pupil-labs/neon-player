@@ -105,9 +105,9 @@ def test_tracked_surface_append_mapped_fixation_data_fixation_should_be_mapped(
     result = surface._append_mapped_fixation_data(gazes, fixation_data.copy())
 
     fixation_row = result[result["fixation id"] == fixation_id]
-    assert fixation_row["fixation detected on surface"].values[0] == True
-    assert fixation_row["fixation x [normalized]"].values[0] == 0.5
-    assert fixation_row["fixation y [normalized]"].values[0] == 0.5
+    assert fixation_row["fixation detected on surface"].to_numpy()[0]
+    assert fixation_row["fixation x [normalized]"].to_numpy()[0] == 0.5
+    assert fixation_row["fixation y [normalized]"].to_numpy()[0] == 0.5
 
 
 @pytest.mark.parametrize("fixation_id", [3, 4])
@@ -118,9 +118,9 @@ def test_tracked_surface_append_mapped_fixation_data_fixation_should_not_be_mapp
     result = surface._append_mapped_fixation_data(gazes, fixation_data.copy())
 
     fixation_row = result[result["fixation id"] == fixation_id]
-    assert fixation_row["fixation detected on surface"].values[0] == False
-    assert fixation_row["fixation x [normalized]"].values[0] == 0.6
-    assert fixation_row["fixation y [normalized]"].values[0] == 0.6
+    assert not fixation_row["fixation detected on surface"].to_numpy()[0]
+    assert fixation_row["fixation x [normalized]"].to_numpy()[0] == 0.6
+    assert fixation_row["fixation y [normalized]"].to_numpy()[0] == 0.6
 
 
 @pytest.mark.parametrize("fixation_id", [5])
@@ -131,6 +131,6 @@ def test_tracked_surface_append_mapped_fixation_data_fixation_no_mapped_gazes(
     result = surface._append_mapped_fixation_data(gazes, fixation_data.copy())
 
     fixation_row = result[result["fixation id"] == fixation_id]
-    assert fixation_row["fixation detected on surface"].values[0] == False
-    assert np.isnan(fixation_row["fixation x [normalized]"].values[0])
-    assert np.isnan(fixation_row["fixation y [normalized]"].values[0])
+    assert not fixation_row["fixation detected on surface"].to_numpy()[0]
+    assert np.isnan(fixation_row["fixation x [normalized]"].to_numpy()[0])
+    assert np.isnan(fixation_row["fixation y [normalized]"].to_numpy()[0])

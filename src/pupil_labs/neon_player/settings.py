@@ -178,9 +178,7 @@ def load_recording_settings(
             recording.stop_time,
         )
 
-    if len(settings.export_window) != 2 or any(
-        [el < 0 for el in settings.export_window]
-    ):
+    if len(settings.export_window) != 2 or any(el < 0 for el in settings.export_window):
         logging.warning("Invalid export window in settings")
         settings.export_window = (
             recording.start_time,

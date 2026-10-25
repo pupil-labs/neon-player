@@ -853,10 +853,9 @@ class XDFPlugin(Plugin):
         if self.data_stream_uid and not self._load_data_stream_from_cache():
             return False
 
-        if self.marker_stream_uid and not self._load_marker_stream_from_cache():
-            return False
-
-        return True
+        return not (
+            self.marker_stream_uid and not self._load_marker_stream_from_cache()
+        )
 
     def _update_events(self) -> None:
         if not self.marker_stream or not self.marker_stream.markers:
@@ -1093,8 +1092,7 @@ class XDFPlugin(Plugin):
         logging.info("--- NEON EVENTS ---")
         neon_events: list[tuple[str, int]] = []
         for event_name, neon_timestamps in self._neon_events.items():
-            for neon_ts in neon_timestamps:
-                neon_events.append((event_name, neon_ts))
+            neon_events.extend((event_name, neon_ts) for neon_ts in neon_timestamps)
         for name, neon_ts in neon_events:
             logging.info(f"Neon: '{name}' @ {neon_ts}")
 

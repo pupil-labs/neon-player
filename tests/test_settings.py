@@ -6,18 +6,23 @@ from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_player.settings import load_recording_settings
 
 
-def mock_settings_path(contents: dict, corrupt: bool = False):
+class MockSettingsPath:
     """A minimal mock of a Path object that returns settings-like text contents."""
 
-    class MockSettingsPath:
-        def exists(self) -> bool:
-            return True
+    def __init__(self, contents: dict, corrupt: bool = False) -> None:
+        self.contents = contents
+        self.corrupt = corrupt
 
-        def read_text(self) -> str:
-            result = json.dumps(contents)
-            return result[:10] if corrupt else result
+    def exists(self) -> bool:
+        return True
 
-    return MockSettingsPath()
+    def read_text(self) -> str:
+        result = json.dumps(self.contents)
+        return result[:10] if self.corrupt else result
+
+
+def mock_settings_path(contents: dict, corrupt: bool = False) -> MockSettingsPath:
+    return MockSettingsPath(contents, corrupt)
 
 
 def test_load_recording_settings__valid(

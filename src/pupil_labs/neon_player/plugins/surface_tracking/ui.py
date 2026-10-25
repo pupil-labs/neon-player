@@ -47,7 +47,7 @@ class MarkerEditWidget(QPushButton):
 
     def set_surface(self, surface: "TrackedSurface") -> None:
         self.surface = surface
-        self.setChecked(self.marker_uid in surface.tracker_surface.markers.keys())
+        self.setChecked(self.marker_uid in surface.tracker_surface.markers)
         self._update_tooltip(self.isChecked())
 
     def _update_tooltip(self, checked: bool) -> None:
