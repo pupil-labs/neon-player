@@ -2,7 +2,6 @@ import numpy as np
 import pytest
 
 from pupil_labs.neon_player.plugins.shared.video_export import _prepare_timestamps
-
 from tests.mocks import mock_scene_timeseries
 
 

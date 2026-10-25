@@ -1,30 +1,33 @@
-import logging
 import json
+import logging
+import shutil
+import uuid
+from collections.abc import Callable, Iterator
+from pathlib import Path
+from typing import Any, Literal
+
 import numpy as np
 import pandas as pd
 import pyxdf
-import shutil
-import uuid
-
-from pathlib import Path
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QIcon
 from qt_property_widgets.utilities import (
     FilePath,
     PersistentPropertiesMixin,
-    property_params,
     action_params,
+    property_params,
 )
 from qt_property_widgets.widgets import DynamicComboWidget
 from scipy.signal import butter, filtfilt
-from typing import Any, Callable, Literal, Optional
-from collections.abc import Iterator
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, action, asset_path
 from pupil_labs.neon_player.job_manager import BackgroundJob, ProgressUpdate
-from pupil_labs.neon_player.plugins.events import _load_events_from_recording, EventsPlugin
-from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.neon_player.plugins.events import (
+    EventsPlugin,
+    _load_events_from_recording,
+)
 
 
 def first(xdf_dict: dict[str, list[Any]], key: str, default: Any) -> Any:
@@ -80,7 +83,7 @@ def get_fs_from_timestamps(timestamps: np.ndarray) -> float:
 
 def parse_stream_data(
     xdf_dict: dict
-) -> tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+) -> tuple[np.ndarray | None, np.ndarray | None]:
     """Parse XDF stream data."""
     if "time_series" not in xdf_dict or "time_stamps" not in xdf_dict:
         return None, None
@@ -247,20 +250,20 @@ class MarkerXDFStream(XDFStream):
 
     def load_markers(self, marker_cache_file: Path) -> None:
         if not marker_cache_file.exists():
-            raise XDFStreamError(f"Marker cache file does not exist")
+            raise XDFStreamError("Marker cache file does not exist")
 
         try:
-            with open(marker_cache_file, "r") as f:
+            with open(marker_cache_file) as f:
                 self.markers = json.load(f)
             self._loaded = True
-        except Exception as e:
+        except Exception:
             raise XDFStreamError("Failed to load markers from cache")
 
     def save_markers(self, marker_cache_file: Path) -> None:
         try:
             with marker_cache_file.open("w", encoding="utf-8") as stream_meta_fp:
                 json.dump(self.markers, stream_meta_fp)
-        except Exception as e:
+        except Exception:
             logging.warning(f"Failed to save markers for stream {self.display_name}")
 
     @classmethod
@@ -293,7 +296,7 @@ class DataXDFStream(XDFStream):
 
     def load_data(self, data_cache_file: Path) -> None:
         if not data_cache_file.exists():
-            raise XDFStreamError(f"Data cache file does not exist")
+            raise XDFStreamError("Data cache file does not exist")
 
         with np.load(str(data_cache_file)) as cache:
             self.data = cache["data"]
@@ -468,7 +471,7 @@ class XDFPlugin(Plugin):
 
         if not self._load_data_stream_from_cache():
             logging.warning(
-                f"Could not load XDF data from cache, re-building the cache"
+                "Could not load XDF data from cache, re-building the cache"
             )
             self._clear_cache()
             self.load_xdf()
@@ -524,7 +527,7 @@ class XDFPlugin(Plugin):
 
         if not self._load_marker_stream_from_cache():
             logging.warning(
-                f"Could not load marker data from cache, re-building the cache"
+                "Could not load marker data from cache, re-building the cache"
             )
             self._clear_cache()
             self.load_xdf()
@@ -678,8 +681,8 @@ class XDFPlugin(Plugin):
         self._xdf_load_job = None
         if not self._attempt_load_xdf_from_cache():
             logging.error(
-                f"Failed to load the XDF data from cache after the "
-                f"background job completed, clearing the cache"
+                "Failed to load the XDF data from cache after the "
+                "background job completed, clearing the cache"
             )
             self._clear_cache()
             self.file_path = None
@@ -701,7 +704,7 @@ class XDFPlugin(Plugin):
                 except XDFStreamError as e:
                     logging.warning(
                         f"Skipping XDF stream {xdf_stream.name} ({xdf_stream.xdf_id}) "
-                        f"due to invalid data. Reason: {str(e)}"
+                        f"due to invalid data. Reason: {e!s}"
                     )
 
             n_streams = len(xdf_streams)
@@ -761,7 +764,7 @@ class XDFPlugin(Plugin):
             self._update_events()
             self.align_with_recording()
         except Exception as e:
-            logging.exception(f"Failed to load XDF from cache. Error: {str(e)}")
+            logging.exception(f"Failed to load XDF from cache. Error: {e!s}")
             return False
 
         return True
@@ -784,7 +787,7 @@ class XDFPlugin(Plugin):
         except XDFStreamError as e:
             logging.error(
                 f"Failed to load cached data for the XDF stream "
-                f"{self.data_stream.display_name}. Reason: {str(e)}"
+                f"{self.data_stream.display_name}. Reason: {e!s}"
             )
             return False
 
@@ -799,7 +802,7 @@ class XDFPlugin(Plugin):
         except XDFStreamError as e:
             logging.error(
                 f"Failed to load cached markers for the XDF stream "
-                f"{self.marker_stream.display_name}. Reason: {str(e)}"
+                f"{self.marker_stream.display_name}. Reason: {e!s}"
             )
             return False
 
@@ -1010,7 +1013,7 @@ class XDFPlugin(Plugin):
             nyq = 0.5 * self.data_stream.fs
             low, high = 1.0 / nyq, 30.0 / nyq
             # Simple bandpass 1-30Hz
-            b, a = butter(4, [max(0.001, low), min(0.999, high)], btype='band')
+            b, a = butter(4, [max(0.001, low), min(0.999, high)], btype="band")
             data = filtfilt(b, a, data, axis=0)
         elif self.apply_bandpass and self.data_stream.fs <= 0:
             logging.warning(
@@ -1106,7 +1109,7 @@ class XDFPlugin(Plugin):
         if not self.data_stream or not self.data_stream.loaded:
             return
 
-        self.channels = {name: True for name in self.data_stream.channel_names}
+        self.channels = dict.fromkeys(self.data_stream.channel_names, True)
 
     @action
     @action_params(compact=True, icon=QIcon(str(asset_path("cancel.svg"))))
@@ -1114,4 +1117,4 @@ class XDFPlugin(Plugin):
         if not self.data_stream or not self.data_stream.loaded:
             return
 
-        self.channels = {name: False for name in self.data_stream.channel_names}
+        self.channels = dict.fromkeys(self.data_stream.channel_names, False)

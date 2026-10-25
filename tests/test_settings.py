@@ -1,9 +1,6 @@
 import json
 
-from pathlib import Path
-from unittest.mock import patch, MagicMock
-
-from pupil_labs.neon_player.settings import GeneralSettings, load_recording_settings
+from pupil_labs.neon_player.settings import load_recording_settings
 
 
 def mock_settings_path(contents: dict, corrupt: bool = False):

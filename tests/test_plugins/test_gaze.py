@@ -5,11 +5,14 @@ from pupil_labs.neon_player.plugins.gaze import (
     CircleViz,
     CrosshairViz,
     GazeDataPlugin,
+    _prepare_gaze_export,
     apply_offset,
-    _prepare_gaze_export
 )
-
-from tests.mocks import mock_gaze_timeseries, mock_scene_timeseries, mock_worn_timeseries
+from tests.mocks import (
+    mock_gaze_timeseries,
+    mock_scene_timeseries,
+    mock_worn_timeseries,
+)
 
 
 def test_circle_viz_parameter_capping_not_required():

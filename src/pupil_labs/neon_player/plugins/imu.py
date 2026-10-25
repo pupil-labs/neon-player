@@ -1,13 +1,13 @@
 from pathlib import Path
 
 import pandas as pd
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtGui import QIcon
 from qt_property_widgets.utilities import action_params
 from scipy.spatial.transform import Rotation
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
-from pupil_labs.neon_recording import NeonRecording
 
 
 class IMUPlugin(neon_player.Plugin):

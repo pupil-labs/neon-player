@@ -1,10 +1,10 @@
 import logging
-import numpy as np
-import pandas as pd
 import typing as T
 import uuid
-
 from pathlib import Path
+
+import numpy as np
+import pandas as pd
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QIcon, QKeyEvent
@@ -15,7 +15,7 @@ from qt_property_widgets.utilities import (
     action_params,
     property_params,
 )
-from qt_property_widgets.widgets import ValueListWidget, ValueListItemWidget
+from qt_property_widgets.widgets import ValueListItemWidget, ValueListWidget
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
@@ -168,7 +168,7 @@ def _load_events_from_recording(
         event_name = str(event.event)
 
         # Look up or create the event type
-        et = event_type_cache.get(event_name, None)
+        et = event_type_cache.get(event_name)
         if et is None:
             et = EventType.from_name(event_name)
             event_type_cache[event_name] = et
@@ -295,7 +295,7 @@ class EventsPlugin(neon_player.Plugin):
 
         return event_types, events, "recording"
 
-    def on_recording_loaded(self, recording: NeonRecording) -> None:  # noqa: C901
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
         event_types, events, source = self._load_events(recording)
         self._events = events
 

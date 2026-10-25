@@ -35,7 +35,8 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     TrimEndMarker,
 )
 from pupil_labs.neon_player.ui.timeline_dock_utils import (
-    get_clicked_data_point, get_clicked_plot_item
+    get_clicked_data_point,
+    get_clicked_plot_item,
 )
 from pupil_labs.neon_player.utilities import clone_menu
 

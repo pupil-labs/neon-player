@@ -1,17 +1,15 @@
-import numpy as np
-import pandas as pd
+from unittest.mock import MagicMock
 
+import pandas as pd
 import pytest
-from unittest.mock import MagicMock, patch
 
 from pupil_labs.neon_player.plugins.events import (
-    _load_events_from_cache,
-    _load_events_from_recording,
-    _load_events_from_dataframe,
+    EventsPlugin,
     EventType,
-    EventsPlugin
+    _load_events_from_cache,
+    _load_events_from_dataframe,
+    _load_events_from_recording,
 )
-
 from tests.mocks import mock_event_timeseries
 
 
@@ -66,7 +64,7 @@ def test_events__load_events_from_cache():
 
     assert len(event_types) == 4
     for et in event_types:
-        assert et in event_types, f"Expected known event types to be used"
+        assert et in event_types, "Expected known event types to be used"
         assert et.name != "extra.event", "Only present event types should be returned"
     assert events == cached_events, "Expected events to match cached events"
 

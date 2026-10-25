@@ -1,14 +1,14 @@
-import cv2
 import typing as T
 from pathlib import Path
 
-from PySide6.QtGui import QColorConstants, QPainter, QIcon
-from qt_property_widgets.utilities import property_params, action, action_params
+import cv2
+from PySide6.QtGui import QColorConstants, QIcon, QPainter
+from qt_property_widgets.utilities import action, action_params, property_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
-from pupil_labs.neon_player.plugins.shared import bg_export_video
 from pupil_labs.neon_player.job_manager import ProgressUpdate
+from pupil_labs.neon_player.plugins.shared import bg_export_video
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
 

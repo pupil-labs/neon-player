@@ -3,15 +3,17 @@ import logging
 import subprocess
 import sys
 import typing as T
+from pathlib import Path
 
 from packaging.requirements import InvalidRequirement, Requirement
-from packaging.utils import canonicalize_name, NormalizedName
-from pathlib import Path
+from packaging.utils import NormalizedName, canonicalize_name
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import ProgressUpdate
 from pupil_labs.neon_player.plugin_management.pep723 import (
-    MalformedPEP723Error, parse_pep723_dependencies, PythonVersionMismatchError
+    MalformedPEP723Error,
+    PythonVersionMismatchError,
+    parse_pep723_dependencies,
 )
 
 PLUGINS_PACKAGES_DIR = Path.home() / "Pupil Labs" / "Neon Player" / "plugins"

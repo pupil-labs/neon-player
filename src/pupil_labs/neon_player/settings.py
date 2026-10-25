@@ -1,12 +1,12 @@
 import json
 import logging
-
 from pathlib import Path
+
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 
 from pupil_labs import neon_player
-from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_player import GlobalPluginProperties, Plugin
 
 
@@ -166,10 +166,10 @@ def load_recording_settings(
                 json.loads(settings_path.read_text())
             )
         except Exception as e:
-            logging.exception(f"Failed to load settings: {str(e)}")
+            logging.exception(f"Failed to load settings: {e!s}")
 
     if settings is None:
-        logging.info(f"Using default recording settings")
+        logging.info("Using default recording settings")
         settings = RecordingSettings()
         settings.export_window = (
             recording.start_time,

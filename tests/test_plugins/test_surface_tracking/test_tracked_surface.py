@@ -1,12 +1,14 @@
+from unittest.mock import MagicMock
+
 import numpy as np
 import pandas as pd
 import pytest
-
-from unittest.mock import MagicMock
+from pupil_labs.neon_recording.timeseries.gaze import GazeArray, GazeTimeseries
 
 from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
-from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import TrackedSurface
-from pupil_labs.neon_recording.timeseries.gaze import GazeTimeseries, GazeArray
+from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import (
+    TrackedSurface,
+)
 
 
 def mock_gaze_timeseries(time, point_x, point_y):

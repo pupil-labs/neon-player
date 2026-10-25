@@ -1,12 +1,12 @@
-import pytest
-
-from packaging.utils import canonicalize_name
 from unittest.mock import patch
+
+import pytest
+from packaging.utils import canonicalize_name
 
 from pupil_labs.neon_player.plugin_management.dependencies import (
     _check_dependencies_for_plugin_script,
     get_installed_packages,
-    is_dependency_installed
+    is_dependency_installed,
 )
 
 

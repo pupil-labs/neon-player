@@ -8,6 +8,7 @@ import typing as T
 from enum import Enum
 
 import numpy as np
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen
 from qt_property_widgets.utilities import property_params
@@ -15,7 +16,6 @@ from ultralytics import YOLO
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import ProgressUpdate
-from pupil_labs.neon_recording import NeonRecording
 
 
 class DetectionModel(Enum):

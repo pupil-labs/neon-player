@@ -1,9 +1,12 @@
-import pytest
 import sys
 
+import pytest
 from packaging.requirements import InvalidRequirement
+
 from pupil_labs.neon_player.plugin_management.pep723 import (
-    parse_pep723_dependencies, PythonVersionMismatchError, MalformedPEP723Error
+    MalformedPEP723Error,
+    PythonVersionMismatchError,
+    parse_pep723_dependencies,
 )
 
 

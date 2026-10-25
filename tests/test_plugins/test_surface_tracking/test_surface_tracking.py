@@ -1,18 +1,18 @@
 import numpy as np
 import pytest
-
 from pupil_labs.camera import Camera
 from pupil_labs.marker_mapper.surface import normalized_corners
 
 from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
 from pupil_labs.neon_player.plugins.surface_tracking import SurfaceTrackingPlugin
 from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
+    DetectedMarker,
     _get_position_for_export,
     _prepare_surface_positions_export,
-    DetectedMarker
 )
-from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import TrackedSurface
-
+from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import (
+    TrackedSurface,
+)
 from tests.mocks import mock_scene_timeseries
 
 
@@ -41,7 +41,7 @@ def test_surface_tracking_plugin__to_dict__recursive(qapp, mock_neon_recording):
             f"Expected surface to be serialized with edit=False, but got {el['edit']}"
 
         assert isinstance(el["preview_options"], dict), \
-            f"Expected surface preview_options to be serialized to dict"
+            "Expected surface preview_options to be serialized to dict"
 
 
 @pytest.mark.parametrize(

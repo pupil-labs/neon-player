@@ -1,8 +1,10 @@
-import av
 import fractions
-import numpy as np
 import typing as T
 
+import av
+import numpy as np
+from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.video.reader import StreamNotFound
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
@@ -17,8 +19,6 @@ from scipy.io import wavfile
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import ProgressUpdate
-from pupil_labs.neon_recording import NeonRecording
-from pupil_labs.video.reader import StreamNotFound
 
 
 def _prepare_audio_frame(

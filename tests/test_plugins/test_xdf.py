@@ -9,10 +9,9 @@ from pupil_labs.neon_player.plugins.xdf import (
     estimate_offset_ns,
     fallback_channel_names,
     first,
+    parse_channel_names,
     parse_markers,
-    parse_channel_names
 )
-
 
 # Original values are wrapped in the list in the output of pyxdf.load_xdf
 MOCK_XDF_DATA_STREAM_INFO = {

@@ -24,6 +24,7 @@ from qt_property_widgets.utilities import ComplexEncoder, create_action_object
 from pupil_labs import neon_player
 from pupil_labs import neon_recording as nr
 from pupil_labs.neon_player import Plugin, is_frozen
+from pupil_labs.neon_player.history import RecordingHistory
 from pupil_labs.neon_player.ipc_logger import IPCLogger
 from pupil_labs.neon_player.job_manager import JobManager
 from pupil_labs.neon_player.plugin_management import (
@@ -45,7 +46,6 @@ from pupil_labs.neon_player.plugins import (
     video_exporter,  # noqa: F401
     xdf,  # noqa: F401
 )
-from pupil_labs.neon_player.history import RecordingHistory
 from pupil_labs.neon_player.settings import GeneralSettings, load_recording_settings
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
@@ -556,7 +556,7 @@ class NeonPlayerApp(QApplication):
             painter.setFont(font)
             painter.setOpacity(1.0)
 
-    def export_all(self, export_path: Path) -> None:  # noqa: F811
+    def export_all(self, export_path: Path) -> None:
         timestamp_str = time.strftime("%Y-%m-%d_%H-%M-%S")
         export_path /= f"{timestamp_str}_export"
         export_path.mkdir(parents=True, exist_ok=True)

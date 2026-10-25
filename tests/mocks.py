@@ -1,5 +1,4 @@
 import numpy as np
-
 from pupil_labs.neon_recording.timeseries.events import EventArray
 from pupil_labs.neon_recording.timeseries.gaze import GazeArray
 from pupil_labs.neon_recording.timeseries.worn import WornArray

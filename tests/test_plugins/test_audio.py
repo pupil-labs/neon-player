@@ -1,9 +1,9 @@
 import fractions
+from collections import namedtuple
+
 import numpy as np
 
-from collections import namedtuple
 from pupil_labs.neon_player.plugins.audio import _prepare_audio_frame
-
 
 MockAudioStream = namedtuple("MockAudioStream", ["layout", "rate", "time_base"])
 MockAudioLayout = namedtuple("MockAudioLayout", ["name"])

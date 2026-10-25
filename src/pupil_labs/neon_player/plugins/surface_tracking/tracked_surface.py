@@ -1,6 +1,6 @@
 import contextlib
 import logging
-import typing as T  # noqa: N812
+import typing as T
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -22,7 +22,11 @@ from qt_property_widgets.utilities import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, action
-from pupil_labs.neon_player.plugins.gaze import CircleViz, GazeVisualization, apply_offset
+from pupil_labs.neon_player.plugins.gaze import (
+    CircleViz,
+    GazeVisualization,
+    apply_offset,
+)
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
 from .ui import SurfaceHandle, SurfaceViewWindow

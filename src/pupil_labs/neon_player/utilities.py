@@ -2,12 +2,11 @@ import typing as T
 
 import cv2
 import numpy as np
+from pupil_labs.neon_recording import NeonRecording
 from pyqtgraph.functions import imageToArray
 from PySide6.QtCore import QTimer, SignalInstance
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QMenu
-
-from pupil_labs.neon_recording import NeonRecording
 
 
 def qimage_from_frame(frame: np.ndarray | None) -> QImage:
@@ -46,9 +45,9 @@ def clone_menu(menu: QMenu) -> QMenu:
 
 
 def unproject_points(
-    points_2d: T.Union[np.ndarray, list],
-    camera_matrix: T.Union[np.ndarray, list],
-    distortion_coefs: T.Union[np.ndarray, list],
+    points_2d: np.ndarray | list,
+    camera_matrix: np.ndarray | list,
+    distortion_coefs: np.ndarray | list,
     normalize: bool = False,
 ) -> np.ndarray:
     """Undistorts points according to the camera model.

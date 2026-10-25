@@ -4,6 +4,7 @@ import pickle
 import shutil
 import typing as T
 import uuid
+from dataclasses import dataclass
 from itertools import starmap
 from pathlib import Path
 
@@ -14,7 +15,6 @@ import numpy.typing as npt
 import pandas as pd
 import pupil_apriltags
 import pupil_labs.video as plv
-from dataclasses import dataclass
 from numpy.dtypes import StringDType
 from pupil_labs.camera import Camera, perspective_transform
 from pupil_labs.marker_mapper import Surface, utils
@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSpacerItem,
     QVBoxLayout,
-    QWidget
+    QWidget,
 )
 from qt_property_widgets.utilities import action_params, property_params
 
@@ -58,6 +58,7 @@ from .ui import MarkerEditWidget
 
 if T.TYPE_CHECKING:
     from pupil_labs.neon_recording.timeseries import GazeTimeseries
+
     from pupil_labs.neon_player.plugins.video_exporter import VideoExporter
 
 SurfaceData: T.TypeAlias = dict[str, T.Any]
@@ -974,8 +975,8 @@ class SurfaceTrackingPlugin(Plugin):
         # get surface definitions from json
         json_path = source / ".neon_player" / "settings.json"
         other_recording = RecordingSettings.from_dict(json.load(json_path.open("r")))
-        surface_settings = other_recording.plugin_states.get('SurfaceTrackingPlugin', {})
-        surfaces = surface_settings.get('surfaces', [])
+        surface_settings = other_recording.plugin_states.get("SurfaceTrackingPlugin", {})
+        surfaces = surface_settings.get("surfaces", [])
         if len(surfaces) == 0:
             QMessageBox.information(
                 None,

@@ -5,11 +5,11 @@ from importlib.metadata import version
 from pathlib import Path
 
 import numpy as np
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtGui import QIcon
 from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
-from pupil_labs.neon_recording import NeonRecording
 
 
 class ExportAllPlugin(neon_player.Plugin):

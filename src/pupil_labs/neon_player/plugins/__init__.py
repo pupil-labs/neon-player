@@ -3,6 +3,7 @@ import typing as T
 from pathlib import Path
 
 from numpyencoder import NumpyEncoder
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import QMessageBox
@@ -11,7 +12,6 @@ from qt_property_widgets.utilities import PersistentPropertiesMixin, property_pa
 from pupil_labs import neon_player
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
-from pupil_labs.neon_recording import NeonRecording
 
 if T.TYPE_CHECKING:
     from pupil_labs.neon_player.app import NeonPlayerApp

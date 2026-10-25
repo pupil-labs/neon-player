@@ -6,6 +6,9 @@ from pathlib import Path
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.neon_recording.sample import match_ts
+from pupil_labs.neon_recording.timeseries import GazeTimeseries, WornTimeseries
 from PySide6.QtCore import QObject, QPointF, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter
 from qt_property_widgets.utilities import (
@@ -23,9 +26,6 @@ from pupil_labs.neon_player.utilities import (
     get_scene_intrinsics,
     unproject_points,
 )
-from pupil_labs.neon_recording import NeonRecording
-from pupil_labs.neon_recording.timeseries import GazeTimeseries, WornTimeseries
-from pupil_labs.neon_recording.sample import match_ts
 
 
 class Aggregation(enum.Enum):

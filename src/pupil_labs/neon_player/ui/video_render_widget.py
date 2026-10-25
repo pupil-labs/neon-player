@@ -1,5 +1,6 @@
 import time
 
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QPoint, QPointF, QPropertyAnimation, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColorConstants,
@@ -16,7 +17,6 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs import neon_player
-from pupil_labs.neon_recording import NeonRecording
 
 
 class ScalingWidget(QOpenGLWidget):

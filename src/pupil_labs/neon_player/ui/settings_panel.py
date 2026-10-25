@@ -1,6 +1,7 @@
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QPoint
+from pupil_labs.neon_recording import NeonRecording
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -17,7 +18,6 @@ from qt_property_widgets.widgets import PropertyForm, PropertyWidget
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
-from pupil_labs.neon_recording import NeonRecording
 
 
 class RecordingInfoWidget(QWidget):

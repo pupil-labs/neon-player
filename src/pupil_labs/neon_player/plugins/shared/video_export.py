@@ -12,21 +12,21 @@ The plugin that uses this method needs to implement and provide a render method
 for generating the video frames.
 """
 
-import av
 import logging
-import numpy as np
 import typing as T
-
 from csv import DictWriter
 from pathlib import Path
-from PySide6.QtCore import QSize
-from PySide6.QtGui import QColorConstants, QPainter, QImage
 
+import av
+import numpy as np
 import pupil_labs.video as plv
-from pupil_labs.neon_player.job_manager import ProgressUpdate
-from pupil_labs.neon_player.utilities import ndarray_from_qimage
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.timeseries.av.base_av import BaseAVFrame
+from PySide6.QtCore import QSize
+from PySide6.QtGui import QColorConstants, QImage, QPainter
+
+from pupil_labs.neon_player.job_manager import ProgressUpdate
+from pupil_labs.neon_player.utilities import ndarray_from_qimage
 
 
 def _prepare_timestamps(

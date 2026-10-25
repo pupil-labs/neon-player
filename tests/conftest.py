@@ -1,19 +1,17 @@
-import pytest
-
-from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QApplication
 from unittest.mock import PropertyMock
 
+import pytest
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.timeseries import (
     EventTimeseries,
     GazeTimeseries,
     SceneVideoTimeseries,
-    WornTimeseries
+    WornTimeseries,
 )
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import QApplication
 
 from pupil_labs.neon_player.settings import GeneralSettings
-
 
 FIELD_CLASS_MAPPING = {
     "events": EventTimeseries,

@@ -18,7 +18,6 @@ control the behavior of the widget are shown in the `@property_params` decorator
 """
 
 import logging
-
 from enum import Enum
 from pathlib import Path
 

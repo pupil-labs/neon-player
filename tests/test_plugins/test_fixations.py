@@ -1,5 +1,7 @@
 from pupil_labs.neon_player.plugins.fixations import (
-    FixationsPlugin, ScanpathViz, FixationCircleViz
+    FixationCircleViz,
+    FixationsPlugin,
+    ScanpathViz,
 )
 
 
