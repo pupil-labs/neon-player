@@ -266,7 +266,8 @@ class FixationsPlugin(neon_player.Plugin):
             if self.recording is not None:
                 viz.on_recording_loaded(self.recording)
 
-    def bg_optic_flow(self) -> T.Generator[ProgressUpdate, None, None]:
+    # Splitting tracking and cache management requires a separate refactor.
+    def bg_optic_flow(self) -> T.Generator[ProgressUpdate, None, None]:  # noqa: C901
         recording = self.app.recording
         gaze = recording.gaze
 

@@ -18,7 +18,8 @@ LOG_FORMAT_STRING = (
 
 
 def instance() -> "NeonPlayerApp":
-    from pupil_labs.neon_player.app import NeonPlayerApp
+    # Defer the app import to avoid a circular import.
+    from pupil_labs.neon_player.app import NeonPlayerApp  # noqa: PLC0415
 
     return NeonPlayerApp.instance()
 
@@ -27,7 +28,8 @@ ActionParams = T.ParamSpec("ActionParams")
 ActionResult = T.TypeVar("ActionResult")
 
 
-def action(func: T.Callable[ActionParams, ActionResult]) -> T.Any:
+# The upstream action decorator returns a dynamically defined descriptor.
+def action(func: T.Callable[ActionParams, ActionResult]) -> T.Any:  # noqa: ANN401
     @functools.wraps(func)
     def wrapper(
         *args: ActionParams.args, **kwargs: ActionParams.kwargs

@@ -184,7 +184,8 @@ class XDFStream(PersistentPropertiesMixin):
     def type(self) -> str:
         return self._type
 
-    @type.setter
+    # Keep the persisted XDF property name compatible with existing caches.
+    @type.setter  # noqa: A003
     def type(self, value: str) -> None:
         self._type = value
 

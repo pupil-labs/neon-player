@@ -568,7 +568,8 @@ class SurfaceTrackingPlugin(Plugin):
             return
 
         with surf_viz_path.open("rb") as f:
-            visibilities = pickle.load(f)
+            # Retain compatibility with existing pickle caches pending migration.
+            visibilities = pickle.load(f)  # noqa: S301
 
         self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
         self.get_timeline().add_timeline_broken_bar(
@@ -583,7 +584,9 @@ class SurfaceTrackingPlugin(Plugin):
         self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
         with open(gaze_upon_file, "rb") as f:
             self.get_timeline().add_timeline_broken_bar(
-                f"Surface Gaze: {surface.name}", pickle.load(f), color="#73F7FF"
+                f"Surface Gaze: {surface.name}",
+                pickle.load(f),  # noqa: S301  # Existing cache format pending migration.
+                color="#73F7FF",
             )
 
     def attempt_load_surface_heatmap(self, surface_uid: str) -> None:
