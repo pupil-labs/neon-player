@@ -2,9 +2,9 @@ import json
 import logging
 import shutil
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -29,8 +29,15 @@ from pupil_labs.neon_player.plugins.events import (
     _load_events_from_recording,
 )
 
+logger = logging.getLogger(__name__)
 
-def first(xdf_dict: dict[str, list[Any]], key: str, default: Any) -> Any:
+
+XDFValue = TypeVar("XDFValue")
+
+
+def first(
+    xdf_dict: Mapping[str, XDFValue | list[XDFValue]], key: str, default: XDFValue
+) -> XDFValue:
     """Pick the first value from a str-list mapping.
 
     Many fields in the parsed XDF data contain one value which is wrapped
@@ -256,15 +263,17 @@ class MarkerXDFStream(XDFStream):
             with open(marker_cache_file) as f:
                 self.markers = json.load(f)
             self._loaded = True
-        except Exception:
-            raise XDFStreamError("Failed to load markers from cache")
+        except Exception as exc:
+            raise XDFStreamError("Failed to load markers from cache") from exc
 
     def save_markers(self, marker_cache_file: Path) -> None:
         try:
             with marker_cache_file.open("w", encoding="utf-8") as stream_meta_fp:
                 json.dump(self.markers, stream_meta_fp)
         except Exception:
-            logging.warning(f"Failed to save markers for stream {self.display_name}")
+            logger.warning(
+                f"Failed to save markers for stream {self.display_name}", exc_info=True
+            )
 
     @classmethod
     def from_xdf_dict(cls, xdf_dict: dict) -> "MarkerXDFStream":
@@ -305,7 +314,7 @@ class DataXDFStream(XDFStream):
 
     def save_data(self, data_cache_file: Path) -> None:
         if self.data is None or self.timestamps is None:
-            logging.warning(f"Stream {self.display_name} has no data to be saved")
+            logger.warning(f"Stream {self.display_name} has no data to be saved")
             return
 
         np.savez(str(data_cache_file), data=self.data, timestamps=self.timestamps)
@@ -329,7 +338,7 @@ class DataXDFStream(XDFStream):
             return stream
 
         if stream.timestamps is not None and np.any(np.diff(stream.timestamps) < 0):
-            logging.warning(
+            logger.warning(
                 f"Timestamps of the XDF stream {stream.display_name} are not "
                 f"increasingly monotonically, sorting the timestamps"
             )
@@ -343,7 +352,7 @@ class DataXDFStream(XDFStream):
         if not stream.channel_names:
             stream.channel_names = fallback_channel_names(stream.data.shape[1])
         elif len(set(stream.channel_names)) != len(stream.channel_names):
-            logging.warning(
+            logger.warning(
                 f"Channel names of the XDF stream {stream.display_name} "
                 f"contain duplicates: {stream.channel_names}"
             )
@@ -473,7 +482,7 @@ class XDFPlugin(Plugin):
             return
 
         if not self._load_data_stream_from_cache():
-            logging.warning("Could not load XDF data from cache, re-building the cache")
+            logger.warning("Could not load XDF data from cache, re-building the cache")
             self._clear_cache()
             self.load_xdf()
 
@@ -530,7 +539,7 @@ class XDFPlugin(Plugin):
             return
 
         if not self._load_marker_stream_from_cache():
-            logging.warning(
+            logger.warning(
                 "Could not load marker data from cache, re-building the cache"
             )
             self._clear_cache()
@@ -600,7 +609,7 @@ class XDFPlugin(Plugin):
         if self._state_initialized:
             self.update_timeline(markers=False)
 
-    def on_recording_loaded(self, recording: NeonRecording) -> None:
+    def on_recording_loaded(self, _recording: NeonRecording) -> None:
         # State is fully initialized by now, allow loading XDF data from now on
         self._state_initialized = True
 
@@ -667,7 +676,7 @@ class XDFPlugin(Plugin):
         if self._attempt_load_xdf_from_cache():
             return
 
-        logging.info("Could not load XDF data from cache")
+        logger.info("Could not load XDF data from cache")
         self._reset_loaded_xdf_state()
 
         # In headless mode, either load the cached data or proceed with the
@@ -675,7 +684,7 @@ class XDFPlugin(Plugin):
         if self.headless:
             return
 
-        logging.info("Re-building the cache in the background")
+        logger.info("Re-building the cache in the background")
         self._xdf_load_job = self.job_manager.run_background_action(
             "Loading XDF streams",
             "XDFPlugin._bg_load_xdf",
@@ -686,7 +695,7 @@ class XDFPlugin(Plugin):
     def _on_xdf_load_finished(self) -> None:
         self._xdf_load_job = None
         if not self._attempt_load_xdf_from_cache():
-            logging.error(
+            logger.error(
                 "Failed to load the XDF data from cache after the "
                 "background job completed, clearing the cache"
             )
@@ -696,7 +705,7 @@ class XDFPlugin(Plugin):
     def _bg_load_xdf(self, xdf_path: str) -> Iterator[ProgressUpdate]:
         try:
             xdf_file = Path(xdf_path)
-            logging.info("Loading XDF in background: %s", xdf_file)
+            logger.info(f"Loading XDF in background: {xdf_file}")
             yield ProgressUpdate(0.1)
 
             logging.getLogger("pyxdf").setLevel(logging.INFO)
@@ -708,7 +717,7 @@ class XDFPlugin(Plugin):
                     xdf_stream.raise_not_valid()
                     xdf_streams.append(xdf_stream)
                 except XDFStreamError as e:
-                    logging.warning(
+                    logger.warning(
                         f"Skipping XDF stream {xdf_stream.name} ({xdf_stream.xdf_id}) "
                         f"due to invalid data. Reason: {e!s}"
                     )
@@ -724,7 +733,7 @@ class XDFPlugin(Plugin):
                     self._prepare_data_stream_cache(stream)
                     data_streams.append(stream.to_dict())
                 else:
-                    logging.warning(f"Skipping unexpected stream type: {type(stream)}")
+                    logger.warning(f"Skipping unexpected stream type: {type(stream)}")
 
                 yield ProgressUpdate(0.2 + (0.7 * (idx + 1) / n_streams))
 
@@ -740,11 +749,11 @@ class XDFPlugin(Plugin):
             with meta_cache_file.open("w", encoding="utf-8") as meta_fp:
                 json.dump(meta_payload, meta_fp)
         except Exception:
-            logging.exception("Failed to load XDF in background")
+            logger.exception("Failed to load XDF in background")
             yield ProgressUpdate(1.0)
             return
 
-        logging.info(f"Created cache files for {n_streams} XDF streams")
+        logger.info(f"Created cache files for {n_streams} XDF streams")
         yield ProgressUpdate(1.0)
 
     def _prepare_marker_stream_cache(self, stream: MarkerXDFStream) -> None:
@@ -760,7 +769,7 @@ class XDFPlugin(Plugin):
     def _attempt_load_xdf_from_cache(self) -> bool:
         meta_cache_file = self._get_xdf_cache_file()
         if not meta_cache_file.exists():
-            logging.debug("XDF cache metadata file not found: %s", meta_cache_file)
+            logger.debug(f"XDF cache metadata file not found: {meta_cache_file}")
             return False
 
         try:
@@ -769,8 +778,8 @@ class XDFPlugin(Plugin):
 
             self._update_events()
             self.align_with_recording()
-        except Exception as e:
-            logging.exception(f"Failed to load XDF from cache. Error: {e!s}")
+        except Exception:
+            logger.exception("Failed to load XDF from cache")
             return False
 
         return True
@@ -791,7 +800,7 @@ class XDFPlugin(Plugin):
             self.data_stream.load_data(data_cache_file)
             return True
         except XDFStreamError as e:
-            logging.error(
+            logger.error(
                 f"Failed to load cached data for the XDF stream "
                 f"{self.data_stream.display_name}. Reason: {e!s}"
             )
@@ -806,7 +815,7 @@ class XDFPlugin(Plugin):
             self.marker_stream.load_markers(marker_cache_file)
             return True
         except XDFStreamError as e:
-            logging.error(
+            logger.error(
                 f"Failed to load cached markers for the XDF stream "
                 f"{self.marker_stream.display_name}. Reason: {e!s}"
             )
@@ -818,13 +827,13 @@ class XDFPlugin(Plugin):
             meta_payload = json.load(meta_fp)
 
         if meta_payload.get("cache_version") != self._XDF_CACHE_VERSION:
-            logging.debug("Cached data needs to be re-built due to an outdated format")
+            logger.debug("Cached data needs to be re-built due to an outdated format")
             self._clear_cache()
             return False
 
         source_path = meta_payload.get("source_path", "")
         if source_path != str(self._xdf_path.resolve()):
-            logging.debug(
+            logger.debug(
                 "Cached data corresponds to a different XDF file, so the "
                 "cache has to be re-built"
             )
@@ -887,21 +896,21 @@ class XDFPlugin(Plugin):
         xdf_timestamps = self.marker_stream.markers[self._sync_event]
 
         if len(neon_timestamps) > 1:
-            logging.warning(
+            logger.warning(
                 f"Found multiple occurrences of the '{self._sync_event}' event "
                 f"in Neon Player. Using the first one for alignment."
             )
         neon_timestamp = neon_timestamps[0]
 
         if len(xdf_timestamps) > 1:
-            logging.warning(
+            logger.warning(
                 f"Found multiple occurrences of the '{self._sync_event}' marker "
                 f"in XDF data. Using the first one for alignment."
             )
         xdf_timestamp = xdf_timestamps[0]
 
         self._offset_ns = estimate_offset_ns(xdf_timestamp, neon_timestamp)
-        logging.info(
+        logger.info(
             f"Aligned Neon and XDF data using the `{self._sync_event}` event.\n"
             f"\tXDF timestamp:  {int(xdf_timestamp * 1e9)} ns\n"
             f"\tNeon timestamp: {neon_timestamp} ns\n"
@@ -954,7 +963,7 @@ class XDFPlugin(Plugin):
             timeline_row_name = f"XDF Markers - {name}"
             plot_item = timeline.get_timeline_plot(timeline_row_name, True)
             if not plot_item:
-                logging.warning(f"Failed to create timeline plot {timeline_row_name}")
+                logger.warning(f"Failed to create timeline plot {timeline_row_name}")
                 continue
 
             if not plot_item.items:
@@ -984,7 +993,7 @@ class XDFPlugin(Plugin):
         )
 
         if not np.any(mask):
-            logging.warning("No data found within recording bounds.")
+            logger.warning("No data found within recording bounds.")
             return
 
         plot_ts = offset_ts[mask]
@@ -1024,7 +1033,7 @@ class XDFPlugin(Plugin):
             b, a = butter(4, [max(0.001, low), min(0.999, high)], btype="band")
             data = filtfilt(b, a, data, axis=0)
         elif self.apply_bandpass and self.data_stream.fs <= 0:
-            logging.warning(
+            logger.warning(
                 f"Bandpass filtering is enabled, but sample rate is invalid "
                 f"({self.data_stream.fs:.3f} Hz). Skipping filter."
             )
@@ -1056,7 +1065,7 @@ class XDFPlugin(Plugin):
             return
 
         if not self.data_stream or not self.data_stream.loaded or not self._is_aligned:
-            logging.warning("Cannot export: no aligned data available.")
+            logger.warning("Cannot export: no aligned data available.")
             return
 
         assert self.data_stream.data is not None
@@ -1067,7 +1076,7 @@ class XDFPlugin(Plugin):
         mask = (offset_ts >= start_time) & (offset_ts <= stop_time)
 
         if not np.any(mask):
-            logging.warning("No data in the export window.")
+            logger.warning("No data in the export window.")
             return
 
         export_ts = offset_ts[mask]
@@ -1081,7 +1090,7 @@ class XDFPlugin(Plugin):
 
         export_file = destination / "xdf_stream.csv"
         df.to_csv(export_file, index=False)
-        logging.info(f"Exported {len(df)} samples of XDF data to {export_file}")
+        logger.info(f"Exported {len(df)} samples of XDF data to {export_file}")
 
     @action
     @action_params(compact=True, icon=QIcon(str(asset_path("info.svg"))))
@@ -1089,16 +1098,16 @@ class XDFPlugin(Plugin):
         if not self.recording:
             return
 
-        logging.info("--- NEON EVENTS ---")
+        logger.info("--- NEON EVENTS ---")
         neon_events: list[tuple[str, int]] = []
         for event_name, neon_timestamps in self._neon_events.items():
             neon_events.extend((event_name, neon_ts) for neon_ts in neon_timestamps)
         for name, neon_ts in neon_events:
-            logging.info(f"Neon: '{name}' @ {neon_ts}")
+            logger.info(f"Neon: '{name}' @ {neon_ts}")
 
-        logging.info("--- XDF MARKERS ---")
+        logger.info("--- XDF MARKERS ---")
         if not self.marker_stream or not self.marker_stream.markers:
-            logging.info("No XDF markers are present")
+            logger.info("No XDF markers are present")
             return
 
         xdf_events: list[tuple[str, float, int]] = []
@@ -1109,7 +1118,7 @@ class XDFPlugin(Plugin):
             ):
                 xdf_events.append((marker_name, xdf_ts, offset_ts))
         for name, xdf_ts, offset_ts in xdf_events:
-            logging.info(f"XDF: '{name}' @ {offset_ts} (ts={xdf_ts})")
+            logger.info(f"XDF: '{name}' @ {offset_ts} (ts={xdf_ts})")
 
     @action
     @action_params(compact=True, icon=QIcon(str(asset_path("done_all.svg"))))

@@ -6,6 +6,8 @@ from pathlib import Path
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
 
+logger = logging.getLogger(__name__)
+
 
 def create_recording_metadata(path: Path, recording: NeonRecording) -> dict[str, str]:
     """Short description that is displayed for recently opened recordings."""
@@ -17,9 +19,9 @@ def create_recording_metadata(path: Path, recording: NeonRecording) -> dict[str,
         result["recorded"] = start_time.strftime("%Y-%m-%d %H:%M:%S")
         result["wearer"] = recording.wearer["name"]
     except FileNotFoundError:
-        logging.warning("Could not extract metadata from the recording")
-    except Exception as e:
-        logging.exception(f"Error occurred while extracting recording metadata: {e!s}")
+        logger.warning("Could not extract metadata from the recording")
+    except Exception:
+        logger.exception("Error occurred while extracting recording metadata")
 
     return result
 

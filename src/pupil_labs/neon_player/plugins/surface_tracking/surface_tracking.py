@@ -56,6 +56,8 @@ from pupil_labs.neon_player.utilities import (
 from .tracked_surface import TrackedSurface
 from .ui import MarkerEditWidget
 
+logger = logging.getLogger(__name__)
+
 if T.TYPE_CHECKING:
     from pupil_labs.neon_recording.timeseries import GazeTimeseries
 
@@ -874,7 +876,7 @@ class SurfaceTrackingPlugin(Plugin):
         raise ValueError(f"No surface with ID `{uid}` exists")
 
     def bg_detect_markers(self) -> T.Generator[ProgressUpdate, None, None]:
-        logging.info("Detecting markers...")
+        logger.info("Detecting markers...")
         detector = pupil_apriltags.Detector(
             families="tag36h11", nthreads=2, quad_decimate=2.0, decode_sharpening=1.0
         )
@@ -904,7 +906,7 @@ class SurfaceTrackingPlugin(Plugin):
         starting_frame_idx = self.get_surface(uid).defining_frame_index
 
         if starting_frame_idx >= len(self.markers_by_frame):
-            logging.error("Marker detection not yet complete")
+            logger.error("Marker detection not yet complete")
             return
 
         markers = self.markers_by_frame[starting_frame_idx]
@@ -1014,7 +1016,7 @@ class SurfaceTrackingPlugin(Plugin):
         dialog.exec()
 
     def _import_surface(self, surface_data: dict, source_path: Path) -> None:
-        logging.info(
+        logger.info(
             f"Importing {surface_data['name']} ({surface_data['uid']}) "
             f"from {source_path}"
         )
@@ -1026,7 +1028,7 @@ class SurfaceTrackingPlugin(Plugin):
             / f"{surface_data['uid']}_surface.pkl"
         )
         if not src_def_file.exists():
-            logging.error(f"Surface definition file {src_def_file} not found")
+            logger.error(f"Surface definition file {src_def_file} not found")
             return
 
         new_def_file = (
@@ -1054,7 +1056,7 @@ class SurfaceTrackingPlugin(Plugin):
                         " Please wait for the background job(s) to complete "
                         "and try again."
                     )
-                logging.warning(
+                logger.warning(
                     f"Surface locations are not available for surface "
                     f"`{surface.name}`, "
                     f"skipping it in the export.{jobs_running}"
@@ -1106,7 +1108,7 @@ class SurfaceTrackingPlugin(Plugin):
             surface.export_fixations(gazes_in_window, destination)
             yield ProgressUpdate(1.0)
         except Exception:
-            logging.exception(
+            logger.exception(
                 "Failed to export surface fixations. Is fixation plugin enabled?"
             )
 

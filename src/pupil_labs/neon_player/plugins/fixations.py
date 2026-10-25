@@ -30,6 +30,8 @@ from pupil_labs.neon_player.utilities import (
     unproject_points,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class FixationsPlugin(neon_player.Plugin):
     label = "Fixations & Saccades"
@@ -237,13 +239,13 @@ class FixationsPlugin(neon_player.Plugin):
 
         export_file = destination / "fixations.csv"
         export_fixations.to_csv(export_file, index=False)
-        logging.info(f"Exported fixations to '{export_file}'")
+        logger.info(f"Exported fixations to '{export_file}'")
 
         export_saccades = self.get_export_saccades()
 
         export_file = destination / "saccades.csv"
         export_saccades.to_csv(export_file, index=False)
-        logging.info(f"Exported saccades to '{export_file}'")
+        logger.info(f"Exported saccades to '{export_file}'")
 
     @property
     @property_params(
@@ -370,7 +372,7 @@ class FixationsPlugin(neon_player.Plugin):
             flow_array = np.zeros((0, 4))
 
         save_file = self.get_cache_path() / "optic_flow_offsets.npz"
-        logging.info(f"Saving optic flow offsets to {save_file}")
+        logger.info(f"Saving optic flow offsets to {save_file}")
         save_file.parent.mkdir(parents=True, exist_ok=True)
 
         with save_file.open("wb") as file_handle:
@@ -577,7 +579,7 @@ class ScanpathViz(FixationVisualization):
         fixation_ids: np.ndarray,
         frame_offsets: dict[int, np.ndarray],
         gaze_offset: tuple[float, float],
-        time_in_recording: int,
+        _time_in_recording: int,
     ) -> None:
         if self.recording is None:
             return

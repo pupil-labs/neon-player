@@ -129,7 +129,7 @@ class SettingsPanel(QScrollArea):
         self.setWidget(self.content_widget)
         self.plugins_form = None
 
-    def on_recording_loaded(self, recording: NeonRecording) -> None:
+    def on_recording_loaded(self, _: NeonRecording) -> None:
         self.plugins_form = PluginManagerWidget()
         self.content_layout.insertWidget(1, self.plugins_form)
 

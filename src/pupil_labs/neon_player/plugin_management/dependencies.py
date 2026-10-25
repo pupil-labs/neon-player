@@ -16,6 +16,8 @@ from pupil_labs.neon_player.plugin_management.pep723 import (
     parse_pep723_dependencies,
 )
 
+logger = logging.getLogger(__name__)
+
 PLUGINS_PACKAGES_DIR = Path.home() / "Pupil Labs" / "Neon Player" / "plugins"
 SITE_PACKAGES_DIR = PLUGINS_PACKAGES_DIR / "site-packages"
 
@@ -34,10 +36,8 @@ def get_installed_packages() -> dict[NormalizedName, str]:
             canonicalize_name(dist.metadata["name"]): dist.metadata["version"]
             for dist in importlib.metadata.distributions()
         }
-    except Exception as e:
-        logging.exception(
-            f"Could not list installed packages in plugin site-packages. Error: {e}"
-        )
+    except Exception:
+        logger.exception("Could not list installed packages in plugin site-packages")
         return {}
 
 
@@ -60,7 +60,7 @@ def check_dependencies_for_plugin(plugin_path: Path) -> list[str]:
     if plugin_path.is_dir():
         path_to_read = plugin_path / "__init__.py"
     if not path_to_read.exists():
-        logging.warning(f"Plugin file on {path_to_read} does not exist.")
+        logger.warning(f"Plugin file on {path_to_read} does not exist.")
         return []
 
     script = path_to_read.read_text(encoding="utf-8")
@@ -73,20 +73,18 @@ def _check_dependencies_for_plugin_script(script: str, plugin_name: str) -> list
     try:
         dependencies = parse_pep723_dependencies(script)
     except PythonVersionMismatchError as e:
-        logging.error(
+        logger.error(
             f"Plugin {plugin_name} requires an incompatible Python version: {e}"
         )
         raise
     except MalformedPEP723Error as e:
-        logging.error(f"Plugin {plugin_name} has a malformed PEP 723 block: {e}")
+        logger.error(f"Plugin {plugin_name} has a malformed PEP 723 block: {e}")
         raise
     except InvalidRequirement as e:
-        logging.error(
-            f"Plugin {plugin_name} has an invalid dependency requirement: {e}"
-        )
+        logger.error(f"Plugin {plugin_name} has an invalid dependency requirement: {e}")
         raise
-    except Exception as e:
-        logging.exception(f"Could not parse dependencies for {plugin_name}. Error: {e}")
+    except Exception:
+        logger.exception(f"Could not parse dependencies for {plugin_name}")
         raise
 
     if not dependencies:
@@ -102,7 +100,7 @@ def _check_dependencies_for_plugin_script(script: str, plugin_name: str) -> list
     if not deps_to_install:
         return []
 
-    logging.info(
+    logger.info(
         f"Found missing dependencies for {plugin_name} plugin: {deps_to_install}"
     )
     return deps_to_install
@@ -113,7 +111,7 @@ def install_dependencies(
 ) -> T.Generator[ProgressUpdate, None, None]:
     """Install dependencies into the shared site-packages directory using uv."""
     if not dependencies:
-        logging.info("No new dependencies to install.")
+        logger.info("No new dependencies to install.")
         return
 
     uv_cmd = str(Path(sys.argv[0]).parent / "uv") if neon_player.is_frozen() else "uv"
@@ -137,13 +135,13 @@ def install_dependencies(
             check=False,
         )
         if proc.stdout:
-            logging.info(proc.stdout.rstrip())
+            logger.info(proc.stdout.rstrip())
         if proc.stderr:
-            logging.warning(proc.stderr.rstrip())
+            logger.warning(proc.stderr.rstrip())
 
         yield ProgressUpdate(1.0)
-        logging.info("Successfully installed dependencies.")
+        logger.info("Successfully installed dependencies.")
 
     except subprocess.CalledProcessError as e:
-        logging.exception(f"Failed to install dependencies. Error: {e.stderr}")
+        logger.exception(f"Failed to install dependencies. Error: {e.stderr}")
         raise

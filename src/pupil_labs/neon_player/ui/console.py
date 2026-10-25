@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
 from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import BackgroundJob
 
+logger = logging.getLogger(__name__)
+
 LOG_COLORS = {
     "DEBUG": Qt.GlobalColor.green,
     "INFO": Qt.GlobalColor.white,
@@ -180,12 +182,12 @@ class ConsoleWindow(QWidget):
         """Copy the current log contents to the clipboard."""
         cb = neon_player.instance().clipboard()
         cb.setText(self.console_widget.toPlainText())
-        logging.info("Log copied to clipboard")
+        logger.info("Log copied to clipboard")
 
     def clear_log(self) -> None:
         """Clear the log display."""
         self.console_widget.clear()
-        logging.info("Log display cleared")
+        logger.info("Log display cleared")
 
     def on_job_added(self, job: BackgroundJob) -> None:
         self.job_table_layout.addRow(job.name, JobProgressBar(job))

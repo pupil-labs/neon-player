@@ -14,8 +14,8 @@ class ProgressActionForm(ActionForm):
         return ProgressActionForm.from_type(hints["return"])
 
     @staticmethod
-    def from_type(cls: type) -> "ProgressActionForm":
-        return ProgressActionForm(cls())
+    def from_type(value_type: type) -> "ProgressActionForm":
+        return ProgressActionForm(value_type())
 
     def _setup_form(self) -> None:
         super()._setup_form()

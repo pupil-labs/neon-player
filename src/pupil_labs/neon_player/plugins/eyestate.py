@@ -10,6 +10,8 @@ from qt_property_widgets.utilities import action_params
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
 
+logger = logging.getLogger(__name__)
+
 
 class PlotProps:
     def __init__(self) -> None:
@@ -165,7 +167,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
             eyestate_data_dict = {**eyestate_data_dict, **eyelid_data}
 
         except KeyError:
-            logging.warning("Eyelid data not found in recording")
+            logger.warning("Eyelid data not found in recording")
 
         self.eyestate_data = pd.DataFrame(eyestate_data_dict)
 
@@ -211,7 +213,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
                 try:
                     data = self.eyestate_data[["timestamp [ns]", key]].to_numpy()
                 except KeyError:
-                    logging.warning(f"{key} data not found for this recording")
+                    logger.warning(f"{key} data not found for this recording")
                     data = np.empty((0, 2))
 
                 timeline.add_timeline_line(

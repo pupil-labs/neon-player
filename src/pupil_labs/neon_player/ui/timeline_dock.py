@@ -40,6 +40,8 @@ from pupil_labs.neon_player.ui.timeline_dock_utils import (
 )
 from pupil_labs.neon_player.utilities import clone_menu
 
+logger = logging.getLogger(__name__)
+
 
 class TimeLineDock(QWidget):
     key_pressed = Signal(QKeyEvent)
@@ -361,7 +363,7 @@ class TimeLineDock(QWidget):
         if not create_if_missing:
             return None
 
-        logging.debug(f"Adding plot '{timeline_row_name}' to timeline")
+        logger.debug(f"Adding plot '{timeline_row_name}' to timeline")
 
         row = self.graphics_layout.nextRow()
         is_timestamps_row = timeline_row_name == "Export window"
@@ -466,7 +468,7 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
         plot_name: str = "",
         color: QColor | None = None,
-        **kwargs: T.Any,
+        **kwargs: T.Any,  # noqa: ANN401
     ) -> pg.PlotDataItem | None:
         app = neon_player.instance()
         if app.recording is None:
@@ -554,7 +556,7 @@ class TimeLineDock(QWidget):
         timeline_row_name: str,
         data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
         plot_name: str = "",
-        **kwargs: T.Any,
+        **kwargs: T.Any,  # noqa: ANN401
     ) -> pg.PlotDataItem | None:
         return self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
 
@@ -744,7 +746,7 @@ def _resolve_bar_colors(
 
     try:
         cmap = pg.colormap.get(color_arg)
-    except Exception:
+    except FileNotFoundError:
         cmap = pg.colormap.get("viridis")
 
     colors = cmap.map(norm_values, mode="qcolor")

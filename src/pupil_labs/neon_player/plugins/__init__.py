@@ -18,6 +18,11 @@ if T.TYPE_CHECKING:
     from pupil_labs.neon_player.job_manager import JobManager
 
 
+JSONValue: T.TypeAlias = (
+    dict[str, "JSONValue"] | list["JSONValue"] | str | int | float | bool | None
+)
+
+
 class GlobalPluginProperties(PersistentPropertiesMixin):
     _known_types: T.ClassVar[list[type["GlobalPluginProperties"]]] = []
 
@@ -125,7 +130,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
         cache_dir = self.recording._rec_dir / ".neon_player" / "cache"
         return cache_dir / self.__class__.__name__
 
-    def load_cached_json(self, filename: str) -> T.Any:
+    def load_cached_json(self, filename: str) -> JSONValue:
         if self.recording is None:
             return None
 

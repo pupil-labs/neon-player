@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import numpy as np
@@ -10,6 +10,8 @@ from PySide6.QtGui import QIcon
 from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
+
+logger = logging.getLogger(__name__)
 
 
 class ExportAllPlugin(neon_player.Plugin):
@@ -51,13 +53,13 @@ class ExportAllPlugin(neon_player.Plugin):
         try:
             info_data.update(recording.info)
         except FileNotFoundError:
-            logging.warning("Failed to retrieve recording info for export.")
+            logger.warning("Failed to retrieve recording info for export.")
 
         # Cloud export also contains the name of the wearer
         try:
             info_data["wearer_name"] = recording.wearer["name"]
         except FileNotFoundError:
-            logging.warning("Failed to retrieve wearer name for export.")
+            logger.warning("Failed to retrieve wearer name for export.")
 
         return info_data
 
@@ -69,7 +71,7 @@ class ExportAllPlugin(neon_player.Plugin):
 
             try:
                 app_version = version("pupil_labs.neon_player")
-            except Exception:
+            except PackageNotFoundError:
                 app_version = "?"
 
             export_window = self.app.get_export_window()

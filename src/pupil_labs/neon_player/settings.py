@@ -9,6 +9,8 @@ from qt_property_widgets.utilities import PersistentPropertiesMixin, property_pa
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, Plugin
 
+logger = logging.getLogger(__name__)
+
 
 def plugin_label_lookup(cls_name: str) -> str:
     try:
@@ -163,15 +165,15 @@ def load_recording_settings(
     settings = None
     if settings_path.exists():
         try:
-            logging.info(f"Loading recording settings from {settings_path}")
+            logger.info(f"Loading recording settings from {settings_path}")
             settings = RecordingSettings.from_dict(
                 json.loads(settings_path.read_text())
             )
-        except Exception as e:
-            logging.exception(f"Failed to load settings: {e!s}")
+        except Exception:
+            logger.exception("Failed to load settings")
 
     if settings is None:
-        logging.info("Using default recording settings")
+        logger.info("Using default recording settings")
         settings = RecordingSettings()
         settings.export_window = (
             recording.start_time,
@@ -179,7 +181,7 @@ def load_recording_settings(
         )
 
     if len(settings.export_window) != 2 or any(el < 0 for el in settings.export_window):
-        logging.warning("Invalid export window in settings")
+        logger.warning("Invalid export window in settings")
         settings.export_window = (
             recording.start_time,
             recording.stop_time,

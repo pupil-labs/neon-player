@@ -124,7 +124,7 @@ class AudioPlugin(neon_player.Plugin):
         if self.has_audio_at_ts and self.app.is_playing and self.app.playback_speed > 0:
             self.player.play()
 
-    def on_recording_loaded(self, recording: NeonRecording) -> None:
+    def on_recording_loaded(self, _recording: NeonRecording) -> None:
         self.recording_has_audio = False
         if not self.cache_file.exists():
             if self.app.headless:

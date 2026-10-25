@@ -34,6 +34,8 @@ from pupil_labs.neon_player.utilities import qimage_from_frame
 
 from .ui import SurfaceHandle, SurfaceViewWindow
 
+logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
     from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
         SurfaceTrackingPlugin,
@@ -227,7 +229,9 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         return state
 
     @classmethod
-    def from_dict(cls: type["TrackedSurface"], state: dict[str, T.Any]) -> T.Any:
+    def from_dict(
+        cls: type["TrackedSurface"], state: dict[str, T.Any]
+    ) -> "TrackedSurface":
         item = super().from_dict(state)
         item._preview_options._tracked_surface = item
         return item
@@ -264,11 +268,11 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
     @property
     @property_params(dont_encode=True, widget=None)
-    def location(self):  # -> SurfaceLocation | None:
+    def location(self) -> tuple[np.ndarray, np.ndarray] | None:
         return self._location
 
     @location.setter
-    def location(self, value) -> None:  #: SurfaceLocation | None) -> None:
+    def location(self, value: tuple[np.ndarray, np.ndarray] | None) -> None:
         if self._location is not None and value is not None:
             i2sA, s2iA = self._location
             i2sB, s2iB = value
@@ -324,7 +328,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
                 if s.uid != self.uid and s.name == name
             ]
             if len(other_surfaces) > 0:
-                logging.error(f"There is already a surface named {name}")
+                logger.error(f"There is already a surface named {name}")
                 return
 
             timeline = self.tracker_plugin.get_timeline()
@@ -473,7 +477,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         try:
             gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
         except KeyError:
-            logging.warning(
+            logger.warning(
                 "Surface fixations export requires gaze and fixations plugins."
             )
             return
@@ -524,7 +528,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     ) -> None:
         fixations_plugin = Plugin.get_instance_by_name("FixationsPlugin")
         if fixations_plugin is None:
-            logging.warning(
+            logger.warning(
                 "Surface fixations export requires gaze and fixations plugins."
             )
             return

@@ -23,6 +23,8 @@ from pupil_labs.neon_player import GlobalPluginProperties, action
 from pupil_labs.neon_player.plugins import Plugin
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 
+logger = logging.getLogger(__name__)
+
 IMMUTABLE_EVENTS = ["recording.begin", "recording.end"]
 
 
@@ -119,8 +121,8 @@ class EventTypeListWidget(ValueListWidget):
         return EventTypeListWidget(EventType, source_params)
 
     @staticmethod
-    def from_type(cls: type) -> "EventTypeListWidget":
-        return EventTypeListWidget(cls, {})
+    def from_type(value_type: type) -> "EventTypeListWidget":
+        return EventTypeListWidget(value_type, {})
 
     def on_add_button_clicked(self) -> None:
         plugin = EventsPlugin.instance()
@@ -224,7 +226,7 @@ def _load_events_from_dataframe(events_df: pd.DataFrame) -> dict[str, list[int]]
     for raw_name, group in events_df.groupby("name"):
         name = str(raw_name)
         if name in IMMUTABLE_EVENTS:
-            logging.warning(f"Skipping immutable event '{name}' from imported CSV")
+            logger.warning(f"Skipping immutable event '{name}' from imported CSV")
             continue
 
         events[name] = group["timestamp [ns]"].astype(int).tolist()
@@ -286,10 +288,10 @@ class EventsPlugin(neon_player.Plugin):
         try:
             cached_events = self.load_cached_json("events.json")
         except Exception:
-            logging.exception("Failed to load events json")
+            logger.exception("Failed to load events json")
             cached_events = None
 
-        if cached_events is not None:
+        if isinstance(cached_events, dict):
             event_types, events = _load_events_from_cache(
                 cached_events, list(self._event_types_by_name.values())
             )
@@ -324,7 +326,7 @@ class EventsPlugin(neon_player.Plugin):
             )
             event_types_to_setup_ui_for = self.event_types + self._immutable_event_types
 
-        logging.info(f"Loaded {sum(len(v) for v in self._events.values())} events")
+        logger.info(f"Loaded {sum(len(v) for v in self._events.values())} events")
 
         self._update_gui_for_event_types(event_types_to_add=event_types_to_setup_ui_for)
 
@@ -623,7 +625,7 @@ class EventsPlugin(neon_player.Plugin):
         event_types_to_update = []
         for event_name, timestamps in events.items():
             if event_name not in self._event_types_by_name:
-                logging.warning(f"Skipping unknown event '{event_name}' from deletion")
+                logger.warning(f"Skipping unknown event '{event_name}' from deletion")
                 continue
 
             if event_name in IMMUTABLE_EVENTS:
@@ -695,7 +697,7 @@ class EventsPlugin(neon_player.Plugin):
         destination_file = destination / "events.csv"
         events_df.to_csv(destination_file, index=False)
 
-        logging.info(f"Exported events to {destination_file}")
+        logger.info(f"Exported events to {destination_file}")
 
     def _prepare_events_export(
         self, recording: NeonRecording, export_window: tuple[int, int]

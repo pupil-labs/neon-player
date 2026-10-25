@@ -38,7 +38,7 @@ class ObjectDetection(neon_player.Plugin):
 
         self.detection_job = None
 
-    def on_recording_loaded(self, recording: NeonRecording) -> None:
+    def on_recording_loaded(self, _recording: NeonRecording) -> None:
         self.load_object_cache()
 
     def load_object_cache(self) -> None:

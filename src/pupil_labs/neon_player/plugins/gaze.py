@@ -28,6 +28,8 @@ from pupil_labs.neon_player.utilities import (
     unproject_points,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class Aggregation(enum.Enum):
     Raw = "Raw"
@@ -101,7 +103,7 @@ class GazeDataPlugin(neon_player.Plugin):
 
         except Exception:
             self.worn_data = None
-            logging.warning("Failed to load worn data")
+            logger.warning("Failed to load worn data", exc_info=True)
 
     def on_disabled(self) -> None:
         if self.worn_data:
@@ -123,6 +125,7 @@ class GazeDataPlugin(neon_player.Plugin):
         try:
             worns = self.worn_data.sample(samples.time).worn
         except Exception:
+            logger.debug("Failed to sample worn data", exc_info=True)
             worns = np.array([255])
 
         aggregations = {}
@@ -183,13 +186,13 @@ class GazeDataPlugin(neon_player.Plugin):
         )
 
         if gaze.empty:
-            logging.warning("No gaze data are present in the export window")
+            logger.warning("No gaze data are present in the export window")
             return
 
         export_file = destination / "gaze.csv"
         gaze.to_csv(export_file, index=False)
 
-        logging.info(f"Wrote {export_file}")
+        logger.info(f"Wrote {export_file}")
 
     @property
     @property_params(min=-1, max=1, step=0.01, decimals=3)
@@ -541,7 +544,7 @@ def _prepare_gaze_export(
     if worn_data:
         gaze["worn"] = _prepare_worn_export(export_gazes, worn_data)
     else:
-        logging.warning("No worn data to export")
+        logger.warning("No worn data to export")
 
     try:
         matched_fixation_ids = (
@@ -555,7 +558,7 @@ def _prepare_gaze_export(
         gaze["fixation id"] = matched_fixation_ids
         gaze["fixation id"] = gaze["fixation id"].replace(0, None)
     except Exception:
-        logging.warning("Failed to match fixations")
+        logger.warning("Failed to match fixations", exc_info=True)
 
     try:
         matched_blink_ids = (
@@ -569,7 +572,7 @@ def _prepare_gaze_export(
         gaze["blink id"] = matched_blink_ids
         gaze["blink id"] = gaze["blink id"].replace(0, None)
     except Exception:
-        logging.warning("Failed to match blinks")
+        logger.warning("Failed to match blinks", exc_info=True)
 
     return gaze
 

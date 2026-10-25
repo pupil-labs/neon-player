@@ -8,6 +8,8 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 
 from pupil_labs import neon_player
 
+logger = logging.getLogger(__name__)
+
 IPC_APP_NAME = "neon-player-log-ipc"
 
 
@@ -15,8 +17,8 @@ class IPCLogger(logging.Handler):
     def __init__(self) -> None:
         super().__init__()
 
-        logger = logging.getLogger()
-        logger.setLevel(logging.DEBUG)
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.DEBUG)
 
         # Main process starts the server
         self.server: QLocalServer | None = None
@@ -50,8 +52,8 @@ class IPCLogger(logging.Handler):
         log_file = log_dir / "neon_player.log"
 
         # Set up root logger
-        logger = logging.getLogger()
-        logger.setLevel(logging.DEBUG)
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.DEBUG)
 
         # Create formatters
         log_formatter = logging.Formatter(neon_player.LOG_FORMAT_STRING)
@@ -60,7 +62,7 @@ class IPCLogger(logging.Handler):
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(log_formatter)
 
-        logger.addHandler(console_handler)
+        root_logger.addHandler(console_handler)
 
         # File handler with rotation (10MB per file, keep 5 backups)
         try:
@@ -68,10 +70,10 @@ class IPCLogger(logging.Handler):
                 log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
             )
             file_handler.setFormatter(log_formatter)
-            logger.addHandler(file_handler)
-            logging.info(f"Logging to file: {log_file}")
+            root_logger.addHandler(file_handler)
+            logger.info(f"Logging to file: {log_file}")
         except Exception:
-            logging.exception(f"Could not start file logger [{log_file}]")
+            logger.exception(f"Could not start file logger [{log_file}]")
 
         self.server.newConnection.connect(self._handle_new_connection)
 
@@ -104,7 +106,7 @@ class IPCLogger(logging.Handler):
                 log_record.msg = f"[BG] {log_record.msg}"
                 logging.getLogger().handle(log_record)
             except Exception:
-                logging.exception(
+                logger.exception(
                     "Could not unpickle the log message from the background process"
                 )
 

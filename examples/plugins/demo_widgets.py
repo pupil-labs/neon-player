@@ -34,16 +34,18 @@ from qt_property_widgets.widgets import MultiLineTextWidget, PropertyWidget
 
 from pupil_labs.neon_player import Plugin, action
 
+logger = logging.getLogger(__name__)
+
 
 class ClickMeWidget(PropertyWidget):
     value_changed = Signal(int)
 
     @staticmethod
-    def from_property_impl(prop: property) -> "ClickMeWidget":
+    def from_property_impl(_prop: property) -> "ClickMeWidget":
         return ClickMeWidget()
 
     @staticmethod
-    def from_type(cls: type) -> "ClickMeWidget":
+    def from_type(_value_type: type) -> "ClickMeWidget":
         return ClickMeWidget()
 
     def __init__(self) -> None:
@@ -267,8 +269,8 @@ class DemoWidgets(Plugin):
         # icon=QIcon.fromTheme("document-edit")  # uncomment to set a custom icon
     )
     def print_to_console(self) -> None:
-        logging.info(f"Current values of properties: {self.to_dict()}")
+        logger.info(f"Current values of properties: {self.to_dict()}")
 
     @action
     def default_action(self, param1: str, param2: str) -> None:
-        logging.info(f"Default action triggered with params: {param1}, {param2}")
+        logger.info(f"Default action triggered with params: {param1}, {param2}")

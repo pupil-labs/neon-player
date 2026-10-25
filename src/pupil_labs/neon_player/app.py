@@ -7,7 +7,7 @@ import sys
 import time
 import typing as T
 import warnings
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import numpy as np
@@ -53,6 +53,11 @@ from pupil_labs.neon_player.ui.plugin_installation_dialog import (
 )
 from pupil_labs.neon_player.utilities import SlotDebouncer, clone_menu
 
+if sys.platform == "darwin":
+    from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
+
+logger = logging.getLogger(__name__)
+
 
 class NeonPlayerApp(QApplication):
     export_window_changed = Signal(tuple[int, int])
@@ -69,7 +74,7 @@ class NeonPlayerApp(QApplication):
 
         try:
             app_version = version("pupil_labs.neon_player")
-        except Exception:
+        except PackageNotFoundError:
             app_version = "?"
 
         self.setApplicationName("Neon Player")
@@ -129,7 +134,7 @@ class NeonPlayerApp(QApplication):
         self.main_window = MainWindow()
 
         self.ipc_logger = IPCLogger()
-        logging.info(
+        logger.info(
             f"{self.applicationName()} v{self.applicationVersion()} starting up"
         )
         self._setup_frozen()
@@ -148,18 +153,18 @@ class NeonPlayerApp(QApplication):
         try:
             self.settings = GeneralSettings.from_dict(self.load_global_settings())
         except FileNotFoundError:
-            logging.warning("Settings file not found")
+            logger.warning("Settings file not found")
         except Exception:
-            logging.exception("Failed to load settings")
+            logger.exception("Failed to load settings")
 
         try:
             self.recording_history = RecordingHistory.from_dict(
                 self.load_recording_history()
             )
         except FileNotFoundError:
-            logging.warning("Recording history file not found")
+            logger.warning("Recording history file not found")
         except Exception:
-            logging.exception("Failed to load recording history")
+            logger.exception("Failed to load recording history")
         self.recording_history.changed.connect(self.save_history)
 
         if self.args.job and self.args.recording:
@@ -196,18 +201,18 @@ class NeonPlayerApp(QApplication):
 
                 break
         else:
-            logging.error(f"Could not find plugin action method: {job[0]}")
+            logger.error(f"Could not find plugin action method: {job[0]}")
 
         self.quit()
 
-    def load_global_settings(self) -> T.Any:
+    def load_global_settings(self) -> dict[str, T.Any]:
         settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
-        logging.info(f"Loading settings from {settings_path}")
+        logger.info(f"Loading settings from {settings_path}")
         return json.loads(settings_path.read_text())
 
-    def load_recording_history(self) -> T.Any:
+    def load_recording_history(self) -> dict[str, dict[str, str]]:
         history_path = Path.home() / "Pupil Labs" / "Neon Player" / "history.json"
-        logging.info(f"Loading recording history from {history_path}")
+        logger.info(f"Loading recording history from {history_path}")
         return json.loads(history_path.read_text())
 
     def save_settings(self, force: bool = False) -> None:
@@ -230,9 +235,9 @@ class NeonPlayerApp(QApplication):
                 with settings_path.open("w") as f:
                     json.dump(data, f, cls=ComplexEncoder)
 
-            logging.info("Settings saved")
+            logger.info("Settings saved")
         except Exception:
-            logging.exception("Failed to save settings")
+            logger.exception("Failed to save settings")
             raise
 
     def save_history(self) -> None:
@@ -243,14 +248,14 @@ class NeonPlayerApp(QApplication):
             with history_path.open("w") as f:
                 json.dump(data, f, cls=ComplexEncoder)
 
-            logging.info("History saved")
+            logger.info("History saved")
         except Exception:
-            logging.exception("Failed to save history")
+            logger.exception("Failed to save history")
 
     def find_plugins(self, path: Path) -> None:
         sys.path.append(str(path))
         sys.path.append(str(path / "site-packages"))
-        logging.info(f"Searching for plugins in {path}")
+        logger.info(f"Searching for plugins in {path}")
         for d in path.iterdir():
             if d.is_file() and d.suffix != ".py":
                 continue
@@ -275,7 +280,7 @@ class NeonPlayerApp(QApplication):
                     dialog = PluginInstallationDialog(missing_dependencies, d.name)
                     dialog.exec()
 
-                logging.info(f"Importing plugin module {d}")
+                logger.info(f"Importing plugin module {d}")
 
                 module = importlib.util.module_from_spec(spec)
                 sys.modules[d.stem] = module
@@ -283,7 +288,7 @@ class NeonPlayerApp(QApplication):
                     spec.loader.exec_module(module)
 
             except Exception:
-                logging.exception(f"Failed to import plugin module {d}")
+                logger.exception(f"Failed to import plugin module {d}")
 
     def toggle_plugin(
         self,
@@ -296,13 +301,13 @@ class NeonPlayerApp(QApplication):
                 kls = Plugin.get_class_by_name(kls)
             except ValueError:
                 if enabled:
-                    logging.warning(f"Couldn't enable plugin class: {kls}")
+                    logger.warning(f"Couldn't enable plugin class: {kls}")
                 return None
 
         currently_enabled = kls.__name__ in self.plugins_by_class
 
         if enabled and not currently_enabled:
-            logging.info(f"Enabling plugin: {kls.__name__}")
+            logger.info(f"Enabling plugin: {kls.__name__}")
             try:
                 if state is None:
                     state = self.recording_settings.plugin_states.get(kls.__name__, {})
@@ -318,7 +323,7 @@ class NeonPlayerApp(QApplication):
                 if self.recording:
                     plugin.on_recording_loaded(self.recording)
             except Exception:
-                logging.exception(f"Failed to enable plugin {kls}")
+                logger.exception(f"Failed to enable plugin {kls}")
                 return None
 
         elif not enabled and currently_enabled:
@@ -329,7 +334,7 @@ class NeonPlayerApp(QApplication):
             del self.plugins_by_class[kls.__name__]
             self.main_window.settings_panel.remove_plugin_settings(kls.__name__)
 
-            logging.info(f"Disabled plugin: {kls.__name__}")
+            logger.info(f"Disabled plugin: {kls.__name__}")
 
         self.plugins = list(self.plugins_by_class.values())
         self.plugins.sort(key=lambda p: p.render_layer)
@@ -347,8 +352,6 @@ class NeonPlayerApp(QApplication):
         else:
             if sys.platform == "darwin":
                 # hide dock icon for background jobs
-                from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
-
                 NSApplication.sharedApplication().setActivationPolicy_(
                     NSApplicationActivationPolicyAccessory
                 )
@@ -390,7 +393,7 @@ class NeonPlayerApp(QApplication):
         self.loading_recording = True
         self._initializing = True
         self.unload()
-        logging.info("Opening recording at path: %s", path)
+        logger.info(f"Opening recording at path: {path}")
         self.recording = nr.load(path)
         self.recording_history.add_recording(path, self.recording)
 
@@ -404,7 +407,7 @@ class NeonPlayerApp(QApplication):
         self.recording_settings.export_window_changed.connect(
             self.export_window_changed.emit
         )
-        logging.info("Recording settings loaded")
+        logger.info("Recording settings loaded")
 
         if self.settings.skip_gray_frames_on_load:
             self.seek_to(self.recording.scene[0].time)
@@ -419,7 +422,7 @@ class NeonPlayerApp(QApplication):
     def on_recording_load_complete(self) -> None:
         self.loading_recording = False
         self.recording_loaded.emit(self.recording)
-        logging.info(f"Loaded `{self.recording._rec_dir}`")
+        logger.info(f"Loaded `{self.recording._rec_dir}`")
 
     def toggle_plugins_by_settings(self) -> None:
         timeline = self.main_window.timeline
@@ -433,7 +436,7 @@ class NeonPlayerApp(QApplication):
         self._initializing = False
 
         if self.args.job:
-            logging.info("Running jobs")
+            logger.info("Running jobs")
             self.run_jobs(self.args.job)
 
     def get_action(self, action_path: str) -> QAction:
@@ -581,7 +584,7 @@ class NeonPlayerApp(QApplication):
                 try:
                     plugin.export(Path(export_path))
                 except Exception:
-                    logging.exception(f"Exception while exporting plugin {plugin}")
+                    logger.exception(f"Exception while exporting plugin {plugin}")
 
     @property
     def is_playing(self) -> bool:
@@ -614,5 +617,5 @@ class NeonPlayerApp(QApplication):
         # running from source, built-in plugins don't produce such warnings. Newer
         # versions of Nuitka (>4.0) might fix this issue, but the app generated using
         # Nuitka 4.3 segfaults on MacOS, requiring further investigation.
-        logging.debug("Disabling pandas.ChainedAssignmentError warnings")
+        logger.debug("Disabling pandas.ChainedAssignmentError warnings")
         warnings.simplefilter("ignore", ChainedAssignmentError)
