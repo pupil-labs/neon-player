@@ -48,7 +48,11 @@ MOCK_XDF_MARKERS = {
     ],
 )
 def test_xdf_stream_parse_info(
-    stream_info, stream_type, fs, channel_count, channel_format
+    stream_info: dict[str, int | list[str]],
+    stream_type: str,
+    fs: float,
+    channel_count: int,
+    channel_format: str,
 ) -> None:
     xdf_stream = XDFStream()
     xdf_stream.parse_info(stream_info)
@@ -120,7 +124,9 @@ def test_data_xdf_stream_load_save(tmp_path: Path) -> None:
     ("info", "key", "default", "expected"),
     [({}, "key", 1, 1), ({"key": 2}, "key", 1, 2), ({"key": [3, 4]}, "key", 1, 3)],
 )
-def test_first(info, key, default, expected) -> None:
+def test_first(
+    info: dict[str, int | list[int]], key: str, default: int, expected: int
+) -> None:
     assert first(info, key, default) == expected
 
 

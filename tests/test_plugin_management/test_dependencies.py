@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from packaging.utils import canonicalize_name
@@ -24,7 +24,9 @@ import os
 
 
 @patch("importlib.metadata.distributions", return_value=["huggingface_hub", "tf_keras"])
-def test_get_installed_packages__names_are_normalized(mock_distributions) -> None:
+def test_get_installed_packages__names_are_normalized(
+    mock_distributions: MagicMock,
+) -> None:
     for package in get_installed_packages():
         assert package == canonicalize_name(package)
 

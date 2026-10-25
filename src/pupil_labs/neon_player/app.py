@@ -172,7 +172,7 @@ class NeonPlayerApp(QApplication):
 
         self.aboutToQuit.connect(self.unload)
 
-    def run_jobs(self, job) -> None:
+    def run_jobs(self, job: list[str]) -> None:
         plugin_name, action_name = job[0].split(".")
         job_args = job[1:]
 

@@ -1,5 +1,8 @@
+from collections.abc import Callable
+
 import numpy as np
 import pytest
+from pupil_labs.neon_recording import NeonRecording
 
 from pupil_labs.neon_player.plugins.shared.video_export import _prepare_timestamps
 from tests.mocks import mock_scene_timeseries
@@ -7,7 +10,7 @@ from tests.mocks import mock_scene_timeseries
 
 @pytest.mark.parametrize("export_window", [(0, 100), (10, 100), (50, 100)])
 def test_prepare_timestamps__export_window(
-    export_window: tuple[int, int], mock_neon_recording
+    export_window: tuple[int, int], mock_neon_recording: Callable[..., NeonRecording]
 ) -> None:
     scene = mock_scene_timeseries(np.arange(101, dtype=np.int64))
     rec = mock_neon_recording(start_time=0, stop_time=100, scene=scene)
@@ -34,7 +37,7 @@ def test_prepare_timestamps__export_window(
 
 @pytest.mark.parametrize("export_window", [(0, 15), (85, 100)])
 def test_prepare_timestamps__grey_filler_frames(
-    export_window: tuple[int, int], mock_neon_recording
+    export_window: tuple[int, int], mock_neon_recording: Callable[..., NeonRecording]
 ) -> None:
     # Scene timestamps do not cover the whole range between start and stop time
     scene = mock_scene_timeseries(np.arange(20, 80, dtype=np.int64))
@@ -56,7 +59,9 @@ def test_prepare_timestamps__grey_filler_frames(
     )
 
 
-def test_prepare_timestamps__gaps(mock_neon_recording) -> None:
+def test_prepare_timestamps__gaps(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     # Simulate gaps in scene video
     # NOTE: gaps have to be at least 0.5 s, using 20 fps for nicer numbers
     scene_timestamps = np.concatenate(

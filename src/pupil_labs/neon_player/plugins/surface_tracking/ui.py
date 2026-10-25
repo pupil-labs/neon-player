@@ -67,7 +67,7 @@ class MarkerEditWidget(QPushButton):
 class SurfaceHandle(QWidget):
     position_changed = Signal(QPointF)
 
-    def __init__(self, surface, corner_id) -> None:
+    def __init__(self, surface: "TrackedSurface", corner_id: tuple[int, int]) -> None:
         super().__init__()
         self.surface = surface
         self.corner_id = corner_id

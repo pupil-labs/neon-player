@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import PropertyMock
 
@@ -23,8 +24,8 @@ FIELD_CLASS_MAPPING = {
 
 
 @pytest.fixture(autouse=False)
-def mock_neon_recording(tmp_path: Path):
-    def inner(**kwargs) -> NeonRecording:
+def mock_neon_recording(tmp_path: Path) -> Callable[..., NeonRecording]:
+    def inner(**kwargs: object) -> NeonRecording:
         # Use a temporary folder to initialize mock NeonRecording
         rec = NeonRecording(tmp_path)
 

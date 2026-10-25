@@ -1,7 +1,11 @@
+from collections.abc import Callable
+from typing import TYPE_CHECKING
+
 import numpy as np
 import pytest
 from pupil_labs.camera import Camera
 from pupil_labs.marker_mapper.surface import normalized_corners
+from pupil_labs.neon_recording import NeonRecording
 
 from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
 from pupil_labs.neon_player.plugins.surface_tracking import SurfaceTrackingPlugin
@@ -15,8 +19,11 @@ from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import (
 )
 from tests.mocks import mock_scene_timeseries
 
+if TYPE_CHECKING:
+    from tests.conftest import MockNeonPlayerApp
 
-def mock_transform(x0, y0, w, h):
+
+def mock_transform(x0: float, y0: float, w: float, h: float) -> np.ndarray:
     """Mock surface location (translation + scaling only).
 
     Transforms normalized corners to the corners of a wxh rectangle
@@ -25,7 +32,9 @@ def mock_transform(x0, y0, w, h):
     return np.array([[w, 0, x0 - w / 2], [0, h, y0 - h / 2], [0, 0, 1]], dtype=float)
 
 
-def test_surface_tracking_plugin__to_dict__recursive(qapp, mock_neon_recording) -> None:
+def test_surface_tracking_plugin__to_dict__recursive(
+    qapp: "MockNeonPlayerApp", mock_neon_recording: Callable[..., NeonRecording]
+) -> None:
     qapp.recording = mock_neon_recording()
     qapp.plugins_by_class["GazeDataPlugin"] = GazeDataPlugin()
 
@@ -54,7 +63,9 @@ def test_surface_tracking_plugin__to_dict__recursive(qapp, mock_neon_recording) 
         (1500, 100, 300, 300, np.array([True, True, True, False])),
     ],
 )
-def test_get_position_for_export(x0, y0, w, h, expected_nan_row_mask) -> None:
+def test_get_position_for_export(
+    x0: float, y0: float, w: float, h: float, expected_nan_row_mask: np.ndarray
+) -> None:
     # No distortion to simplify the calculations
     scene_size = (1600, 1200)
     camera = Camera(*scene_size, np.eye(3))
@@ -67,7 +78,7 @@ def test_get_position_for_export(x0, y0, w, h, expected_nan_row_mask) -> None:
 
 
 def test_prepare_surface_positions_export_respects_export_window(
-    mock_neon_recording,
+    mock_neon_recording: Callable[..., NeonRecording],
 ) -> None:
     recording = mock_neon_recording(scene=mock_scene_timeseries([1, 2, 3, 4, 5]))
     scene_size = (1600, 1200)
@@ -83,7 +94,7 @@ def test_prepare_surface_positions_export_respects_export_window(
 
 
 def test_prepare_surface_positions_export_drops_rows_if_no_markers(
-    mock_neon_recording,
+    mock_neon_recording: Callable[..., NeonRecording],
 ) -> None:
     recording = mock_neon_recording(scene=mock_scene_timeseries([1]))
     scene_size = (1600, 1200)
@@ -96,7 +107,7 @@ def test_prepare_surface_positions_export_drops_rows_if_no_markers(
 
 
 def test_prepare_surface_positions_export_drops_rows_if_no_location(
-    mock_neon_recording,
+    mock_neon_recording: Callable[..., NeonRecording],
 ) -> None:
     recording = mock_neon_recording(scene=mock_scene_timeseries([1]))
     scene_size = (1600, 1200)
@@ -107,7 +118,9 @@ def test_prepare_surface_positions_export_drops_rows_if_no_location(
     assert positions_df.empty
 
 
-def test_prepare_surface_positions_export(mock_neon_recording) -> None:
+def test_prepare_surface_positions_export(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     recording = mock_neon_recording(scene=mock_scene_timeseries([1, 2, 3]))
     scene_size = (1600, 1200)
     camera = Camera(*scene_size, np.eye(3))

@@ -1,7 +1,9 @@
+from collections.abc import Callable
 from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
+from pupil_labs.neon_recording import NeonRecording
 from pytestqt.qtbot import QtBot
 
 from pupil_labs.neon_player.plugins.events import (
@@ -14,7 +16,9 @@ from pupil_labs.neon_player.plugins.events import (
 from tests.mocks import mock_event_timeseries
 
 
-def test_events__load_events_from_recording(mock_neon_recording) -> None:
+def test_events__load_events_from_recording(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     events_dict = {
         "recording.begin": [0],
         "trial.begin": [100, 400, 700],
@@ -100,7 +104,7 @@ def test_events__load_events_from_dataframe() -> None:
 
 
 def test_events_plugin__on_recording_loaded__from_recording(
-    mock_neon_recording,
+    mock_neon_recording: Callable[..., NeonRecording],
 ) -> None:
     et = EventType.from_name("test.event")
 
@@ -120,7 +124,9 @@ def test_events_plugin__on_recording_loaded__from_recording(
     plugin.save_cached_json.assert_called_once()
 
 
-def test_events_plugin__on_recording_loaded__from_cache(mock_neon_recording) -> None:
+def test_events_plugin__on_recording_loaded__from_cache(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     et = EventType.from_name("test.event")
 
     plugin = EventsPlugin()
@@ -311,7 +317,9 @@ def test_events_plugin__delete_events__raises_on_immutable_type() -> None:
         plugin.delete_events({"recording.begin": [0]})
 
 
-def _prepare_test_data(mock_neon_recording):
+def _prepare_test_data(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> tuple[EventsPlugin, NeonRecording]:
     plugin = EventsPlugin()
     mock_events = mock_event_timeseries(
         {
@@ -338,25 +346,33 @@ def _prepare_test_data(mock_neon_recording):
     return plugin, mock_recording
 
 
-def test_events_plugin__find_closest_event(mock_neon_recording) -> None:
+def test_events_plugin__find_closest_event(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     plugin, _ = _prepare_test_data(mock_neon_recording)
     et = plugin._event_types_by_name["event.from.rec"]
     assert plugin._find_closest_event(et, 100) == 100
 
 
-def test_events_plugin__find_closest_event__missing_type(mock_neon_recording) -> None:
+def test_events_plugin__find_closest_event__missing_type(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     plugin, _ = _prepare_test_data(mock_neon_recording)
     et = EventType.from_name("non.existent.event")
     assert plugin._find_closest_event(et, 100) is None
 
 
-def test_events_plugin__find_closest_event__tolerance(mock_neon_recording) -> None:
+def test_events_plugin__find_closest_event__tolerance(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     plugin, _ = _prepare_test_data(mock_neon_recording)
     et = plugin._event_types_by_name["event.from.rec"]
     assert plugin._find_closest_event(et, 110, tolerance_ns=15) == 100
 
 
-def test_events_plugin__events__uses_names_not_ids(mock_neon_recording) -> None:
+def test_events_plugin__events__uses_names_not_ids(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     plugin, _ = _prepare_test_data(mock_neon_recording)
     event_names = [
         "recording.begin",
@@ -372,7 +388,7 @@ def test_events_plugin__events__uses_names_not_ids(mock_neon_recording) -> None:
 
 
 def test_events_plugin__prepare_events_export__whole_time_range(
-    mock_neon_recording,
+    mock_neon_recording: Callable[..., NeonRecording],
 ) -> None:
     plugin, mock_recording = _prepare_test_data(mock_neon_recording)
     events_df = plugin._prepare_events_export(mock_recording, export_window=(0, 1000))
@@ -380,7 +396,7 @@ def test_events_plugin__prepare_events_export__whole_time_range(
 
 
 def test_events_plugin__prepare_events_export__custom_time_range(
-    mock_neon_recording,
+    mock_neon_recording: Callable[..., NeonRecording],
 ) -> None:
     plugin, mock_recording = _prepare_test_data(mock_neon_recording)
     events_df = plugin._prepare_events_export(mock_recording, export_window=(200, 750))
@@ -394,7 +410,7 @@ def test_events_plugin__prepare_events_export__custom_time_range(
 
 
 def test_events_plugin__prepare_events_export__timestamps_are_sorted(
-    mock_neon_recording,
+    mock_neon_recording: Callable[..., NeonRecording],
 ) -> None:
     plugin, mock_recording = _prepare_test_data(mock_neon_recording)
     events_df = plugin._prepare_events_export(mock_recording, export_window=(150, 450))
@@ -403,7 +419,9 @@ def test_events_plugin__prepare_events_export__timestamps_are_sorted(
     )
 
 
-def test_events_plugin__prepare_events_export__source(mock_neon_recording) -> None:
+def test_events_plugin__prepare_events_export__source(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     plugin, mock_recording = _prepare_test_data(mock_neon_recording)
     events_df = plugin._prepare_events_export(mock_recording, export_window=(0, 1000))
     for event_name, source in zip(
@@ -416,7 +434,9 @@ def test_events_plugin__prepare_events_export__source(mock_neon_recording) -> No
         )
 
 
-def test_events_plugin__to_dict__recursive(mock_neon_recording) -> None:
+def test_events_plugin__to_dict__recursive(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     plugin, _ = _prepare_test_data(mock_neon_recording)
     plugin_dict = plugin.to_dict(recursive=True)
     plugin_rec = EventsPlugin.from_dict(plugin_dict)

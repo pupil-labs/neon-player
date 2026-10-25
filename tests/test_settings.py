@@ -1,4 +1,7 @@
 import json
+from collections.abc import Callable
+
+from pupil_labs.neon_recording import NeonRecording
 
 from pupil_labs.neon_player.settings import load_recording_settings
 
@@ -17,7 +20,9 @@ def mock_settings_path(contents: dict, corrupt: bool = False):
     return MockSettingsPath()
 
 
-def test_load_recording_settings__valid(mock_neon_recording) -> None:
+def test_load_recording_settings__valid(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     contents = {"export_window": [2, 5], "enabled_plugins": {"Plugin": True}}
     rec = mock_neon_recording(start_time=0, stop_time=10)
     settings = load_recording_settings(mock_settings_path(contents), rec)
@@ -26,7 +31,9 @@ def test_load_recording_settings__valid(mock_neon_recording) -> None:
     assert settings.enabled_plugins["Plugin"]
 
 
-def test_load_recording_settings__invalid_export_window(mock_neon_recording) -> None:
+def test_load_recording_settings__invalid_export_window(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     contents = {"export_window": [0], "enabled_plugins": {"Plugin": True}}
     rec = mock_neon_recording(start_time=0, stop_time=10)
     settings = load_recording_settings(mock_settings_path(contents), rec)
@@ -35,7 +42,9 @@ def test_load_recording_settings__invalid_export_window(mock_neon_recording) -> 
     assert settings.enabled_plugins["Plugin"]
 
 
-def test_load_recording_settings__corrupted_settings(mock_neon_recording) -> None:
+def test_load_recording_settings__corrupted_settings(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     contents = {"export_window": [0], "enabled_plugins": {"Plugin": True}}
     rec = mock_neon_recording(start_time=0, stop_time=10)
     settings = load_recording_settings(mock_settings_path(contents, corrupt=True), rec)

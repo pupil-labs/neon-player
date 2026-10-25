@@ -46,7 +46,7 @@ def test_parse_pep723_dependencies__python_version_mismatch() -> None:
 # dependencies = []
 # ///
 """
-    with pytest.raises(PythonVersionMismatchError, match="<3.11"):
+    with pytest.raises(PythonVersionMismatchError, match=r"<3.11"):
         parse_pep723_dependencies(script)
 
 

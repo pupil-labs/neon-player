@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from PySide6.QtCore import (
     QKeyCombination,
     Signal,
@@ -56,13 +58,13 @@ class GUIEventNotifier:
 
 
 class HeaderAction:
-    def __init__(self, callback, name) -> None:
+    def __init__(self, callback: Callable[[], object] | None, name: str) -> None:
         self.callback = callback
         self.name = name
 
 
 class ListPropertyAppenderAction(HeaderAction):
-    def __init__(self, property_name, name) -> None:
+    def __init__(self, property_name: str, name: str) -> None:
         super().__init__(None, name)
         self.property_name = property_name
         self.form = None

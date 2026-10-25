@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QSizePolicy,
     QVBoxLayout,
+    QWidget,
 )
 
 from pupil_labs import neon_player
@@ -12,7 +13,10 @@ from pupil_labs import neon_player
 
 class PluginInstallationDialog(QDialog):
     def __init__(
-        self, dependencies_to_install: list[str], plugin_req: str, parent=None
+        self,
+        dependencies_to_install: list[str],
+        plugin_req: str,
+        parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.dependencies_to_install = dependencies_to_install

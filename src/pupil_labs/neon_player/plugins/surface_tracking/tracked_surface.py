@@ -7,11 +7,13 @@ from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from pupil_labs.camera import perspective_transform
 from pupil_labs.marker_mapper import utils
 from pupil_labs.marker_mapper.surface import normalized_corners
-from PySide6.QtCore import QObject, QSize, Signal
+from pupil_labs.neon_recording.timeseries.gaze import GazeArray, GazeTimeseries
+from PySide6.QtCore import QObject, QPointF, QSize, Signal
 from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QFileDialog
 from qt_property_widgets.utilities import (
@@ -22,6 +24,7 @@ from qt_property_widgets.utilities import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, action
+from pupil_labs.neon_player.job_manager import BackgroundJob
 from pupil_labs.neon_player.plugins.gaze import (
     CircleViz,
     GazeVisualization,
@@ -194,7 +197,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             self.heatmap_invalidated.emit
         )
 
-    def add_bg_job(self, job) -> None:
+    def add_bg_job(self, job: BackgroundJob) -> None:
         for j in self.jobs:
             j.cancel()
 
@@ -202,7 +205,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         job.finished.connect(lambda: self._remove_job(job))
         job.canceled.connect(lambda: self._remove_job(job))
 
-    def _remove_job(self, job) -> None:
+    def _remove_job(self, job: BackgroundJob) -> None:
         with contextlib.suppress(ValueError):
             self.jobs.remove(job)
 
@@ -334,7 +337,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             self.tracker_plugin.add_visibility_timeline(self)
             self.tracker_plugin.add_surface_gaze_timeline(self)
 
-    def on_corner_changed(self, corner_id, pos) -> None:
+    def on_corner_changed(self, corner_id: tuple[int, int], pos: QPointF) -> None:
         camera = Plugin.get_instance_by_name("SurfaceTrackingPlugin").camera
 
         corners = [tuple(v) for v in normalized_corners().tolist()]
@@ -435,7 +438,9 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def preview_options(self, value: SurfaceViewDisplayOptions) -> None:
         self._preview_options = value
 
-    def map_points_by_time(self, points, timestamps):
+    def map_points_by_time(
+        self, points: npt.ArrayLike, timestamps: npt.ArrayLike
+    ) -> np.ndarray:
         mapped_points = []
         surface_locations = self.tracker_plugin.surface_locations[self.uid]
 
@@ -457,12 +462,14 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
         return np.array(mapped_points)
 
-    def image_points_to_surface(self, points):
+    def image_points_to_surface(self, points: np.ndarray) -> np.ndarray:
         if len(points) == 0:
             return np.array([]).reshape(-1, 2)
         return perspective_transform(points, self.location[0])
 
-    def apply_offset_and_map_gazes(self, gazes):
+    def apply_offset_and_map_gazes(
+        self, gazes: GazeArray | GazeTimeseries
+    ) -> np.ndarray | None:
         try:
             gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
         except KeyError:
@@ -477,7 +484,9 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
         return self.map_points_by_time(offset_gazes, gazes.time)
 
-    def export_gazes(self, gazes, destination: Path = Path()) -> None:
+    def export_gazes(
+        self, gazes: GazeArray | GazeTimeseries, destination: Path = Path()
+    ) -> None:
         mapped_gazes = self.apply_offset_and_map_gazes(gazes)
 
         lower_pass = np.all(mapped_gazes >= 0, axis=1)
@@ -510,7 +519,9 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             cv2.applyColorMap(self._heatmap, self.heatmap_color.value),
         )
 
-    def export_fixations(self, gazes, destination: Path = Path()) -> None:
+    def export_fixations(
+        self, gazes: GazeArray | GazeTimeseries, destination: Path = Path()
+    ) -> None:
         fixations_plugin = Plugin.get_instance_by_name("FixationsPlugin")
         if fixations_plugin is None:
             logging.warning(
@@ -535,7 +546,9 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             destination / f"fixations_on_surface_{self.name}.csv", index=False
         )
 
-    def _append_mapped_fixation_data(self, gazes, fixation_data):
+    def _append_mapped_fixation_data(
+        self, gazes: GazeArray | GazeTimeseries, fixation_data: pd.DataFrame
+    ) -> pd.DataFrame:
         fixation_data["fixation detected on surface"] = False
 
         fixations_on_surfs = []

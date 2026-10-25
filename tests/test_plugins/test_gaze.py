@@ -1,5 +1,9 @@
+from collections.abc import Callable
+from typing import TYPE_CHECKING
+
 import numpy as np
 import pytest
+from pupil_labs.neon_recording import NeonRecording
 
 from pupil_labs.neon_player.plugins.gaze import (
     CircleViz,
@@ -13,6 +17,9 @@ from tests.mocks import (
     mock_scene_timeseries,
     mock_worn_timeseries,
 )
+
+if TYPE_CHECKING:
+    from tests.conftest import MockNeonPlayerApp
 
 
 def test_circle_viz_parameter_capping_not_required() -> None:
@@ -31,7 +38,9 @@ def test_circle_viz_parameter_capping_required() -> None:
     assert viz._applied_stroke_width == 70
 
 
-def test_gaze_plugin_to_dict_viz_have_class_names(qapp, mock_neon_recording) -> None:
+def test_gaze_plugin_to_dict_viz_have_class_names(
+    qapp: "MockNeonPlayerApp", mock_neon_recording: Callable[..., NeonRecording]
+) -> None:
     qapp.recording = mock_neon_recording()
 
     plugin = GazeDataPlugin()
@@ -52,7 +61,9 @@ def test_gaze_plugin_to_dict_viz_have_class_names(qapp, mock_neon_recording) -> 
     ],
 )
 def test_apply_offset(
-    offset: tuple[float, float], expected_gaze: tuple[float, float], mock_neon_recording
+    offset: tuple[float, float],
+    expected_gaze: tuple[float, float],
+    mock_neon_recording: Callable[..., NeonRecording],
 ) -> None:
     timestamps = np.array([1, 2, 3])
     gaze_x = np.array([300, 300, 300], dtype=np.float64)
@@ -73,7 +84,9 @@ def test_apply_offset(
     )
 
 
-def test_prepare_gaze_export_respects_export_window(mock_neon_recording) -> None:
+def test_prepare_gaze_export_respects_export_window(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     timestamps = np.array([1, 2, 3])
     gaze_x = np.array([300, 300, 300], dtype=np.float64)
     gaze_y = np.array([400, 400, 400], dtype=np.float64)
@@ -89,7 +102,9 @@ def test_prepare_gaze_export_respects_export_window(mock_neon_recording) -> None
     assert gaze_df.empty
 
 
-def test_prepare_gaze_export_applies_gaze_offset(mock_neon_recording) -> None:
+def test_prepare_gaze_export_applies_gaze_offset(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     timestamps = np.array([1, 2, 3])
     gaze_x = np.array([300, 300, 300], dtype=np.float64)
     gaze_y = np.array([400, 400, 400], dtype=np.float64)
@@ -107,7 +122,9 @@ def test_prepare_gaze_export_applies_gaze_offset(mock_neon_recording) -> None:
     assert np.allclose(gaze_df["gaze y [px]"].values, 412.0)
 
 
-def test_prepare_export_data_no_worn_data(mock_neon_recording) -> None:
+def test_prepare_export_data_no_worn_data(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     timestamps = np.arange(5)
     mock_gaze = mock_gaze_timeseries(
         timestamps=timestamps, xs=np.arange(5), ys=np.arange(5)
@@ -119,7 +136,9 @@ def test_prepare_export_data_no_worn_data(mock_neon_recording) -> None:
     assert "worn" not in gaze.columns
 
 
-def test_prepare_export_data_with_worn_data(mock_neon_recording) -> None:
+def test_prepare_export_data_with_worn_data(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
     # Simulate the case of mismatch between gaze and worn length
     timestamps = np.arange(5)
     mock_gaze = mock_gaze_timeseries(timestamps, xs=np.arange(5), ys=np.arange(5))

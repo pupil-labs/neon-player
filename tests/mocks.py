@@ -1,3 +1,6 @@
+from collections.abc import Iterable
+from typing import SupportsFloat
+
 import numpy as np
 from pupil_labs.neon_recording.timeseries.events import EventArray
 from pupil_labs.neon_recording.timeseries.gaze import GazeArray
@@ -24,7 +27,11 @@ def mock_event_timeseries(events_dict: dict[str, list[int]]) -> EventArray:
     return data
 
 
-def mock_gaze_timeseries(timestamps, xs, ys) -> GazeArray:
+def mock_gaze_timeseries(
+    timestamps: Iterable[SupportsFloat],
+    xs: Iterable[SupportsFloat],
+    ys: Iterable[SupportsFloat],
+) -> GazeArray:
     data = np.array(
         [
             np.void(
@@ -43,7 +50,7 @@ def mock_gaze_timeseries(timestamps, xs, ys) -> GazeArray:
     return data
 
 
-def mock_scene_timeseries(timestamps) -> np.ndarray:
+def mock_scene_timeseries(timestamps: Iterable[SupportsFloat]) -> np.ndarray:
     data = np.array(
         [
             np.void((ts, idx), dtype=[("time", np.int64), ("idx", np.int64)])

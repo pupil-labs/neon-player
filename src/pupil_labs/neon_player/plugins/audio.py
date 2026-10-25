@@ -182,7 +182,7 @@ class AudioPlugin(neon_player.Plugin):
         frame_duration = 0
         for frame in self.recording.audio:
             raw_audio = frame.to_ndarray()
-            format = frame.av_frame.format
+            audio_format = frame.av_frame.format
 
             if next_expected_frame_time is not None:
                 # fill in gaps
@@ -193,7 +193,10 @@ class AudioPlugin(neon_player.Plugin):
 
                     silence_rel_time = (next_expected_frame_time - start_time) / 1e9
                     silence_frame = _prepare_audio_frame(
-                        silence.astype(np.float32), format, silence_rel_time, stream
+                        silence.astype(np.float32),
+                        audio_format,
+                        silence_rel_time,
+                        stream,
                     )
                     for packet in stream.encode(silence_frame):
                         container.mux(packet)
@@ -202,7 +205,7 @@ class AudioPlugin(neon_player.Plugin):
             next_expected_frame_time = frame.time + frame_duration * 1e9
 
             rel_time = (frame.time - start_time) / 1e9
-            frame_copy = _prepare_audio_frame(raw_audio, format, rel_time, stream)
+            frame_copy = _prepare_audio_frame(raw_audio, audio_format, rel_time, stream)
             for packet in stream.encode(frame_copy):
                 container.mux(packet)
 

@@ -98,7 +98,8 @@ class ExportAllPlugin(neon_player.Plugin):
 
         if self.export_camera_calibrations:
             calibration = {}
-            for k, v in self.recording.calibration.items():
+            for k, raw_value in self.recording.calibration.items():
+                v = raw_value
                 if isinstance(v, np.ndarray):
                     v = v.tolist()
                 elif isinstance(v, np.generic):

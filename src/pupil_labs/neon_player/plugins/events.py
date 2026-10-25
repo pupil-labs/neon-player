@@ -220,8 +220,8 @@ def _load_events_from_cache(
 
 def _load_events_from_dataframe(events_df: pd.DataFrame) -> dict[str, list[int]]:
     events = {}
-    for name, group in events_df.groupby("name"):
-        name = str(name)
+    for raw_name, group in events_df.groupby("name"):
+        name = str(raw_name)
         if name in IMMUTABLE_EVENTS:
             logging.warning(f"Skipping immutable event '{name}' from imported CSV")
             continue

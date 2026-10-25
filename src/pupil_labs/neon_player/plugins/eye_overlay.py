@@ -1,7 +1,7 @@
 from enum import Flag, auto
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QColor, QMouseEvent, QPainter
 from qt_property_widgets.utilities import property_params
 
 from pupil_labs import neon_player
@@ -39,21 +39,21 @@ class EyeOverlayPlugin(neon_player.Plugin):
         self.video_widget.mouse_moved.connect(self.on_mouse_moved)
         self.video_widget.mouse_pressed.connect(self.on_mouse_pressed)
 
-    def on_mouse_pressed(self, event) -> None:
+    def on_mouse_pressed(self, event: QMouseEvent) -> None:
         self._drag_position = self.video_widget.map_point(event.pos())
         self.start_geometry = self.get_rect()
 
-    def on_mouse_moved(self, event) -> None:
+    def on_mouse_moved(self, event: QMouseEvent) -> None:
         if event.buttons() == Qt.LeftButton:
             self.on_drag(event)
         else:
             self.on_hover(event)
 
-    def align(self, rect, corner) -> None:
+    def align(self, rect: QRectF, corner: str) -> None:
         v = getattr(self.start_geometry, corner)()
         getattr(rect, f"move{corner.title()}")(v)
 
-    def on_drag(self, event) -> None:
+    def on_drag(self, event: QMouseEvent) -> None:
         mapped_pos = self.video_widget.map_point(event.pos())
         offset = mapped_pos - self._drag_position
 
@@ -113,7 +113,7 @@ class EyeOverlayPlugin(neon_player.Plugin):
         self.changed.emit()
         self.video_widget.update()
 
-    def on_hover(self, event) -> None:
+    def on_hover(self, event: QMouseEvent) -> None:
         edge_margin = 20
 
         pos = self.video_widget.map_point(event.pos())

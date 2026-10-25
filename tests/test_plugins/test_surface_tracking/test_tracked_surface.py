@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, SupportsFloat
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -10,8 +12,15 @@ from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import (
     TrackedSurface,
 )
 
+if TYPE_CHECKING:
+    from tests.conftest import MockNeonPlayerApp
 
-def mock_gaze_timeseries(time, point_x, point_y) -> GazeTimeseries:
+
+def mock_gaze_timeseries(
+    time: Iterable[SupportsFloat],
+    point_x: Iterable[SupportsFloat],
+    point_y: Iterable[SupportsFloat],
+) -> GazeTimeseries:
     data = np.array(
         [
             np.void(
@@ -29,7 +38,9 @@ def mock_gaze_timeseries(time, point_x, point_y) -> GazeTimeseries:
     return GazeTimeseries("", data=data)
 
 
-def _prepare_test_data(qapp) -> tuple[TrackedSurface, GazeTimeseries, pd.DataFrame]:
+def _prepare_test_data(
+    qapp: "MockNeonPlayerApp",
+) -> tuple[TrackedSurface, GazeTimeseries, pd.DataFrame]:
     """
     Five fixations with two gaze samples each, only the first two are mapped to
     the surface (see side effect of the mocked method).
@@ -71,7 +82,7 @@ def _prepare_test_data(qapp) -> tuple[TrackedSurface, GazeTimeseries, pd.DataFra
 
 
 def test_tracked_surface_append_mapped_fixation_data_gaze_samples_forwarded(
-    qapp,
+    qapp: "MockNeonPlayerApp",
 ) -> None:
     surface, gazes, fixation_data = _prepare_test_data(qapp)
     surface._append_mapped_fixation_data(gazes, fixation_data.copy())
@@ -88,7 +99,7 @@ def test_tracked_surface_append_mapped_fixation_data_gaze_samples_forwarded(
 
 @pytest.mark.parametrize("fixation_id", [1, 2])
 def test_tracked_surface_append_mapped_fixation_data_fixation_should_be_mapped(
-    qapp, fixation_id: int
+    qapp: "MockNeonPlayerApp", fixation_id: int
 ) -> None:
     surface, gazes, fixation_data = _prepare_test_data(qapp)
     result = surface._append_mapped_fixation_data(gazes, fixation_data.copy())
@@ -101,7 +112,7 @@ def test_tracked_surface_append_mapped_fixation_data_fixation_should_be_mapped(
 
 @pytest.mark.parametrize("fixation_id", [3, 4])
 def test_tracked_surface_append_mapped_fixation_data_fixation_should_not_be_mapped(
-    qapp, fixation_id: int
+    qapp: "MockNeonPlayerApp", fixation_id: int
 ) -> None:
     surface, gazes, fixation_data = _prepare_test_data(qapp)
     result = surface._append_mapped_fixation_data(gazes, fixation_data.copy())
@@ -114,7 +125,7 @@ def test_tracked_surface_append_mapped_fixation_data_fixation_should_not_be_mapp
 
 @pytest.mark.parametrize("fixation_id", [5])
 def test_tracked_surface_append_mapped_fixation_data_fixation_no_mapped_gazes(
-    qapp, fixation_id: int
+    qapp: "MockNeonPlayerApp", fixation_id: int
 ) -> None:
     surface, gazes, fixation_data = _prepare_test_data(qapp)
     result = surface._append_mapped_fixation_data(gazes, fixation_data.copy())

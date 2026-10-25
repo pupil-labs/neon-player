@@ -8,7 +8,7 @@ from pyqtgraph.GraphicsScene.mouseEvents import (
     MouseDragEvent,
 )
 from PySide6.QtCore import QPoint, QPointF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QCursor, QIcon, QKeyEvent
+from PySide6.QtGui import QColor, QCursor, QIcon, QKeyEvent, QMouseEvent, QResizeEvent
 from PySide6.QtWidgets import (
     QComboBox,
     QGraphicsSceneMouseEvent,
@@ -158,7 +158,7 @@ class TimeLineDock(QWidget):
     def keyPressEvent(self, event: QKeyEvent) -> None:
         self.key_pressed.emit(event)
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event: QResizeEvent) -> None:
         w = self.scroll_area.width() - self.scroll_area.verticalScrollBar().width()
         self.graphics_view.setFixedWidth(w)
         self.playhead.refresh_geometry()
@@ -228,11 +228,11 @@ class TimeLineDock(QWidget):
         for tm in self.trim_markers:
             tm.set_highlighted(self.dragging == tm or tm.nearby(data_pos))
 
-    def on_whitespace_mouse_moved(self, event) -> None:
+    def on_whitespace_mouse_moved(self, event: QMouseEvent) -> None:
         if event.buttons() == Qt.LeftButton:
             self.on_chart_area_clicked(event)
 
-    def on_whitespace_mouse_clicked(self, event) -> None:
+    def on_whitespace_mouse_clicked(self, event: QMouseEvent) -> None:
         if event.button() == Qt.LeftButton:
             self.on_chart_area_clicked(event)
 
@@ -243,17 +243,17 @@ class TimeLineDock(QWidget):
             scene_pos = self.graphics_view.mapToScene(view_pos)
 
             class SyntheticEvent:
-                def __init__(self, scene_pos, screen_pos) -> None:
+                def __init__(self, scene_pos: QPointF, screen_pos: QPoint) -> None:
                     self._scene_pos = scene_pos
                     self._screen_pos = screen_pos
 
-                def scenePos(self):
+                def scenePos(self) -> QPointF:
                     return self._scene_pos
 
-                def screenPos(self):
+                def screenPos(self) -> QPoint:
                     return self._screen_pos
 
-                def globalPos(self):
+                def globalPos(self) -> QPoint:
                     return self._screen_pos
 
                 def isAccepted(self) -> bool:

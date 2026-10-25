@@ -9,6 +9,7 @@ import pandas as pd
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.sample import match_ts
 from pupil_labs.neon_recording.timeseries import GazeTimeseries, WornTimeseries
+from pupil_labs.neon_recording.timeseries.gaze import GazeArray
 from PySide6.QtCore import QObject, QPointF, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter
 from qt_property_widgets.utilities import (
@@ -155,7 +156,7 @@ class GazeDataPlugin(neon_player.Plugin):
                 aggregation_dict[viz._aggregation][renderable_mask],
             )
 
-    def get_gazes_for_scene(self, scene_idx: int = -1):
+    def get_gazes_for_scene(self, scene_idx: int = -1) -> GazeArray:
         if scene_idx < 0:
             scene_idx = self.get_scene_idx_for_time()
 

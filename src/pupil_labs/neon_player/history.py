@@ -62,7 +62,9 @@ class RecordingHistory(QObject):
         return self._recent_recordings
 
     @classmethod
-    def from_dict(cls, recent_recordings) -> "RecordingHistory":
+    def from_dict(
+        cls, recent_recordings: dict[str, dict[str, str]]
+    ) -> "RecordingHistory":
         instance = cls()
         instance._recent_recordings = OrderedDict(recent_recordings)
         instance._cleanup()
