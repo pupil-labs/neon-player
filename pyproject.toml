@@ -4,7 +4,7 @@ description = ""
 authors = [{ name = "Pupil Labs GmbH", email = "info@pupil-labs.com" }]
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = ">=3.11, <4.0"
+requires-python = ">=3.12, <4.0"
 keywords = []
 dynamic = ["version"]
 classifiers = [
@@ -83,6 +83,7 @@ dev = [
     "tomli>=2.0; python_version < '3.11'",
     "scipy-stubs>=1.17.1.5",
     "ruff",
+    "types-tqdm>=4.70.0.20260906",
 ]
 
 [build-system]

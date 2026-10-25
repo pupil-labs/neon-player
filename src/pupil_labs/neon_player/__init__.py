@@ -24,12 +24,10 @@ def instance() -> "NeonPlayerApp":
     return NeonPlayerApp.instance()
 
 
-ActionParams = T.ParamSpec("ActionParams")
-ActionResult = T.TypeVar("ActionResult")
-
-
 # The upstream action decorator returns a dynamically defined descriptor.
-def action(func: T.Callable[ActionParams, ActionResult]) -> T.Any:  # noqa: ANN401
+def action[**ActionParams, ActionResult](
+    func: T.Callable[ActionParams, ActionResult],
+) -> T.Any:  # noqa: ANN401
     @functools.wraps(func)
     def wrapper(
         *args: ActionParams.args, **kwargs: ActionParams.kwargs

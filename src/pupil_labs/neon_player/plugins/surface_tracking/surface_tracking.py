@@ -63,8 +63,8 @@ if T.TYPE_CHECKING:
 
     from pupil_labs.neon_player.plugins.video_exporter import VideoExporter
 
-SurfaceData: T.TypeAlias = dict[str, T.Any]
-SurfaceLocation: T.TypeAlias = tuple[np.ndarray, np.ndarray]
+type SurfaceData = dict[str, T.Any]
+type SurfaceLocation = tuple[np.ndarray, np.ndarray]
 
 
 @dataclass

@@ -18,7 +18,7 @@ if T.TYPE_CHECKING:
     from pupil_labs.neon_player.job_manager import JobManager
 
 
-JSONValue: T.TypeAlias = (
+type JSONValue = (
     dict[str, "JSONValue"] | list["JSONValue"] | str | int | float | bool | None
 )
 

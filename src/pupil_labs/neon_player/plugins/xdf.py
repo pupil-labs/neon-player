@@ -4,7 +4,7 @@ import shutil
 import uuid
 from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
-from typing import Any, Literal, TypeVar
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -32,10 +32,7 @@ from pupil_labs.neon_player.plugins.events import (
 logger = logging.getLogger(__name__)
 
 
-XDFValue = TypeVar("XDFValue")
-
-
-def first(
+def first[XDFValue](
     xdf_dict: Mapping[str, XDFValue | list[XDFValue]], key: str, default: XDFValue
 ) -> XDFValue:
     """Pick the first value from a str-list mapping.
