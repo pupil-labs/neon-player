@@ -19,24 +19,21 @@ classifiers = [
 
 dependencies = [
     "av>=16.0.0",
-    "nuitka<2.8",
     "numpy<2.4.0",
     "numpyencoder>=0.3.2",
     "opencv-python>=4.11.0.86",
     "packaging>=26.1",
     "pandas>=2.2.3",
-    "protobuf<6",
     "pupil-apriltags>=1.0.4.post11",
     "pupil-labs-marker-mapper>=1.0.0",
     "pupil-labs-neon-recording==2.1.6",
     "pupil-labs-video>=1.0.13",
-    "pyobjc; sys_platform == 'darwin'",
+    "pyobjc-framework-Cocoa; sys_platform == 'darwin'",
     "pyqtgraph>=0.13.7",
     "pyside6>=6.10.2",
     "pyxdf>=1.17.5",
     "qt-property-widgets>=0.10.0",
     "scipy>=1.15.2",
-    "setuptools>=78.1.0",
     "tqdm>=4.67.1",
 ]
 
@@ -54,6 +51,7 @@ neon-player = "pupil_labs.neon_player.main:main"
 
 
 [dependency-groups]
+build = ["nuitka<2.8"]
 dev = [
     "pytest>=8.2",
     "pytest-qt>=4.5.0",
@@ -101,6 +99,13 @@ skip_empty = true
 branch = true
 source = ["pupil_labs"]
 
+[tool.deptry]
+# Installed separately by the plugin loader using their PEP 723 metadata.
+extend_exclude = ["examples/plugins/"]
+
+[tool.deptry.package_module_name_map]
+pyobjc-framework-Cocoa = ["AppKit"]
+
 [tool.deptry.per_rule_ignores]
 DEP001 = ["pupil_labs", "cv2"]
 DEP002 = ["opencv-python"]
@@ -110,4 +115,4 @@ DEP003 = ["pupil_labs", "typing_extensions"]
 source = "uv-dynamic-versioning"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/pupil_labs", "src/pupil_labs/neon_player"]
+packages = ["src/pupil_labs"]

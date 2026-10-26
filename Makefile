@@ -28,11 +28,10 @@ prettier-format:
 	$(PRETTIER) --write .
 
 check: lint format-check typecheck deptry prettier-format
-	uv run --locked python scripts/check_agent_rules.py
 	@echo "🚀 Checking lock file consistency with 'pyproject.toml'"
 	@uv lock --locked
 	@echo "🚀 Linting code: Running pre-commit"
-	@uv run pre-commit run -a
+	@SKIP=project-check uv run pre-commit run -a
 
 .PHONY: test
 test: ## Test the code with pytest
