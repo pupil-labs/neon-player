@@ -3,7 +3,7 @@ import math
 import pyqtgraph as pg
 from pyqtgraph.GraphicsScene.mouseEvents import MouseDragEvent
 from PySide6.QtCore import QObject, QPoint, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPolygon
+from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPolygon, QWheelEvent
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
     QGraphicsItem,
@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QGraphicsSceneMouseEvent,
     QGraphicsSceneWheelEvent,
     QLabel,
+    QScrollArea,
     QSizePolicy,
     QStyleOptionGraphicsItem,
     QVBoxLayout,
@@ -18,6 +19,21 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs.neon_player.ui import GUIEventNotifier
+
+
+class TimelineScrollArea(QScrollArea):
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        # NOTE: pass pyqtgraph's zoom interactions (Shift+Scroll, Cmd/Ctrl+Scroll)
+        # through w/o scrolling through timeline plots when there are many of them
+        modifiers = (
+            Qt.KeyboardModifier.ShiftModifier
+            | Qt.KeyboardModifier.ControlModifier
+        )
+        if event.modifiers() & modifiers:
+            event.ignore()
+            return
+
+        super().wheelEvent(event)
 
 
 class ScrubbableViewBox(pg.ViewBox):  # type: ignore[misc]  # pyqtgraph does not type this base class.
