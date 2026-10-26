@@ -57,11 +57,11 @@ from pupil_labs.neon_player.utilities import SlotDebouncer, clone_menu
 class NeonPlayerApp(QApplication):
     """Main Neon Player application."""
 
-    export_window_changed: Signal = Signal(tuple[int, int])
+    export_window_changed: Signal = Signal()
     """Emitted when the export window changes.
 
-    Signal parameter contains the start and end timestamps of
-    the export window in nanoseconds."""
+    Use `get_export_window()` to retrieve the start and end timestamps
+    of the export window in nanoseconds."""
 
     playback_state_changed: Signal = Signal(bool)
     """Emitted when the playback state changes.
