@@ -114,6 +114,7 @@ jobs:
         run: uv run mypy
 
   docs:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Check out
@@ -130,4 +131,3 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           uv run mike deploy dev --push
-          uv run mike set-default --push dev
