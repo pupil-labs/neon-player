@@ -114,7 +114,6 @@ jobs:
         run: uv run mypy
 
   docs:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Check out
@@ -125,7 +124,11 @@ jobs:
       - name: Set up the environment
         uses: ./.github/actions/setup-python-env
 
-      - name: Deploy latest docs
+      - name: Check that the docs build w/o errors
+        run: make docs-test
+
+      - name: Deploy dev docs
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
           git fetch origin gh-pages --depth=1 || echo "gh-pages does not exist but will be created"
           git config user.name "github-actions[bot]"
