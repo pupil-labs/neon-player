@@ -104,7 +104,6 @@ markdown_extensions:
 plugins:
   - search
   - markdown-exec
-  - coverage
   - mike:
       # These fields are all optional; the defaults are as below...
       alias_type: symlink
