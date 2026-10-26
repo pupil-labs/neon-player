@@ -42,6 +42,7 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     TimelineHoverMarker,
     TimelinePlotItem,
     TimelineTableContainer,
+    TimelineScrollArea,
     TimestampLabel,
     TrimDurationMarker,
     TrimEndMarker,
@@ -166,7 +167,7 @@ class TimeLineDock(QWidget):
         self.graphics_view.scene().sigMouseMoved.connect(self.on_chart_area_mouse_moved)
         self.tooltip_update_requested.connect(self._update_tooltip)
 
-        self.scroll_area = QScrollArea()
+        self.scroll_area = TimelineScrollArea()
         self.scroll_area.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )

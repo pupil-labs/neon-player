@@ -3,7 +3,7 @@ import math
 import pyqtgraph as pg
 from pyqtgraph.GraphicsScene.mouseEvents import MouseDragEvent
 from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRect, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPaintEvent, QPen, QPolygon
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPaintEvent, QPen, QPolygon, QWheelEvent
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
     QGraphicsItem,
@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QGraphicsSceneWheelEvent,
     QGraphicsView,
     QLabel,
+    QScrollArea,
     QSizePolicy,
     QStyleOptionGraphicsItem,
     QVBoxLayout,
@@ -51,6 +52,21 @@ def format_timestamp_ns(
         time_string = f"{hours:02}:{time_string}"
 
     return f"{sign}{time_string}"
+
+
+class TimelineScrollArea(QScrollArea):
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        # NOTE: pass pyqtgraph's zoom interactions (Shift+Scroll, Cmd/Ctrl+Scroll)
+        # through w/o scrolling through timeline plots when there are many of them
+        modifiers = (
+            Qt.KeyboardModifier.ShiftModifier
+            | Qt.KeyboardModifier.ControlModifier
+        )
+        if event.modifiers() & modifiers:
+            event.ignore()
+            return
+
+        super().wheelEvent(event)
 
 
 class ScrubbableViewBox(pg.ViewBox):  # type: ignore[misc]  # pyqtgraph does not type this base class.
