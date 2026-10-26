@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QGraphicsSceneWheelEvent,
     QLabel,
     QScrollArea,
+    QScrollBar,
     QSizePolicy,
     QStyleOptionGraphicsItem,
     QVBoxLayout,
@@ -34,6 +35,66 @@ class TimelineScrollArea(QScrollArea):
             return
 
         super().wheelEvent(event)
+
+
+class TimelineHorizontalScrollBar(QScrollBar):
+    range_changed = Signal(float, float)
+
+    _SCALE = 1_000_000
+
+    def __init__(self) -> None:
+        super().__init__(Qt.Orientation.Horizontal)
+        self._time_frame: tuple[float, float] | None = None
+        self._visible_span = 0.0
+        self.valueChanged.connect(self._on_value_changed)
+        self.hide()
+
+    def set_time_frame(self, time_frame: tuple[float, float] | None) -> None:
+        if time_frame is None or time_frame[1] <= time_frame[0]:
+            self._time_frame = None
+            self._visible_span = 0.0
+            self.hide()
+            self.setRange(0, 0)
+            return
+
+        self._time_frame = time_frame
+
+    def set_view_range(self, start: float, stop: float) -> None:
+        if self._time_frame is None:
+            self.hide()
+            return
+
+        time_start, time_stop = self._time_frame
+        view_start = max(start, time_start)
+        view_stop = min(stop, time_stop)
+
+        duration = time_stop - time_start
+        self._visible_span = view_stop - view_start
+        page_step = min(
+            self._SCALE,
+            max(1, round(self._visible_span / duration * self._SCALE)),
+        )
+        maximum = self._SCALE - page_step
+        value = round((view_start - time_start) / duration * self._SCALE)
+
+        was_blocked = self.blockSignals(True)
+        try:
+            self.setPageStep(page_step)
+            self.setRange(0, maximum)
+            self.setValue(min(maximum, value))
+        finally:
+            self.blockSignals(was_blocked)
+
+        zoomed_in = self._visible_span < duration * (1 - 1e-6)
+        self.setVisible(zoomed_in)
+
+    def _on_value_changed(self, value: int) -> None:
+        if self._time_frame is None:
+            return
+
+        time_start, time_stop = self._time_frame
+        start = time_start + value / self._SCALE * (time_stop - time_start)
+        self.range_changed.emit(start, start + self._visible_span)
 
 
 class ScrubbableViewBox(pg.ViewBox):  # type: ignore[misc]  # pyqtgraph does not type this base class.
