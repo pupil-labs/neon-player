@@ -1,3 +1,4 @@
+# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 import json
 import logging
 import shutil
@@ -434,7 +435,7 @@ class XDFPlugin(Plugin):
     )
     def file_path(self) -> FilePath:
         # Returning None keeps FilePathWidget visually empty.
-        return FilePath(self._xdf_path) if self._xdf_path != Path("") else None
+        return FilePath(self._xdf_path) if self._xdf_path != Path("") else None  # type: ignore[return-value]  # Optional getters break persisted union conversion.
 
     @file_path.setter
     def file_path(self, value: FilePath | None) -> None:
@@ -475,12 +476,12 @@ class XDFPlugin(Plugin):
     @property
     @property_params(
         label="Data Stream",
-        widget=DynamicComboWidget,
+        widget=DynamicComboWidget,  # type: ignore[arg-type]  # property_params omits supported widget classes.
         options_source="available_data_stream_options",
         options_changed_signal="streams_changed",
     )
     def data_stream_uid(self) -> str:
-        return self._data_stream_uid
+        return self._data_stream_uid  # type: ignore[return-value]  # Optional getters break persisted union conversion.
 
     @data_stream_uid.setter
     def data_stream_uid(self, value: str | None) -> None:
@@ -531,12 +532,12 @@ class XDFPlugin(Plugin):
     @property
     @property_params(
         label="Marker Stream",
-        widget=DynamicComboWidget,
+        widget=DynamicComboWidget,  # type: ignore[arg-type]  # property_params omits supported widget classes.
         options_source="available_marker_stream_options",
         options_changed_signal="streams_changed",
     )
     def marker_stream_uid(self) -> str:
-        return self._marker_stream_uid
+        return self._marker_stream_uid  # type: ignore[return-value]  # Optional getters break persisted union conversion.
 
     @marker_stream_uid.setter
     def marker_stream_uid(self, value: str | None) -> None:
@@ -585,7 +586,7 @@ class XDFPlugin(Plugin):
     @property
     @property_params(
         label="Sync Event",
-        widget=DynamicComboWidget,
+        widget=DynamicComboWidget,  # type: ignore[arg-type]  # property_params omits supported widget classes.
         options_source="available_sync_events",
         options_changed_signal="sync_events_changed",
     )

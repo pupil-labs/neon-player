@@ -1,3 +1,4 @@
+# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 import math
 
 import pyqtgraph as pg
@@ -20,7 +21,7 @@ from PySide6.QtWidgets import (
 from pupil_labs.neon_player.ui import GUIEventNotifier
 
 
-class ScrubbableViewBox(pg.ViewBox):
+class ScrubbableViewBox(pg.ViewBox):  # type: ignore[misc]  # pyqtgraph does not type this base class.
     scrub_start = Signal(MouseDragEvent)
     scrub_end = Signal(MouseDragEvent)
     scrubbed = Signal(object)
@@ -78,7 +79,7 @@ class ScrubbableViewBox(pg.ViewBox):
         ev.ignore()
 
 
-class TimeAxisItem(pg.AxisItem):
+class TimeAxisItem(pg.AxisItem):  # type: ignore[misc]  # pyqtgraph does not type this base class.
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, tickPen=pg.mkPen({"color": "#aaaaaa"}), **kwargs)
         self.recording_start_time_ns = 0
@@ -209,7 +210,7 @@ class TimeAxisItem(pg.AxisItem):
         self.recording_stop_time_ns = end
 
 
-class FixedLegend(pg.LegendItem):
+class FixedLegend(pg.LegendItem):  # type: ignore[misc]  # pyqtgraph does not type this base class.
     def mouseDragEvent(self, event: MouseDragEvent) -> None:
         event.ignore()
 
@@ -238,7 +239,7 @@ class TimestampLabel(QLabel):
         self.setText(f"{hours:0>2,.0f}:{minutes:0>2.0f}:{seconds:0>6.3f}")
 
 
-class SmartSizePlotItem(pg.PlotItem):
+class SmartSizePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not type this base class.
     def __init__(
         self, legend: FixedLegend, row_name: str, *args: object, **kwargs: object
     ) -> None:

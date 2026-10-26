@@ -1,3 +1,4 @@
+# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 import enum
 import logging
 import typing as T
@@ -131,7 +132,7 @@ class GazeDataPlugin(neon_player.Plugin):
             if self.worn_data is None:
                 raise ValueError("No worn data available")
             worns: npt.NDArray[np.float64 | np.int64] = self.worn_data.sample(
-                samples.time
+                samples.time  # type: ignore[arg-type]  # Neon Recording mistypes its timestamp arrays.
             ).worn
         except Exception:
             logger.debug("Failed to sample worn data", exc_info=True)
@@ -186,7 +187,7 @@ class GazeDataPlugin(neon_player.Plugin):
         else:
             time_mask = after_mask
 
-        return recording.gaze[time_mask]
+        return recording.gaze[time_mask]  # type: ignore[no-any-return]  # Neon Recording leaves Timeseries.data untyped.
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
@@ -536,7 +537,7 @@ def _prepare_gaze_export(
     if not len(export_gazes):
         return pd.DataFrame()
 
-    export_gaze_points = apply_offset(recording, export_gazes.point, gaze_offset)
+    export_gaze_points = apply_offset(recording, export_gazes.point, gaze_offset)  # type: ignore[arg-type]  # Neon Recording mistypes numerical field arrays.
 
     scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(recording)
     spherical_coords = cart_to_spherical(
@@ -558,14 +559,14 @@ def _prepare_gaze_export(
         }
     )
     if worn_data:
-        gaze["worn"] = _prepare_worn_export(export_gazes, worn_data)
+        gaze["worn"] = _prepare_worn_export(export_gazes, worn_data)  # type: ignore[arg-type]  # Neon Recording mistypes masked array selection.
     else:
         logger.warning("No worn data to export")
 
     try:
         matched_fixation_ids = (
             find_ranged_index(
-                export_gazes.time,
+                export_gazes.time,  # type: ignore[arg-type]  # Neon Recording mistypes indexed timestamps.
                 recording.fixations.start_time,
                 recording.fixations.stop_time,
             )
@@ -579,7 +580,7 @@ def _prepare_gaze_export(
     try:
         matched_blink_ids = (
             find_ranged_index(
-                export_gazes.time,
+                export_gazes.time,  # type: ignore[arg-type]  # Neon Recording mistypes indexed timestamps.
                 recording.blinks.start_time,
                 recording.blinks.stop_time,
             )
@@ -596,7 +597,7 @@ def _prepare_gaze_export(
 def _prepare_worn_export(
     gazes: GazeTimeseries, worn: WornTimeseries
 ) -> npt.NDArray[np.float64]:
-    gaze_in_worn_idx = match_ts(gazes.time, worn.time)
+    gaze_in_worn_idx = match_ts(gazes.time, worn.time)  # type: ignore[arg-type]  # Neon Recording mistypes its timestamp arrays.
     matched = gazes.time == worn.time[gaze_in_worn_idx]
     matched_indices = gaze_in_worn_idx[matched]
     export_worn = np.full_like(gazes.time, np.nan, dtype=np.float64)

@@ -1,3 +1,4 @@
+# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 from pathlib import Path
 
 import pandas as pd
@@ -35,19 +36,19 @@ class IMUPlugin(neon_player.Plugin):
             {
                 "recording id": recording.info["recording_id"],
                 "timestamp [ns]": recording.imu.time,
-                "gyro x [deg/s]": recording.imu.angular_velocity[:, 0],
-                "gyro y [deg/s]": recording.imu.angular_velocity[:, 1],
-                "gyro z [deg/s]": recording.imu.angular_velocity[:, 2],
-                "acceleration x [g]": recording.imu.acceleration[:, 0],
-                "acceleration y [g]": recording.imu.acceleration[:, 1],
-                "acceleration z [g]": recording.imu.acceleration[:, 2],
+                "gyro x [deg/s]": recording.imu.angular_velocity[:, 0],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
+                "gyro y [deg/s]": recording.imu.angular_velocity[:, 1],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
+                "gyro z [deg/s]": recording.imu.angular_velocity[:, 2],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
+                "acceleration x [g]": recording.imu.acceleration[:, 0],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
+                "acceleration y [g]": recording.imu.acceleration[:, 1],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
+                "acceleration z [g]": recording.imu.acceleration[:, 2],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
                 "roll [deg]": eulers[:, 0],
                 "pitch [deg]": eulers[:, 1],
                 "yaw [deg]": eulers[:, 2],
-                "quaternion x": recording.imu.rotation[:, 0],
-                "quaternion y": recording.imu.rotation[:, 1],
-                "quaternion z": recording.imu.rotation[:, 2],
-                "quaternion w": recording.imu.rotation[:, 3],
+                "quaternion x": recording.imu.rotation[:, 0],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
+                "quaternion y": recording.imu.rotation[:, 1],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
+                "quaternion z": recording.imu.rotation[:, 2],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
+                "quaternion w": recording.imu.rotation[:, 3],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
             }
         )
 

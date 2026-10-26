@@ -1,3 +1,4 @@
+# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 import json
 import logging
 from datetime import datetime
@@ -110,7 +111,7 @@ class ExportAllPlugin(neon_player.Plugin):
                 "Recording calibration must be available before exporting calibrations"
             )
             calibration: dict[str, Any] = {}
-            for k, raw_value in recording_calibration.items():
+            for k, raw_value in recording_calibration.items():  # type: ignore[no-untyped-call]  # Neon Recording leaves Record.items untyped.
                 v = raw_value
                 if isinstance(v, np.ndarray):
                     v = v.tolist()

@@ -1,3 +1,4 @@
+# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 from pathlib import Path
 
 import numpy as np
@@ -18,7 +19,8 @@ class BlinksPlugin(neon_player.Plugin):
             return
 
         self.get_timeline().add_timeline_broken_bar(
-            "Blinks", recording.blinks[["start_time", "stop_time"]]
+            "Blinks",
+            recording.blinks[["start_time", "stop_time"]],  # type: ignore[arg-type]  # Neon Recording mistypes column selection.
         )
 
     def on_disabled(self) -> None:
@@ -40,7 +42,7 @@ class BlinksPlugin(neon_player.Plugin):
         start_mask = blinks.stop_time > start_time
         stop_mask = blinks.start_time < stop_time
 
-        blinks = blinks[start_mask & stop_mask]
+        blinks = blinks[start_mask & stop_mask]  # type: ignore[assignment]  # Neon Recording mistypes masked array selection.
         blink_ids = blink_ids[start_mask & stop_mask]
 
         export_data = pd.DataFrame(

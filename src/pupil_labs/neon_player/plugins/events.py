@@ -1,3 +1,4 @@
+# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 import logging
 import typing as T
 import uuid
@@ -565,7 +566,7 @@ class EventsPlugin(neon_player.Plugin):
 
     @property
     @property_params(
-        widget=EventTypeListWidget,
+        widget=EventTypeListWidget,  # type: ignore[arg-type]  # property_params omits supported widget classes.
         item_params={"label_field": "name"},
         prevent_add=True,
         primary=True,

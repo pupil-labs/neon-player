@@ -1,3 +1,4 @@
+# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 import contextlib
 import logging
 import typing as T
@@ -317,7 +318,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         camera = self.tracker_plugin.camera
 
         undistorted_corners = perspective_transform(
-            normalized_corners(), self._location[1]
+            normalized_corners(),  # type: ignore[no-untyped-call]  # Marker Mapper omits this function's annotations.
+            self._location[1],
         )
         distorted_corners = camera.distort_points(undistorted_corners)
 
@@ -325,7 +327,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             self.handle_widgets.values(),
             undistorted_corners,
             distorted_corners,
-            normalized_corners(),
+            normalized_corners(),  # type: ignore[no-untyped-call]  # Marker Mapper omits this function's annotations.
             strict=False,
         ):
             self.corner_positions[tuple(corner_id)] = undistorted_corner
@@ -363,7 +365,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def on_corner_changed(self, corner_id: tuple[int, int], pos: QPointF) -> None:
         camera = self.tracker_plugin.camera
 
-        corners = [tuple(v) for v in normalized_corners().tolist()]
+        corners = [tuple(v) for v in normalized_corners().tolist()]  # type: ignore[no-untyped-call]  # Marker Mapper omits this function's annotations.
         point = np.array([pos.x(), pos.y()])
         undistorted_corner = camera.undistort_points(point)
         self.corner_positions[corner_id] = undistorted_corner.flatten()
@@ -394,7 +396,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             app = neon_player.require_instance()
             vrw = app.main_window.video_widget
 
-            corners = normalized_corners()
+            corners = normalized_corners()  # type: ignore[no-untyped-call]  # Marker Mapper omits this function's annotations.
             self.handle_widgets = {}
             for corner in corners.tolist():
                 corner_tup = tuple(corner)
@@ -652,7 +654,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         scene_idx = gaze_plugin.get_scene_idx_for_time(time_in_recording)
         scene_frame = recording.scene[scene_idx]
         undistorted_image = camera.undistort_image(scene_frame.bgr)
-        surface_image = utils.crop_image(
+        surface_image = utils.crop_image(  # type: ignore[no-untyped-call]  # Marker Mapper omits this function's annotations.
             undistorted_image,
             self.location[1],
             width=self.preview_options.render_size[0],
@@ -722,5 +724,5 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         assert self.tracker_surface is not None, (
             "Tracker surface is required to rotate a surface"
         )
-        self.tracker_surface.rotate()
+        self.tracker_surface.rotate()  # type: ignore[no-untyped-call]  # Marker Mapper omits this function's annotations.
         self.locations_invalidated.emit()

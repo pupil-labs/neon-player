@@ -1,3 +1,4 @@
+# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 import argparse
 import importlib.util
 import json
@@ -11,7 +12,7 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import numpy as np
-from pandas.errors import ChainedAssignmentError
+from pandas.errors import ChainedAssignmentError  # type: ignore[attr-defined]  # pandas stubs omit ChainedAssignmentError.
 from pupil_labs.neon_recording.sample import match_ts
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QAction, QIcon, QPainter
@@ -202,7 +203,7 @@ class NeonPlayerApp(QApplication):
 
                 args = dict(zip(keys, job_args, strict=False))
                 action_obj.__setstate__(args)
-                self.job_manager.work_job(action_obj())
+                self.job_manager.work_job(action_obj())  # type: ignore[arg-type, func-returns-value]  # ActionObject omits the wrapped return value.
 
                 break
         else:
@@ -604,7 +605,7 @@ class NeonPlayerApp(QApplication):
         if t < 0:
             t = self.current_ts
 
-        scene_idx = match_ts([t], recording.scene.time, method, tolerance)[0]
+        scene_idx = match_ts([t], recording.scene.time, method, tolerance)[0]  # type: ignore[arg-type]  # Neon Recording mistypes its timestamp arrays.
         return -1 if np.isnan(scene_idx) else int(scene_idx)
 
     def render_to(self, painter: QPainter, ts: int | None = None) -> None:

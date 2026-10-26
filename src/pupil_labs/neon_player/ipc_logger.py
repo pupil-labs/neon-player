@@ -27,14 +27,13 @@ class IPCLogger(logging.Handler):
         self._expected_payload_size: dict[QLocalSocket, int | None] = {}
 
         # Child processes connect to the server
-        self.log_socket: QLocalSocket | None = None
+        self.log_socket = QLocalSocket()
         self.log_stream: QDataStream | None = None
 
         if not self._connect_to_log_socket():
             self._start_server()
 
         else:
-            assert self.log_socket is not None
             self.log_stream = QDataStream(self.log_socket)
             logging.getLogger().addHandler(self)
 
@@ -91,15 +90,17 @@ class IPCLogger(logging.Handler):
         instream = self._client_streams[socket]
         while socket.bytesAvailable() >= 4:
             # Read the length of the data
-            if self._expected_payload_size.get(socket) is None:
-                self._expected_payload_size[socket] = instream.readUInt32()
+            payload_size = self._expected_payload_size.get(socket)
+            if payload_size is None:
+                payload_size = instream.readUInt32()
+                self._expected_payload_size[socket] = payload_size
 
             # Wait until all data is available
-            if socket.bytesAvailable() < self._expected_payload_size[socket]:
+            if socket.bytesAvailable() < payload_size:
                 return
 
             # Read and unpickle the data
-            data = instream.readRawData(self._expected_payload_size[socket])
+            data = instream.readRawData(payload_size)
             self._expected_payload_size[socket] = None
             try:
                 log_record = pickle.loads(data)  # noqa: S301
@@ -111,7 +112,6 @@ class IPCLogger(logging.Handler):
                 )
 
     def _connect_to_log_socket(self) -> bool:
-        self.log_socket = QLocalSocket()
         self.log_socket.connectToServer(IPC_APP_NAME)
 
         return self.log_socket.waitForConnected(500)
@@ -121,11 +121,11 @@ class IPCLogger(logging.Handler):
         if self.server is not None:
             return
 
-        # Tracebacks can't be serialized, so if there's exception, strip the tb
+        # Tracebacks and exception arguments can contain unpicklable objects.
         if record.exc_info:
-            record.exc_info = record.exc_info[0:1]
+            record.exc_text = logging.Formatter().formatException(record.exc_info)
+            record.exc_info = None
 
-        assert self.log_socket is not None
         assert self.log_stream is not None
         data = pickle.dumps(record)
         self.log_stream.writeUInt32(len(data))

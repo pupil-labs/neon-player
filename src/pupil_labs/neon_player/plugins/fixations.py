@@ -1,3 +1,4 @@
+# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 import logging
 import typing as T
 from collections.abc import Iterable
@@ -81,7 +82,8 @@ class FixationsPlugin(neon_player.Plugin):
         self.fixations = recording.fixations
 
         self.get_timeline().add_timeline_broken_bar(
-            "Fixations", self.fixations[["start_time", "stop_time"]]
+            "Fixations",
+            self.fixations[["start_time", "stop_time"]],  # type: ignore[arg-type]  # Neon Recording mistypes column selection.
         )
 
         self.register_action(
@@ -152,7 +154,7 @@ class FixationsPlugin(neon_player.Plugin):
         for viz in self._visualizations:
             viz.render(
                 painter,
-                fixations,
+                fixations,  # type: ignore[arg-type]  # Neon Recording mistypes masked array selection.
                 fixation_ids,
                 frame_offsets,
                 self.get_gaze_offset(),
@@ -191,7 +193,9 @@ class FixationsPlugin(neon_player.Plugin):
         fixation_ids = fixations_ids[start_mask & stop_mask]
 
         offset_means = apply_offset(
-            recording, fixations.mean_gaze_point, self.get_gaze_offset()
+            recording,
+            fixations.mean_gaze_point,  # type: ignore[arg-type]  # Neon Recording mistypes numerical field arrays.
+            self.get_gaze_offset(),
         )
 
         scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(
