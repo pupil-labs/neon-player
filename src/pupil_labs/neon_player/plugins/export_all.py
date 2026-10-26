@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from pupil_labs.neon_recording import NeonRecording
@@ -41,14 +42,15 @@ class ExportAllPlugin(neon_player.Plugin):
     @neon_player.action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export_all_enabled_plugins(self, path: Path = Path(".")) -> None:
-        if self.recording is None:
+        recording = self.recording
+        if recording is None:
             return
 
         self.app.export_all(path)
 
     @staticmethod
-    def _prepare_info_export(recording: NeonRecording) -> dict:
-        info_data = {}
+    def _prepare_info_export(recording: NeonRecording) -> dict[str, Any]:
+        info_data: dict[str, Any] = {}
 
         try:
             info_data.update(recording.info)
@@ -64,8 +66,9 @@ class ExportAllPlugin(neon_player.Plugin):
         return info_data
 
     def export(self, destination: Path = Path()) -> None:
+        recording = self.require_recording()
         if self.export_meta_data:
-            info_data = self._prepare_info_export(self.recording)
+            info_data = self._prepare_info_export(recording)
             with open(destination / "info.json", "w") as info_file:
                 json.dump(info_data, info_file, indent=4, sort_keys=True)
 
@@ -75,9 +78,11 @@ class ExportAllPlugin(neon_player.Plugin):
                 app_version = "?"
 
             export_window = self.app.get_export_window()
+            if export_window is None:
+                return
             frame_indicies = [self.get_scene_idx_for_time(t) for t in export_window]
             rel_times_formatted = [
-                self.format_duration((t - self.recording.start_time) / 1e9)
+                self.format_duration((t - recording.start_time) / 1e9)
                 for t in export_window
             ]
 
@@ -99,8 +104,11 @@ class ExportAllPlugin(neon_player.Plugin):
                     out_file.write(f"{key},{value}\n")
 
         if self.export_camera_calibrations:
-            calibration = {}
-            for k, raw_value in self.recording.calibration.items():
+            recording_calibration = recording.calibration
+            if recording_calibration is None:
+                return
+            calibration: dict[str, Any] = {}
+            for k, raw_value in recording_calibration.items():
                 v = raw_value
                 if isinstance(v, np.ndarray):
                     v = v.tolist()

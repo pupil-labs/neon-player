@@ -17,6 +17,7 @@ from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QAction, QIcon, QPainter
 from PySide6.QtWidgets import (
     QApplication,
+    QMenu,
     QSystemTrayIcon,
 )
 from qt_property_widgets.utilities import ComplexEncoder, create_action_object
@@ -46,7 +47,11 @@ from pupil_labs.neon_player.plugins import (
     video_exporter,  # noqa: F401
     xdf,  # noqa: F401
 )
-from pupil_labs.neon_player.settings import GeneralSettings, load_recording_settings
+from pupil_labs.neon_player.settings import (
+    GeneralSettings,
+    RecordingSettings,
+    load_recording_settings,
+)
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
     PluginInstallationDialog,
@@ -89,7 +94,7 @@ class NeonPlayerApp(QApplication):
         self.plugins_by_class: dict[str, Plugin] = {}
         self.plugins: list[Plugin] = []
         self.recording: nr.NeonRecording | None = None
-        self.playback_start_anchor = 0
+        self.playback_start_anchor: float = 0
         self.current_ts = 0
         self.playback_speed_options = [
             -4.0,
@@ -109,11 +114,11 @@ class NeonPlayerApp(QApplication):
 
         self.settings = GeneralSettings()
         self.loading_recording = False
-        self.recording_settings = None
+        self.recording_settings: RecordingSettings | None = None
         self.recording_history = RecordingHistory()
 
         self.refresh_timer = QTimer(self)
-        self.refresh_timer.setInterval(1000 / 30)
+        self.refresh_timer.setInterval(int(1000 / 30))
         self.refresh_timer.timeout.connect(self.poll)
 
         self.job_manager = JobManager()
@@ -151,7 +156,7 @@ class NeonPlayerApp(QApplication):
             self.find_plugins(plugin_search_path)
 
         try:
-            self.settings = GeneralSettings.from_dict(self.load_global_settings())
+            self.settings = self.load_global_settings()
         except FileNotFoundError:
             logger.warning("Settings file not found")
         except Exception:
@@ -205,15 +210,34 @@ class NeonPlayerApp(QApplication):
 
         self.quit()
 
-    def load_global_settings(self) -> dict[str, T.Any]:
+    def load_global_settings(self) -> GeneralSettings:
         settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
         logger.info(f"Loading settings from {settings_path}")
-        return json.loads(settings_path.read_text())
+        data: object = json.loads(settings_path.read_text())
+        if not isinstance(data, dict) or not all(isinstance(k, str) for k in data):
+            raise ValueError("Global settings must be a JSON object")
+        settings: object = GeneralSettings.from_dict(data)
+        if not isinstance(settings, GeneralSettings):
+            raise TypeError("Unexpected global settings class")
+        return settings
 
     def load_recording_history(self) -> dict[str, dict[str, str]]:
         history_path = Path.home() / "Pupil Labs" / "Neon Player" / "history.json"
         logger.info(f"Loading recording history from {history_path}")
-        return json.loads(history_path.read_text())
+        data: object = json.loads(history_path.read_text())
+        if not isinstance(data, dict):
+            raise TypeError("Recording history must be a JSON object")
+        history: dict[str, dict[str, str]] = {}
+        for path, metadata in data.items():
+            if not isinstance(path, str) or not isinstance(metadata, dict):
+                raise TypeError("Invalid recording history entry")
+            entry: dict[str, str] = {}
+            for key, value in metadata.items():
+                if not isinstance(key, str) or not isinstance(value, str):
+                    raise TypeError("Invalid recording metadata")
+                entry[key] = value
+            history[path] = entry
+        return history
 
     def save_settings(self, force: bool = False) -> None:
         if self._initializing and not force:
@@ -226,13 +250,15 @@ class NeonPlayerApp(QApplication):
             with settings_path.open("w") as f:
                 json.dump(data, f, cls=ComplexEncoder)
 
-            if self.recording:
-                settings_path = (
-                    self.recording._rec_dir / ".neon_player" / "settings.json"
+            recording = self.recording
+            recording_settings = self.recording_settings
+            if recording is not None and recording_settings is not None:
+                recording_settings_path = (
+                    recording._rec_dir / ".neon_player" / "settings.json"
                 )
-                settings_path.parent.mkdir(parents=True, exist_ok=True)
-                data = self.recording_settings.to_dict()
-                with settings_path.open("w") as f:
+                recording_settings_path.parent.mkdir(parents=True, exist_ok=True)
+                data = recording_settings.to_dict()
+                with recording_settings_path.open("w") as f:
                     json.dump(data, f, cls=ComplexEncoder)
 
             logger.info("Settings saved")
@@ -294,7 +320,7 @@ class NeonPlayerApp(QApplication):
         self,
         kls: type[Plugin] | str,
         enabled: bool,
-        state: dict | None = None,
+        state: dict[str, T.Any] | None = None,
     ) -> Plugin | None:
         if isinstance(kls, str):
             try:
@@ -310,9 +336,17 @@ class NeonPlayerApp(QApplication):
             logger.info(f"Enabling plugin: {kls.__name__}")
             try:
                 if state is None:
-                    state = self.recording_settings.plugin_states.get(kls.__name__, {})
+                    settings = self.recording_settings
+                    state = (
+                        settings.plugin_states.get(kls.__name__, {})
+                        if settings is not None
+                        else {}
+                    )
 
-                plugin: Plugin = kls.from_dict(state)
+                loaded_plugin: object = kls.from_dict(state)
+                if not isinstance(loaded_plugin, Plugin):
+                    raise TypeError("Unexpected plugin class")
+                plugin = loaded_plugin
 
                 self.plugins_by_class[kls.__name__] = plugin
                 self.main_window.settings_panel.add_plugin_settings(plugin)
@@ -340,12 +374,15 @@ class NeonPlayerApp(QApplication):
         self.plugins.sort(key=lambda p: p.render_layer)
 
         self.main_window.video_widget.update()
+        return None
 
     def run(self) -> int:
         if not self.headless:
             self.main_window.show()
             self.tray_icon.show()
             menu = self.main_window.get_menu("File", auto_create=False)
+            if not isinstance(menu, QMenu):
+                raise RuntimeError("File menu is unavailable")
             context_menu = clone_menu(menu)
             self.tray_icon.setContextMenu(context_menu)
 
@@ -386,6 +423,7 @@ class NeonPlayerApp(QApplication):
         if self.recording is not None:
             self.recording.close()
         self.recording = None
+        self.recording_settings = None
         self.recording_unloaded.emit()
 
     def load(self, path: Path) -> None:
@@ -420,16 +458,22 @@ class NeonPlayerApp(QApplication):
         SlotDebouncer.debounce(self.recording_settings.changed, self.save_settings)
 
     def on_recording_load_complete(self) -> None:
+        recording = self.recording
+        if recording is None:
+            return
         self.loading_recording = False
-        self.recording_loaded.emit(self.recording)
-        logger.info(f"Loaded `{self.recording._rec_dir}`")
+        self.recording_loaded.emit(recording)
+        logger.info(f"Loaded `{recording._rec_dir}`")
 
     def toggle_plugins_by_settings(self) -> None:
+        settings = self.recording_settings
+        if settings is None:
+            return
         timeline = self.main_window.timeline
         timeline.disable_plot_sorting()
 
-        for cls_name, enabled in self.recording_settings.enabled_plugins.items():
-            state = self.recording_settings.plugin_states.get(cls_name, {})
+        for cls_name, enabled in settings.enabled_plugins.items():
+            state = settings.plugin_states.get(cls_name, {})
             self.toggle_plugin(cls_name, enabled, state)
 
         timeline.enable_plot_sorting()
@@ -473,13 +517,12 @@ class NeonPlayerApp(QApplication):
         self.set_playback_speed(new_speed)
 
     def _reset_start_anchor(self) -> None:
-        if self.playback_speed == 0:
+        recording = self.recording
+        if recording is None or self.playback_speed == 0:
             return
 
         now = time.time_ns()
-        elapsed_time = (
-            self.current_ts - self.recording.start_time
-        ) / self.playback_speed
+        elapsed_time = (self.current_ts - recording.start_time) / self.playback_speed
         self.playback_start_anchor = now - elapsed_time
 
     def set_playback_state(self, playing: bool) -> None:
@@ -550,11 +593,14 @@ class NeonPlayerApp(QApplication):
         method: T.Literal["nearest", "backward", "forward"] = "backward",
         tolerance: int | None = None,
     ) -> int:
+        recording = self.recording
+        if recording is None:
+            return -1
         if t < 0:
             t = self.current_ts
 
-        scene_idx = match_ts([t], self.recording.scene.time, method, tolerance)[0]
-        return -1 if np.isnan(scene_idx) else scene_idx
+        scene_idx = match_ts([t], recording.scene.time, method, tolerance)[0]
+        return -1 if np.isnan(scene_idx) else int(scene_idx)
 
     def render_to(self, painter: QPainter, ts: int | None = None) -> None:
         if ts is None:
@@ -591,13 +637,15 @@ class NeonPlayerApp(QApplication):
         return self.refresh_timer.isActive()
 
     def get_export_window(self) -> tuple[int, int] | None:
-        if self.recording is None:
+        settings = self.recording_settings
+        if self.recording is None or settings is None:
             return None
 
-        return self.recording_settings.export_window
+        return settings.export_window
 
     def set_export_window(self, export_window: tuple[int, int]) -> None:
-        if self.recording is None:
+        settings = self.recording_settings
+        if self.recording is None or settings is None:
             return
 
         if not isinstance(export_window, tuple) or len(export_window) != 2:
@@ -605,7 +653,10 @@ class NeonPlayerApp(QApplication):
                 "Export window must be a tuple with two integer timestamps (start, end)"
             )
 
-        self.recording_settings.export_window = export_window
+        if export_window[0] > export_window[1]:
+            raise ValueError("Export window start cannot follow its end")
+
+        settings.export_window = export_window
         self.main_window.timeline.set_export_window(export_window)
 
     def _setup_frozen(self) -> None:

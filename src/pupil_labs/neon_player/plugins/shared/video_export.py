@@ -19,6 +19,7 @@ from pathlib import Path
 
 import av
 import numpy as np
+import numpy.typing as npt
 import pupil_labs.video as plv
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.timeseries.av.base_av import BaseAVFrame
@@ -31,7 +32,7 @@ from pupil_labs.neon_player.utilities import ndarray_from_qimage
 
 def _prepare_timestamps(
     recording: NeonRecording, export_window: tuple[int, int], fps: int = 30
-) -> np.ndarray:
+) -> npt.NDArray[np.int64]:
     # Add timestamps for gray frames that extend the video to match
     # recording start and stop time
     gray_preamble = np.arange(

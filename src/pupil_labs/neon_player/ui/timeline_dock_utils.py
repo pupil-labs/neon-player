@@ -7,7 +7,7 @@ from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
 from pupil_labs.neon_player.ui.timeline_dock_components import SmartSizePlotItem
 
 
-def get_clicked_plot_item(items: list[T.Any]) -> SmartSizePlotItem | None:
+def get_clicked_plot_item(items: list[object]) -> SmartSizePlotItem | None:
     for item in items:
         if isinstance(item, SmartSizePlotItem):
             return item

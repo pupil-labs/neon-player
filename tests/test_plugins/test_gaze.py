@@ -4,8 +4,10 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pytest
 from pupil_labs.neon_recording import NeonRecording
+from PySide6.QtGui import QImage, QPainter
 
 from pupil_labs.neon_player.plugins.gaze import (
+    Aggregation,
     CircleViz,
     CrosshairViz,
     GazeDataPlugin,
@@ -150,3 +152,46 @@ def test_prepare_export_data_with_worn_data(
     assert len(gaze) == 4
 
     assert np.allclose(gaze["worn"].values, np.array([1, 0, 1, np.nan]), equal_nan=True)
+
+
+def test_apply_offset_empty_points(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
+    recording = mock_neon_recording(scene=mock_scene_timeseries([1]))
+    points = np.empty((0, 2), dtype=np.float32)
+    result = apply_offset(recording, points, (0.1, 0.2))
+    assert result.shape == (0, 2)
+
+
+def test_circle_viz_keeps_fractional_pen_width() -> None:
+    viz = CircleViz()
+    viz.radius = 31
+    viz.stroke_width = 81
+    image = QImage(100, 100, QImage.Format.Format_ARGB32)
+    painter = QPainter(image)
+    viz.render(painter, np.array([[50.0, 50.0]]))
+    assert painter.pen().widthF() == 71.5
+    painter.end()
+
+
+@pytest.mark.parametrize("aggregation", list(Aggregation))
+def test_aggregation_empty_points(aggregation: Aggregation) -> None:
+    result = aggregation.apply(np.empty((0, 2), dtype=np.float32))
+    assert result.shape == (0, 2)
+
+
+@pytest.mark.parametrize(
+    ("aggregation", "expected"),
+    [
+        (Aggregation.Raw, [[1.0, 2.0], [3.0, 4.0]]),
+        (Aggregation.Mean, [[2.0, 3.0]]),
+        (Aggregation.Median, [[2.0, 3.0]]),
+        (Aggregation.First, [[1.0, 2.0]]),
+        (Aggregation.Last, [[3.0, 4.0]]),
+    ],
+)
+def test_aggregation_points(
+    aggregation: Aggregation, expected: list[list[float]]
+) -> None:
+    result = aggregation.apply(np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32))
+    np.testing.assert_array_equal(result, expected)

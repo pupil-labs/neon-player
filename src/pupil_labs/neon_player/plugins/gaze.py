@@ -38,7 +38,10 @@ class Aggregation(enum.Enum):
     First = "First"
     Last = "Last"
 
-    def apply(self, samples: npt.NDArray) -> npt.NDArray:
+    def apply[SampleScalar: np.float32 | np.float64 | np.int64 | np.uint8](
+        self, samples: npt.NDArray[SampleScalar]
+    ) -> npt.NDArray[SampleScalar | np.float64]:
+        v: npt.NDArray[SampleScalar | np.float64]
         if self is Aggregation.Raw or len(samples) == 0:
             v = samples
 
@@ -84,7 +87,7 @@ class GazeDataPlugin(neon_player.Plugin):
             viz.on_recording_loaded(recording)
 
         try:
-            self.worn_data = self.recording.worn
+            self.worn_data = recording.worn
 
             worn_on = self.worn_data.worn // 255
             worn_on = np.concatenate([[0], worn_on])
@@ -111,26 +114,33 @@ class GazeDataPlugin(neon_player.Plugin):
             self.worn_data = None
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
-        if self.recording is None:
+        recording = self.recording
+        if recording is None:
             return
 
         scene_idx = self.get_scene_idx_for_time(time_in_recording)
-        if scene_idx >= len(self.recording.scene) or scene_idx < 0:
+        if scene_idx >= len(recording.scene) or scene_idx < 0:
             return
 
         samples = self.get_gazes_for_scene(scene_idx)
         gazes = samples.point
-        offset_gazes = apply_offset(self.recording, gazes, self.offset)
+        offset_gazes = apply_offset(recording, gazes, self.offset)
 
         try:
-            worns = self.worn_data.sample(samples.time).worn
+            if self.worn_data is None:
+                raise ValueError("No worn data available")
+            worns: npt.NDArray[np.float64 | np.int64] = self.worn_data.sample(
+                samples.time
+            ).worn
         except Exception:
             logger.debug("Failed to sample worn data", exc_info=True)
             worns = np.array([255])
 
-        aggregations = {}
-        offset_aggregations = {}
-        worn_aggregations = {}
+        aggregations: dict[Aggregation, npt.NDArray[np.float32 | np.float64]] = {}
+        offset_aggregations: dict[
+            Aggregation, npt.NDArray[np.float32 | np.float64]
+        ] = {}
+        worn_aggregations: dict[Aggregation, npt.NDArray[np.float64 | np.int64]] = {}
         for viz in self._visualizations:
             if viz._aggregation not in aggregations:
                 aggregations[viz._aggregation] = viz._aggregation.apply(gazes)
@@ -160,29 +170,37 @@ class GazeDataPlugin(neon_player.Plugin):
             )
 
     def get_gazes_for_scene(self, scene_idx: int = -1) -> GazeArray:
+        recording = self.recording
+        if recording is None:
+            raise RuntimeError("Gaze samples require a loaded recording")
         if scene_idx < 0:
             scene_idx = self.get_scene_idx_for_time()
 
-        gaze_start_time = self.recording.scene[scene_idx].time
-        after_mask = self.recording.gaze.time >= gaze_start_time
+        gaze_start_time = recording.scene[scene_idx].time
+        after_mask = recording.gaze.time >= gaze_start_time
 
-        if scene_idx < len(self.recording.scene) - 1:
-            gaze_end_ts = self.recording.scene[scene_idx + 1].time
-            before_mask = self.recording.gaze.time < gaze_end_ts
+        if scene_idx < len(recording.scene) - 1:
+            gaze_end_ts = recording.scene[scene_idx + 1].time
+            before_mask = recording.gaze.time < gaze_end_ts
             time_mask = after_mask & before_mask
         else:
             time_mask = after_mask
 
-        return self.recording.gaze[time_mask]
+        return recording.gaze[time_mask]
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
-        if self.recording is None:
+        recording = self.recording
+        if recording is None:
+            return
+
+        export_window = self.app.get_export_window()
+        if export_window is None:
             return
 
         gaze = _prepare_gaze_export(
-            self.recording, self.worn_data, self.app.get_export_window(), self.offset
+            recording, self.worn_data, export_window, self.offset
         )
 
         if gaze.empty:
@@ -231,18 +249,19 @@ class GazeDataPlugin(neon_player.Plugin):
 
     @visualizations.setter
     def visualizations(self, value: list["GazeVisualization"]) -> None:
+        recording = self.recording
         self._visualizations = value
 
         for viz in self._visualizations:
             viz.changed.connect(self.changed.emit)
-            if self.recording is not None:
-                viz.on_recording_loaded(self.recording)
+            if recording is not None:
+                viz.on_recording_loaded(recording)
 
 
 class GazeVisualization(PersistentPropertiesMixin, QObject):
     changed = Signal()
 
-    _known_types: T.ClassVar[list] = []
+    _known_types: T.ClassVar[list[type["GazeVisualization"]]] = []
 
     def __init__(self) -> None:
         super().__init__()
@@ -256,11 +275,11 @@ class GazeVisualization(PersistentPropertiesMixin, QObject):
     def render(
         self,
         painter: QPainter,
-        gazes: npt.NDArray[np.float64],
+        gazes: npt.NDArray[np.float32 | np.float64],
     ) -> None:
         raise NotImplementedError("Subclasses must implement this method")
 
-    def __init_subclass__(cls: type["GazeVisualization"], **kwargs: dict) -> None:
+    def __init_subclass__(cls: type["GazeVisualization"], **kwargs: object) -> None:
         GazeVisualization._known_types.append(cls)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
@@ -269,9 +288,9 @@ class GazeVisualization(PersistentPropertiesMixin, QObject):
     def to_dict(
         self,
         include_class_name: bool = False,
-        condition: T.Callable[[dict], bool] | None = None,
+        condition: T.Callable[[dict[str, T.Any]], bool] | None = None,
         recursive: bool = False,
-    ) -> dict:
+    ) -> dict[str, T.Any]:
         state = super().to_dict(
             include_class_name=include_class_name,
             condition=condition,
@@ -323,8 +342,8 @@ class CircleViz(GazeVisualization):
         self._color = QColor(255, 0, 0, 128)
         self._radius = 30
         self._stroke_width = 10
-        self._applied_radius = self._radius
-        self._applied_stroke_width = self._stroke_width
+        self._applied_radius: float = self._radius
+        self._applied_stroke_width: float = self._stroke_width
 
     def cap_radius_stroke(self) -> None:
         """
@@ -342,9 +361,11 @@ class CircleViz(GazeVisualization):
         self._applied_radius = self.radius / 2 + self.stroke_width / 4
         self._applied_stroke_width = 2 * self._applied_radius
 
-    def render(self, painter: QPainter, gazes: npt.NDArray[np.float64]) -> None:
+    def render(
+        self, painter: QPainter, gazes: npt.NDArray[np.float32 | np.float64]
+    ) -> None:
         pen = painter.pen()
-        pen.setWidth(self._applied_stroke_width)
+        pen.setWidthF(self._applied_stroke_width)
         pen.setColor(self._color)
         painter.setPen(pen)
 
@@ -395,7 +416,7 @@ class CrosshairViz(GazeVisualization):
     def render(
         self,
         painter: QPainter,
-        gazes: npt.NDArray[np.float64],
+        gazes: npt.NDArray[np.float32 | np.float64],
     ) -> None:
         brush = painter.brush()
         pen = painter.pen()
@@ -486,24 +507,18 @@ class CrosshairViz(GazeVisualization):
 
 
 def apply_offset(
-    recording: NeonRecording, gazes: np.ndarray, offset: tuple[float, float]
-) -> np.ndarray:
-    exit_conditions = [
-        recording is None,
-        recording.scene.width is None,
-        recording.scene.height is None,
-    ]
-    if any(exit_conditions):
+    recording: NeonRecording,
+    gazes: npt.NDArray[np.float32 | np.float64],
+    offset: tuple[float, float],
+) -> npt.NDArray[np.float32 | np.float64]:
+    width = recording.scene.width
+    height = recording.scene.height
+    if width is None or height is None:
         return gazes
 
     offset_x, offset_y = offset
-    offset_pixels = np.array(
-        [
-            offset_x * recording.scene.width,
-            offset_y * recording.scene.height,
-        ]
-    )
-    return gazes + offset_pixels
+    offset_pixels = np.array([offset_x * width, offset_y * height])
+    return np.asarray(gazes + offset_pixels)
 
 
 def _prepare_gaze_export(
@@ -577,7 +592,9 @@ def _prepare_gaze_export(
     return gaze
 
 
-def _prepare_worn_export(gazes: GazeTimeseries, worn: WornTimeseries) -> np.ndarray:
+def _prepare_worn_export(
+    gazes: GazeTimeseries, worn: WornTimeseries
+) -> npt.NDArray[np.float64]:
     gaze_in_worn_idx = match_ts(gazes.time, worn.time)
     matched = gazes.time == worn.time[gaze_in_worn_idx]
     matched_indices = gaze_in_worn_idx[matched]

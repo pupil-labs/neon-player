@@ -2,7 +2,7 @@ import math
 
 import pyqtgraph as pg
 from pyqtgraph.GraphicsScene.mouseEvents import MouseDragEvent
-from PySide6.QtCore import QObject, QPoint, QPointF, QRect, Qt, Signal
+from PySide6.QtCore import QObject, QPoint, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPolygon
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
@@ -39,12 +39,13 @@ class ScrubbableViewBox(pg.ViewBox):
             else:
                 self.scrubbed.emit(ev)
 
-        return super().mousePressEvent(ev)
+        super().mousePressEvent(ev)
 
     def mouseDragEvent(self, ev: MouseDragEvent, axis: int | None = None) -> None:
         if ev.button() == Qt.MouseButton.MiddleButton:
             self.setMouseEnabled(x=True, y=self.allow_y_panning)
-            return super().mouseDragEvent(ev, axis)
+            super().mouseDragEvent(ev, axis)
+            return
 
         if self.state["mouseMode"] == pg.ViewBox.RectMode:
             super().mouseDragEvent(ev, axis)
@@ -83,7 +84,7 @@ class TimeAxisItem(pg.AxisItem):
         self.recording_start_time_ns = 0
         self.recording_stop_time_ns = 0
 
-        self.interval = 1
+        self.interval = 1.0
         self.setStyle(autoReduceTextSpace=False)
 
     def tickValues(
@@ -309,13 +310,18 @@ class PlotOverlay(QWidget):
     def get_x_pixel_for_x_value(self, x_value: float) -> float:
         vb = self.linked_plot.vb
         x_range = vb.viewRange()[0]
-        return (x_value - x_range[0]) / (x_range[1] - x_range[0]) * vb.width() - 1
+        return float(
+            (x_value - x_range[0]) / (x_range[1] - x_range[0]) * vb.width() - 1
+        )
 
     def refresh_geometry(self) -> None:
         vb = self.linked_plot.vb
         plot_rect = vb.mapToScene(vb.geometry()).boundingRect()
+        parent = self.parentWidget()
+        if parent is None:
+            return
         self.setGeometry(
-            plot_rect.x(), 20, plot_rect.width(), self.parent().height() - 20
+            int(plot_rect.x()), 20, int(plot_rect.width()), parent.height() - 20
         )
 
 
@@ -360,7 +366,7 @@ class PlayHead(PlotOverlay):
             )
 
         else:
-            painter.fillRect(QRect(x - 1, 0, 3, self.height()), self.color)
+            painter.fillRect(QRectF(x - 1, 0, 3, self.height()), self.color)
 
         painter.end()
 
@@ -370,7 +376,7 @@ class TrimEndMarker(QGraphicsEllipseItem):
         self, time: int, plot: pg.PlotItem, parent: QGraphicsItem | None = None
     ) -> None:
         super().__init__(time, -1, 0, 2, parent)
-        self._time = time
+        self._time: float = time
         self._plot = plot
 
         class _Emitter(QObject):
@@ -388,11 +394,11 @@ class TrimEndMarker(QGraphicsEllipseItem):
         self.setBrush(self.normal_brush)
 
     @property
-    def time(self) -> int:
+    def time(self) -> float:
         return self._time
 
     @time.setter
-    def time(self, value: int) -> None:
+    def time(self, value: float) -> None:
         self._time = value
         self.time_changed.emit(value)
         self.update()
@@ -459,7 +465,7 @@ class TrimDurationMarker(QGraphicsRectItem):
         self.update()
 
 
-class TimelineTableContainer(GUIEventNotifier, QWidget):
+class TimelineTableContainer(GUIEventNotifier):
     def __init__(self, table: QWidget) -> None:
         super().__init__()
         self.setMouseTracking(True)

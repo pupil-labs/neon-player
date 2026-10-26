@@ -17,24 +17,42 @@ LOG_FORMAT_STRING = (
 )
 
 
-def instance() -> "NeonPlayerApp":
+def instance() -> "NeonPlayerApp | None":
     # Defer the app import to avoid a circular import.
     from pupil_labs.neon_player.app import NeonPlayerApp  # noqa: PLC0415
 
-    return NeonPlayerApp.instance()
+    app = NeonPlayerApp.instance()
+    return app if isinstance(app, NeonPlayerApp) else None
 
 
-# The upstream action decorator returns a dynamically defined descriptor.
-def action[**ActionParams, ActionResult](
-    func: T.Callable[ActionParams, ActionResult],
-) -> T.Any:  # noqa: ANN401
+def require_instance() -> "NeonPlayerApp":
+    app = instance()
+    if app is None:
+        raise RuntimeError("Neon Player application is not initialized")
+    return app
+
+
+class ActionDescriptor[Owner, **Params, Result](T.Protocol):
+    def __set_name__(self, owner: type[Owner], name: str) -> None: ...
+
+    def __get__(
+        self, instance: Owner | None, owner: type[Owner] | None = None
+    ) -> T.Callable[Params, Result]: ...
+
+
+def action[Owner, **ActionParams, ActionResult](
+    func: T.Callable[T.Concatenate[Owner, ActionParams], ActionResult],
+) -> ActionDescriptor[Owner, ActionParams, ActionResult]:
     @functools.wraps(func)
     def wrapper(
-        *args: ActionParams.args, **kwargs: ActionParams.kwargs
+        self: Owner, *args: ActionParams.args, **kwargs: ActionParams.kwargs
     ) -> ActionResult:
-        return func(*args, **kwargs)
+        return func(self, *args, **kwargs)
 
-    return object_action(wrapper)
+    descriptor: ActionDescriptor[Owner, ActionParams, ActionResult] = object_action(
+        wrapper
+    )
+    return descriptor
 
 
 def asset_path(resource: str) -> Path:

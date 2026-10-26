@@ -1,9 +1,11 @@
 import json
 from collections.abc import Callable
 
+import pytest
 from pupil_labs.neon_recording import NeonRecording
+from PySide6.QtWidgets import QApplication
 
-from pupil_labs.neon_player.settings import load_recording_settings
+from pupil_labs.neon_player.settings import RecordingSettings, load_recording_settings
 
 
 class MockSettingsPath:
@@ -48,6 +50,7 @@ def test_load_recording_settings__invalid_export_window(
 
 
 def test_load_recording_settings__corrupted_settings(
+    qapp: QApplication,
     mock_neon_recording: Callable[..., NeonRecording],
 ) -> None:
     contents = {"export_window": [0], "enabled_plugins": {"Plugin": True}}
@@ -55,4 +58,31 @@ def test_load_recording_settings__corrupted_settings(
     settings = load_recording_settings(mock_settings_path(contents, corrupt=True), rec)
 
     # Set export window to the recording's [start_time, stop_time]
-    assert settings.enabled_plugins["DefaultPlugin"]
+    assert (
+        settings.enabled_plugins["DefaultPlugin"]
+        == qapp.settings.default_plugins["DefaultPlugin"]
+    )
+
+
+@pytest.mark.parametrize(("window", "expected"), [([8, 2], (0, 10)), ([5, 5], (5, 5))])
+def test_export_window_order(
+    mock_neon_recording: Callable[..., NeonRecording],
+    window: list[int],
+    expected: tuple[int, int],
+) -> None:
+    rec = mock_neon_recording(start_time=0, stop_time=10)
+    settings = load_recording_settings(
+        mock_settings_path({"export_window": window, "enabled_plugins": {}}), rec
+    )
+    assert settings.export_window == expected
+
+
+def test_recording_settings_restore_opaque_plugin_states() -> None:
+    state = {
+        "enabled_plugins": {"ExamplePlugin": True},
+        "plugin_states": {"ExamplePlugin": {"enabled": True, "values": [1, 2]}},
+        "export_window": [2, 5],
+    }
+    settings = RecordingSettings.from_dict(state)
+    assert settings.plugin_states == state["plugin_states"]
+    assert settings.export_window == (2, 5)

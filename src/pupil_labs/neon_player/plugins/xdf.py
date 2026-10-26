@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import pyxdf
 from pupil_labs.neon_recording import NeonRecording
@@ -60,7 +61,7 @@ def parse_event_name(text: str) -> str:
     return text.strip()
 
 
-def parse_markers(xdf_dict: dict) -> dict[str, list[float]]:
+def parse_markers(xdf_dict: dict[str, Any]) -> dict[str, list[float]]:
     """Parse and group markers from an XDF stream."""
     if "time_stamps" not in xdf_dict or "time_series" not in xdf_dict:
         return {}
@@ -79,7 +80,7 @@ def parse_markers(xdf_dict: dict) -> dict[str, list[float]]:
     return markers
 
 
-def get_fs_from_timestamps(timestamps: np.ndarray) -> float:
+def get_fs_from_timestamps(timestamps: npt.NDArray[np.float64]) -> float:
     if len(timestamps) < 2:
         return 0.0
 
@@ -87,7 +88,14 @@ def get_fs_from_timestamps(timestamps: np.ndarray) -> float:
     return 1.0 / float(np.median(dt)) if len(dt) > 0 else 0.0
 
 
-def parse_stream_data(xdf_dict: dict) -> tuple[np.ndarray | None, np.ndarray | None]:
+type XDFNumericArray = npt.NDArray[
+    np.float32 | np.float64 | np.int8 | np.int16 | np.int32 | np.int64
+]
+
+
+def parse_stream_data(
+    xdf_dict: dict[str, Any],
+) -> tuple[XDFNumericArray | None, npt.NDArray[np.float64] | None]:
     """Parse XDF stream data."""
     if "time_series" not in xdf_dict or "time_stamps" not in xdf_dict:
         return None, None
@@ -96,6 +104,17 @@ def parse_stream_data(xdf_dict: dict) -> tuple[np.ndarray | None, np.ndarray | N
     # to the declared channel format, timestamps should be float64
     data = xdf_dict["time_series"]
     timestamps = xdf_dict["time_stamps"]
+    if not isinstance(data, np.ndarray) or not isinstance(timestamps, np.ndarray):
+        raise XDFStreamError("XDF samples and timestamps must be NumPy arrays")
+    if data.dtype not in (
+        np.dtype(np.float32),
+        np.dtype(np.float64),
+        np.dtype(np.int8),
+        np.dtype(np.int16),
+        np.dtype(np.int32),
+        np.dtype(np.int64),
+    ) or timestamps.dtype != np.dtype(np.float64):
+        raise XDFStreamError("XDF samples or timestamps have an unsupported dtype")
 
     if data.ndim == 1:
         data = data.reshape(-1, 1)
@@ -103,7 +122,7 @@ def parse_stream_data(xdf_dict: dict) -> tuple[np.ndarray | None, np.ndarray | N
     return data, timestamps
 
 
-def parse_channel_names(info: dict) -> list[str]:
+def parse_channel_names(info: dict[str, Any]) -> list[str]:
     """Parses channel names for data streams.
 
     Expected location: info > desc > channels > channel (one entry per channel).
@@ -129,7 +148,9 @@ def estimate_offset_ns(xdf_timestamp: float, neon_timestamp: int) -> int:
     return neon_timestamp - int(xdf_timestamp * 1e9)
 
 
-def apply_offset(xdf_timestamps: np.ndarray, offset_ns: int) -> np.ndarray:
+def apply_offset(
+    xdf_timestamps: npt.NDArray[np.float64], offset_ns: int
+) -> npt.NDArray[np.int64]:
     """Apply offset to align XDF timestamps with the Neon ones."""
     return (np.array(xdf_timestamps) * 1e9).astype(np.int64) + offset_ns
 
@@ -217,7 +238,7 @@ class XDFStream(PersistentPropertiesMixin):
     def to_dict(
         self,
         include_class_name: bool = False,
-        condition: Callable[[dict], bool] | None = None,
+        condition: Callable[[dict[str, Any]], bool] | None = None,
         recursive: bool = False,
     ) -> dict[str, Any]:
         state = super().to_dict(include_class_name, condition, recursive)
@@ -226,7 +247,7 @@ class XDFStream(PersistentPropertiesMixin):
         state["__class__"] = self.__class__.__name__
         return state
 
-    def parse_info(self, info: dict[str, list[Any]]) -> None:
+    def parse_info(self, info: dict[str, Any]) -> None:
         self.xdf_id = int(first(info, "stream_id", -1))
         self.uid = str(first(info, "uid", uuid.uuid4()))
         # NOTE: according to the specification, the 'name' attribute is not mandatory
@@ -238,7 +259,7 @@ class XDFStream(PersistentPropertiesMixin):
         self.channel_format = str(first(info, "channel_format", "")).strip().lower()
 
     @classmethod
-    def from_xdf_dict(cls, xdf_dict: dict) -> "XDFStream":
+    def from_xdf_dict(cls, xdf_dict: dict[str, Any]) -> "XDFStream":
         info = xdf_dict.get("info", {})
         channel_format = str(first(info, "channel_format", "")).strip().lower()
         if channel_format == "string":
@@ -274,7 +295,7 @@ class MarkerXDFStream(XDFStream):
             )
 
     @classmethod
-    def from_xdf_dict(cls, xdf_dict: dict) -> "MarkerXDFStream":
+    def from_xdf_dict(cls, xdf_dict: dict[str, Any]) -> "MarkerXDFStream":
         stream = cls()
         stream.parse_info(xdf_dict.get("info", {}))
         stream.markers = parse_markers(xdf_dict)
@@ -288,8 +309,8 @@ class DataXDFStream(XDFStream):
         self._is_marker_stream = False
 
         # Expected format: samples x channels
-        self.data: np.ndarray | None = None
-        self.timestamps: np.ndarray | None = None
+        self.data: XDFNumericArray | None = None
+        self.timestamps: npt.NDArray[np.float64] | None = None
         self._channel_names: list[str] = []
         self._loaded = False
 
@@ -323,7 +344,7 @@ class DataXDFStream(XDFStream):
             raise XDFStreamError("Failed to parse stream data")
 
     @classmethod
-    def from_xdf_dict(cls, xdf_dict: dict) -> "DataXDFStream":
+    def from_xdf_dict(cls, xdf_dict: dict[str, Any]) -> "DataXDFStream":
         info = xdf_dict.get("info", {})
 
         stream = cls()
@@ -640,13 +661,13 @@ class XDFPlugin(Plugin):
             self.changed.emit()
 
     def _get_xdf_cache_file(self) -> Path:
-        return self.get_cache_path() / "xdf_file_cache.json"
+        return self.require_cache_path() / "xdf_file_cache.json"
 
     def _get_marker_stream_cache_file(self, stream_uid: str) -> Path:
-        return self.get_cache_path() / f"xdf_marker_stream_{stream_uid}.json"
+        return self.require_cache_path() / f"xdf_marker_stream_{stream_uid}.json"
 
     def _get_data_stream_cache_file(self, stream_uid: str) -> Path:
-        return self.get_cache_path() / f"xdf_data_stream_{stream_uid}.npz"
+        return self.require_cache_path() / f"xdf_data_stream_{stream_uid}.npz"
 
     def _update_channel_selection(self) -> None:
         if not self.data_stream or not self.data_stream.loaded:
@@ -688,7 +709,8 @@ class XDFPlugin(Plugin):
             "XDFPlugin._bg_load_xdf",
             self._xdf_path,
         )
-        self._xdf_load_job.finished.connect(self._on_xdf_load_finished)
+        if self._xdf_load_job is not None:
+            self._xdf_load_job.finished.connect(self._on_xdf_load_finished)
 
     def _on_xdf_load_finished(self) -> None:
         self._xdf_load_job = None
@@ -784,7 +806,7 @@ class XDFPlugin(Plugin):
 
     def _clear_cache(self) -> None:
         cache_folder = self.get_cache_path()
-        if not cache_folder.exists():
+        if cache_folder is None or not cache_folder.exists():
             return
 
         shutil.rmtree(cache_folder)
@@ -865,6 +887,7 @@ class XDFPlugin(Plugin):
         )
 
     def _update_events(self) -> None:
+        recording = self.recording
         if not self.marker_stream or not self.marker_stream.markers:
             self.available_sync_events = []
             return
@@ -872,8 +895,8 @@ class XDFPlugin(Plugin):
         ep = Plugin.get_instance_by_name("EventsPlugin")
         if ep and isinstance(ep, EventsPlugin):
             self._neon_events = ep.events
-        elif self.recording is not None:
-            _, self._neon_events = _load_events_from_recording(self.recording)
+        elif recording is not None:
+            _, self._neon_events = _load_events_from_recording(recording)
         else:
             self._neon_events = {}
 
@@ -883,7 +906,8 @@ class XDFPlugin(Plugin):
         self.available_sync_events = list(common_names)
 
     def align_with_recording(self) -> None:
-        if not self.recording:
+        recording = self.recording
+        if not recording:
             return
 
         if not self.marker_stream or not self._sync_event:
@@ -918,7 +942,8 @@ class XDFPlugin(Plugin):
         self.update_timeline()
 
     def update_timeline(self, markers: bool = True, data: bool = True) -> None:
-        if self.headless or not self.recording:
+        recording = self.recording
+        if self.headless or not recording:
             return
 
         timeline = self.get_timeline()
@@ -972,7 +997,8 @@ class XDFPlugin(Plugin):
             self._active_timeline_row_names["markers"].add(timeline_row_name)
 
     def _update_timeline_data(self) -> None:
-        if not self.recording:
+        recording = self.recording
+        if not recording:
             return
 
         if not self.data_stream or not self.data_stream.loaded or not self._is_aligned:
@@ -986,9 +1012,7 @@ class XDFPlugin(Plugin):
         offset_ts = apply_offset(self.data_stream.timestamps, self._offset_ns)
 
         # Filter data to fit within the recording bounds
-        mask = (offset_ts >= self.recording.start_time) & (
-            offset_ts <= self.recording.stop_time
-        )
+        mask = (offset_ts >= recording.start_time) & (offset_ts <= recording.stop_time)
 
         if not np.any(mask):
             logger.warning("No data found within recording bounds.")
@@ -1059,7 +1083,8 @@ class XDFPlugin(Plugin):
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
-        if not self.recording:
+        recording = self.recording
+        if not recording:
             return
 
         if not self.data_stream or not self.data_stream.loaded or not self._is_aligned:
@@ -1080,9 +1105,7 @@ class XDFPlugin(Plugin):
         export_ts = offset_ts[mask]
         export_data = self.data_stream.data[mask]
 
-        df = pd.DataFrame(
-            {"recording id": self.recording.id, "timestamp [ns]": export_ts}
-        )
+        df = pd.DataFrame({"recording id": recording.id, "timestamp [ns]": export_ts})
         for i, name in enumerate(self.data_stream.channel_names):
             df[name] = export_data[:, i].astype(np.float32)
 
@@ -1093,7 +1116,8 @@ class XDFPlugin(Plugin):
     @action
     @action_params(compact=True, icon=QIcon(str(asset_path("info.svg"))))
     def debug_events(self) -> None:
-        if not self.recording:
+        recording = self.recording
+        if not recording:
             return
 
         logger.info("--- NEON EVENTS ---")

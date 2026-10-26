@@ -31,7 +31,9 @@ class PluginInstallationDialog(QDialog):
         self.label = QLabel(
             f"The <b>{plugin_req}</b> plugin file requires the following {len(dependencies_to_install)} package(s) to be installed. Additional dependencies may be installed as well."  # noqa: E501
         )
-        self.label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.label.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
+        )
         self.label.setWordWrap(True)
         layout.addWidget(self.label)
 
@@ -62,7 +64,11 @@ class PluginInstallationDialog(QDialog):
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)
         self.button_box.setEnabled(False)
-        self.job = neon_player.instance().job_manager.run_background_action(
+        self.job = neon_player.require_instance().job_manager.run_background_action(
             "Install dependencies", "install_packages", *self.dependencies_to_install
         )
+        if self.job is None:
+            self.progress_bar.hide()
+            self.button_box.setEnabled(True)
+            return
         self.job.finished.connect(self.close)

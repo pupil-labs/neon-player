@@ -41,7 +41,7 @@ class RecordingInfoWidget(QWidget):
         self.wearer_label = QLabel("-")
         main_layout.addWidget(self.wearer_label)
 
-        app = neon_player.instance()
+        app = neon_player.require_instance()
         app.recording_loaded.connect(self.on_recording_loaded)
         app.recording_unloaded.connect(self.on_recording_unloaded)
 
@@ -79,10 +79,17 @@ class PluginManagerWidget(QWidget):
         self.dialog = None
 
     def show_dialog(self) -> None:
-        app = neon_player.instance()
-        form = PropertyWidget.from_property("enabled_plugins", app.recording_settings)
-        form.layout().setContentsMargins(10, 10, 10, 10)
-        form.layout().setSpacing(5)
+        app = neon_player.require_instance()
+        settings = app.recording_settings
+        if settings is None:
+            return
+        form = PropertyWidget.from_property("enabled_plugins", settings)
+        if form is None:
+            return
+        layout = form.layout()
+        if layout is not None:
+            layout.setContentsMargins(10, 10, 10, 10)
+            layout.setSpacing(5)
 
         menu = QMenu(self.button)
         menu.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -102,7 +109,7 @@ class SettingsPanel(QScrollArea):
         super().__init__(parent=parent)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
 
-        app = neon_player.instance()
+        app = neon_player.require_instance()
         app.recording_loaded.connect(self.on_recording_loaded)
         app.recording_unloaded.connect(self.on_recording_unloaded)
 
@@ -127,7 +134,7 @@ class SettingsPanel(QScrollArea):
         self.content_layout.addWidget(self.plugin_list_widget)
 
         self.setWidget(self.content_widget)
-        self.plugins_form = None
+        self.plugins_form: PluginManagerWidget | None = None
 
     def on_recording_loaded(self, _: NeonRecording) -> None:
         self.plugins_form = PluginManagerWidget()
@@ -140,7 +147,7 @@ class SettingsPanel(QScrollArea):
             self.plugins_form = None
 
     def add_plugin_settings(self, instance: Plugin) -> None:
-        app = neon_player.instance()
+        app = neon_player.require_instance()
 
         cls = instance.__class__
         class_name = cls.__name__

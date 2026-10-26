@@ -18,7 +18,7 @@ class BlinksPlugin(neon_player.Plugin):
             return
 
         self.get_timeline().add_timeline_broken_bar(
-            "Blinks", self.recording.blinks[["start_time", "stop_time"]]
+            "Blinks", recording.blinks[["start_time", "stop_time"]]
         )
 
     def on_disabled(self) -> None:
@@ -27,10 +27,16 @@ class BlinksPlugin(neon_player.Plugin):
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
-        blink_ids = 1 + np.arange(len(self.recording.blinks))
-        blinks = self.recording.blinks
+        recording = self.recording
+        if recording is None:
+            return
+        blink_ids = 1 + np.arange(len(recording.blinks))
+        blinks = recording.blinks
 
-        start_time, stop_time = self.app.get_export_window()
+        export_window = self.app.get_export_window()
+        if export_window is None:
+            return
+        start_time, stop_time = export_window
         start_mask = blinks.stop_time > start_time
         stop_mask = blinks.start_time < stop_time
 
@@ -39,7 +45,7 @@ class BlinksPlugin(neon_player.Plugin):
 
         export_data = pd.DataFrame(
             {
-                "recording id": self.recording.info["recording_id"],
+                "recording id": recording.info["recording_id"],
                 "blink id": blink_ids,
                 "start timestamp [ns]": blinks.start_time,
                 "end timestamp [ns]": blinks.stop_time,

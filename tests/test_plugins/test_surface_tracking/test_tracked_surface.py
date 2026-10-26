@@ -1,16 +1,20 @@
+from collections import OrderedDict
 from collections.abc import Iterable
+from pathlib import Path
 from typing import TYPE_CHECKING, SupportsFloat
 from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
 import pytest
+from pupil_labs.marker_mapper.surface import Surface
 from pupil_labs.neon_recording.timeseries.gaze import GazeArray, GazeTimeseries
 
 from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
 from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import (
     TrackedSurface,
 )
+from pupil_labs.neon_player.plugins.surface_tracking.ui import MarkerEditWidget
 
 if TYPE_CHECKING:
     from tests.conftest import MockNeonPlayerApp
@@ -134,3 +138,44 @@ def test_tracked_surface_append_mapped_fixation_data_fixation_no_mapped_gazes(
     assert not fixation_row["fixation detected on surface"].to_numpy()[0]
     assert np.isnan(fixation_row["fixation x [normalized]"].to_numpy()[0])
     assert np.isnan(fixation_row["fixation y [normalized]"].to_numpy()[0])
+
+
+def test_surface_export_without_optional_plugins(
+    qapp: "MockNeonPlayerApp", tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(qapp, "plugins_by_class", {})
+    surface = TrackedSurface()
+    gazes = mock_gaze_timeseries([1], [20], [30])
+
+    assert surface.apply_offset_and_map_gazes(gazes) is None
+    surface.export_gazes(gazes, tmp_path)
+    surface.export_fixations(gazes, tmp_path)
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_surface_without_tracker_can_be_renamed(
+    qapp: "MockNeonPlayerApp", monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(qapp, "plugins_by_class", {})
+    surface = TrackedSurface()
+
+    surface.name = "Desk"
+
+    assert surface.name == "Desk"
+    assert surface.tracker_plugin is None
+
+
+def test_surface_marker_id_from_widget_uses_library_integer_id(
+    qapp: "MockNeonPlayerApp", monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(qapp, "plugins_by_class", {})
+    surface = TrackedSurface()
+    surface.tracker_surface = Surface("Desk", OrderedDict([(42, np.zeros((4, 2)))]))
+    widget = MarkerEditWidget("42")
+
+    widget.set_surface(surface)
+
+    assert widget.isChecked()
+    surface.remove_marker(widget.marker_uid)
+    assert not surface.tracker_surface.markers

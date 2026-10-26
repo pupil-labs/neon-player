@@ -1,0 +1,158 @@
+src/pupil_labs/neon_player/ui/timeline_dock_components.py:23: error: Class cannot subclass "ViewBox" (has type "Any")  [misc]
+src/pupil_labs/neon_player/ui/timeline_dock_components.py:81: error: Class cannot subclass "AxisItem" (has type "Any")  [misc]
+src/pupil_labs/neon_player/ui/timeline_dock_components.py:212: error: Class cannot subclass "LegendItem" (has type "Any")  [misc]
+src/pupil_labs/neon_player/ui/timeline_dock_components.py:241: error: Class cannot subclass "PlotItem" (has type "Any")  [misc]
+src/pupil_labs/neon_player/plugins/imu.py:38: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/imu.py:38: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/imu.py:38: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/imu.py:38: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/imu.py:39: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/imu.py:39: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/imu.py:39: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/imu.py:39: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/imu.py:40: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/imu.py:40: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/imu.py:40: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/imu.py:40: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/imu.py:41: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/imu.py:41: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/imu.py:41: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/imu.py:41: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/imu.py:42: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/imu.py:42: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/imu.py:42: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/imu.py:42: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/imu.py:43: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/imu.py:43: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/imu.py:43: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/imu.py:43: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/imu.py:47: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/imu.py:47: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/imu.py:47: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/imu.py:47: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/imu.py:48: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/imu.py:48: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/imu.py:48: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/imu.py:48: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/imu.py:49: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/imu.py:49: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/imu.py:49: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/imu.py:49: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/imu.py:50: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/imu.py:50: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/imu.py:50: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/imu.py:50: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/gaze.py:133: error: Argument 1 to "sample" of "Timeseries" has incompatible type "Array[signedinteger[_64Bit]]"; expected "ArrayLike[int]"  [arg-type]
+src/pupil_labs/neon_player/plugins/gaze.py:189: error: Returning Any from function declared to return "GazeArray"  [no-any-return]
+src/pupil_labs/neon_player/plugins/gaze.py:538: error: Argument 2 to "apply_offset" has incompatible type "float64"; expected "ndarray[tuple[Any, ...], dtype[floating[_32Bit] | float64]]"  [arg-type]
+src/pupil_labs/neon_player/plugins/gaze.py:560: error: Argument 1 to "_prepare_worn_export" has incompatible type "GazeRecord"; expected "GazeTimeseries"  [arg-type]
+src/pupil_labs/neon_player/plugins/gaze.py:567: error: Argument 1 to "find_ranged_index" has incompatible type "signedinteger[_64Bit]"; expected "ndarray[tuple[Any, ...], dtype[signedinteger[_64Bit]]]"  [arg-type]
+src/pupil_labs/neon_player/plugins/gaze.py:581: error: Argument 1 to "find_ranged_index" has incompatible type "signedinteger[_64Bit]"; expected "ndarray[tuple[Any, ...], dtype[signedinteger[_64Bit]]]"  [arg-type]
+src/pupil_labs/neon_player/plugins/gaze.py:598: error: Argument 1 to "match_ts" has incompatible type "Array[signedinteger[_64Bit]]"; expected "ArrayLike[int]"  [arg-type]
+src/pupil_labs/neon_player/plugins/gaze.py:598: error: Argument 2 to "match_ts" has incompatible type "Array[signedinteger[_64Bit]]"; expected "ArrayLike[int]"  [arg-type]
+src/pupil_labs/neon_player/plugins/eyestate.py:143: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/eyestate.py:143: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/eyestate.py:143: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/eyestate.py:143: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/eyestate.py:144: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/eyestate.py:144: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/eyestate.py:144: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/eyestate.py:144: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/eyestate.py:145: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/eyestate.py:145: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/eyestate.py:145: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/eyestate.py:145: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/eyestate.py:146: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/eyestate.py:146: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/eyestate.py:146: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/eyestate.py:146: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/eyestate.py:147: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/eyestate.py:147: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/eyestate.py:147: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/eyestate.py:147: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/eyestate.py:148: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/eyestate.py:148: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/eyestate.py:148: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/eyestate.py:148: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/eyestate.py:149: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/eyestate.py:149: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/eyestate.py:149: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/eyestate.py:149: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/eyestate.py:150: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/eyestate.py:150: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/eyestate.py:150: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/eyestate.py:150: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/eyestate.py:151: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/eyestate.py:151: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/eyestate.py:151: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/eyestate.py:151: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/eyestate.py:152: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/eyestate.py:152: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/eyestate.py:152: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/eyestate.py:152: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/eyestate.py:153: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/eyestate.py:153: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/eyestate.py:153: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/eyestate.py:153: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/eyestate.py:154: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/eyestate.py:154: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/eyestate.py:154: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/eyestate.py:154: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/eyestate.py:160: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/eyestate.py:160: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/eyestate.py:160: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/eyestate.py:160: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/eyestate.py:161: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/eyestate.py:161: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/eyestate.py:161: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/eyestate.py:161: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/eyestate.py:163: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/eyestate.py:163: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/eyestate.py:163: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/eyestate.py:163: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/eyestate.py:164: error: No overload variant of "__getitem__" of "Array" matches argument type "tuple[slice[None, None, None], int]"  [call-overload]
+src/pupil_labs/neon_player/plugins/eyestate.py:164: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/eyestate.py:164: note:     def __getitem__(self, SupportsIndex, /) -> float64
+src/pupil_labs/neon_player/plugins/eyestate.py:164: note:     def __getitem__(self, slice[Any, Any, Any] | str | list[str], /) -> Array[Any]
+src/pupil_labs/neon_player/plugins/export_all.py:111: error: Call to untyped function "items" in typed context  [no-untyped-call]
+src/pupil_labs/neon_player/plugins/events.py:567: error: Argument "widget" to "property_params" has incompatible type "type[EventTypeListWidget]"; expected "QWidget | Literal['auto'] | None"  [arg-type]
+src/pupil_labs/neon_player/plugins/blinks.py:21: error: Argument 2 to "add_timeline_broken_bar" of "TimeLineDock" has incompatible type "BlinkTimeseries"; expected "list[tuple[int, int, SupportsFloat]] | list[tuple[int, int]] | ndarray[tuple[Any, ...], dtype[integer[Any] | floating[Any]]]"  [arg-type]
+src/pupil_labs/neon_player/plugins/blinks.py:43: error: Incompatible types in assignment (expression has type "BlinkRecord", variable has type "BlinkTimeseries")  [assignment]
+src/pupil_labs/neon_player/ipc_logger.py:38: error: Statement is unreachable  [unreachable]
+src/pupil_labs/neon_player/ipc_logger.py:98: error: Unsupported operand types for < ("int" and "None")  [operator]
+src/pupil_labs/neon_player/ipc_logger.py:98: note: Right operand is of type "int | None"
+src/pupil_labs/neon_player/ipc_logger.py:102: error: Argument 1 to "readRawData" of "QDataStream" has incompatible type "int | None"; expected "int"  [arg-type]
+src/pupil_labs/neon_player/ipc_logger.py:126: error: Incompatible types in assignment (expression has type "tuple[type[BaseException]] | tuple[None]", variable has type "tuple[type[BaseException], BaseException, TracebackType | None] | tuple[None, None, None] | None")  [assignment]
+src/pupil_labs/neon_player/plugins/xdf.py:437: error: Incompatible return value type (got "FilePath | None", expected "FilePath")  [return-value]
+src/pupil_labs/neon_player/plugins/xdf.py:478: error: Argument "widget" to "property_params" has incompatible type "type[DynamicComboWidget]"; expected "QWidget | Literal['auto'] | None"  [arg-type]
+src/pupil_labs/neon_player/plugins/xdf.py:483: error: Incompatible return value type (got "str | None", expected "str")  [return-value]
+src/pupil_labs/neon_player/plugins/xdf.py:534: error: Argument "widget" to "property_params" has incompatible type "type[DynamicComboWidget]"; expected "QWidget | Literal['auto'] | None"  [arg-type]
+src/pupil_labs/neon_player/plugins/xdf.py:539: error: Incompatible return value type (got "str | None", expected "str")  [return-value]
+src/pupil_labs/neon_player/plugins/xdf.py:588: error: Argument "widget" to "property_params" has incompatible type "type[DynamicComboWidget]"; expected "QWidget | Literal['auto'] | None"  [arg-type]
+src/pupil_labs/neon_player/plugins/fixations.py:83: error: Argument 2 to "add_timeline_broken_bar" of "TimeLineDock" has incompatible type "FixationTimeseries"; expected "list[tuple[int, int, SupportsFloat]] | list[tuple[int, int]] | ndarray[tuple[Any, ...], dtype[integer[Any] | floating[Any]]]"  [arg-type]
+src/pupil_labs/neon_player/plugins/fixations.py:154: error: Argument 2 to "render" of "FixationVisualization" has incompatible type "FixationRecord"; expected "FixationArray"  [arg-type]
+src/pupil_labs/neon_player/plugins/fixations.py:191: error: Argument 2 to "apply_offset" has incompatible type "floating[_32Bit]"; expected "ndarray[tuple[Any, ...], dtype[floating[_32Bit] | float64]]"  [arg-type]
+src/pupil_labs/neon_player/plugins/surface_tracking/tracked_surface.py:319: error: Call to untyped function "normalized_corners" in typed context  [no-untyped-call]
+src/pupil_labs/neon_player/plugins/surface_tracking/tracked_surface.py:327: error: Call to untyped function "normalized_corners" in typed context  [no-untyped-call]
+src/pupil_labs/neon_player/plugins/surface_tracking/tracked_surface.py:366: error: Call to untyped function "normalized_corners" in typed context  [no-untyped-call]
+src/pupil_labs/neon_player/plugins/surface_tracking/tracked_surface.py:395: error: Call to untyped function "normalized_corners" in typed context  [no-untyped-call]
+src/pupil_labs/neon_player/plugins/surface_tracking/tracked_surface.py:658: error: Call to untyped function "crop_image" in typed context  [no-untyped-call]
+src/pupil_labs/neon_player/plugins/surface_tracking/tracked_surface.py:727: error: Call to untyped function "rotate" in typed context  [no-untyped-call]
+src/pupil_labs/neon_player/plugins/surface_tracking/surface_tracking.py:375: error: Call to untyped function "normalized_corners" in typed context  [no-untyped-call]
+src/pupil_labs/neon_player/plugins/surface_tracking/surface_tracking.py:521: error: No overload variant of "zip" matches argument types "int", "int", "Any", "bool"  [call-overload]
+src/pupil_labs/neon_player/plugins/surface_tracking/surface_tracking.py:521: note: Possible overload variants:
+src/pupil_labs/neon_player/plugins/surface_tracking/surface_tracking.py:521: note:     def [_T_co] zip(*, strict: bool = ...) -> zip[Any]
+src/pupil_labs/neon_player/plugins/surface_tracking/surface_tracking.py:521: note:     def [_T_co, _T1] zip(Iterable[_T1], /, *, strict: bool = ...) -> zip[tuple[_T1]]
+src/pupil_labs/neon_player/plugins/surface_tracking/surface_tracking.py:521: note:     def [_T_co, _T1, _T2] zip(Iterable[_T1], Iterable[_T2], /, *, strict: bool = ...) -> zip[tuple[_T1, _T2]]
+src/pupil_labs/neon_player/plugins/surface_tracking/surface_tracking.py:521: note:     def [_T_co, _T1, _T2, _T3] zip(Iterable[_T1], Iterable[_T2], Iterable[_T3], /, *, strict: bool = ...) -> zip[tuple[_T1, _T2, _T3]]
+src/pupil_labs/neon_player/plugins/surface_tracking/surface_tracking.py:521: note:     def [_T_co, _T1, _T2, _T3, _T4] zip(Iterable[_T1], Iterable[_T2], Iterable[_T3], Iterable[_T4], /, *, strict: bool = ...) -> zip[tuple[_T1, _T2, _T3, _T4]]
+src/pupil_labs/neon_player/plugins/surface_tracking/surface_tracking.py:521: note:     def [_T_co, _T1, _T2, _T3, _T4, _T5] zip(Iterable[_T1], Iterable[_T2], Iterable[_T3], Iterable[_T4], Iterable[_T5], /, *, strict: bool = ...) -> zip[tuple[_T1, _T2, _T3, _T4, _T5]]
+src/pupil_labs/neon_player/plugins/surface_tracking/surface_tracking.py:521: note:     def [_T_co] zip(Iterable[Any], Iterable[Any], Iterable[Any], Iterable[Any], Iterable[Any], Iterable[Any], /, *iterables: Iterable[Any], strict: bool = ...) -> zip[tuple[Any, ...]]
+src/pupil_labs/neon_player/plugins/surface_tracking/surface_tracking.py:557: error: Call to untyped function "crop_image" in typed context  [no-untyped-call]
+src/pupil_labs/neon_player/plugins/surface_tracking/surface_tracking.py:1203: error: Call to untyped function "normalized_corners" in typed context  [no-untyped-call]
+src/pupil_labs/neon_player/plugins/surface_tracking/surface_tracking.py:1243: error: Call to untyped function "normalized_corners" in typed context  [no-untyped-call]
+src/pupil_labs/neon_player/app.py:14: error: Module "pandas.errors" has no attribute "ChainedAssignmentError"  [attr-defined]
+src/pupil_labs/neon_player/app.py:205: error: Function does not return a value (it only ever returns None)  [func-returns-value]
+src/pupil_labs/neon_player/app.py:205: error: Argument 1 to "work_job" of "JobManager" has incompatible type "None"; expected "Generator[ProgressUpdate, None, None]"  [arg-type]
+src/pupil_labs/neon_player/app.py:602: error: Argument 2 to "match_ts" has incompatible type "Array[signedinteger[_64Bit]]"; expected "ArrayLike[int]"  [arg-type]
+Found 70 errors in 13 files (checked 43 source files)

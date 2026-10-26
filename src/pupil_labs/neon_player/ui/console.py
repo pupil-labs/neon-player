@@ -49,7 +49,7 @@ class QTextEditLogger(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         """Emit a log record to the text edit."""
         msg = self.format(record)
-        color = LOG_COLORS.get(record.levelname, Qt.GlobalColor.white).name
+        color = LOG_COLORS.get(record.levelname, Qt.GlobalColor.white)
         self._append_text(msg, color)
 
     def _append_text(self, text: str, color: Qt.GlobalColor | None = None) -> None:
@@ -106,7 +106,7 @@ class JobProgressBar(QWidget):
 
     def on_worker_progress(self, v: float) -> None:
         self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(v * 100)
+        self.progress_bar.setValue(int(v * 100))
 
 
 class ConsoleWindow(QWidget):
@@ -173,14 +173,14 @@ class ConsoleWindow(QWidget):
         button_layout.addWidget(self.clear_log_button)
         self.main_layout.addLayout(button_layout)
 
-        app = neon_player.instance()
+        app = neon_player.require_instance()
         app.job_manager.job_started.connect(self.on_job_added)
         app.job_manager.job_finished.connect(self.remove_job)
         app.job_manager.job_canceled.connect(self.remove_job)
 
     def copy_log(self) -> None:
         """Copy the current log contents to the clipboard."""
-        cb = neon_player.instance().clipboard()
+        cb = neon_player.require_instance().clipboard()
         cb.setText(self.console_widget.toPlainText())
         logger.info("Log copied to clipboard")
 
@@ -195,6 +195,8 @@ class ConsoleWindow(QWidget):
     def remove_job(self, job: BackgroundJob) -> None:
         for row_idx in range(self.job_table_layout.rowCount()):
             item = self.job_table_layout.itemAt(row_idx, QFormLayout.ItemRole.FieldRole)
+            if item is None:
+                continue
             widget = item.widget()
             if isinstance(widget, JobProgressBar) and widget.worker == job:
                 self.job_table_layout.removeRow(row_idx)

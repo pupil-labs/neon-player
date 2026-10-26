@@ -10,6 +10,7 @@ from PySide6.QtGui import (
     QResizeEvent,
     QWheelEvent,
 )
+from PySide6.QtWidgets import QWidget
 
 from .progress_action_form import ProgressActionForm  # noqa: F401
 
@@ -18,7 +19,7 @@ QtShortcutType = (
 )
 
 
-class GUIEventNotifier:
+class GUIEventNotifier(QWidget):
     mouse_pressed = Signal(QMouseEvent)
     mouse_released = Signal(QMouseEvent)
     mouse_clicked = Signal(QMouseEvent)

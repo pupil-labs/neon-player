@@ -6,6 +6,7 @@ import pytest
 from pupil_labs.camera import Camera
 from pupil_labs.marker_mapper.surface import normalized_corners
 from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.neon_recording.timeseries.gaze import GazeArray
 
 from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
 from pupil_labs.neon_player.plugins.surface_tracking import SurfaceTrackingPlugin
@@ -17,7 +18,7 @@ from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
 from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import (
     TrackedSurface,
 )
-from tests.mocks import mock_scene_timeseries
+from tests.mocks import mock_gaze_timeseries, mock_scene_timeseries
 
 if TYPE_CHECKING:
     from tests.conftest import MockNeonPlayerApp
@@ -144,3 +145,24 @@ def test_prepare_surface_positions_export(
     assert row["detected marker IDs"] == "0;1;2;3"
     assert np.isclose(row["tr x [px]"], 1000)
     assert np.isclose(row["br y [px]"], 750)
+
+
+@pytest.mark.parametrize("window", [(2, 3), (8, 9)])
+def test_surface_gaze_export_window_preserves_samples(
+    qapp: "MockNeonPlayerApp",
+    mock_neon_recording: Callable[..., NeonRecording],
+    monkeypatch: pytest.MonkeyPatch,
+    window: tuple[int, int],
+) -> None:
+    gazes = mock_gaze_timeseries([1, 2, 3, 4], [10, 20, 30, 40], [5, 6, 7, 8])
+    recording = mock_neon_recording(gaze=gazes)
+    monkeypatch.setattr(qapp, "recording", recording)
+    monkeypatch.setattr(qapp, "get_export_window", lambda: window)
+    plugin = SurfaceTrackingPlugin()
+
+    exported = plugin._get_gazes_in_export_window()
+
+    assert isinstance(exported, GazeArray)
+    mask = (gazes.time >= window[0]) & (gazes.time <= window[1])
+    np.testing.assert_array_equal(exported.time, gazes.time[mask])
+    np.testing.assert_array_equal(exported.point, gazes.point[mask])

@@ -8,8 +8,8 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 from pupil_labs.neon_recording import NeonRecording
-from pupil_labs.neon_recording.timeseries import FixationTimeseries
 from pupil_labs.neon_recording.timeseries.av.base_av import BaseAVFrame
+from pupil_labs.neon_recording.timeseries.fixations import FixationArray
 from pupil_labs.neon_recording.timeseries.gaze import GazeRecord
 from PySide6.QtCore import QKeyCombination, QObject, QPointF, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter
@@ -22,7 +22,7 @@ from qt_property_widgets.utilities import (
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
 from pupil_labs.neon_player.job_manager import ProgressUpdate
-from pupil_labs.neon_player.plugins.gaze import apply_offset
+from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin, apply_offset
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.utilities import (
     cart_to_spherical,
@@ -44,20 +44,23 @@ class FixationsPlugin(neon_player.Plugin):
             FixationCircleViz(),
         ]
 
-        self.flow_dict: dict[int, dict[int, np.ndarray]] = {}
+        self.flow_dict: dict[int, dict[int, npt.NDArray[np.float64]]] = {}
         self.header_action = ListPropertyAppenderAction("visualizations", "+ Add viz")
 
     def seek_by_fixation(self, direction: int) -> None:
-        if len(self.recording.fixations) == 0:
+        recording = self.recording
+        if recording is None:
+            return
+        if len(recording.fixations) == 0:
             return
 
-        fixations_up_to_now = self.recording.fixations[
-            self.recording.fixations.start_time <= self.app.current_ts
+        fixations_up_to_now = recording.fixations[
+            recording.fixations.start_time <= self.app.current_ts
         ]
 
         current_idx = len(fixations_up_to_now) - 1
-        idx = max(0, min(len(self.recording.fixations) - 1, current_idx + direction))
-        self.app.seek_to(self.recording.fixations.start_time[idx])
+        idx = max(0, min(len(recording.fixations) - 1, current_idx + direction))
+        self.app.seek_to(int(recording.fixations.start_time[idx]))
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         for viz in self._visualizations:
@@ -71,7 +74,8 @@ class FixationsPlugin(neon_player.Plugin):
             job = self.job_manager.run_background_action(
                 "Calculate optic flow", "FixationsPlugin.bg_optic_flow"
             )
-            job.finished.connect(self._load_optic_flow)
+            if job is not None:
+                job.finished.connect(self._load_optic_flow)
 
         self.fixations = recording.fixations
 
@@ -91,10 +95,10 @@ class FixationsPlugin(neon_player.Plugin):
         )
 
     def _load_optic_flow(self) -> None:
-        if self.recording is None:
+        cache_path = self.get_cache_path()
+        if cache_path is None:
             return
-
-        optic_flow_file = self.get_cache_path() / "optic_flow_offsets.npz"
+        optic_flow_file = cache_path / "optic_flow_offsets.npz"
         if optic_flow_file.exists():
             data = np.load(optic_flow_file)
             self.flow_dict = {}
@@ -108,7 +112,8 @@ class FixationsPlugin(neon_player.Plugin):
                     self.flow_dict[frame_idx][fidx] = np.array([row[2], row[3]])
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
-        if self.recording is None or not hasattr(self, "fixations"):
+        recording = self.recording
+        if recording is None or not hasattr(self, "fixations"):
             return
 
         after_mask = self.fixations.start_time <= time_in_recording
@@ -156,7 +161,7 @@ class FixationsPlugin(neon_player.Plugin):
     def get_gaze_offset(self) -> tuple[float, float]:
         gaze_plugin = neon_player.Plugin.get_instance_by_name("GazeDataPlugin")
 
-        if not gaze_plugin:
+        if not isinstance(gaze_plugin, GazeDataPlugin):
             return (0.0, 0.0)
 
         return gaze_plugin.offset
@@ -167,21 +172,27 @@ class FixationsPlugin(neon_player.Plugin):
         self.unregister_action("Playback/Previous Fixation")
 
     def get_export_fixations(self) -> pd.DataFrame:
-        start_time, stop_time = self.app.get_export_window()
-        start_mask = self.recording.fixations.stop_time > start_time
-        stop_mask = self.recording.fixations.start_time < stop_time
+        recording = self.recording
+        if recording is None:
+            return pd.DataFrame()
+        export_window = self.app.get_export_window()
+        if export_window is None:
+            return pd.DataFrame()
+        start_time, stop_time = export_window
+        start_mask = recording.fixations.stop_time > start_time
+        stop_mask = recording.fixations.start_time < stop_time
 
-        fixations_ids = np.arange(len(self.recording.fixations)) + 1
+        fixations_ids = np.arange(len(recording.fixations)) + 1
 
-        fixations = self.recording.fixations[start_mask & stop_mask]
+        fixations = recording.fixations[start_mask & stop_mask]
         fixation_ids = fixations_ids[start_mask & stop_mask]
 
         offset_means = apply_offset(
-            self.recording, fixations.mean_gaze_point, self.get_gaze_offset()
+            recording, fixations.mean_gaze_point, self.get_gaze_offset()
         )
 
         scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(
-            self.recording
+            recording
         )
         spherical_coords = cart_to_spherical(
             unproject_points(
@@ -193,7 +204,7 @@ class FixationsPlugin(neon_player.Plugin):
 
         export_data = pd.DataFrame(
             {
-                "recording id": self.recording.info["recording_id"],
+                "recording id": recording.info["recording_id"],
                 "fixation id": fixation_ids,
                 "start timestamp [ns]": fixations.start_time,
                 "end timestamp [ns]": fixations.stop_time,
@@ -208,18 +219,24 @@ class FixationsPlugin(neon_player.Plugin):
         return export_data
 
     def get_export_saccades(self) -> pd.DataFrame:
-        start_time, stop_time = self.app.get_export_window()
-        start_mask = self.recording.saccades.stop_time > start_time
-        stop_mask = self.recording.saccades.start_time < stop_time
+        recording = self.recording
+        if recording is None:
+            return pd.DataFrame()
+        export_window = self.app.get_export_window()
+        if export_window is None:
+            return pd.DataFrame()
+        start_time, stop_time = export_window
+        start_mask = recording.saccades.stop_time > start_time
+        stop_mask = recording.saccades.start_time < stop_time
 
-        saccades_ids = np.arange(len(self.recording.saccades)) + 1
+        saccades_ids = np.arange(len(recording.saccades)) + 1
 
-        saccades = self.recording.saccades[start_mask & stop_mask]
+        saccades = recording.saccades[start_mask & stop_mask]
         saccade_ids = saccades_ids[start_mask & stop_mask]
 
         export_data = pd.DataFrame(
             {
-                "recording id": self.recording.info["recording_id"],
+                "recording id": recording.info["recording_id"],
                 "saccade id": saccade_ids,
                 "start timestamp [ns]": saccades.start_time,
                 "end timestamp [ns]": saccades.stop_time,
@@ -259,20 +276,26 @@ class FixationsPlugin(neon_player.Plugin):
 
     @visualizations.setter
     def visualizations(self, value: list["FixationVisualization"]) -> None:
+        recording = self.recording
         self._visualizations = value
 
         for viz in self._visualizations:
             viz.changed.connect(self.changed.emit)
-            if self.recording is not None:
-                viz.on_recording_loaded(self.recording)
+            if recording is not None:
+                viz.on_recording_loaded(recording)
 
     # Splitting tracking and cache management requires a separate refactor.
     def bg_optic_flow(self) -> T.Generator[ProgressUpdate, None, None]:  # noqa: C901
-        recording = self.app.recording
+        recording = self.recording
+        if recording is None:
+            return
+        cache_path = self.get_cache_path()
+        if cache_path is None:
+            return
         gaze = recording.gaze
 
         flow_records = []
-        gray_cache: dict[int, np.ndarray] = {}
+        gray_cache: dict[int, npt.NDArray[np.uint8]] = {}
         gray_cache_times: dict[int, int] = {}
 
         # Use cache only for fixations below 5 s, corresponding to ~300 MB of
@@ -317,12 +340,9 @@ class FixationsPlugin(neon_player.Plugin):
                 gray_cache_times[ref_frame.index] = ref_frame.time
             ref_scene_img = gray_cache[ref_frame.index]
 
-            if ref_scene_img is None:
-                continue
-
             def track_frames(
                 frame_sequence: Iterable[BaseAVFrame],
-                start_point: npt.NDArray[np.float64],
+                start_point: npt.NDArray[np.float32 | np.float64],
                 start_img: npt.NDArray[np.uint8],
                 *,
                 use_cache: bool = use_cache,
@@ -337,9 +357,6 @@ class FixationsPlugin(neon_player.Plugin):
                         gray_cache[frame.index] = frame.gray
                         gray_cache_times[frame.index] = frame.time
                     next_img = gray_cache.get(frame.index, frame.gray)
-                    if next_img is None:
-                        break
-
                     next_point = calc_optic_flow(current_img, next_img, current_point)
                     raw_offset = ref_gaze.point - next_point
 
@@ -372,7 +389,7 @@ class FixationsPlugin(neon_player.Plugin):
         else:
             flow_array = np.zeros((0, 4))
 
-        save_file = self.get_cache_path() / "optic_flow_offsets.npz"
+        save_file = cache_path / "optic_flow_offsets.npz"
         logger.info(f"Saving optic flow offsets to {save_file}")
         save_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -387,7 +404,7 @@ class FixationVisualization(PersistentPropertiesMixin, QObject):
     requires_history: bool = False
     _max_radius: float = 80.0
 
-    _known_types: T.ClassVar[list] = []
+    _known_types: T.ClassVar[list[type["FixationVisualization"]]] = []
 
     def __init__(self) -> None:
         super().__init__()
@@ -398,15 +415,15 @@ class FixationVisualization(PersistentPropertiesMixin, QObject):
     def render(
         self,
         painter: QPainter,
-        fixations: FixationTimeseries,
-        fixation_ids: np.ndarray,
-        frame_offsets: dict[int, np.ndarray],
+        fixations: FixationArray,
+        fixation_ids: npt.NDArray[np.intp],
+        frame_offsets: dict[int, npt.NDArray[np.float64]],
         gaze_offset: tuple[float, float],
         time_in_recording: int,
     ) -> None:
         raise NotImplementedError("Subclasses must implement this method")
 
-    def __init_subclass__(cls: type["FixationVisualization"], **kwargs: dict) -> None:
+    def __init_subclass__(cls: type["FixationVisualization"], **kwargs: object) -> None:
         FixationVisualization._known_types.append(cls)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
@@ -415,9 +432,9 @@ class FixationVisualization(PersistentPropertiesMixin, QObject):
     def to_dict(
         self,
         include_class_name: bool = False,
-        condition: T.Callable[[dict], bool] | None = None,
+        condition: T.Callable[[dict[str, T.Any]], bool] | None = None,
         recursive: bool = False,
-    ) -> dict:
+    ) -> dict[str, T.Any]:
         state = super().to_dict(
             include_class_name=include_class_name,
             condition=condition,
@@ -458,13 +475,14 @@ class FixationCircleViz(FixationVisualization):
     def render(
         self,
         painter: QPainter,
-        fixations: FixationTimeseries,
-        fixation_ids: np.ndarray,
-        frame_offsets: dict[int, np.ndarray],
+        fixations: FixationArray,
+        fixation_ids: npt.NDArray[np.intp],
+        frame_offsets: dict[int, npt.NDArray[np.float64]],
         gaze_offset: tuple[float, float],
         time_in_recording: int,
     ) -> None:
-        if self.recording is None:
+        recording = self.recording
+        if recording is None:
             return
 
         pen = painter.pen()
@@ -476,13 +494,15 @@ class FixationCircleViz(FixationVisualization):
         painter.setFont(font)
 
         offset_mean_gaze_points = apply_offset(
-            self.recording,
+            recording,
             fixations.mean_gaze_point,
             gaze_offset if self._use_offset else (0.0, 0.0),
         )
 
-        width = self.recording.scene.width
-        height = self.recording.scene.height
+        width = recording.scene.width
+        height = recording.scene.height
+        if width is None or height is None:
+            return
 
         for fixation_id, fixation, offset_mean_gaze_point in zip(
             fixation_ids, fixations, offset_mean_gaze_points, strict=False
@@ -576,13 +596,14 @@ class ScanpathViz(FixationVisualization):
     def render(
         self,
         painter: QPainter,
-        fixations: FixationTimeseries,
-        fixation_ids: np.ndarray,
-        frame_offsets: dict[int, np.ndarray],
+        fixations: FixationArray,
+        fixation_ids: npt.NDArray[np.intp],
+        frame_offsets: dict[int, npt.NDArray[np.float64]],
         gaze_offset: tuple[float, float],
         _time_in_recording: int,
     ) -> None:
-        if self.recording is None:
+        recording = self.recording
+        if recording is None:
             return
 
         pen = painter.pen()
@@ -594,13 +615,15 @@ class ScanpathViz(FixationVisualization):
         painter.setFont(font)
 
         offset_mean_gaze_points = apply_offset(
-            self.recording,
+            recording,
             fixations.mean_gaze_point,
             gaze_offset if self._use_offset else (0.0, 0.0),
         )
 
-        width = self.recording.scene.width
-        height = self.recording.scene.height
+        width = recording.scene.width
+        height = recording.scene.height
+        if width is None or height is None:
+            return
         previous_center = None
 
         for fixation_id, fixation, offset_mean_gaze_point in zip(
@@ -697,9 +720,9 @@ class ScanpathViz(FixationVisualization):
 
 
 def calc_optic_flow(
-    previous_frame: np.ndarray,
-    current_frame: np.ndarray,
-    points: np.ndarray,
+    previous_frame: npt.NDArray[np.uint8],
+    current_frame: npt.NDArray[np.uint8],
+    points: npt.NDArray[np.float32 | np.float64],
     lk_winSize: tuple[int, int] | None = (90, 90),
     lk_maxLevel: int = 3,
     lk_criteria: tuple[int, int, float] = (
@@ -708,19 +731,19 @@ def calc_optic_flow(
         0.03,
     ),
     lk_min_eig_threshold: float = 0.005,
-) -> np.ndarray:
-
-    lk_params = {
-        "winSize": lk_winSize,
-        "maxLevel": lk_maxLevel,
-        "criteria": lk_criteria,
-        "minEigThreshold": lk_min_eig_threshold,
-    }
+) -> npt.NDArray[np.float32 | np.float64]:
 
     corrected_points, _status, _err = cv2.calcOpticalFlowPyrLK(
-        previous_frame, current_frame, points.reshape([-1, 1, 2]), None, **lk_params
+        previous_frame,
+        current_frame,
+        points.reshape([-1, 1, 2]),
+        None,
+        winSize=lk_winSize,
+        maxLevel=lk_maxLevel,
+        criteria=lk_criteria,
+        minEigThreshold=lk_min_eig_threshold,
     )
-    return corrected_points.reshape(points.shape)
+    return np.asarray(corrected_points).reshape(points.shape)
 
 
 class OpticFlow(T.NamedTuple):

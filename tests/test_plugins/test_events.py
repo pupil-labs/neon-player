@@ -468,3 +468,9 @@ def test_events_plugin__global_properties__to_dict__includes_class_name() -> Non
     plugin = EventsPlugin()
     plugin_dict = plugin.global_properties.to_dict()
     assert plugin_dict["__class__"] == "EventsPluginGlobalProps"
+
+
+@pytest.mark.parametrize("timestamps", [[1, "2"], "1", [1, 2.5]])
+def test_cached_events_reject_invalid_timestamps(timestamps: object) -> None:
+    with pytest.raises(TypeError):
+        _load_events_from_cache({"recording.begin": timestamps}, [])

@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 import numpy as np
+import numpy.typing as npt
 from PySide6.QtCore import QPointF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon, QMouseEvent, QPainter, QPaintEvent, QPixmap
 from PySide6.QtWidgets import QPushButton, QSplitter, QVBoxLayout, QWidget
@@ -8,6 +9,7 @@ from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
+from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 
 if TYPE_CHECKING:
@@ -21,14 +23,18 @@ class MarkerEditWidget(QPushButton):
         super().__init__()
         self.setCheckable(True)
         self.marker_uid = marker_uid
-        self.surface = None
+        self.surface: TrackedSurface | None = None
 
         icon = QIcon()
         icon.addPixmap(
-            QPixmap(neon_player.asset_path("add.svg")), QIcon.Normal, QIcon.Off
+            QPixmap(neon_player.asset_path("add.svg")),
+            QIcon.Mode.Normal,
+            QIcon.State.Off,
         )
         icon.addPixmap(
-            QPixmap(neon_player.asset_path("remove.svg")), QIcon.Normal, QIcon.On
+            QPixmap(neon_player.asset_path("remove.svg")),
+            QIcon.Mode.Normal,
+            QIcon.State.On,
         )
         self.setIcon(icon)
         self.setIconSize(QSize(24, 24))
@@ -41,27 +47,36 @@ class MarkerEditWidget(QPushButton):
             }
         """)
 
-        self.setCursor(Qt.PointingHandCursor)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.clicked.connect(self.on_clicked)
 
     def set_surface(self, surface: "TrackedSurface") -> None:
         self.surface = surface
-        self.setChecked(self.marker_uid in surface.tracker_surface.markers)
+        tracker_surface = surface.tracker_surface
+        self.setChecked(
+            tracker_surface is not None
+            and int(self.marker_uid) in tracker_surface.markers
+        )
         self._update_tooltip(self.isChecked())
 
     def _update_tooltip(self, checked: bool) -> None:
-        surface_name = self.surface.name or "Unnamed surface"
+        surface = self.surface
+        surface_name = surface.name if surface is not None else ""
+        surface_name = surface_name or "Unnamed surface"
         if checked:
             self.setToolTip(f"Remove Marker ID {self.marker_uid} from {surface_name}")
         else:
             self.setToolTip(f"Add Marker ID {self.marker_uid} to {surface_name}")
 
     def on_clicked(self) -> None:
+        surface = self.surface
+        if surface is None:
+            return
         if self.isChecked():
-            self.surface.add_marker(self.marker_uid)
+            surface.add_marker(self.marker_uid)
         else:
-            self.surface.remove_marker(self.marker_uid)
+            surface.remove_marker(self.marker_uid)
 
 
 class SurfaceHandle(QWidget):
@@ -77,7 +92,7 @@ class SurfaceHandle(QWidget):
         self.position_changed_debounce_timer.setSingleShot(True)
         self.position_changed_debounce_timer.timeout.connect(self.emit_new_position)
 
-        self.new_pos = None
+        self.new_pos: QPointF | None = None
         self.scene_pos = np.array([0.0, 0.0])
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -102,13 +117,14 @@ class SurfaceHandle(QWidget):
         if event.buttons() & Qt.MouseButton.LeftButton:
             self.moved = True
             pos = self.mapToParent(event.pos())
-            self.new_pos = self.parent().map_point(pos)
-            self.parent().set_child_scaled_center(
-                self, self.new_pos.x(), self.new_pos.y()
-            )
+            parent = self.parentWidget()
+            if not isinstance(parent, VideoRenderWidget):
+                return
+            self.new_pos = parent.map_point(pos)
+            parent.set_child_scaled_center(self, self.new_pos.x(), self.new_pos.y())
             self.setCursor(Qt.CursorShape.BlankCursor)
 
-        neon_player.instance().main_window.video_widget.update()
+        neon_player.require_instance().main_window.video_widget.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if not (event.buttons() & Qt.MouseButton.LeftButton) and self.moved:
@@ -117,13 +133,17 @@ class SurfaceHandle(QWidget):
 
         self.moved = False
 
-    def set_scene_pos(self, scene_pos: np.ndarray) -> None:
+    def set_scene_pos(self, scene_pos: npt.NDArray[np.float64]) -> None:
         self.scene_pos = scene_pos
-        self.parent().set_child_scaled_center(self, *scene_pos)
+        parent = self.parentWidget()
+        if not isinstance(parent, VideoRenderWidget):
+            return
+        parent.set_child_scaled_center(self, *scene_pos)
         self.show()
 
     def emit_new_position(self) -> None:
-        self.position_changed.emit(self.new_pos)
+        if self.new_pos is not None:
+            self.position_changed.emit(self.new_pos)
 
 
 class SurfaceViewWidget(VideoRenderWidget):
@@ -137,7 +157,7 @@ class SurfaceViewWidget(VideoRenderWidget):
         self.surface.changed.connect(self.refit_rect)
         self.surface.surface_location_changed.connect(self.update)
 
-        self.tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
+        self.tracker_plugin = surface.require_tracker_plugin()
 
         self.refit_rect()
 
@@ -153,7 +173,7 @@ class SurfaceViewWidget(VideoRenderWidget):
 
         painter.fillRect(0, 0, self.width(), self.height(), Qt.GlobalColor.black)
         self.transform_painter(painter)
-        self.surface.render(painter, neon_player.instance().current_ts)
+        self.surface.render(painter, neon_player.require_instance().current_ts)
         painter.end()
 
 
@@ -166,7 +186,9 @@ class SurfaceViewWindow(QSplitter):
         self.addWidget(self.view_widget)
 
         self.options_widget = PropertyForm(surface.preview_options)
-        self.options_widget.layout().setContentsMargins(5, 5, 5, 5)
+        options_layout = self.options_widget.layout()
+        if options_layout is not None:
+            options_layout.setContentsMargins(5, 5, 5, 5)
         self.options_container = QWidget()
         self.options_container_layout = QVBoxLayout()
         self.options_container.setLayout(self.options_container_layout)
@@ -178,6 +200,6 @@ class SurfaceViewWindow(QSplitter):
         surface.preview_options.changed.connect(surface.changed.emit)
         surface.changed.connect(self.view_widget.refit_rect)
 
-        Plugin.get_instance_by_name("GazeDataPlugin").changed.connect(
-            self.view_widget.refit_rect
-        )
+        gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
+        if isinstance(gaze_plugin, GazeDataPlugin):
+            gaze_plugin.changed.connect(self.view_widget.refit_rect)

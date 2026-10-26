@@ -2,6 +2,7 @@ import typing as T
 
 import cv2
 import numpy as np
+import numpy.typing as npt
 from pupil_labs.neon_recording import NeonRecording
 from pyqtgraph.functions import imageToArray
 from PySide6.QtCore import QTimer, SignalInstance
@@ -9,7 +10,7 @@ from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QMenu
 
 
-def qimage_from_frame(frame: np.ndarray | None) -> QImage:
+def qimage_from_frame(frame: npt.NDArray[np.uint8] | None) -> QImage:
     if frame is None:
         return QImage()
 
@@ -29,15 +30,21 @@ def qimage_from_frame(frame: np.ndarray | None) -> QImage:
     return QImage(frame.data, width, height, bytes_per_line, image_format)
 
 
-def ndarray_from_qimage(image: QImage) -> np.ndarray:
-    return imageToArray(image, transpose=False)
+def ndarray_from_qimage(
+    image: QImage,
+) -> npt.NDArray[np.uint8] | npt.NDArray[np.uint16]:
+    pixels: npt.NDArray[np.uint8] | npt.NDArray[np.uint16] = imageToArray(
+        image, transpose=False
+    )
+    return pixels
 
 
 def clone_menu(menu: QMenu) -> QMenu:
     menu_copy = QMenu(menu.title())
     for action in menu.actions():
-        if action.menu():
-            menu_copy.addMenu(clone_menu(action.menu()))
+        submenu = action.menu()
+        if isinstance(submenu, QMenu):
+            menu_copy.addMenu(clone_menu(submenu))
         else:
             menu_copy.addAction(action)
 
@@ -45,11 +52,11 @@ def clone_menu(menu: QMenu) -> QMenu:
 
 
 def unproject_points(
-    points_2d: np.ndarray | list,
-    camera_matrix: np.ndarray | list,
-    distortion_coefs: np.ndarray | list,
+    points_2d: npt.ArrayLike,
+    camera_matrix: npt.ArrayLike,
+    distortion_coefs: npt.ArrayLike,
     normalize: bool = False,
-) -> np.ndarray:
+) -> npt.NDArray[np.float32]:
     """Undistorts points according to the camera model.
 
     :param pts_2d, shape: Nx2
@@ -66,7 +73,9 @@ def unproject_points(
     # Undistort 2d pixel coordinates
     points_2d_undist = cv2.undistortPoints(points_2d, camera_matrix, distortion_coefs)
     # Unproject 2d points into 3d directions; all points. have z=1
-    points_3d = cv2.convertPointsToHomogeneous(points_2d_undist)
+    points_3d: npt.NDArray[np.float32] = cv2.convertPointsToHomogeneous(
+        points_2d_undist
+    )
     points_3d.shape = -1, 3
 
     if normalize:
@@ -77,8 +86,12 @@ def unproject_points(
 
 
 def cart_to_spherical(
-    points_3d: np.ndarray, apply_rad2deg: bool = True
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    points_3d: npt.NDArray[np.float32 | np.float64], apply_rad2deg: bool = True
+) -> tuple[
+    npt.NDArray[np.float32 | np.float64],
+    npt.NDArray[np.float32 | np.float64],
+    npt.NDArray[np.float32 | np.float64],
+]:
     points_3d = np.asarray(points_3d)
     # convert cartesian to spherical coordinates
     # source: http://stackoverflow.com/questions/4116658/faster-numpy-cartesian-to-spherical-coordinate-conversion
@@ -103,15 +116,19 @@ def cart_to_spherical(
 
 
 def find_ranged_index(
-    values: np.ndarray, left_boundaries: np.ndarray, right_boundaries: np.ndarray
-) -> np.ndarray:
+    values: npt.NDArray[np.int64],
+    left_boundaries: npt.NDArray[np.int64],
+    right_boundaries: npt.NDArray[np.int64],
+) -> npt.NDArray[np.intp]:
     left_ids = np.searchsorted(left_boundaries, values, side="right") - 1
     right_ids = np.searchsorted(right_boundaries, values, side="right")
 
     return np.where(left_ids == right_ids, left_ids, -1)
 
 
-def get_scene_intrinsics(recording: NeonRecording) -> tuple[np.ndarray, np.ndarray]:
+def get_scene_intrinsics(
+    recording: NeonRecording,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     if recording.calibration is None:
         scene_camera_matrix = np.array(
             [
@@ -159,7 +176,7 @@ class SignalDebouncer:
         self.timer = QTimer()
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self._emit)
-        self.args: T.Any = []
+        self.args: tuple[object, ...] = ()
 
     def _emit(self) -> None:
         self.signal.emit(*self.args)
@@ -167,10 +184,12 @@ class SignalDebouncer:
 
 
 class SlotDebouncer:
-    _connections: T.ClassVar[dict[T.Callable, "SlotDebouncer"]] = {}
+    _connections: T.ClassVar[dict[T.Callable[..., object], "SlotDebouncer"]] = {}
 
     @staticmethod
-    def debounce(signal: SignalInstance, slot: T.Callable, delay: float = 3.5) -> None:
+    def debounce(
+        signal: SignalInstance, slot: T.Callable[..., object], delay: float = 3.5
+    ) -> None:
         if slot not in SlotDebouncer._connections:
             SlotDebouncer._connections[slot] = SlotDebouncer(slot)
 
@@ -178,7 +197,7 @@ class SlotDebouncer:
         debouncer.add_signal(signal)
         debouncer.timer.setInterval(int(delay * 1000))
 
-    def __init__(self, slot: T.Callable) -> None:
+    def __init__(self, slot: T.Callable[..., object]) -> None:
         self.signals: list[SignalInstance] = []
 
         self.slot = slot

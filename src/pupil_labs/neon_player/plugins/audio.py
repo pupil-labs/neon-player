@@ -3,6 +3,7 @@ import typing as T
 
 import av
 import numpy as np
+import numpy.typing as npt
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.video.reader import StreamNotFound
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
@@ -22,7 +23,16 @@ from pupil_labs.neon_player.job_manager import ProgressUpdate
 
 
 def _prepare_audio_frame(
-    audio_data: np.ndarray, audio_format: str, time: float, stream: av.AudioStream
+    audio_data: (
+        npt.NDArray[np.uint8]
+        | npt.NDArray[np.int16]
+        | npt.NDArray[np.int32]
+        | npt.NDArray[np.float32]
+        | npt.NDArray[np.float64]
+    ),
+    audio_format: str,
+    time: float,
+    stream: av.AudioStream,
 ) -> av.AudioFrame:
     assert stream.time_base is not None
 
@@ -53,7 +63,7 @@ class AudioPlugin(neon_player.Plugin):
         self.app.seeked.connect(self.on_user_seeked)
         self.app.speed_changed.connect(self.on_speed_changed)
 
-        self.cache_file = self.get_cache_path() / "audio.wav"
+        self.cache_file = self.require_cache_path() / "audio.wav"
 
         self.volume_button = VolumeButton()
         self.volume_button.setIconSize(QSize(32, 32))
@@ -73,20 +83,21 @@ class AudioPlugin(neon_player.Plugin):
             self.sync_position()
 
     def sync_position(self) -> None:
-        if not self.recording or not self.recording_has_audio:
+        recording = self.recording
+        if not recording or not self.recording_has_audio:
             self.has_audio_at_ts = False
             return
 
         position = self.app.current_ts
         try:
-            rel_time_ms = round((position - self.recording.audio.time[0]) / 1e6)
+            rel_time_ms = round((position - recording.audio.time[0]) / 1e6)
 
             # Delay playback if the audio has not yet started, but will
             # start eventually with the current playback speed
             self.has_audio_at_ts = rel_time_ms >= 0
             if not self.has_audio_at_ts and self.app.playback_speed > 0:
                 delay_ms = -rel_time_ms / self.app.playback_speed
-                QTimer.singleShot(delay_ms, self.sync_and_start_playback)
+                QTimer.singleShot(round(delay_ms), self.sync_and_start_playback)
                 self.player.setPosition(0)
                 return
 
@@ -135,13 +146,15 @@ class AudioPlugin(neon_player.Plugin):
                 job = self.job_manager.run_background_action(
                     "Extract audio", "AudioPlugin.extract_audio"
                 )
-                job.finished.connect(self.load_audio)
+                if job is not None:
+                    job.finished.connect(self.load_audio)
 
         else:
             self.load_audio()
 
     def load_audio(self) -> None:
-        if not self.cache_file.exists():
+        recording = self.recording
+        if recording is None or not self.cache_file.exists():
             return
 
         self.recording_has_audio = True
@@ -154,33 +167,38 @@ class AudioPlugin(neon_player.Plugin):
 
         # load the audio data into a numpy array
         _, audio_data = wavfile.read(str(self.cache_file))
-        timestamps = np.arange(len(audio_data)) / self.recording.audio.rate
+        timestamps = np.arange(len(audio_data)) / recording.audio.rate
         timestamps *= 1e9
-        timestamps += self.recording.scene.time[0]
+        timestamps += recording.scene.time[0]
 
         data = np.column_stack((timestamps, audio_data))
         timeline = self.get_timeline()
         timeline.add_timeline_line("Audio", data)
 
     def extract_audio(self) -> T.Generator[ProgressUpdate, None, None]:
+        recording = self.recording
+        if recording is None:
+            return
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
 
         container = av.open(str(self.cache_file), "w")
         try:
-            stream = container.add_stream("pcm_s16le", rate=self.recording.audio.rate)
+            stream = container.add_stream("pcm_s16le", rate=recording.audio.rate)
+            if not isinstance(stream, av.AudioStream):
+                raise TypeError("Audio extraction requires an audio stream")
         except StreamNotFound:
             yield ProgressUpdate(1.0)
             return
 
         # Setting these parameters once and reusing them below to ensure
         # consistency across frames that come from different mp4 files
-        stream.layout = self.recording.audio[0].av_frame.layout
+        stream.layout = recording.audio[0].av_frame.layout
         stream.time_base = fractions.Fraction(1, stream.rate)
 
-        start_time = self.recording.audio.time[0]
+        start_time = recording.audio.time[0]
         next_expected_frame_time = None
         frame_duration = 0
-        for frame in self.recording.audio:
+        for frame in recording.audio:
             raw_audio = frame.to_ndarray()
             audio_format = frame.av_frame.format
 
@@ -209,7 +227,7 @@ class AudioPlugin(neon_player.Plugin):
             for packet in stream.encode(frame_copy):
                 container.mux(packet)
 
-            yield ProgressUpdate(frame.idx / len(self.recording.audio))
+            yield ProgressUpdate(frame.idx / len(recording.audio))
 
         # Flush encoder
         for packet in stream.encode(None):

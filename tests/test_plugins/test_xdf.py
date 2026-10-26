@@ -6,6 +6,7 @@ import pytest
 from pupil_labs.neon_player.plugins.xdf import (
     DataXDFStream,
     MarkerXDFStream,
+    XDFPlugin,
     XDFStream,
     apply_offset,
     estimate_offset_ns,
@@ -173,3 +174,31 @@ def test_estimate_apply_offset() -> None:
     assert offset_ns == 100000000
 
     assert apply_offset(xdf_timestamp_s, offset_ns) == neon_timestamp_ns
+
+
+def test_xdf_plugin_restores_nonempty_persisted_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_stream = DataXDFStream()
+    data_stream.uid = "data-uid"
+    marker_stream = MarkerXDFStream()
+    marker_stream.uid = "marker-uid"
+    plugin = XDFPlugin()
+    monkeypatch.setattr(plugin, "load_xdf", lambda: None)
+    monkeypatch.setattr(plugin, "update_timeline", lambda: None)
+    monkeypatch.setattr(plugin, "_update_events", lambda: None)
+    plugin.__setstate__(
+        {
+            "file_path": str(tmp_path / "recording.xdf"),
+            "available_data_streams": [data_stream.to_dict()],
+            "available_marker_streams": [marker_stream.to_dict()],
+            "data_stream_uid": "data-uid",
+            "marker_stream_uid": "marker-uid",
+        }
+    )
+    assert plugin.file_path == tmp_path / "recording.xdf"
+    assert plugin.data_stream_uid == "data-uid"
+    assert plugin.marker_stream_uid == "marker-uid"
+    restored_state = plugin.to_dict()
+    assert restored_state["data_stream_uid"] == "data-uid"
+    assert restored_state["marker_stream_uid"] == "marker-uid"

@@ -194,8 +194,8 @@ def _load_events_from_recording(
 
 
 def _load_events_from_cache(
-    cached_events: dict, known_event_types: list[EventType]
-) -> tuple[list[EventType], dict]:
+    cached_events: dict[object, object], known_event_types: list[EventType]
+) -> tuple[list[EventType], dict[str, list[int]]]:
     """
     Load event data from a cache stored in events.json. All event types are expected
     to either be immutable (recording.begin, recording.end) or have been previously
@@ -209,7 +209,18 @@ def _load_events_from_cache(
         known_event_types_by_uid[et.uid] = et
 
     event_type_cache = {}
-    for uid in cached_events:
+    events: dict[str, list[int]] = {}
+    for uid, timestamps in cached_events.items():
+        if not isinstance(uid, str) or not isinstance(timestamps, list):
+            raise TypeError(
+                "Cached events must map event identifiers to timestamp lists"
+            )
+        validated_timestamps = []
+        for timestamp in timestamps:
+            if not isinstance(timestamp, int):
+                raise TypeError("Cached event timestamps must be integers")
+            validated_timestamps.append(timestamp)
+        events[uid] = validated_timestamps
         if uid in event_type_cache:
             continue
 
@@ -218,7 +229,7 @@ def _load_events_from_cache(
 
         event_type_cache[uid] = known_event_types_by_uid[uid]
 
-    return list(event_type_cache.values()), cached_events
+    return list(event_type_cache.values()), events
 
 
 def _load_events_from_dataframe(events_df: pd.DataFrame) -> dict[str, list[int]]:
@@ -281,7 +292,7 @@ class EventsPlugin(neon_player.Plugin):
 
     def _load_events(
         self, recording: NeonRecording
-    ) -> tuple[list[EventType], dict, str]:
+    ) -> tuple[list[EventType], dict[str, list[int]], str]:
         events: dict[str, list[int]] = {}
         event_types: list[EventType] = []
 
@@ -529,6 +540,8 @@ class EventsPlugin(neon_player.Plugin):
             return
 
         current_export_window = self.app.get_export_window()
+        if current_export_window is None:
+            return
         if left:
             new_window = (closest_event, current_export_window[1])
         else:
@@ -692,7 +705,10 @@ class EventsPlugin(neon_player.Plugin):
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
         export_window = self.app.get_export_window()
-        events_df = self._prepare_events_export(self.recording, export_window)
+        recording = self.recording
+        if recording is None or export_window is None:
+            return
+        events_df = self._prepare_events_export(recording, export_window)
 
         destination_file = destination / "events.csv"
         events_df.to_csv(destination_file, index=False)

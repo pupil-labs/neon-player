@@ -8,7 +8,7 @@ from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
-from pupil_labs.neon_player.job_manager import BackgroundJob
+from pupil_labs.neon_player.job_manager import BackgroundJob, ProgressUpdate
 from pupil_labs.neon_player.plugins.shared import bg_export_video
 
 
@@ -23,8 +23,10 @@ class VideoExporter(neon_player.Plugin):
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
-    def export(self, destination: Path = Path()) -> BackgroundJob | T.Generator:
-        app = neon_player.instance()
+    def export(
+        self, destination: Path = Path()
+    ) -> BackgroundJob | T.Generator[ProgressUpdate, None, None] | None:
+        app = neon_player.require_instance()
 
         if not app.headless:
             return self.job_manager.run_background_action(
@@ -36,10 +38,16 @@ class VideoExporter(neon_player.Plugin):
     def render_for_export(self, painter: QPainter, time_in_recording: int) -> None:
         self.app.render_to(painter, time_in_recording)
 
-    def bg_export(self, destination: Path = Path()) -> T.Generator:
+    def bg_export(
+        self, destination: Path = Path()
+    ) -> T.Generator[ProgressUpdate, None, None]:
+        recording = self.require_recording()
+        export_window = self.app.get_export_window()
+        if export_window is None:
+            return
         yield from bg_export_video(
-            recording=self.recording,
-            export_window=self.app.get_export_window(),
+            recording=recording,
+            export_window=export_window,
             render_fn=self.render_for_export,
             destination=destination,
             output_video_filename="world.mp4",
@@ -49,6 +57,7 @@ class VideoExporter(neon_player.Plugin):
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export_current_frame(self) -> None:
+        recording = self.require_recording()
         file_path_str, _type_selection = QFileDialog.getSaveFileName(
             None, "Export frame", "", "PNG Images (*.png)"
         )
@@ -58,9 +67,10 @@ class VideoExporter(neon_player.Plugin):
         if not file_path_str.endswith(".png"):
             file_path_str += ".png"
 
-        frame_size = QSize(
-            self.recording.scene.width or 1, self.recording.scene.height or 1
-        )
+        width, height = recording.scene.width, recording.scene.height
+        if width is None or height is None:
+            raise ValueError("Scene video dimensions are unavailable")
+        frame_size = QSize(width, height)
         frame = QImage(frame_size, QImage.Format.Format_RGB32)
         painter = QPainter(frame)
 
@@ -74,14 +84,16 @@ class VideoExporter(neon_player.Plugin):
         icon=QIcon(str(neon_player.asset_path("duplicate.svg"))),
     )
     def copy_frame_to_clipboard(self) -> None:
-        frame_size = QSize(
-            self.recording.scene.width or 1, self.recording.scene.height or 1
-        )
+        recording = self.require_recording()
+        width, height = recording.scene.width, recording.scene.height
+        if width is None or height is None:
+            raise ValueError("Scene video dimensions are unavailable")
+        frame_size = QSize(width, height)
         frame = QImage(frame_size, QImage.Format.Format_RGB32)
         painter = QPainter(frame)
 
         self.app.render_to(painter)
         painter.end()
 
-        clipboard = neon_player.instance().clipboard()
+        clipboard = neon_player.require_instance().clipboard()
         clipboard.setPixmap(QPixmap.fromImage(frame))

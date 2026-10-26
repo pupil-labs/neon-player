@@ -13,6 +13,7 @@ from pupil_labs.neon_recording.timeseries import (
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QApplication
 
+from pupil_labs.neon_player.app import NeonPlayerApp
 from pupil_labs.neon_player.settings import GeneralSettings
 
 FIELD_CLASS_MAPPING = {
@@ -52,7 +53,7 @@ def mock_neon_recording(tmp_path: Path) -> Callable[..., NeonRecording]:
     return inner
 
 
-class MockNeonPlayerApp(QApplication):
+class MockNeonPlayerApp(NeonPlayerApp):
     """
     Mock NeonPlayerApp to be used in tests that rely on the presence of an application
     instance. Properties are replaced with ordinary fields that can be set directly
@@ -62,8 +63,9 @@ class MockNeonPlayerApp(QApplication):
     export_window_changed = Signal(tuple[int, int])
 
     def __init__(self, argv: list[str]) -> None:
-        super().__init__(argv)
-        self.headless = True
+        QApplication.__init__(self, argv)
+        self.args = type("Args", (), {"job": ["test"]})()
+        self.recording_settings = None
         self.plugins_by_class = {}
         self.recording = None
         self.settings = GeneralSettings()

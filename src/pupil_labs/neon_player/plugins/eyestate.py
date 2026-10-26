@@ -94,7 +94,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         PlotProps.__init__(self)
         neon_player.Plugin.__init__(self)
 
-        self.eyestate_data = None
+        self.eyestate_data: pd.DataFrame | None = None
         self.units = {
             "Pupil diameter": "mm",
             "Eyeball center": "mm",
@@ -117,11 +117,11 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
             "bottom right": QColor("#9467bd"),
         }
 
-    def __setstate__(self, state: dict) -> None:
+    def __setstate__(self, state: dict[str, object]) -> None:
         if state != {}:
             neon_player.Plugin.__setstate__(self, state)
         else:
-            app = neon_player.instance()
+            app = neon_player.require_instance()
             super().__setstate__(
                 app.settings.plugin_globals["EyestatePlugin"].to_dict()
             )
@@ -232,7 +232,10 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
 
         export_file = destination / "3d_eye_states.csv"
 
-        start_time, stop_time = self.app.get_export_window()
+        export_window = self.app.get_export_window()
+        if export_window is None:
+            return
+        start_time, stop_time = export_window
         start_mask = self.eyestate_data["timestamp [ns]"] >= start_time
         stop_mask = self.eyestate_data["timestamp [ns]"] <= stop_time
 

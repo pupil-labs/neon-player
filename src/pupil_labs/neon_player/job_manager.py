@@ -31,7 +31,7 @@ class BackgroundJob(QObject):
         self,
         name: str,
         job_id: int,
-        recording_path: Path,
+        recording_path: Path | None,
         action_name: str,
         *args: object,
     ) -> None:
@@ -39,9 +39,9 @@ class BackgroundJob(QObject):
 
         self.name = name
         self.job_id = job_id
-        self.progress = -1
-        self.socket = None
-        self._expected_payload_size = None
+        self.progress: float = -1
+        self.socket: QLocalSocket | None = None
+        self._expected_payload_size: int | None = None
 
         server_name = f"neon-player-job-{job_id}"
         self.server = QLocalServer()
@@ -86,7 +86,10 @@ class BackgroundJob(QObject):
         self.cancel()
 
     def _on_socket_disconnected(self) -> None:
-        err = self.socket.error()
+        socket = self.socket
+        if socket is None:
+            return
+        err = socket.error()
         if err not in (None, QLocalSocket.LocalSocketError.PeerClosedError):
             logger.warning(
                 f"Unexpected job socket disconnection {err} for job {self.name}"
@@ -132,11 +135,11 @@ class JobManager(QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self.current_jobs = []
+        self.current_jobs: list[BackgroundJob] = []
         self.job_counter = 0
 
     def work_job(self, job: T.Generator[ProgressUpdate, None, None]) -> None:
-        ipc_name = neon_player.instance().progress_ipc_name
+        ipc_name = neon_player.require_instance().progress_ipc_name
         # runs in child process
         if ipc_name:
             socket = QLocalSocket()
@@ -172,18 +175,15 @@ class JobManager(QObject):
 
     def run_background_action(
         self, name: str, action_name: str, *args: object
-    ) -> BackgroundJob:
-        if neon_player.instance().headless:
+    ) -> BackgroundJob | None:
+        app = neon_player.require_instance()
+        if app.headless:
             logger.warning("Not starting background job in headless mode")
-            return
+            return None
 
-        neon_player.instance().save_settings(force=True)
-
-        recording = neon_player.instance().recording
-        if recording is None:
-            rec_dir = None
-        else:
-            rec_dir = neon_player.instance().recording._rec_dir
+        recording = app.recording
+        app.save_settings(force=True)
+        rec_dir = Path(str(recording._rec_dir)) if recording is not None else None
 
         job = BackgroundJob(
             name,
@@ -208,7 +208,7 @@ class JobManager(QObject):
 
     def on_job_finished(self, job: BackgroundJob) -> None:
         logger.info(f"{job.name} finished")
-        neon_player.instance().show_notification(
+        neon_player.require_instance().show_notification(
             "Job finished", f"Job '{job.name}' has completed"
         )
         self.remove_job(job)
