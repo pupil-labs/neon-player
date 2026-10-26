@@ -35,6 +35,7 @@ dependencies = [
     "pyside6>=6.10.2",
     "pyxdf>=1.17.5",
     "qt-property-widgets>=0.10.0",
+    "requests>=2.33.1",
     "scipy>=1.15.2",
     "setuptools>=78.1.0",
     "tqdm>=4.67.1",
