@@ -24,7 +24,6 @@ from PySide6.QtWidgets import (
     QGraphicsSceneMouseEvent,
     QHBoxLayout,
     QMenu,
-    QScrollArea,
     QSizePolicy,
     QToolButton,
     QVBoxLayout,
@@ -38,6 +37,7 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     PlayHead,
     ScrubbableViewBox,
     TimeAxisItem,
+    TimelineHorizontalScrollBar,
     TimelinePlotItem,
     TimelineTableContainer,
     TimelineScrollArea,
@@ -169,11 +169,19 @@ class TimeLineDock(QWidget):
         self.scroll_area.setWidgetResizable(True)
         self.main_layout.addWidget(self.scroll_area)
 
+        self.horizontal_scroll_bar = TimelineHorizontalScrollBar()
+        self.horizontal_scroll_bar.range_changed.connect(self.on_timeline_scroll)
+        self.main_layout.addWidget(self.horizontal_scroll_bar)
+
         self.setMouseTracking(True)
 
         # Add a permanent timeline with timestamps
         self.timestamps_plot = self.get_timeline_plot(
             "Export window", create_if_missing=True
+        )
+        assert self.timestamps_plot is not None
+        self.timestamps_plot.getViewBox().sigRangeChanged.connect(
+            self.on_timeline_view_range_changed
         )
         self.timestamps_plot.showAxis("top")
         self.timestamps_plot.setSizePolicy(
@@ -208,6 +216,9 @@ class TimeLineDock(QWidget):
         app = neon_player.instance()
 
         self.playhead.show()
+        self.horizontal_scroll_bar.set_time_frame(
+            (recording.start_time, recording.stop_time)
+        )
         for plot_item in self.timeline_plots.values():
             plot_item.setXRange(recording.start_time, recording.stop_time, padding=0)
             duration = recording.stop_time - recording.start_time
@@ -217,6 +228,8 @@ class TimeLineDock(QWidget):
             )
             axis = plot_item.getAxis("top")
             axis.set_time_frame(recording.start_time, recording.stop_time)
+
+        self.on_timeline_view_range_changed()
 
         trim_plot = self.get_timeline_plot("Export window", create_if_missing=True)
         export_window = app.get_export_window()
@@ -229,6 +242,7 @@ class TimeLineDock(QWidget):
             trim_plot.addItem(tm)
 
     def on_recording_unloaded(self) -> None:
+        self.horizontal_scroll_bar.set_time_frame(None)
         trim_plot = self.get_timeline_plot("Export window", create_if_missing=False)
         if trim_plot is not None:
             trim_plot.clear()
@@ -261,6 +275,24 @@ class TimeLineDock(QWidget):
 
         self.timestamp_label.set_time(t - recording.start_time)
         self.playhead.set_time(t)
+
+    def on_timeline_view_range_changed(self, *_args: T.Any) -> None:
+        app = neon_player.instance()
+        if app.recording is None:
+            return
+
+        if self.timestamps_plot is None:
+            return
+
+        self.horizontal_scroll_bar.set_view_range(
+            *self.timestamps_plot.getViewBox().viewRange()[0]
+        )
+
+    def on_timeline_scroll(self, start: float, stop: float) -> None:
+        if self.timestamps_plot is None:
+            return
+
+        self.timestamps_plot.setXRange(start, stop, padding=0)
 
     def show_context_menu(self, global_position: QPoint) -> None:
         menu = neon_player.instance().main_window.get_menu(
