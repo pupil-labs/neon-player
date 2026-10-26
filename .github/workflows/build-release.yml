@@ -97,3 +97,4 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           uv run mike deploy ${{ github.ref_name }} latest --push --update-aliases
+          uv run mike set-default --push latest
