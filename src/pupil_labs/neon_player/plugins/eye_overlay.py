@@ -56,19 +56,28 @@ class EyeOverlayPlugin(neon_player.Plugin):
     def on_drag(self, event: QMouseEvent) -> None:
         recording = self.recording
         drag_position = self._drag_position
-        if recording is None or drag_position is None:
-            return
+        assert recording is not None, (
+            "Recording must be loaded before dragging the eye overlay"
+        )
+        assert drag_position is not None, (
+            "Drag position must be set before dragging the eye overlay"
+        )
         scene = recording.scene
         eye = recording.eye
         scene_width, scene_height = scene.width, scene.height
         eye_width, eye_height = eye.width, eye.height
-        if (
-            scene_width is None
-            or scene_height is None
-            or eye_width is None
-            or eye_height is None
-        ):
-            return
+        assert scene_width is not None, (
+            "Scene width must be available before dragging the eye overlay"
+        )
+        assert scene_height is not None, (
+            "Scene height must be available before dragging the eye overlay"
+        )
+        assert eye_width is not None, (
+            "Eye width must be available before dragging the eye overlay"
+        )
+        assert eye_height is not None, (
+            "Eye height must be available before dragging the eye overlay"
+        )
         mapped_pos = self.video_widget.map_point(event.pos())
         offset = mapped_pos - drag_position
 
@@ -175,11 +184,16 @@ class EyeOverlayPlugin(neon_player.Plugin):
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         recording = self.recording
-        if recording is None:
-            return
+        assert recording is not None, (
+            "Recording must be loaded before rendering the eye overlay"
+        )
         width, height = recording.scene.width, recording.scene.height
-        if width is None or height is None:
-            return
+        assert width is not None, (
+            "Scene width must be available before rendering the eye overlay"
+        )
+        assert height is not None, (
+            "Scene height must be available before rendering the eye overlay"
+        )
 
         eye_frame = recording.eye.sample([time_in_recording])[0]
         if abs(time_in_recording - eye_frame.time) / 1e9 > 1 / 30:
@@ -224,12 +238,23 @@ class EyeOverlayPlugin(neon_player.Plugin):
 
     def get_rect(self) -> QRectF:
         recording = self.recording
-        if recording is None:
-            return QRectF()
+        assert recording is not None, (
+            "Recording must be loaded before getting the eye overlay rectangle"
+        )
         width, height = recording.scene.width, recording.scene.height
         eye_width, eye_height = recording.eye.width, recording.eye.height
-        if width is None or height is None or eye_width is None or eye_height is None:
-            return QRectF()
+        assert width is not None, (
+            "Scene width must be available before getting the eye overlay rectangle"
+        )
+        assert height is not None, (
+            "Scene height must be available before getting the eye overlay rectangle"
+        )
+        assert eye_width is not None, (
+            "Eye width must be available before getting the eye overlay rectangle"
+        )
+        assert eye_height is not None, (
+            "Eye height must be available before getting the eye overlay rectangle"
+        )
         return QRectF(
             self._offset_x * width,
             self._offset_y * height,

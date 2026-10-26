@@ -195,8 +195,7 @@ class ConsoleWindow(QWidget):
     def remove_job(self, job: BackgroundJob) -> None:
         for row_idx in range(self.job_table_layout.rowCount()):
             item = self.job_table_layout.itemAt(row_idx, QFormLayout.ItemRole.FieldRole)
-            if item is None:
-                continue
+            assert item is not None, "Job table row must contain a field item"
             widget = item.widget()
             if isinstance(widget, JobProgressBar) and widget.worker == job:
                 self.job_table_layout.removeRow(row_idx)

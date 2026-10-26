@@ -115,8 +115,9 @@ class GazeDataPlugin(neon_player.Plugin):
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         recording = self.recording
-        if recording is None:
-            return
+        assert recording is not None, (
+            "Recording must be loaded before rendering gaze data"
+        )
 
         scene_idx = self.get_scene_idx_for_time(time_in_recording)
         if scene_idx >= len(recording.scene) or scene_idx < 0:
@@ -171,8 +172,7 @@ class GazeDataPlugin(neon_player.Plugin):
 
     def get_gazes_for_scene(self, scene_idx: int = -1) -> GazeArray:
         recording = self.recording
-        if recording is None:
-            raise RuntimeError("Gaze samples require a loaded recording")
+        assert recording is not None, "Gaze samples require a loaded recording"
         if scene_idx < 0:
             scene_idx = self.get_scene_idx_for_time()
 
@@ -196,8 +196,9 @@ class GazeDataPlugin(neon_player.Plugin):
             return
 
         export_window = self.app.get_export_window()
-        if export_window is None:
-            return
+        assert export_window is not None, (
+            "Export window must be available before exporting gaze data"
+        )
 
         gaze = _prepare_gaze_export(
             recording, self.worn_data, export_window, self.offset

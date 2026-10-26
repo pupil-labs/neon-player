@@ -146,15 +146,16 @@ class AudioPlugin(neon_player.Plugin):
                 job = self.job_manager.run_background_action(
                     "Extract audio", "AudioPlugin.extract_audio"
                 )
-                if job is not None:
-                    job.finished.connect(self.load_audio)
+                assert job is not None, "Audio extraction must start a background job"
+                job.finished.connect(self.load_audio)
 
         else:
             self.load_audio()
 
     def load_audio(self) -> None:
         recording = self.recording
-        if recording is None or not self.cache_file.exists():
+        assert recording is not None, "Recording must be loaded before loading audio"
+        if not self.cache_file.exists():
             return
 
         self.recording_has_audio = True
@@ -177,8 +178,7 @@ class AudioPlugin(neon_player.Plugin):
 
     def extract_audio(self) -> T.Generator[ProgressUpdate, None, None]:
         recording = self.recording
-        if recording is None:
-            return
+        assert recording is not None, "Recording must be loaded before extracting audio"
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
 
         container = av.open(str(self.cache_file), "w")

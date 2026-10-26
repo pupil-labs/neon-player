@@ -148,22 +148,29 @@ def test_surface_export_without_optional_plugins(
     gazes = mock_gaze_timeseries([1], [20], [30])
 
     assert surface.apply_offset_and_map_gazes(gazes) is None
-    surface.export_gazes(gazes, tmp_path)
+    with pytest.raises(AssertionError, match="Mapped gazes are required"):
+        surface.export_gazes(gazes, tmp_path)
     surface.export_fixations(gazes, tmp_path)
 
     assert list(tmp_path.iterdir()) == []
 
 
-def test_surface_without_tracker_can_be_renamed(
+def test_surface_without_tracker_cannot_be_renamed(
     qapp: "MockNeonPlayerApp", monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(qapp, "plugins_by_class", {})
     surface = TrackedSurface()
 
-    surface.name = "Desk"
+    with pytest.raises(
+        AssertionError, match="Surface tracking plugin must be available"
+    ):
+        surface.name = "Desk"
 
-    assert surface.name == "Desk"
-    assert surface.tracker_plugin is None
+    assert surface.name == ""
+    with pytest.raises(
+        AssertionError, match="Surface tracking plugin must be available"
+    ):
+        _ = surface.tracker_plugin
 
 
 def test_surface_marker_id_from_widget_uses_library_integer_id(

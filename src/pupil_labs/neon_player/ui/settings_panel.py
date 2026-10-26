@@ -81,15 +81,13 @@ class PluginManagerWidget(QWidget):
     def show_dialog(self) -> None:
         app = neon_player.require_instance()
         settings = app.recording_settings
-        if settings is None:
-            return
+        assert settings is not None, "Recording settings are required to manage plugins"
         form = PropertyWidget.from_property("enabled_plugins", settings)
-        if form is None:
-            return
+        assert form is not None, "Enabled plugins must have a property form"
         layout = form.layout()
-        if layout is not None:
-            layout.setContentsMargins(10, 10, 10, 10)
-            layout.setSpacing(5)
+        assert layout is not None, "Plugin manager form must have a layout"
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(5)
 
         menu = QMenu(self.button)
         menu.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)

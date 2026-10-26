@@ -71,8 +71,7 @@ class MarkerEditWidget(QPushButton):
 
     def on_clicked(self) -> None:
         surface = self.surface
-        if surface is None:
-            return
+        assert surface is not None, "Surface must be set before editing a marker"
         if self.isChecked():
             surface.add_marker(self.marker_uid)
         else:
@@ -118,8 +117,9 @@ class SurfaceHandle(QWidget):
             self.moved = True
             pos = self.mapToParent(event.pos())
             parent = self.parentWidget()
-            if not isinstance(parent, VideoRenderWidget):
-                return
+            assert isinstance(parent, VideoRenderWidget), (
+                "Surface handle requires a video widget parent"
+            )
             self.new_pos = parent.map_point(pos)
             parent.set_child_scaled_center(self, self.new_pos.x(), self.new_pos.y())
             self.setCursor(Qt.CursorShape.BlankCursor)
@@ -136,14 +136,15 @@ class SurfaceHandle(QWidget):
     def set_scene_pos(self, scene_pos: npt.NDArray[np.float64]) -> None:
         self.scene_pos = scene_pos
         parent = self.parentWidget()
-        if not isinstance(parent, VideoRenderWidget):
-            return
+        assert isinstance(parent, VideoRenderWidget), (
+            "Surface handle requires a video widget parent"
+        )
         parent.set_child_scaled_center(self, *scene_pos)
         self.show()
 
     def emit_new_position(self) -> None:
-        if self.new_pos is not None:
-            self.position_changed.emit(self.new_pos)
+        assert self.new_pos is not None, "New position must be set before emitting it"
+        self.position_changed.emit(self.new_pos)
 
 
 class SurfaceViewWidget(VideoRenderWidget):
@@ -157,7 +158,7 @@ class SurfaceViewWidget(VideoRenderWidget):
         self.surface.changed.connect(self.refit_rect)
         self.surface.surface_location_changed.connect(self.update)
 
-        self.tracker_plugin = surface.require_tracker_plugin()
+        self.tracker_plugin = surface.tracker_plugin
 
         self.refit_rect()
 
@@ -187,8 +188,8 @@ class SurfaceViewWindow(QSplitter):
 
         self.options_widget = PropertyForm(surface.preview_options)
         options_layout = self.options_widget.layout()
-        if options_layout is not None:
-            options_layout.setContentsMargins(5, 5, 5, 5)
+        assert options_layout is not None, "Surface view options must have a layout"
+        options_layout.setContentsMargins(5, 5, 5, 5)
         self.options_container = QWidget()
         self.options_container_layout = QVBoxLayout()
         self.options_container.setLayout(self.options_container_layout)
@@ -201,5 +202,7 @@ class SurfaceViewWindow(QSplitter):
         surface.changed.connect(self.view_widget.refit_rect)
 
         gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
-        if isinstance(gaze_plugin, GazeDataPlugin):
-            gaze_plugin.changed.connect(self.view_widget.refit_rect)
+        assert isinstance(gaze_plugin, GazeDataPlugin), (
+            "Surface view requires a gaze data plugin"
+        )
+        gaze_plugin.changed.connect(self.view_widget.refit_rect)

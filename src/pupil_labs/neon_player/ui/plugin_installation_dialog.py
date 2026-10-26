@@ -67,8 +67,7 @@ class PluginInstallationDialog(QDialog):
         self.job = neon_player.require_instance().job_manager.run_background_action(
             "Install dependencies", "install_packages", *self.dependencies_to_install
         )
-        if self.job is None:
-            self.progress_bar.hide()
-            self.button_box.setEnabled(True)
-            return
+        assert self.job is not None, (
+            "Dependency installation must start a background job"
+        )
         self.job.finished.connect(self.close)

@@ -34,8 +34,10 @@ def test_export_data_without_recording(
 ) -> None:
     monkeypatch.setattr(qapp, "recording", None)
     plugin = FixationsPlugin()
-    assert plugin.get_export_fixations().empty
-    assert plugin.get_export_saccades().empty
+    with pytest.raises(AssertionError, match="Recording must be loaded"):
+        plugin.get_export_fixations()
+    with pytest.raises(AssertionError, match="Recording must be loaded"):
+        plugin.get_export_saccades()
 
 
 def test_gaze_offset_requires_gaze_plugin(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -109,8 +109,8 @@ class ScalingWidget(QOpenGLWidget):
         super().resizeEvent(event)
         self.adjust_size()
         for child in self.children():
-            if isinstance(child, QWidget):
-                self.update_child_position(child)
+            assert isinstance(child, QWidget), "Scaling widget children must be widgets"
+            self.update_child_position(child)
 
     def adjust_size(self) -> None:
         app = neon_player.require_instance()
@@ -173,8 +173,8 @@ class VideoRenderWidget(ScalingWidget):
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         width, height = recording.scene.width, recording.scene.height
-        if width is None or height is None:
-            return
+        assert width is not None, "Scene width is required when loading a recording"
+        assert height is not None, "Scene height is required when loading a recording"
         self.source_size = QSize(width, height)
         self.adjust_size()
         self.repaint()

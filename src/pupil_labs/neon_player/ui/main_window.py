@@ -264,8 +264,7 @@ class RecentWidget(QWidget):
 
     def on_table_cell_clicked(self, row: int, _column: int) -> None:
         item = self.table.item(row, 0)
-        if item is None:
-            return
+        assert item is not None, "Clicked recent-recording row must contain an item"
         path_str = item.data(Qt.ItemDataRole.UserRole)
         if not path_str:
             return

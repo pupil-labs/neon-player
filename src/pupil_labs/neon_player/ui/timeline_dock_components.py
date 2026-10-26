@@ -318,8 +318,7 @@ class PlotOverlay(QWidget):
         vb = self.linked_plot.vb
         plot_rect = vb.mapToScene(vb.geometry()).boundingRect()
         parent = self.parentWidget()
-        if parent is None:
-            return
+        assert parent is not None, "Plot overlay must have a parent to refresh geometry"
         self.setGeometry(
             int(plot_rect.x()), 20, int(plot_rect.width()), parent.height() - 20
         )

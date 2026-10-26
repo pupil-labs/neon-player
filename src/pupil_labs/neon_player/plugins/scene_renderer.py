@@ -29,14 +29,14 @@ class SceneRendererPlugin(Plugin):
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         recording = self.recording
-        if recording is None:
-            painter.drawText(100, 100, "No scene data available")
-            return
+        assert recording is not None, (
+            "Recording must be loaded before rendering the scene"
+        )
 
         width = recording.scene.width
         height = recording.scene.height
-        if width is None or height is None:
-            return
+        assert width is not None, "Scene width must be available before rendering"
+        assert height is not None, "Scene height must be available before rendering"
 
         if self.is_time_gray(time_in_recording):
             painter.fillRect(
@@ -117,11 +117,13 @@ class SceneRendererPlugin(Plugin):
         self, destination: Path = Path()
     ) -> T.Generator[ProgressUpdate, None, None]:
         recording = self.recording
-        if recording is None:
-            return
+        assert recording is not None, (
+            "Recording must be loaded before exporting scene video"
+        )
         export_window = self.app.get_export_window()
-        if export_window is None:
-            return
+        assert export_window is not None, (
+            "Export window must be available before exporting scene video"
+        )
         yield from bg_export_video(
             recording=recording,
             export_window=export_window,

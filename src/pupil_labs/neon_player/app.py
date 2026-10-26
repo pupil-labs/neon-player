@@ -321,14 +321,14 @@ class NeonPlayerApp(QApplication):
         kls: type[Plugin] | str,
         enabled: bool,
         state: dict[str, T.Any] | None = None,
-    ) -> Plugin | None:
+    ) -> None:
         if isinstance(kls, str):
             try:
                 kls = Plugin.get_class_by_name(kls)
             except ValueError:
                 if enabled:
                     logger.warning(f"Couldn't enable plugin class: {kls}")
-                return None
+                return
 
         currently_enabled = kls.__name__ in self.plugins_by_class
 
@@ -358,7 +358,7 @@ class NeonPlayerApp(QApplication):
                     plugin.on_recording_loaded(self.recording)
             except Exception:
                 logger.exception(f"Failed to enable plugin {kls}")
-                return None
+                return
 
         elif not enabled and currently_enabled:
             plugin = self.plugins_by_class[kls.__name__]
@@ -374,7 +374,6 @@ class NeonPlayerApp(QApplication):
         self.plugins.sort(key=lambda p: p.render_layer)
 
         self.main_window.video_widget.update()
-        return None
 
     def run(self) -> int:
         if not self.headless:
@@ -459,16 +458,18 @@ class NeonPlayerApp(QApplication):
 
     def on_recording_load_complete(self) -> None:
         recording = self.recording
-        if recording is None:
-            return
+        assert recording is not None, (
+            "Recording must be loaded before completing recording load"
+        )
         self.loading_recording = False
         self.recording_loaded.emit(recording)
         logger.info(f"Loaded `{recording._rec_dir}`")
 
     def toggle_plugins_by_settings(self) -> None:
         settings = self.recording_settings
-        if settings is None:
-            return
+        assert settings is not None, (
+            "Recording settings must be loaded before toggling plugins"
+        )
         timeline = self.main_window.timeline
         timeline.disable_plot_sorting()
 
@@ -518,7 +519,10 @@ class NeonPlayerApp(QApplication):
 
     def _reset_start_anchor(self) -> None:
         recording = self.recording
-        if recording is None or self.playback_speed == 0:
+        assert recording is not None, (
+            "Recording must be loaded before resetting the start anchor"
+        )
+        if self.playback_speed == 0:
             return
 
         now = time.time_ns()
@@ -594,8 +598,9 @@ class NeonPlayerApp(QApplication):
         tolerance: int | None = None,
     ) -> int:
         recording = self.recording
-        if recording is None:
-            return -1
+        assert recording is not None, (
+            "Recording must be loaded before looking up a scene index"
+        )
         if t < 0:
             t = self.current_ts
 
@@ -636,17 +641,25 @@ class NeonPlayerApp(QApplication):
     def is_playing(self) -> bool:
         return self.refresh_timer.isActive()
 
-    def get_export_window(self) -> tuple[int, int] | None:
+    def get_export_window(self) -> tuple[int, int]:
         settings = self.recording_settings
-        if self.recording is None or settings is None:
-            return None
+        assert self.recording is not None, (
+            "Recording must be loaded before getting the export window"
+        )
+        assert settings is not None, (
+            "Recording settings must be loaded before getting the export window"
+        )
 
         return settings.export_window
 
     def set_export_window(self, export_window: tuple[int, int]) -> None:
         settings = self.recording_settings
-        if self.recording is None or settings is None:
-            return
+        assert self.recording is not None, (
+            "Recording must be loaded before setting the export window"
+        )
+        assert settings is not None, (
+            "Recording settings must be loaded before setting the export window"
+        )
 
         if not isinstance(export_window, tuple) or len(export_window) != 2:
             raise ValueError(

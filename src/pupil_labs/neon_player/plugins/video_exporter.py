@@ -43,8 +43,9 @@ class VideoExporter(neon_player.Plugin):
     ) -> T.Generator[ProgressUpdate, None, None]:
         recording = self.require_recording()
         export_window = self.app.get_export_window()
-        if export_window is None:
-            return
+        assert export_window is not None, (
+            "Export window must be available before exporting video"
+        )
         yield from bg_export_video(
             recording=recording,
             export_window=export_window,

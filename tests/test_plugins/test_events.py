@@ -103,6 +103,7 @@ def test_events__load_events_from_dataframe() -> None:
         assert events[event_name] == ts, f"Wrong timestamp for {event_name}"
 
 
+@pytest.mark.usefixtures("qapp")
 def test_events_plugin__on_recording_loaded__from_recording(
     mock_neon_recording: Callable[..., NeonRecording],
 ) -> None:
@@ -124,6 +125,7 @@ def test_events_plugin__on_recording_loaded__from_recording(
     plugin.save_cached_json.assert_called_once()
 
 
+@pytest.mark.usefixtures("qapp")
 def test_events_plugin__on_recording_loaded__from_cache(
     mock_neon_recording: Callable[..., NeonRecording],
 ) -> None:
@@ -143,6 +145,7 @@ def test_events_plugin__on_recording_loaded__from_cache(
     plugin.save_cached_json.assert_not_called()
 
 
+@pytest.mark.usefixtures("qapp")
 def test_events_plugin__create_event_type() -> None:
     plugin = EventsPlugin()
     et = EventType.from_name("event-1")

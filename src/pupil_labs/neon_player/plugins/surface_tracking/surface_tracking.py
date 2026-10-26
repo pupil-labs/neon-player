@@ -233,11 +233,10 @@ class SurfaceTrackingPlugin(Plugin):
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         calibration = recording.calibration
-        if calibration is None:
-            raise ValueError("Surface tracking requires camera calibration")
+        assert calibration is not None, "Surface tracking requires camera calibration"
         width, height = recording.scene.width, recording.scene.height
-        if width is None or height is None:
-            raise ValueError("Surface tracking requires scene dimensions")
+        assert width is not None, "Surface tracking requires scene width"
+        assert height is not None, "Surface tracking requires scene height"
         self.camera = Camera(
             width,
             height,
@@ -259,8 +258,10 @@ class SurfaceTrackingPlugin(Plugin):
             self.marker_detection_job = self.job_manager.run_background_action(
                 "Detect Markers", "SurfaceTrackingPlugin.bg_detect_markers"
             )
-            if self.marker_detection_job is not None:
-                self.marker_detection_job.finished.connect(self._load_marker_cache)
+            assert self.marker_detection_job is not None, (
+                "Marker detection must start a background job"
+            )
+            self.marker_detection_job.finished.connect(self._load_marker_cache)
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:  # noqa: C901
         recording = self.require_recording()
@@ -303,10 +304,10 @@ class SurfaceTrackingPlugin(Plugin):
             show_heatmap = surface.show_heatmap and surface.heatmap_alpha > 0.0
             if show_heatmap and surface._heatmap is not None:
                 export_window = self.app.get_export_window()
-                if (
-                    export_window is not None
-                    and export_window[0] <= time_in_recording <= export_window[1]
-                ):
+                assert export_window is not None, (
+                    "Export window must be available before rendering a surface heatmap"
+                )
+                if export_window[0] <= time_in_recording <= export_window[1]:
                     scalar = np.array(
                         [
                             [1 / surface._heatmap.shape[1], 0.0, 0.0],
@@ -318,8 +319,12 @@ class SurfaceTrackingPlugin(Plugin):
 
                     heatmap_to_scene = location[1] @ scalar
                     width, height = recording.scene.width, recording.scene.height
-                    if width is None or height is None:
-                        continue
+                    assert width is not None, (
+                        "Scene width is required for surface heatmap rendering"
+                    )
+                    assert height is not None, (
+                        "Scene height is required for surface heatmap rendering"
+                    )
                     scene_size = width, height
 
                     rgb_heatmap = cv2.applyColorMap(
@@ -549,8 +554,9 @@ class SurfaceTrackingPlugin(Plugin):
                 defining_location = self.surface_locations[surface_uid][
                     surface.defining_frame_index
                 ]
-                if defining_location is None:
-                    return
+                assert defining_location is not None, (
+                    "Defining surface location is required to set preview size"
+                )
                 surface2image = defining_location[1]
 
                 # set surface size
@@ -629,8 +635,9 @@ class SurfaceTrackingPlugin(Plugin):
                 "SurfaceTrackingPlugin.bg_build_heatmap",
                 surface_uid,
             )
-            if heatmap_job is None:
-                return
+            assert heatmap_job is not None, (
+                "Surface heatmap must start a background job"
+            )
             surface.add_bg_job(heatmap_job)
             heatmap_job.finished.connect(
                 lambda: self._load_surface_heatmap(surface_uid)
@@ -672,8 +679,9 @@ class SurfaceTrackingPlugin(Plugin):
             gazes = recording.gaze[start_mask & stop_mask]
             if len(gazes) > 0:
                 frame_gazes = surface.apply_offset_and_map_gazes(gazes)
-                if frame_gazes is None:
-                    continue
+                assert frame_gazes is not None, (
+                    "Mapped frame gazes are required to build a heatmap"
+                )
                 mapped_gazes = np.append(mapped_gazes, frame_gazes, axis=0)
 
                 valid_rows = np.all((frame_gazes >= 0) & (frame_gazes <= 1), axis=1)
@@ -895,8 +903,7 @@ class SurfaceTrackingPlugin(Plugin):
             "SurfaceTrackingPlugin.bg_detect_surface_locations",
             surface.uid,
         )
-        if job is None:
-            return
+        assert job is not None, "Surface location detection must start a background job"
         surface.add_bg_job(job)
         job.finished.connect(lambda: self._load_surface_locations_cache(surface.uid))
 
@@ -1166,8 +1173,9 @@ class SurfaceTrackingPlugin(Plugin):
         recording = self.require_recording()
         surface = self.get_surface(surface_uid)
         export_window = self.app.get_export_window()
-        if export_window is None:
-            return
+        assert export_window is not None, (
+            "Surface position export requires an export window"
+        )
         positions = _prepare_surface_positions_export(
             recording,
             export_window,

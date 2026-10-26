@@ -540,8 +540,9 @@ class EventsPlugin(neon_player.Plugin):
             return
 
         current_export_window = self.app.get_export_window()
-        if current_export_window is None:
-            return
+        assert current_export_window is not None, (
+            "Export window must be available before setting an event boundary"
+        )
         if left:
             new_window = (closest_event, current_export_window[1])
         else:
@@ -706,8 +707,10 @@ class EventsPlugin(neon_player.Plugin):
     def export(self, destination: Path = Path()) -> None:
         export_window = self.app.get_export_window()
         recording = self.recording
-        if recording is None or export_window is None:
-            return
+        assert recording is not None, "Recording must be loaded before exporting events"
+        assert export_window is not None, (
+            "Export window must be available before exporting events"
+        )
         events_df = self._prepare_events_export(recording, export_window)
 
         destination_file = destination / "events.csv"

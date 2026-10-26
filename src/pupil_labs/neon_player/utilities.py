@@ -42,8 +42,9 @@ def ndarray_from_qimage(
 def clone_menu(menu: QMenu) -> QMenu:
     menu_copy = QMenu(menu.title())
     for action in menu.actions():
-        submenu = action.menu()
-        if isinstance(submenu, QMenu):
+        submenu: object = action.menu()
+        if submenu is not None:
+            assert isinstance(submenu, QMenu), "Action submenu must be a QMenu"
             menu_copy.addMenu(clone_menu(submenu))
         else:
             menu_copy.addAction(action)

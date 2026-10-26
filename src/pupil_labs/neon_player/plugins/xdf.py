@@ -709,8 +709,8 @@ class XDFPlugin(Plugin):
             "XDFPlugin._bg_load_xdf",
             self._xdf_path,
         )
-        if self._xdf_load_job is not None:
-            self._xdf_load_job.finished.connect(self._on_xdf_load_finished)
+        assert self._xdf_load_job is not None, "XDF loading must start a background job"
+        self._xdf_load_job.finished.connect(self._on_xdf_load_finished)
 
     def _on_xdf_load_finished(self) -> None:
         self._xdf_load_job = None
@@ -1095,7 +1095,7 @@ class XDFPlugin(Plugin):
         assert self.data_stream.timestamps is not None
 
         offset_ts = apply_offset(self.data_stream.timestamps, self._offset_ns)
-        start_time, stop_time = self.app.get_export_window() or (-1, -1)
+        start_time, stop_time = self.app.get_export_window()
         mask = (offset_ts >= start_time) & (offset_ts <= stop_time)
 
         if not np.any(mask):

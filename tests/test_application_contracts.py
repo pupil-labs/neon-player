@@ -19,17 +19,15 @@ from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
 def test_optional_application_before_startup(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(NeonPlayerApp, "instance", staticmethod(lambda: None))
     assert neon_player.instance() is None
-    assert Plugin.get_instance_by_name("missing") is None
+    with pytest.raises(RuntimeError, match="not initialized"):
+        Plugin.get_instance_by_name("missing")
     with pytest.raises(RuntimeError, match="not initialized"):
         neon_player.require_instance()
     plugin = Plugin()
-    assert plugin.recording is None
-    assert plugin.headless
-    assert plugin.get_cache_path() is None
-    assert plugin.load_cached_json("missing.json") is None
-    plugin.save_cached_json("unused.json", {})
-    with pytest.raises(RuntimeError, match="loaded recording"):
-        plugin.require_recording()
+    with pytest.raises(RuntimeError, match="not initialized"):
+        _ = plugin.recording
+    with pytest.raises(RuntimeError, match="not initialized"):
+        _ = plugin.headless
 
 
 def test_optional_application_rejects_other_qt_application(
@@ -70,10 +68,22 @@ def test_no_recording_controls(
     monkeypatch.setattr(qapp, "recording", None)
     monkeypatch.setattr(qapp, "recording_settings", None)
     monkeypatch.setattr(qapp, "playback_speed", 1.0, raising=False)
-    qapp._reset_start_anchor()
-    assert qapp.get_scene_idx_for_time(123) == -1
-    assert qapp.get_export_window() is None
-    qapp.set_export_window((123, 456))
+    plugin = Plugin()
+    assert plugin.recording is None
+    assert plugin.headless == qapp.headless
+    assert plugin.get_cache_path() is None
+    assert plugin.load_cached_json("missing.json") is None
+    plugin.save_cached_json("unused.json", {})
+    with pytest.raises(RuntimeError, match="loaded recording"):
+        plugin.require_recording()
+    with pytest.raises(AssertionError, match="Recording must be loaded"):
+        qapp._reset_start_anchor()
+    with pytest.raises(AssertionError, match="Recording must be loaded"):
+        qapp.get_scene_idx_for_time(123)
+    with pytest.raises(AssertionError, match="Recording must be loaded"):
+        qapp.get_export_window()
+    with pytest.raises(AssertionError, match="Recording must be loaded"):
+        qapp.set_export_window((123, 456))
     assert JobManager().run_background_action("test", "Plugin.export") is None
 
 
@@ -93,7 +103,8 @@ def test_unload_clears_recording_settings(
     recording.close.assert_called_once()
     assert qapp.recording is None
     assert qapp.recording_settings is None
-    assert qapp.get_export_window() is None
+    with pytest.raises(AssertionError, match="Recording must be loaded"):
+        qapp.get_export_window()
 
 
 @pytest.mark.parametrize("window", [(123, 456), (123, 123)])
@@ -155,8 +166,10 @@ def test_load_switch_and_delayed_callbacks_after_unload(
     assert qapp.get_export_window() == (300, 400)
     qapp.unload()
     recordings[1].close.assert_called_once()
-    qapp.on_recording_load_complete()
-    qapp.toggle_plugins_by_settings()
+    with pytest.raises(AssertionError, match="Recording must be loaded"):
+        qapp.on_recording_load_complete()
+    with pytest.raises(AssertionError, match="Recording settings must be loaded"):
+        qapp.toggle_plugins_by_settings()
     assert qapp.recording_settings is None
 
 

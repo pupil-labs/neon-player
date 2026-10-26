@@ -233,8 +233,9 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         export_file = destination / "3d_eye_states.csv"
 
         export_window = self.app.get_export_window()
-        if export_window is None:
-            return
+        assert export_window is not None, (
+            "Export window must be available before exporting eye states"
+        )
         start_time, stop_time = export_window
         start_mask = self.eyestate_data["timestamp [ns]"] >= start_time
         stop_mask = self.eyestate_data["timestamp [ns]"] <= stop_time

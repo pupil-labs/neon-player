@@ -49,8 +49,9 @@ class FixationsPlugin(neon_player.Plugin):
 
     def seek_by_fixation(self, direction: int) -> None:
         recording = self.recording
-        if recording is None:
-            return
+        assert recording is not None, (
+            "Recording must be loaded before seeking by fixation"
+        )
         if len(recording.fixations) == 0:
             return
 
@@ -74,8 +75,8 @@ class FixationsPlugin(neon_player.Plugin):
             job = self.job_manager.run_background_action(
                 "Calculate optic flow", "FixationsPlugin.bg_optic_flow"
             )
-            if job is not None:
-                job.finished.connect(self._load_optic_flow)
+            assert job is not None, "Optic flow calculation must start a background job"
+            job.finished.connect(self._load_optic_flow)
 
         self.fixations = recording.fixations
 
@@ -173,11 +174,13 @@ class FixationsPlugin(neon_player.Plugin):
 
     def get_export_fixations(self) -> pd.DataFrame:
         recording = self.recording
-        if recording is None:
-            return pd.DataFrame()
+        assert recording is not None, (
+            "Recording must be loaded before exporting fixations"
+        )
         export_window = self.app.get_export_window()
-        if export_window is None:
-            return pd.DataFrame()
+        assert export_window is not None, (
+            "Export window must be available before exporting fixations"
+        )
         start_time, stop_time = export_window
         start_mask = recording.fixations.stop_time > start_time
         stop_mask = recording.fixations.start_time < stop_time
@@ -220,11 +223,13 @@ class FixationsPlugin(neon_player.Plugin):
 
     def get_export_saccades(self) -> pd.DataFrame:
         recording = self.recording
-        if recording is None:
-            return pd.DataFrame()
+        assert recording is not None, (
+            "Recording must be loaded before exporting saccades"
+        )
         export_window = self.app.get_export_window()
-        if export_window is None:
-            return pd.DataFrame()
+        assert export_window is not None, (
+            "Export window must be available before exporting saccades"
+        )
         start_time, stop_time = export_window
         start_mask = recording.saccades.stop_time > start_time
         stop_mask = recording.saccades.start_time < stop_time
@@ -287,11 +292,13 @@ class FixationsPlugin(neon_player.Plugin):
     # Splitting tracking and cache management requires a separate refactor.
     def bg_optic_flow(self) -> T.Generator[ProgressUpdate, None, None]:  # noqa: C901
         recording = self.recording
-        if recording is None:
-            return
+        assert recording is not None, (
+            "Recording must be loaded before calculating optic flow"
+        )
         cache_path = self.get_cache_path()
-        if cache_path is None:
-            return
+        assert cache_path is not None, (
+            "Cache path must be available before calculating optic flow"
+        )
         gaze = recording.gaze
 
         flow_records = []
@@ -482,8 +489,9 @@ class FixationCircleViz(FixationVisualization):
         time_in_recording: int,
     ) -> None:
         recording = self.recording
-        if recording is None:
-            return
+        assert recording is not None, (
+            "Recording must be loaded before rendering fixation circles"
+        )
 
         pen = painter.pen()
         pen.setWidth(self._stroke_width)
@@ -501,8 +509,12 @@ class FixationCircleViz(FixationVisualization):
 
         width = recording.scene.width
         height = recording.scene.height
-        if width is None or height is None:
-            return
+        assert width is not None, (
+            "Scene width must be available before rendering fixation circles"
+        )
+        assert height is not None, (
+            "Scene height must be available before rendering fixation circles"
+        )
 
         for fixation_id, fixation, offset_mean_gaze_point in zip(
             fixation_ids, fixations, offset_mean_gaze_points, strict=False
@@ -603,8 +615,9 @@ class ScanpathViz(FixationVisualization):
         _time_in_recording: int,
     ) -> None:
         recording = self.recording
-        if recording is None:
-            return
+        assert recording is not None, (
+            "Recording must be loaded before rendering scanpaths"
+        )
 
         pen = painter.pen()
         pen.setWidth(self._stroke_width)
@@ -622,8 +635,12 @@ class ScanpathViz(FixationVisualization):
 
         width = recording.scene.width
         height = recording.scene.height
-        if width is None or height is None:
-            return
+        assert width is not None, (
+            "Scene width must be available before rendering scanpaths"
+        )
+        assert height is not None, (
+            "Scene height must be available before rendering scanpaths"
+        )
         previous_center = None
 
         for fixation_id, fixation, offset_mean_gaze_point in zip(

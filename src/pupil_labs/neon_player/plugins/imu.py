@@ -107,8 +107,9 @@ class IMUPlugin(neon_player.Plugin):
             return
 
         export_window = self.app.get_export_window()
-        if export_window is None:
-            return
+        assert export_window is not None, (
+            "Export window must be available before exporting IMU data"
+        )
         start_time, stop_time = export_window
         start_mask = self.imu_data["timestamp [ns]"] >= start_time
         stop_mask = self.imu_data["timestamp [ns]"] <= stop_time

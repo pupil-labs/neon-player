@@ -78,8 +78,9 @@ class ExportAllPlugin(neon_player.Plugin):
                 app_version = "?"
 
             export_window = self.app.get_export_window()
-            if export_window is None:
-                return
+            assert export_window is not None, (
+                "Export window must be available before exporting metadata"
+            )
             frame_indicies = [self.get_scene_idx_for_time(t) for t in export_window]
             rel_times_formatted = [
                 self.format_duration((t - recording.start_time) / 1e9)
@@ -105,8 +106,9 @@ class ExportAllPlugin(neon_player.Plugin):
 
         if self.export_camera_calibrations:
             recording_calibration = recording.calibration
-            if recording_calibration is None:
-                return
+            assert recording_calibration is not None, (
+                "Recording calibration must be available before exporting calibrations"
+            )
             calibration: dict[str, Any] = {}
             for k, raw_value in recording_calibration.items():
                 v = raw_value

@@ -28,14 +28,14 @@ class BlinksPlugin(neon_player.Plugin):
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
         recording = self.recording
-        if recording is None:
-            return
+        assert recording is not None, "Recording must be loaded before exporting blinks"
         blink_ids = 1 + np.arange(len(recording.blinks))
         blinks = recording.blinks
 
         export_window = self.app.get_export_window()
-        if export_window is None:
-            return
+        assert export_window is not None, (
+            "Export window must be available before exporting blinks"
+        )
         start_time, stop_time = export_window
         start_mask = blinks.stop_time > start_time
         stop_mask = blinks.start_time < stop_time

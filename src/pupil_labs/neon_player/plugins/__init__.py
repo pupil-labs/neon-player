@@ -185,8 +185,9 @@ class Plugin(PersistentPropertiesMixin, QObject):
             t = self.app.current_ts
 
         recording = self.recording
-        if recording is None:
-            return True
+        assert recording is not None, (
+            "Recording must be loaded before checking gray frames"
+        )
 
         if t < recording.scene.time[0]:
             return True
@@ -206,8 +207,8 @@ class Plugin(PersistentPropertiesMixin, QObject):
     @property
     @property_params(widget=None, dont_encode=True)
     def recording(self) -> NeonRecording | None:
-        app = neon_player.instance()
-        return app.recording if app is not None else None
+        app = neon_player.require_instance()
+        return app.recording
 
     @property
     @property_params(widget=None, dont_encode=True)
@@ -217,8 +218,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
     @property
     @property_params(widget=None, dont_encode=True)
     def headless(self) -> bool:
-        app = neon_player.instance()
-        return app is None or app.headless
+        return self.app is None or self.app.headless
 
     @property
     @property_params(widget=None, dont_encode=True)
@@ -235,8 +235,8 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
     @staticmethod
     def get_instance_by_name(name: str) -> T.Union["Plugin", None]:
-        app = neon_player.instance()
-        return app.plugins_by_class.get(name) if app is not None else None
+        app = neon_player.require_instance()
+        return app.plugins_by_class.get(name)
 
     @classmethod
     def get_label(cls: type["Plugin"]) -> str:
