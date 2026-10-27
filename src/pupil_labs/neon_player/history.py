@@ -1,6 +1,6 @@
 import logging
 from collections import OrderedDict
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pupil_labs.neon_recording import NeonRecording
@@ -11,11 +11,13 @@ logger = logging.getLogger(__name__)
 
 def create_recording_metadata(path: Path, recording: NeonRecording) -> dict[str, str]:
     """Short description that is displayed for recently opened recordings."""
-    last_opened_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    last_opened_str = datetime.now(tz=UTC).astimezone().strftime("%Y-%m-%d %H:%M:%S")
     result = {"name": path.name, "last_opened": last_opened_str}
 
     try:
-        start_time = datetime.fromtimestamp(recording.info["start_time"] / 1e9)
+        start_time = datetime.fromtimestamp(
+            recording.info["start_time"] / 1e9, tz=UTC
+        ).astimezone()
         result["recorded"] = start_time.strftime("%Y-%m-%d %H:%M:%S")
         result["wearer"] = recording.wearer["name"]
     except FileNotFoundError:
