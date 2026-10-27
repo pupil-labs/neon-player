@@ -225,6 +225,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
                     legend_label,
                     color=color,
                     tooltip=default_line_tooltip(units=self.units.get(group_name, "")),
+                    units=self.units.get(group_name),
                 )
 
             elif not enabled and existing_plot is not None:
