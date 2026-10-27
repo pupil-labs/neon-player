@@ -122,7 +122,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         if state != {}:
             neon_player.Plugin.__setstate__(self, state)
         else:
-            app = neon_player.require_instance()
+            app = neon_player.instance()
             super().__setstate__(
                 app.settings.plugin_globals["EyestatePlugin"].to_dict()
             )

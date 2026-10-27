@@ -90,7 +90,7 @@ class ScalingWidget(QOpenGLWidget):
         )
         painter.fillRect(0, 0, self.width(), self.height(), QColorConstants.Black)
 
-        if neon_player.require_instance().settings.show_fps:
+        if neon_player.instance().settings.show_fps:
             now = time.monotonic()
             if self._last_frame_time is not None:
                 delta = now - self._last_frame_time
@@ -113,7 +113,7 @@ class ScalingWidget(QOpenGLWidget):
             self.update_child_position(child)
 
     def adjust_size(self) -> None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         if app.recording is None:
             return
 
@@ -188,5 +188,5 @@ class VideoRenderWidget(ScalingWidget):
         painter = QPainter(self)
         self.transform_painter(painter)
 
-        neon_player.require_instance().render_to(painter)
+        neon_player.instance().render_to(painter)
         painter.end()

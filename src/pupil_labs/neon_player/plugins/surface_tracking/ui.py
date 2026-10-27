@@ -124,7 +124,7 @@ class SurfaceHandle(QWidget):
             parent.set_child_scaled_center(self, self.new_pos.x(), self.new_pos.y())
             self.setCursor(Qt.CursorShape.BlankCursor)
 
-        neon_player.require_instance().main_window.video_widget.update()
+        neon_player.instance().main_window.video_widget.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if not (event.buttons() & Qt.MouseButton.LeftButton) and self.moved:
@@ -174,7 +174,7 @@ class SurfaceViewWidget(VideoRenderWidget):
 
         painter.fillRect(0, 0, self.width(), self.height(), Qt.GlobalColor.black)
         self.transform_painter(painter)
-        self.surface.render(painter, neon_player.require_instance().current_ts)
+        self.surface.render(painter, neon_player.instance().current_ts)
         painter.end()
 
 

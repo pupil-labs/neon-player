@@ -173,14 +173,14 @@ class ConsoleWindow(QWidget):
         button_layout.addWidget(self.clear_log_button)
         self.main_layout.addLayout(button_layout)
 
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         app.job_manager.job_started.connect(self.on_job_added)
         app.job_manager.job_finished.connect(self.remove_job)
         app.job_manager.job_canceled.connect(self.remove_job)
 
     def copy_log(self) -> None:
         """Copy the current log contents to the clipboard."""
-        cb = neon_player.require_instance().clipboard()
+        cb = neon_player.instance().clipboard()
         cb.setText(self.console_widget.toPlainText())
         logger.info("Log copied to clipboard")
 

@@ -58,7 +58,7 @@ class TimeLineDock(QWidget):
 
     def __init__(self) -> None:
         super().__init__()
-        app = neon_player.require_instance()
+        app = neon_player.instance()
 
         self.timeline_plots: dict[str, SmartSizePlotItem] = {}
         self.timeline_legends: dict[str, pg.LegendItem] = {}
@@ -180,7 +180,7 @@ class TimeLineDock(QWidget):
         return super().resizeEvent(event)
 
     def on_recording_loaded(self, recording: nr.NeonRecording) -> None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
 
         self.playhead.show()
         for plot_item in self.timeline_plots.values():
@@ -220,7 +220,7 @@ class TimeLineDock(QWidget):
         self.speed_control.setCurrentText(f"{prefix}{speed:.3g}x")
 
     def on_position_changed(self, t: int) -> None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         recording = app.recording
         if recording is None:
             return
@@ -238,7 +238,7 @@ class TimeLineDock(QWidget):
         self.playhead.set_time(t)
 
     def show_context_menu(self, global_position: QPoint) -> None:
-        menu = neon_player.require_instance().main_window.get_menu(
+        menu = neon_player.instance().main_window.get_menu(
             "Timeline", auto_create=False
         )
         context_menu = clone_menu(menu) if isinstance(menu, QMenu) else QMenu()
@@ -287,7 +287,7 @@ class TimeLineDock(QWidget):
             self.check_for_data_item_click(synth_event)
 
     def on_trim_area_drag_start(self, event: MouseDragEvent) -> None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         recording = app.recording
         if recording is None:
             return
@@ -301,7 +301,7 @@ class TimeLineDock(QWidget):
             self.on_trim_area_dragged(event)
 
     def on_trim_area_dragged(self, event: MouseDragEvent) -> None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         recording = app.recording
         if recording is None:
             return
@@ -330,7 +330,7 @@ class TimeLineDock(QWidget):
     def on_chart_area_clicked(
         self, event: QGraphicsSceneMouseEvent | MouseClickEvent | MouseDragEvent
     ) -> None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         recording = app.recording
         if recording is None:
             return
@@ -414,7 +414,7 @@ class TimeLineDock(QWidget):
                 orientation="top", showValues=False, pen=pg.mkPen(color="#ffff0000")
             )
 
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         recording = app.recording
         if recording is not None:
             time_axis.set_time_frame(recording.start_time, recording.stop_time)
@@ -511,7 +511,7 @@ class TimeLineDock(QWidget):
         color: QColor | None = None,
         **kwargs: T.Any,  # noqa: ANN401
     ) -> SmartSizePlotItem | None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         recording = app.recording
         if recording is None:
             return None
@@ -746,7 +746,7 @@ class TimeLineDock(QWidget):
         del self.data_point_actions[row_name][action_name]
 
     def reset_view(self) -> None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         recording = app.recording
         if recording is None:
             return

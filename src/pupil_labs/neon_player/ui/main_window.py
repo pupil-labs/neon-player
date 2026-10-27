@@ -109,7 +109,7 @@ class SplashWidget(Ui_Class, QtBaseClass):
         if urls and urls[0].isLocalFile():
             path = Path(urls[0].toLocalFile())
             if path.is_dir():
-                neon_player.require_instance().load(path)
+                neon_player.instance().load(path)
                 event.acceptProposedAction()
                 return
 
@@ -214,11 +214,11 @@ class RecentWidget(QWidget):
         self.grid_layout.addWidget(self.container, 0, 0, 1, 1)
         self.setLayout(self.grid_layout)
 
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         app.recording_history.changed.connect(self.update_recent_recordings)
 
     def update_recent_recordings(self) -> None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         recent = app.recording_history.recent_recordings.items()
 
         self.table.setSortingEnabled(False)
@@ -269,14 +269,14 @@ class RecentWidget(QWidget):
         if not path_str:
             return
 
-        neon_player.require_instance().load(Path(path_str))
+        neon_player.instance().load(Path(path_str))
 
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
 
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         self.setWindowTitle(f"{app.applicationName()} - v{app.applicationVersion()}")
         self.setAcceptDrops(True)
         self.resize(1600, 1000)
@@ -590,7 +590,7 @@ class MainWindow(QMainWindow):
         self.greeting_switcher.setCurrentIndex(0)
 
     def update_job_status(self) -> None:
-        job_manager = neon_player.require_instance().job_manager
+        job_manager = neon_player.instance().job_manager
 
         job_count = len(job_manager.current_jobs)
         if job_count == 0:
@@ -614,18 +614,18 @@ class MainWindow(QMainWindow):
         self.job_progress_bar.setTextVisible(True)
 
     def on_open_action(self) -> None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         was_playing = app.is_playing
         app.set_playback_state(False)
 
         path = QFileDialog.getExistingDirectory(self, "Open Recording")
         if path:
-            neon_player.require_instance().load(Path(path))
+            neon_player.instance().load(Path(path))
         else:
             app.set_playback_state(was_playing)
 
     def on_close_action(self) -> None:
-        neon_player.require_instance().unload()
+        neon_player.instance().unload()
 
     def show_global_settings(self) -> None:
         dialog = GlobalSettingsDialog(self)
@@ -636,7 +636,7 @@ class MainWindow(QMainWindow):
         self.close()
 
     def on_show_recording_folder(self) -> None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         recording = app.recording
         if recording is None:
             return
@@ -645,7 +645,7 @@ class MainWindow(QMainWindow):
         QDesktopServices.openUrl(url)
 
     def on_show_recording_cache(self) -> None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         recording = app.recording
         if recording is None:
             return
@@ -660,13 +660,13 @@ class MainWindow(QMainWindow):
         return self.splash_widget.dropEvent(event)
 
     def on_play_action(self) -> None:
-        neon_player.require_instance().toggle_play()
+        neon_player.instance().toggle_play()
 
     def on_documentation_action(self) -> None:
         webbrowser.open("https://docs.pupil-labs.com/neon/neon-player/")
 
     def on_about_action(self) -> None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
 
         QMessageBox.about(
             self,
@@ -805,7 +805,7 @@ class GlobalSettingsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Neon Player -Global Settings")
 
-        app = neon_player.require_instance()
+        app = neon_player.instance()
 
         layout = QVBoxLayout(self)
         self.setLayout(layout)
@@ -820,7 +820,7 @@ class GlobalSettingsDialog(QDialog):
 
         global_settings_form = PropertyForm(app.settings)
         SlotDebouncer.debounce(
-            app.settings.changed, neon_player.require_instance().save_settings
+            app.settings.changed, neon_player.instance().save_settings
         )
 
         expander_list.add_expander("General", global_settings_form)
@@ -830,7 +830,7 @@ class GlobalSettingsDialog(QDialog):
                 plugin_props_form = PropertyForm(cls.global_properties)
                 SlotDebouncer.debounce(
                     plugin_props_form.changed,
-                    neon_player.require_instance().save_settings,
+                    neon_player.instance().save_settings,
                 )
                 expander_list.add_expander(
                     f"Plugin: {cls.get_label()}", plugin_props_form
@@ -843,7 +843,7 @@ class RecordingSettingsDialog(QDialog):
         self.setWindowTitle("Neon Player - Recording Settings")
         self.setMinimumSize(400, 400)
 
-        app = neon_player.require_instance()
+        app = neon_player.instance()
 
         layout = QVBoxLayout(self)
         self.setLayout(layout)

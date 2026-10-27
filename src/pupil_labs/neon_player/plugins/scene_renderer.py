@@ -101,7 +101,7 @@ class SceneRendererPlugin(Plugin):
     def export_raw_scene_video(
         self, destination: Path = Path()
     ) -> BackgroundJob | T.Generator[ProgressUpdate, None, None] | None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
 
         if not app.headless:
             return self.job_manager.run_background_action(

@@ -18,11 +18,11 @@ from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
 
 def test_optional_application_before_startup(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(NeonPlayerApp, "instance", staticmethod(lambda: None))
-    assert neon_player.instance() is None
+    assert neon_player.instance(required=False) is None
     with pytest.raises(RuntimeError, match="not initialized"):
         Plugin.get_instance_by_name("missing")
     with pytest.raises(RuntimeError, match="not initialized"):
-        neon_player.require_instance()
+        neon_player.instance()
     plugin = Plugin()
     with pytest.raises(RuntimeError, match="not initialized"):
         _ = plugin.recording
@@ -34,13 +34,14 @@ def test_optional_application_rejects_other_qt_application(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(NeonPlayerApp, "instance", staticmethod(object))
-    assert neon_player.instance() is None
+    with pytest.raises(RuntimeError, match="not initialized"):
+        neon_player.instance()
 
 
 def test_initialized_application_and_plugin_lookup(
     qapp: QApplication, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    assert neon_player.require_instance() is qapp
+    assert neon_player.instance() is qapp
     plugin = Plugin()
     monkeypatch.setattr(qapp, "plugins_by_class", {"Plugin": plugin})
     assert Plugin.get_instance_by_name("Plugin") is plugin

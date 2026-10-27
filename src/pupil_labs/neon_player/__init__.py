@@ -17,19 +17,23 @@ LOG_FORMAT_STRING = (
 )
 
 
-def instance() -> "NeonPlayerApp | None":
+@T.overload
+def instance(required: T.Literal[True] = True) -> "NeonPlayerApp": ...
+@T.overload
+def instance(required: T.Literal[False]) -> "NeonPlayerApp | None": ...
+@T.overload
+def instance(required: bool) -> "NeonPlayerApp | None": ...
+
+
+def instance(required: bool = True) -> "NeonPlayerApp | None":
     # Defer the app import to avoid a circular import.
     from pupil_labs.neon_player.app import NeonPlayerApp  # noqa: PLC0415
 
     app = NeonPlayerApp.instance()
-    return app if isinstance(app, NeonPlayerApp) else None
-
-
-def require_instance() -> "NeonPlayerApp":
-    app = instance()
-    if app is None:
+    if required and not isinstance(app, NeonPlayerApp):
         raise RuntimeError("Neon Player application is not initialized")
-    return app
+
+    return app if isinstance(app, NeonPlayerApp) else None
 
 
 def action(func: T.Callable[..., T.Any]) -> T.Any:  # noqa: ANN401

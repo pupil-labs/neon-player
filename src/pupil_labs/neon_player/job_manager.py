@@ -138,7 +138,7 @@ class JobManager(QObject):
         self.job_counter = 0
 
     def work_job(self, job: T.Generator[ProgressUpdate, None, None]) -> None:
-        ipc_name = neon_player.require_instance().progress_ipc_name
+        ipc_name = neon_player.instance().progress_ipc_name
         # runs in child process
         if ipc_name:
             socket = QLocalSocket()
@@ -175,7 +175,7 @@ class JobManager(QObject):
     def run_background_action(
         self, name: str, action_name: str, *args: object
     ) -> BackgroundJob | None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         if app.headless:
             logger.warning("Not starting background job in headless mode")
             return None
@@ -207,7 +207,7 @@ class JobManager(QObject):
 
     def on_job_finished(self, job: BackgroundJob) -> None:
         logger.info(f"{job.name} finished")
-        neon_player.require_instance().show_notification(
+        neon_player.instance().show_notification(
             "Job finished", f"Job '{job.name}' has completed"
         )
         self.remove_job(job)

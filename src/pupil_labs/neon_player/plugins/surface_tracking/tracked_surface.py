@@ -147,7 +147,7 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
         compact=True, icon=QIcon(str(neon_player.asset_path("duplicate.svg")))
     )
     def copy_frame_to_clipboard(self) -> None:
-        clipboard = neon_player.require_instance().clipboard()
+        clipboard = neon_player.instance().clipboard()
         clipboard.setPixmap(QPixmap.fromImage(self._frame_image()))
 
     def _frame_image(self) -> QImage:
@@ -199,9 +199,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self.jobs: list[BackgroundJob] = []
 
         app = neon_player.instance()
-        if app is None:
-            return
-
         app.export_window_changed.connect(self.heatmap_invalidated.emit)
         self.locations_invalidated.connect(self.heatmap_invalidated.emit)
         gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
@@ -393,7 +390,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             self.cleanup_widgets()
 
         else:
-            app = neon_player.require_instance()
+            app = neon_player.instance()
             vrw = app.main_window.video_widget
 
             corners = normalized_corners()  # type: ignore[no-untyped-call]  # Marker Mapper omits this function's annotations.
@@ -638,7 +635,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             return
 
         if time_in_recording == -1:
-            time_in_recording = neon_player.require_instance().current_ts
+            time_in_recording = neon_player.instance().current_ts
 
         camera = self.tracker_plugin.camera
         gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
@@ -646,7 +643,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         assert isinstance(gaze_plugin, GazeDataPlugin), (
             "Gaze data plugin is required to render a surface"
         )
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         recording = app.recording
         assert recording is not None, (
             "Recording must be loaded before rendering a surface"

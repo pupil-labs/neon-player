@@ -26,7 +26,7 @@ class VideoExporter(neon_player.Plugin):
     def export(
         self, destination: Path = Path()
     ) -> BackgroundJob | T.Generator[ProgressUpdate, None, None] | None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
 
         if not app.headless:
             return self.job_manager.run_background_action(
@@ -96,5 +96,5 @@ class VideoExporter(neon_player.Plugin):
         self.app.render_to(painter)
         painter.end()
 
-        clipboard = neon_player.require_instance().clipboard()
+        clipboard = neon_player.instance().clipboard()
         clipboard.setPixmap(QPixmap.fromImage(frame))

@@ -41,7 +41,7 @@ class RecordingInfoWidget(QWidget):
         self.wearer_label = QLabel("-")
         main_layout.addWidget(self.wearer_label)
 
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         app.recording_loaded.connect(self.on_recording_loaded)
         app.recording_unloaded.connect(self.on_recording_unloaded)
 
@@ -79,7 +79,7 @@ class PluginManagerWidget(QWidget):
         self.dialog = None
 
     def show_dialog(self) -> None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         settings = app.recording_settings
         assert settings is not None, "Recording settings are required to manage plugins"
         form = PropertyWidget.from_property("enabled_plugins", settings)
@@ -107,7 +107,7 @@ class SettingsPanel(QScrollArea):
         super().__init__(parent=parent)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
 
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         app.recording_loaded.connect(self.on_recording_loaded)
         app.recording_unloaded.connect(self.on_recording_unloaded)
 
@@ -145,7 +145,7 @@ class SettingsPanel(QScrollArea):
             self.plugins_form = None
 
     def add_plugin_settings(self, instance: Plugin) -> None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
 
         cls = instance.__class__
         class_name = cls.__name__

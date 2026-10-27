@@ -28,6 +28,7 @@ dependencies = [
     "pupil-labs-marker-mapper>=1.0.0",
     "pupil-labs-neon-recording==2.1.6",
     "pupil-labs-video>=1.0.13",
+    "protobuf<6",
     "pyobjc-framework-Cocoa; sys_platform == 'darwin'",
     "pyqtgraph>=0.13.7",
     "pyside6>=6.10.2",
@@ -108,7 +109,7 @@ pyobjc-framework-Cocoa = ["AppKit"]
 
 [tool.deptry.per_rule_ignores]
 DEP001 = ["pupil_labs", "cv2"]
-DEP002 = ["opencv-python"]
+DEP002 = ["opencv-python", "protobuf"]
 DEP003 = ["pupil_labs", "typing_extensions"]
 
 [tool.hatch.version]

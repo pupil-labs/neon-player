@@ -59,7 +59,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
         self.render_layer = 1
         self._enabled = False
 
-        app = neon_player.instance()
+        app = neon_player.instance(required=False)
         if app is None:
             return
 
@@ -207,13 +207,13 @@ class Plugin(PersistentPropertiesMixin, QObject):
     @property
     @property_params(widget=None, dont_encode=True)
     def recording(self) -> NeonRecording | None:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         return app.recording
 
     @property
     @property_params(widget=None, dont_encode=True)
     def app(self) -> "NeonPlayerApp":
-        return neon_player.require_instance()
+        return neon_player.instance()
 
     @property
     @property_params(widget=None, dont_encode=True)
@@ -223,7 +223,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
     @property
     @property_params(widget=None, dont_encode=True)
     def job_manager(self) -> "JobManager":
-        return neon_player.require_instance().job_manager
+        return neon_player.instance().job_manager
 
     @staticmethod
     def get_class_by_name(name: str) -> type["Plugin"]:
@@ -235,7 +235,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
     @staticmethod
     def get_instance_by_name(name: str) -> T.Union["Plugin", None]:
-        app = neon_player.require_instance()
+        app = neon_player.instance()
         return app.plugins_by_class.get(name)
 
     @classmethod
