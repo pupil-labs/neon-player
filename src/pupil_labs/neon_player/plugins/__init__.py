@@ -5,7 +5,7 @@ from pathlib import Path
 from numpyencoder import NumpyEncoder
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
-from PySide6.QtGui import QPainter
+from PySide6.QtGui import QAction, QPainter
 from PySide6.QtWidgets import QMessageBox
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 from qt_property_widgets.widgets import PropertyForm
@@ -67,16 +67,16 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
     def register_action(
         self, name: str, shortcut: QtShortcutType, func: T.Callable[..., object]
-    ) -> None:
-        self.app.main_window.register_action(name, shortcut, func)
+    ) -> QAction:
+        return self.app.main_window.register_action(name, shortcut, func)
 
     def unregister_action(self, name: str) -> None:
         return self.app.main_window.unregister_action(name)
 
     def register_timeline_action(
         self, name: str, shortcut: QtShortcutType, func: T.Callable[..., object]
-    ) -> None:
-        self.app.main_window.register_action(f"Timeline/{name}", shortcut, func)
+    ) -> QAction:
+        return self.app.main_window.register_action(f"Timeline/{name}", shortcut, func)
 
     def unregister_timeline_action(self, name: str) -> None:
         return self.app.main_window.unregister_action(f"Timeline/{name}")
