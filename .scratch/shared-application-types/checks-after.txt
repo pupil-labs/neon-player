@@ -1,3 +1,0 @@
-All checks passed!
-61 files already formatted
-Whitespace and typing configuration checks passed.

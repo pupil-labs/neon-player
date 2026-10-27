@@ -1,9 +1,0 @@
-........................................................................ [ 72%]
-............................                                             [100%]
-=============================== warnings summary ===============================
-.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475
-  /home/marc/.codex/worktrees/main/neon-player/.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475: PytestCacheWarning: cache could not write path /home/marc/.codex/worktrees/main/neon-player/.pytest_cache/v/cache/nodeids: [Errno 30] Read-only file system: '/home/marc/.codex/worktrees/main/neon-player/.pytest_cache/v/cache/nodeids'
-    config.cache.set("cache/nodeids", sorted(self.cached_nodeids))
-
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-100 passed, 1 warning in 1.14s
