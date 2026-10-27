@@ -128,7 +128,6 @@ def install_dependencies(
     ]
 
     try:
-        # Plugin dependency installation intentionally executes uv.
         proc = subprocess.run(  # noqa: S603
             command,
             text=True,
