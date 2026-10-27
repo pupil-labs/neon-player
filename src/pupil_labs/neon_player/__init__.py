@@ -32,27 +32,12 @@ def require_instance() -> "NeonPlayerApp":
     return app
 
 
-class ActionDescriptor[Owner, **Params, Result](T.Protocol):
-    def __set_name__(self, owner: type[Owner], name: str) -> None: ...
-
-    def __get__(
-        self, instance: Owner | None, owner: type[Owner] | None = None
-    ) -> T.Callable[Params, Result]: ...
-
-
-def action[Owner, **ActionParams, ActionResult](
-    func: T.Callable[T.Concatenate[Owner, ActionParams], ActionResult],
-) -> ActionDescriptor[Owner, ActionParams, ActionResult]:
+def action(func: T.Callable[..., T.Any]) -> T.Any:  # noqa: ANN401
     @functools.wraps(func)
-    def wrapper(
-        self: Owner, *args: ActionParams.args, **kwargs: ActionParams.kwargs
-    ) -> ActionResult:
-        return func(self, *args, **kwargs)
+    def wrapper(*args: T.Any, **kwargs: T.Any) -> T.Any:  # noqa: ANN401
+        return func(*args, **kwargs)
 
-    descriptor: ActionDescriptor[Owner, ActionParams, ActionResult] = object_action(
-        wrapper
-    )
-    return descriptor
+    return object_action(wrapper)
 
 
 def asset_path(resource: str) -> Path:
