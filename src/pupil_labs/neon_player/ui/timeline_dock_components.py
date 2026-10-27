@@ -3,7 +3,7 @@ import math
 import pyqtgraph as pg
 from pyqtgraph.GraphicsScene.mouseEvents import MouseDragEvent
 from PySide6.QtCore import QObject, QPoint, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPolygon
+from PySide6.QtGui import QColor, QFont, QPainter, QPaintEvent, QPolygon
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
     QGraphicsItem,
@@ -251,12 +251,107 @@ class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not
         self.setDownsampling(auto=True, mode="subsample")
         self.legend_handle = legend
         self.row_name = row_name
+        self._show_y_limit_labels = False
+        self._y_units = ""
+        self._y_range_labels: list[pg.TextItem] = []
+        view_box = self.getViewBox()
+        view_box.sigYRangeChanged.connect(self._update_y_limit_labels)
+        view_box.sigXRangeChanged.connect(self._update_y_limit_label_positions)
+
+        # Acts as the border between the legend and the plot area
+        left_axis = self.getAxis("left")
+        self.showAxis("left")
+        left_axis.setPen(pg.mkPen("#444"))
+        left_axis.setStyle(showValues=False, tickLength=0)
+        left_axis.setTicks([])
+        left_axis.setWidth(1)
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         self.preferred_height_1d = 25
         self.preferred_height_2d = 150
         self.adjust_size()
+
+    @property
+    def show_y_limit_labels(self) -> bool:
+        return self._show_y_limit_labels
+
+    @property
+    def y_units(self) -> str:
+        return self._y_units
+
+    def set_y_limit_labels(
+        self, show: bool | None = None, units: str | None = None
+    ) -> None:
+        """
+        Configure the display of y-label limits.
+
+        Args:
+            show: Whether to show the labels. Provide `True` or `False` to show
+                or hide the labels. `None` (default) keeps the current setting.
+            units: Units to display after each y-limit value. `None` (default)
+                keeps the current setting.
+        """
+        if show is not None:
+            self._show_y_limit_labels = show
+        if units is not None:
+            self._y_units = units
+
+        if not self._show_y_limit_labels:
+            if not self._y_range_labels:
+                return
+
+            for label in self._y_range_labels:
+                self.getViewBox().removeItem(label)
+            self._y_range_labels.clear()
+            return
+
+        if not self._y_range_labels:
+            upper_label = pg.TextItem(
+                anchor=(0, 0), color="#a09fa6"
+            )
+            lower_label = pg.TextItem(
+                anchor=(0, 1), color="#a09fa6"
+            )
+            font = QFont()
+            font.setPointSize(10)
+            for label in (upper_label, lower_label):
+                label.textItem.setFont(font)
+                label.setZValue(10)
+                self.getViewBox().addItem(label, ignoreBounds=True)
+            self._y_range_labels = [upper_label, lower_label]
+
+        self._update_y_limit_labels()
+
+    def _update_y_limit_labels(self, *_args: object) -> None:
+        if not self._show_y_limit_labels or not self._y_range_labels:
+            return
+
+        upper_label, lower_label = self._y_range_labels
+        y_range = self.getViewBox().viewRange()[1]
+        y_min, y_max = y_range
+        y_span = abs(y_max - y_min)
+        decimals = max(0, math.ceil(-math.log10(y_span) + 2)) if y_span else 0
+        unit_suffix = f" {self.y_units}" if self.y_units else ""
+
+        upper_label.setText(f"{y_max:.{decimals}f}{unit_suffix}")
+        lower_label.setText(f"{y_min:.{decimals}f}{unit_suffix}")
+
+        self._update_y_limit_label_positions()
+
+    def _update_y_limit_label_positions(self, *_args: object) -> None:
+        if not self._show_y_limit_labels or not self._y_range_labels:
+            return
+
+        upper_label, lower_label = self._y_range_labels
+        x_range, y_range = self.getViewBox().viewRange()
+        x_min, x_max = x_range
+        y_min, y_max = y_range
+        y_span = abs(y_max - y_min)
+        x_inset = (x_max - x_min) * 0.002
+        y_inset = y_span * 0.002
+        upper_label.setPos(x_min + x_inset, y_max - y_inset)
+        lower_label.setPos(x_min + x_inset, y_min + y_inset)
 
     def addItem(self, *args: object, **kwargs: object) -> None:
         super().addItem(*args, **kwargs)

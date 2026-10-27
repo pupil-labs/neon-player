@@ -504,7 +504,6 @@ class TimeLineDock(QWidget):
         plot_item.hideButtons()
         plot_item.setMenuEnabled(False)
         plot_item.setClipToView(True)
-        plot_item.hideAxis("left")
         plot_item.hideAxis("right")
         plot_item.hideAxis("bottom")
         plot_item.showGrid(x=True, y=False, alpha=0.3)
@@ -671,6 +670,8 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, T.SupportsFloat]]
         | NDArray[np.integer[T.Any] | np.floating[T.Any]],
         plot_name: str = "",
+        show_y_limit_labels: bool | None = None,
+        units: str | None = None,
         **kwargs: T.Any,  # noqa: ANN401
     ) -> TimelinePlotItem | None:
         """Add a line graph to a timeline row.
@@ -679,12 +680,25 @@ class TimeLineDock(QWidget):
             timeline_row_name: Label for the timeline row.
             data: Timestamp and value pairs; timestamps are in nanoseconds.
             plot_name: Optional name shown in the row legend.
+            show_y_limit_labels: Whether to show labels for y-axis limits. 
+                The limits are shown by default for line plots.
+            units: Units to display in the labels of y-axis limits.
             **kwargs: Additional line options passed to pyqtgraph.
 
         Returns:
             The timeline row, or ``None`` if no recording is open.
         """
-        return self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
+        plot_existed = timeline_row_name in self.timeline_plots
+        plot_item = self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
+        if plot_item is None:
+            return
+
+        # Show y-axis limits by default for line plots
+        if show_y_limit_labels is None and not plot_existed:
+            show_y_limit_labels = True
+        plot_item.set_y_limit_labels(show_y_limit_labels, units)
+
+        return plot_item
 
     def add_timeline_scatter(
         self,
