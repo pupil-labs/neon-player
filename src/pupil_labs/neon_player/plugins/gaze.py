@@ -134,8 +134,7 @@ class GazeDataPlugin(neon_player.Plugin):
             worns: npt.NDArray[np.float64 | np.int64] = self.worn_data.sample(
                 samples.time  # type: ignore[arg-type]  # Neon Recording mistypes its timestamp arrays.
             ).worn
-        except Exception:
-            logger.debug("Failed to sample worn data", exc_info=True)
+        except ValueError:
             worns = np.array([255])
 
         aggregations: dict[Aggregation, npt.NDArray[np.float32 | np.float64]] = {}
