@@ -1,4 +1,3 @@
-# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 import logging
 from pathlib import Path
 
@@ -134,6 +133,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         except AssertionError:
             return
 
+        # TODO(type-checking): Neon Recording omits NumPy tuple indices.
         eyeball = recording.eyeball
         pupil = recording.pupil
         eyestate_data_dict = {
@@ -141,28 +141,29 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
             "timestamp [ns]": eyeball.time,
             "pupil diameter left [mm]": pupil.diameter_left,
             "pupil diameter right [mm]": pupil.diameter_right,
-            "eyeball center left x [mm]": eyeball.center_left[:, 0],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-            "eyeball center left y [mm]": eyeball.center_left[:, 1],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-            "eyeball center left z [mm]": eyeball.center_left[:, 2],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-            "eyeball center right x [mm]": eyeball.center_right[:, 0],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-            "eyeball center right y [mm]": eyeball.center_right[:, 1],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-            "eyeball center right z [mm]": eyeball.center_right[:, 2],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-            "optical axis left x": eyeball.optical_axis_left[:, 0],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-            "optical axis left y": eyeball.optical_axis_left[:, 1],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-            "optical axis left z": eyeball.optical_axis_left[:, 2],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-            "optical axis right x": eyeball.optical_axis_right[:, 0],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-            "optical axis right y": eyeball.optical_axis_right[:, 1],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-            "optical axis right z": eyeball.optical_axis_right[:, 2],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
+            "eyeball center left x [mm]": eyeball.center_left[:, 0],  # type: ignore[call-overload]
+            "eyeball center left y [mm]": eyeball.center_left[:, 1],  # type: ignore[call-overload]
+            "eyeball center left z [mm]": eyeball.center_left[:, 2],  # type: ignore[call-overload]
+            "eyeball center right x [mm]": eyeball.center_right[:, 0],  # type: ignore[call-overload]
+            "eyeball center right y [mm]": eyeball.center_right[:, 1],  # type: ignore[call-overload]
+            "eyeball center right z [mm]": eyeball.center_right[:, 2],  # type: ignore[call-overload]
+            "optical axis left x": eyeball.optical_axis_left[:, 0],  # type: ignore[call-overload]
+            "optical axis left y": eyeball.optical_axis_left[:, 1],  # type: ignore[call-overload]
+            "optical axis left z": eyeball.optical_axis_left[:, 2],  # type: ignore[call-overload]
+            "optical axis right x": eyeball.optical_axis_right[:, 0],  # type: ignore[call-overload]
+            "optical axis right y": eyeball.optical_axis_right[:, 1],  # type: ignore[call-overload]
+            "optical axis right z": eyeball.optical_axis_right[:, 2],  # type: ignore[call-overload]
         }
 
+        # TODO(type-checking): Neon Recording omits NumPy tuple indices.
         try:
             eyelid = recording.eyelid
             eyelid_data = {
-                "eyelid angle top left [rad]": eyelid.angle_left[:, 0],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-                "eyelid angle bottom left [rad]": eyelid.angle_left[:, 1],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
+                "eyelid angle top left [rad]": eyelid.angle_left[:, 0],  # type: ignore[call-overload]
+                "eyelid angle bottom left [rad]": eyelid.angle_left[:, 1],  # type: ignore[call-overload]
                 "eyelid aperture left [mm]": eyelid.aperture_left,
-                "eyelid angle top right [rad]": eyelid.angle_right[:, 0],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-                "eyelid angle bottom right [rad]": eyelid.angle_right[:, 1],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
+                "eyelid angle top right [rad]": eyelid.angle_right[:, 0],  # type: ignore[call-overload]
+                "eyelid angle bottom right [rad]": eyelid.angle_right[:, 1],  # type: ignore[call-overload]
                 "eyelid aperture right [mm]": eyelid.aperture_right,
             }
             eyestate_data_dict = {**eyestate_data_dict, **eyelid_data}
@@ -233,12 +234,9 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
 
         export_file = destination / "3d_eye_states.csv"
 
-        export_window = self.app.get_export_window()
-        assert export_window is not None, (
-            "Export window must be available before exporting eye states"
-        )
-        start_time, stop_time = export_window
+        start_time, stop_time = self.app.get_export_window()
         start_mask = self.eyestate_data["timestamp [ns]"] >= start_time
         stop_mask = self.eyestate_data["timestamp [ns]"] <= stop_time
 
         self.eyestate_data[start_mask & stop_mask].to_csv(export_file, index=False)
+        logger.info(f"Wrote {export_file}")

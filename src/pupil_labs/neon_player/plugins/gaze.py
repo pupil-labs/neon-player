@@ -135,7 +135,7 @@ class GazeDataPlugin(neon_player.Plugin):
                 samples.time  # type: ignore[arg-type]
             ).worn
         except Exception:  # noqa: BLE001
-            if self.worn_data is not None:
+            if self.worn_data is not None and len(samples) > 0:
                 logger.debug(
                     f"No matching worn data for {time_in_recording}, assuming "
                     f"that the headset was worn"
