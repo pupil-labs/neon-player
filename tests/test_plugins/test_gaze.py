@@ -41,9 +41,11 @@ def test_circle_viz_parameter_capping_required() -> None:
 
 
 def test_gaze_plugin_to_dict_viz_have_class_names(
-    qapp: "MockNeonPlayerApp", mock_neon_recording: Callable[..., NeonRecording]
+    qapp: "MockNeonPlayerApp",
+    mock_neon_recording: Callable[..., NeonRecording],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    qapp.recording = mock_neon_recording()
+    monkeypatch.setattr(qapp, "recording", mock_neon_recording())
 
     plugin = GazeDataPlugin()
     plugin.visualizations = [CircleViz(), CrosshairViz()]

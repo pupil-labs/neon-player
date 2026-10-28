@@ -1,4 +1,4 @@
-# Dependency typing exceptions are documented in docs/typing-exceptions.md.
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -9,6 +9,8 @@ from scipy.spatial.transform import Rotation
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
+
+logger = logging.getLogger(__name__)
 
 
 class IMUPlugin(neon_player.Plugin):
@@ -32,23 +34,24 @@ class IMUPlugin(neon_player.Plugin):
         rotations = Rotation.from_quat(recording.imu.rotation)
         eulers = rotations.as_euler(seq="yxz", degrees=True)
 
+        # TODO(type-checking): Neon Recording omits NumPy tuple indices.
         self.imu_data = pd.DataFrame(
             {
                 "recording id": recording.info["recording_id"],
                 "timestamp [ns]": recording.imu.time,
-                "gyro x [deg/s]": recording.imu.angular_velocity[:, 0],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-                "gyro y [deg/s]": recording.imu.angular_velocity[:, 1],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-                "gyro z [deg/s]": recording.imu.angular_velocity[:, 2],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-                "acceleration x [g]": recording.imu.acceleration[:, 0],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-                "acceleration y [g]": recording.imu.acceleration[:, 1],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-                "acceleration z [g]": recording.imu.acceleration[:, 2],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
+                "gyro x [deg/s]": recording.imu.angular_velocity[:, 0],  # type: ignore[call-overload]
+                "gyro y [deg/s]": recording.imu.angular_velocity[:, 1],  # type: ignore[call-overload]
+                "gyro z [deg/s]": recording.imu.angular_velocity[:, 2],  # type: ignore[call-overload]
+                "acceleration x [g]": recording.imu.acceleration[:, 0],  # type: ignore[call-overload]
+                "acceleration y [g]": recording.imu.acceleration[:, 1],  # type: ignore[call-overload]
+                "acceleration z [g]": recording.imu.acceleration[:, 2],  # type: ignore[call-overload]
                 "roll [deg]": eulers[:, 0],
                 "pitch [deg]": eulers[:, 1],
                 "yaw [deg]": eulers[:, 2],
-                "quaternion x": recording.imu.rotation[:, 0],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-                "quaternion y": recording.imu.rotation[:, 1],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-                "quaternion z": recording.imu.rotation[:, 2],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
-                "quaternion w": recording.imu.rotation[:, 3],  # type: ignore[call-overload]  # Neon Recording omits NumPy tuple indices.
+                "quaternion x": recording.imu.rotation[:, 0],  # type: ignore[call-overload]
+                "quaternion y": recording.imu.rotation[:, 1],  # type: ignore[call-overload]
+                "quaternion z": recording.imu.rotation[:, 2],  # type: ignore[call-overload]
+                "quaternion w": recording.imu.rotation[:, 3],  # type: ignore[call-overload]
             }
         )
 
@@ -107,16 +110,13 @@ class IMUPlugin(neon_player.Plugin):
         if self.imu_data is None:
             return
 
-        export_window = self.app.get_export_window()
-        assert export_window is not None, (
-            "Export window must be available before exporting IMU data"
-        )
-        start_time, stop_time = export_window
+        start_time, stop_time = self.app.get_export_window()
         start_mask = self.imu_data["timestamp [ns]"] >= start_time
         stop_mask = self.imu_data["timestamp [ns]"] <= stop_time
 
         export_file = destination / "imu.csv"
         self.imu_data[start_mask & stop_mask].to_csv(export_file, index=False)
+        logger.info(f"Wrote {export_file}")
 
     @property
     def orientation(self) -> bool:

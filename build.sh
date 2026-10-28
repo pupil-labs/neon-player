@@ -2,7 +2,7 @@
 
 set -e
 
-VERSION=$(uv run --group build python -c "from importlib.metadata import version; print(version('pupil_labs.neon_player'))")
+VERSION=$(uv run python -c "from importlib.metadata import version; print(version('pupil_labs.neon_player'))")
 VERSION_SIMPLE=$(echo "$VERSION" | awk -F. '{print $1"."$2"."$3}' | grep -Eo '^[0-9\.]*')
 
 echo "Build $VERSION ($VERSION_SIMPLE) for $OSTYPE"
