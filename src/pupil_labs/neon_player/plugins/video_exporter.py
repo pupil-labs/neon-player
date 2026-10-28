@@ -1,3 +1,4 @@
+import logging
 import typing as T
 from pathlib import Path
 
@@ -10,6 +11,8 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import action
 from pupil_labs.neon_player.job_manager import BackgroundJob, ProgressUpdate
 from pupil_labs.neon_player.plugins.shared import bg_export_video
+
+logger = logging.getLogger(__name__)
 
 
 class VideoExporter(neon_player.Plugin):
@@ -43,9 +46,6 @@ class VideoExporter(neon_player.Plugin):
     ) -> T.Generator[ProgressUpdate, None, None]:
         recording = self.require_recording()
         export_window = self.app.get_export_window()
-        assert export_window is not None, (
-            "Export window must be available before exporting video"
-        )
         yield from bg_export_video(
             recording=recording,
             export_window=export_window,
@@ -70,7 +70,9 @@ class VideoExporter(neon_player.Plugin):
 
         width, height = recording.scene.width, recording.scene.height
         if width is None or height is None:
-            raise ValueError("Scene video dimensions are unavailable")
+            logger.critical("Scene video dimensions are unavailable")
+            return
+
         frame_size = QSize(width, height)
         frame = QImage(frame_size, QImage.Format.Format_RGB32)
         painter = QPainter(frame)
@@ -88,7 +90,9 @@ class VideoExporter(neon_player.Plugin):
         recording = self.require_recording()
         width, height = recording.scene.width, recording.scene.height
         if width is None or height is None:
-            raise ValueError("Scene video dimensions are unavailable")
+            logger.critical("Scene video dimensions are unavailable")
+            return
+
         frame_size = QSize(width, height)
         frame = QImage(frame_size, QImage.Format.Format_RGB32)
         painter = QPainter(frame)

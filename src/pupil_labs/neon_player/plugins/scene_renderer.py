@@ -29,14 +29,14 @@ class SceneRendererPlugin(Plugin):
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         recording = self.recording
-        assert recording is not None, (
-            "Recording must be loaded before rendering the scene"
-        )
+        if recording is None:
+            painter.drawText(100, 100, "No scene data available")
+            return
 
         width = recording.scene.width
         height = recording.scene.height
-        assert width is not None, "Scene width must be available before rendering"
-        assert height is not None, "Scene height must be available before rendering"
+        assert width is not None, "Scene width must be available for rendering"
+        assert height is not None, "Scene height must be available for rendering"
 
         if self.is_time_gray(time_in_recording):
             painter.fillRect(
@@ -100,7 +100,7 @@ class SceneRendererPlugin(Plugin):
     @action_params(compact=True, icon=QIcon(str(asset_path("export.svg"))))
     def export_raw_scene_video(
         self, destination: Path = Path()
-    ) -> BackgroundJob | T.Generator[ProgressUpdate, None, None] | None:
+    ) -> BackgroundJob | T.Generator[ProgressUpdate, None, None]:
         app = neon_player.instance()
 
         if not app.headless:
@@ -116,14 +116,8 @@ class SceneRendererPlugin(Plugin):
     def bg_export(
         self, destination: Path = Path()
     ) -> T.Generator[ProgressUpdate, None, None]:
-        recording = self.recording
-        assert recording is not None, (
-            "Recording must be loaded before exporting scene video"
-        )
+        recording = self.require_recording()
         export_window = self.app.get_export_window()
-        assert export_window is not None, (
-            "Export window must be available before exporting scene video"
-        )
         yield from bg_export_video(
             recording=recording,
             export_window=export_window,
