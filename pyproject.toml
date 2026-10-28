@@ -24,11 +24,11 @@ dependencies = [
     "opencv-python>=4.11.0.86",
     "packaging>=26.1",
     "pandas>=2.2.3",
+    "protobuf<6",
     "pupil-apriltags>=1.0.4.post11",
     "pupil-labs-marker-mapper>=1.0.0",
     "pupil-labs-neon-recording==2.1.6",
     "pupil-labs-video>=1.0.13",
-    "protobuf<6",
     "pyobjc-framework-Cocoa; sys_platform == 'darwin'",
     "pyqtgraph>=0.13.7",
     "pyside6>=6.10.2",
@@ -101,7 +101,6 @@ branch = true
 source = ["pupil_labs"]
 
 [tool.deptry]
-# Installed separately by the plugin loader using their PEP 723 metadata.
 extend_exclude = ["examples/plugins/"]
 
 [tool.deptry.package_module_name_map]

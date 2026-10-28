@@ -26,7 +26,6 @@ def instance(required: bool) -> "NeonPlayerApp | None": ...
 
 
 def instance(required: bool = True) -> "NeonPlayerApp | None":
-    # Defer the app import to avoid a circular import.
     from pupil_labs.neon_player.app import NeonPlayerApp  # noqa: PLC0415
 
     app = NeonPlayerApp.instance()
@@ -36,9 +35,9 @@ def instance(required: bool = True) -> "NeonPlayerApp | None":
     return app if isinstance(app, NeonPlayerApp) else None
 
 
-def action(func: T.Callable[..., T.Any]) -> T.Any:  # noqa: ANN401
+def action(func: T.Callable[..., object]) -> object:
     @functools.wraps(func)
-    def wrapper(*args: T.Any, **kwargs: T.Any) -> T.Any:  # noqa: ANN401
+    def wrapper(*args: object, **kwargs: object) -> object:
         return func(*args, **kwargs)
 
     return object_action(wrapper)

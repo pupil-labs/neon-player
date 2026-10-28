@@ -1,4 +1,3 @@
-# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 import json
 import logging
 import pickle
@@ -160,6 +159,7 @@ class SurfaceTrackingPlugin(Plugin):
         self._draw_names = True
         self._export_overlays = False
 
+        self.scene_size: tuple[int, int] = (0, 0)
         self.markers_by_frame: list[list[DetectedMarker]] = []
         self.surface_locations: dict[str, list[SurfaceLocation | None]] = {}
 
@@ -183,6 +183,7 @@ class SurfaceTrackingPlugin(Plugin):
             surface.cleanup_widgets()
 
         self._surfaces.clear()
+        self.scene_size = (0, 0)
 
     def _update_displays(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
@@ -234,10 +235,16 @@ class SurfaceTrackingPlugin(Plugin):
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         calibration = recording.calibration
-        assert calibration is not None, "Surface tracking requires camera calibration"
+        if calibration is None:
+            raise RuntimeError("Surface tracking requires camera calibration")
+
         width, height = recording.scene.width, recording.scene.height
-        assert width is not None, "Surface tracking requires scene width"
-        assert height is not None, "Surface tracking requires scene height"
+        if width is None or height is None:
+            raise RuntimeError(
+                "Surface tracking requires scene width and height to be known"
+            )
+        self.scene_size = (width, height)
+
         self.camera = Camera(
             width,
             height,
@@ -258,9 +265,6 @@ class SurfaceTrackingPlugin(Plugin):
         else:
             self.marker_detection_job = self.job_manager.run_background_action(
                 "Detect Markers", "SurfaceTrackingPlugin.bg_detect_markers"
-            )
-            assert self.marker_detection_job is not None, (
-                "Marker detection must start a background job"
             )
             self.marker_detection_job.finished.connect(self._load_marker_cache)
 
@@ -305,9 +309,6 @@ class SurfaceTrackingPlugin(Plugin):
             show_heatmap = surface.show_heatmap and surface.heatmap_alpha > 0.0
             if show_heatmap and surface._heatmap is not None:
                 export_window = self.app.get_export_window()
-                assert export_window is not None, (
-                    "Export window must be available before rendering a surface heatmap"
-                )
                 if export_window[0] <= time_in_recording <= export_window[1]:
                     scalar = np.array(
                         [
@@ -319,14 +320,6 @@ class SurfaceTrackingPlugin(Plugin):
                     )
 
                     heatmap_to_scene = location[1] @ scalar
-                    width, height = recording.scene.width, recording.scene.height
-                    assert width is not None, (
-                        "Scene width is required for surface heatmap rendering"
-                    )
-                    assert height is not None, (
-                        "Scene height is required for surface heatmap rendering"
-                    )
-                    scene_size = width, height
 
                     rgb_heatmap = cv2.applyColorMap(
                         surface._heatmap, surface.heatmap_color.value
@@ -335,7 +328,7 @@ class SurfaceTrackingPlugin(Plugin):
                     undistorted_heatmap = cv2.warpPerspective(
                         rgb_heatmap,
                         heatmap_to_scene,
-                        scene_size,
+                        self.scene_size,
                     )
                     undistorted_mask = cv2.warpPerspective(
                         255
@@ -344,7 +337,7 @@ class SurfaceTrackingPlugin(Plugin):
                             dtype="uint8",
                         ),
                         heatmap_to_scene,
-                        scene_size,
+                        self.scene_size,
                     )
 
                     # @TODO: use optimal matrix to have less edge truncation
@@ -378,7 +371,7 @@ class SurfaceTrackingPlugin(Plugin):
                 if surface.location is None:
                     return
                 anchors = perspective_transform(
-                    normalized_corners(),  # type: ignore[no-untyped-call]  # Marker Mapper omits this function's annotations.
+                    normalized_corners(),
                     surface.location[1],
                 )
 
@@ -561,7 +554,7 @@ class SurfaceTrackingPlugin(Plugin):
                 surface2image = defining_location[1]
 
                 # set surface size
-                image = utils.crop_image(  # type: ignore[no-untyped-call]  # Marker Mapper omits this function's annotations.
+                image = utils.crop_image(
                     np.zeros((1, 1, 3), np.uint8),
                     surface2image,
                     width=500,
@@ -594,7 +587,6 @@ class SurfaceTrackingPlugin(Plugin):
             return
 
         with surf_viz_path.open("rb") as f:
-            # Retain compatibility with existing pickle caches pending migration.
             visibilities = pickle.load(f)  # noqa: S301
 
         self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
@@ -611,7 +603,7 @@ class SurfaceTrackingPlugin(Plugin):
         with open(gaze_upon_file, "rb") as f:
             self.get_timeline().add_timeline_broken_bar(
                 f"Surface Gaze: {surface.name}",
-                pickle.load(f),  # noqa: S301  # Existing cache format pending migration.
+                pickle.load(f),  # noqa: S301
                 color="#73F7FF",
             )
 
@@ -636,9 +628,6 @@ class SurfaceTrackingPlugin(Plugin):
                 "SurfaceTrackingPlugin.bg_build_heatmap",
                 surface_uid,
             )
-            assert heatmap_job is not None, (
-                "Surface heatmap must start a background job"
-            )
             surface.add_bg_job(heatmap_job)
             heatmap_job.finished.connect(
                 lambda: self._load_surface_heatmap(surface_uid)
@@ -650,10 +639,7 @@ class SurfaceTrackingPlugin(Plugin):
         recording = self.require_recording()
         surface = self.get_surface(surface_uid)
 
-        export_window = self.app.get_export_window()
-        if export_window is None:
-            raise RuntimeError("Surface export requires an active export window")
-        start_time, stop_time = export_window
+        start_time, stop_time = self.app.get_export_window()
         start_mask = recording.scene.time >= start_time
         stop_mask = recording.scene.time <= stop_time
         scene_frames = recording.scene[start_mask & stop_mask]
@@ -681,7 +667,7 @@ class SurfaceTrackingPlugin(Plugin):
             if len(gazes) > 0:
                 frame_gazes = surface.apply_offset_and_map_gazes(gazes)
                 assert frame_gazes is not None, (
-                    "Mapped frame gazes are required to build a heatmap"
+                    "Gaze plugin is required to build a heatmap"
                 )
                 mapped_gazes = np.append(mapped_gazes, frame_gazes, axis=0)
 
@@ -904,7 +890,6 @@ class SurfaceTrackingPlugin(Plugin):
             "SurfaceTrackingPlugin.bg_detect_surface_locations",
             surface.uid,
         )
-        assert job is not None, "Surface location detection must start a background job"
         surface.add_bg_job(job)
         job.finished.connect(lambda: self._load_surface_locations_cache(surface.uid))
 
@@ -998,10 +983,7 @@ class SurfaceTrackingPlugin(Plugin):
         recording = self.require_recording()
         surface = self.get_surface(uid)
 
-        export_window = self.app.get_export_window()
-        if export_window is None:
-            raise RuntimeError("Surface export requires an active export window")
-        start_time, stop_time = export_window
+        start_time, stop_time = self.app.get_export_window()
         start_mask = recording.scene.time >= start_time
         stop_mask = recording.scene.time <= stop_time
         scene_frames = recording.scene[start_mask & stop_mask]
@@ -1061,9 +1043,7 @@ class SurfaceTrackingPlugin(Plugin):
         )
         dialog.exec()
 
-    def _import_surface(
-        self, surface_data: dict[str, T.Any], source_path: Path
-    ) -> None:
+    def _import_surface(self, surface_data: SurfaceData, source_path: Path) -> None:
         recording = self.require_recording()
         logger.info(
             f"Importing {surface_data['name']} ({surface_data['uid']}) "
@@ -1135,16 +1115,11 @@ class SurfaceTrackingPlugin(Plugin):
 
     def _get_gazes_in_export_window(self) -> GazeArray:
         recording = self.require_recording()
-        export_window = self.app.get_export_window()
-        if export_window is None:
-            raise RuntimeError("Surface export requires an active export window")
-        start_time, stop_time = export_window
+        start_time, stop_time = self.app.get_export_window()
         start_mask = recording.gaze.time >= start_time
         stop_mask = recording.gaze.time <= stop_time
 
-        gazes = recording.gaze[start_mask & stop_mask]
-        if not isinstance(gazes, GazeArray):
-            raise TypeError("Expected gaze samples for an export interval")
+        gazes = T.cast(GazeArray, recording.gaze[start_mask & stop_mask])
         return gazes
 
     def bg_export_surface_gazes(
@@ -1174,9 +1149,6 @@ class SurfaceTrackingPlugin(Plugin):
         recording = self.require_recording()
         surface = self.get_surface(surface_uid)
         export_window = self.app.get_export_window()
-        assert export_window is not None, (
-            "Surface position export requires an export window"
-        )
         positions = _prepare_surface_positions_export(
             recording,
             export_window,
@@ -1209,7 +1181,7 @@ def _prepare_surface_positions_export(
         raise ValueError("Surface positions require scene dimensions")
     timestamps = np.zeros(num_indices, dtype=np.int64)
     detected_markers = np.empty(num_indices, dtype=StringDType())
-    corner_coords = np.zeros((num_indices, normalized_corners().size), dtype=np.float64)  # type: ignore[no-untyped-call]  # Marker Mapper omits this function's annotations.
+    corner_coords = np.zeros((num_indices, normalized_corners().size), dtype=np.float64)
     for row_index, frame_index in enumerate(export_indices):
         frame_markers = markers_by_frame[frame_index]
         if not frame_markers:
@@ -1238,7 +1210,7 @@ def _prepare_surface_positions_export(
     # NOTE: the order of names below should always match the output of
     # `normalized_corners().flatten()`
     corner_names = ["tl x", "tl y", "tr x", "tr y", "br x", "br y", "bl x", "bl y"]
-    for name, coords in zip(corner_names, corner_coords.T, strict=False):
+    for name, coords in zip(corner_names, corner_coords.T, strict=True):
         positions[f"{name} [px]"] = coords
 
     positions_df = pd.DataFrame(positions)
@@ -1249,7 +1221,7 @@ def _prepare_surface_positions_export(
 def _get_position_for_export(
     location: SurfaceLocation, camera: Camera, scene_size: tuple[int, int]
 ) -> npt.NDArray[np.float64]:
-    corners = perspective_transform(normalized_corners(), location[1])  # type: ignore[no-untyped-call]  # Marker Mapper omits this function's annotations.
+    corners = perspective_transform(normalized_corners(), location[1])
     corners = camera.distort_points(corners)
 
     max_value = np.tile(np.atleast_2d(scene_size), (len(corners), 1))

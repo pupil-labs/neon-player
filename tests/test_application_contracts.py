@@ -10,7 +10,6 @@ from qt_property_widgets.utilities import create_action_object
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, action
 from pupil_labs.neon_player import app as app_module
-from pupil_labs.neon_player import job_manager as job_module
 from pupil_labs.neon_player.app import NeonPlayerApp
 from pupil_labs.neon_player.job_manager import JobManager
 from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
@@ -85,7 +84,8 @@ def test_no_recording_controls(
         qapp.get_export_window()
     with pytest.raises(AssertionError, match="Recording must be loaded"):
         qapp.set_export_window((123, 456))
-    assert JobManager().run_background_action("test", "Plugin.export") is None
+    with pytest.raises(RuntimeError, match="Not starting background job"):
+        JobManager().run_background_action("test", "Plugin.export")
 
 
 def test_unload_clears_recording_settings(
@@ -172,22 +172,3 @@ def test_load_switch_and_delayed_callbacks_after_unload(
     with pytest.raises(AssertionError, match="Recording settings must be loaded"):
         qapp.toggle_plugins_by_settings()
     assert qapp.recording_settings is None
-
-
-def test_recordingless_dependency_job_keeps_command_contract(
-    qapp: QApplication, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    server_class = Mock()
-    process = Mock()
-    monkeypatch.setattr(job_module, "QLocalServer", server_class)
-    monkeypatch.setattr(job_module.subprocess, "Popen", process)
-    monkeypatch.setattr(qapp, "args", SimpleNamespace(job=None))
-    monkeypatch.setattr(qapp, "recording", None)
-    monkeypatch.setattr(qapp, "save_settings", Mock())
-    job = JobManager().run_background_action(
-        "Install dependencies", "install_packages", "pkg"
-    )
-    assert job is not None
-    command = process.call_args.args[0]
-    assert command[3] == "None"
-    assert command[-2:] == ["install_packages", "pkg"]

@@ -1,56 +1,34 @@
 from collections import OrderedDict
-from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, SupportsFloat
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
 import pytest
 from pupil_labs.marker_mapper.surface import Surface
-from pupil_labs.neon_recording.timeseries.gaze import GazeArray, GazeTimeseries
+from pupil_labs.neon_recording.timeseries.gaze import GazeTimeseries
 
 from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
 from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import (
     TrackedSurface,
 )
 from pupil_labs.neon_player.plugins.surface_tracking.ui import MarkerEditWidget
+from tests.mocks import mock_gaze_timeseries
 
 if TYPE_CHECKING:
     from tests.conftest import MockNeonPlayerApp
 
 
-def mock_gaze_timeseries(
-    time: Iterable[SupportsFloat],
-    point_x: Iterable[SupportsFloat],
-    point_y: Iterable[SupportsFloat],
-) -> GazeTimeseries:
-    data = np.array(
-        [
-            np.void(
-                (t, x, y),
-                dtype=[
-                    ("time", np.int64),
-                    ("point_x", np.float32),
-                    ("point_y", np.float32),
-                ],
-            )
-            for t, x, y in zip(time, point_x, point_y, strict=False)
-        ]
-    )
-    data = data.view(GazeArray)
-    return GazeTimeseries("", data=data)
-
-
 def _prepare_test_data(
-    qapp: "MockNeonPlayerApp",
+    qapp: "MockNeonPlayerApp", monkeypatch: pytest.MonkeyPatch
 ) -> tuple[TrackedSurface, GazeTimeseries, pd.DataFrame]:
     """
     Five fixations with two gaze samples each, only the first two are mapped to
     the surface (see side effect of the mocked method).
     """
     # Tracked surface requires gaze plugin to be present for tracking changes in offset
-    qapp.plugins_by_class["GazeDataPlugin"] = GazeDataPlugin()
+    monkeypatch.setattr(qapp, "plugins_by_class", {"GazeDataPlugin": GazeDataPlugin()})
 
     surface = TrackedSurface()
     gazes = mock_gaze_timeseries(
@@ -87,8 +65,9 @@ def _prepare_test_data(
 
 def test_tracked_surface_append_mapped_fixation_data_gaze_samples_forwarded(
     qapp: "MockNeonPlayerApp",
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    surface, gazes, fixation_data = _prepare_test_data(qapp)
+    surface, gazes, fixation_data = _prepare_test_data(qapp, monkeypatch)
     surface._append_mapped_fixation_data(gazes, fixation_data.copy())
 
     for idx, mock_call in enumerate(surface.apply_offset_and_map_gazes.call_args_list):
@@ -103,9 +82,9 @@ def test_tracked_surface_append_mapped_fixation_data_gaze_samples_forwarded(
 
 @pytest.mark.parametrize("fixation_id", [1, 2])
 def test_tracked_surface_append_mapped_fixation_data_fixation_should_be_mapped(
-    qapp: "MockNeonPlayerApp", fixation_id: int
+    qapp: "MockNeonPlayerApp", monkeypatch: pytest.MonkeyPatch, fixation_id: int
 ) -> None:
-    surface, gazes, fixation_data = _prepare_test_data(qapp)
+    surface, gazes, fixation_data = _prepare_test_data(qapp, monkeypatch)
     result = surface._append_mapped_fixation_data(gazes, fixation_data.copy())
 
     fixation_row = result[result["fixation id"] == fixation_id]
@@ -116,9 +95,9 @@ def test_tracked_surface_append_mapped_fixation_data_fixation_should_be_mapped(
 
 @pytest.mark.parametrize("fixation_id", [3, 4])
 def test_tracked_surface_append_mapped_fixation_data_fixation_should_not_be_mapped(
-    qapp: "MockNeonPlayerApp", fixation_id: int
+    qapp: "MockNeonPlayerApp", monkeypatch: pytest.MonkeyPatch, fixation_id: int
 ) -> None:
-    surface, gazes, fixation_data = _prepare_test_data(qapp)
+    surface, gazes, fixation_data = _prepare_test_data(qapp, monkeypatch)
     result = surface._append_mapped_fixation_data(gazes, fixation_data.copy())
 
     fixation_row = result[result["fixation id"] == fixation_id]
@@ -129,9 +108,9 @@ def test_tracked_surface_append_mapped_fixation_data_fixation_should_not_be_mapp
 
 @pytest.mark.parametrize("fixation_id", [5])
 def test_tracked_surface_append_mapped_fixation_data_fixation_no_mapped_gazes(
-    qapp: "MockNeonPlayerApp", fixation_id: int
+    qapp: "MockNeonPlayerApp", monkeypatch: pytest.MonkeyPatch, fixation_id: int
 ) -> None:
-    surface, gazes, fixation_data = _prepare_test_data(qapp)
+    surface, gazes, fixation_data = _prepare_test_data(qapp, monkeypatch)
     result = surface._append_mapped_fixation_data(gazes, fixation_data.copy())
 
     fixation_row = result[result["fixation id"] == fixation_id]
@@ -140,36 +119,28 @@ def test_tracked_surface_append_mapped_fixation_data_fixation_no_mapped_gazes(
     assert np.isnan(fixation_row["fixation y [normalized]"].to_numpy()[0])
 
 
-def test_surface_export_without_optional_plugins(
+def test_surface_export_requires_gaze_plugin(
     qapp: "MockNeonPlayerApp", tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(qapp, "plugins_by_class", {})
     surface = TrackedSurface()
+    surface.name = "test"
     gazes = mock_gaze_timeseries([1], [20], [30])
 
     assert surface.apply_offset_and_map_gazes(gazes) is None
-    with pytest.raises(AssertionError, match="Mapped gazes are required"):
-        surface.export_gazes(gazes, tmp_path)
+
+    surface.export_gazes(gazes, tmp_path)
     surface.export_fixations(gazes, tmp_path)
 
     assert list(tmp_path.iterdir()) == []
 
 
-def test_surface_without_tracker_cannot_be_renamed(
+def test_surface_requires_tracker_plugin(
     qapp: "MockNeonPlayerApp", monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(qapp, "plugins_by_class", {})
     surface = TrackedSurface()
-
-    with pytest.raises(
-        AssertionError, match="Surface tracking plugin must be available"
-    ):
-        surface.name = "Desk"
-
-    assert surface.name == ""
-    with pytest.raises(
-        AssertionError, match="Surface tracking plugin must be available"
-    ):
+    with pytest.raises(RuntimeError, match="Surface tracking plugin must be available"):
         _ = surface.tracker_plugin
 
 

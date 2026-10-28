@@ -27,9 +27,9 @@ def mock_event_timeseries(events_dict: dict[str, list[int]]) -> EventArray:
 
 
 def mock_gaze_timeseries(
-    timestamps: Iterable[SupportsFloat],
-    xs: Iterable[SupportsFloat],
-    ys: Iterable[SupportsFloat],
+    time: Iterable[SupportsFloat],
+    point_x: Iterable[SupportsFloat],
+    point_y: Iterable[SupportsFloat],
 ) -> GazeArray:
     data = np.array(
         [
@@ -41,7 +41,7 @@ def mock_gaze_timeseries(
                     ("point_y", np.float64),
                 ],
             )
-            for ts, x, y in zip(timestamps, xs, ys, strict=False)
+            for ts, x, y in zip(time, point_x, point_y, strict=False)
         ]
     )
     data = data.view(GazeArray)

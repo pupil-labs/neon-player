@@ -174,11 +174,10 @@ class JobManager(QObject):
 
     def run_background_action(
         self, name: str, action_name: str, *args: object
-    ) -> BackgroundJob | None:
+    ) -> BackgroundJob:
         app = neon_player.instance()
         if app.headless:
-            logger.warning("Not starting background job in headless mode")
-            return None
+            raise RuntimeError("Not starting background job in headless mode")
 
         recording = app.recording
         app.save_settings(force=True)

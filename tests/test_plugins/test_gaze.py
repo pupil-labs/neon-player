@@ -129,7 +129,7 @@ def test_prepare_export_data_no_worn_data(
 ) -> None:
     timestamps = np.arange(5)
     mock_gaze = mock_gaze_timeseries(
-        timestamps=timestamps, xs=np.arange(5), ys=np.arange(5)
+        time=timestamps, point_x=np.arange(5), point_y=np.arange(5)
     )
     mock_scene = mock_scene_timeseries(timestamps)
     recording = mock_neon_recording(gaze=mock_gaze, scene=mock_scene)
@@ -143,7 +143,9 @@ def test_prepare_export_data_with_worn_data(
 ) -> None:
     # Simulate the case of mismatch between gaze and worn length
     timestamps = np.arange(5)
-    mock_gaze = mock_gaze_timeseries(timestamps, xs=np.arange(5), ys=np.arange(5))
+    mock_gaze = mock_gaze_timeseries(
+        timestamps, point_x=np.arange(5), point_y=np.arange(5)
+    )
     mock_worn = mock_worn_timeseries(timestamps[:-1], worn=[255, 255, 0, 255])
     mock_scene = mock_scene_timeseries(timestamps)
 
