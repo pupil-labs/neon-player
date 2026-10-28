@@ -17,7 +17,6 @@ from PySide6.QtGui import (
     QColor,
     QDesktopServices,
     QDragEnterEvent,
-    QDragLeaveEvent,
     QDropEvent,
     QIcon,
     QMouseEvent,
@@ -25,7 +24,6 @@ from PySide6.QtGui import (
     QPixmap,
     QWheelEvent,
 )
-from PySide6.QtUiTools import loadUiType
 from PySide6.QtWidgets import (
     QDialog,
     QDockWidget,
@@ -56,64 +54,12 @@ from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
+from pupil_labs.neon_player.ui.splash import SplashWidget
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
 
 logger = logging.getLogger(__name__)
-
-if typing.TYPE_CHECKING:
-    from pupil_labs.neon_player.ui.splash import Ui_Splash as Ui_Class
-
-    QtBaseClass = QWidget
-else:
-    try:
-        from pupil_labs.neon_player.ui.splash import Ui_Splash
-    except ModuleNotFoundError as exc:
-        if exc.name != "pupil_labs.neon_player.ui.splash":
-            raise
-        logger.warning("splash.ui is not compiled.")
-        Ui_Class, QtBaseClass = loadUiType(str(asset_path("splash.ui")))
-    else:
-        Ui_Class, QtBaseClass = Ui_Splash, QWidget
-
-
-class SplashWidget(Ui_Class, QtBaseClass):
-    def __init__(self) -> None:
-        super().__init__()
-        self.setupUi(self)
-        self.logo.setPixmap(QPixmap(asset_path("Primary-White-76px.png")))
-        self.recent_button.setIcon(QIcon(str(asset_path("recent.svg"))))
-        self.recent_button.setObjectName("RecentButton")
-        self.recent_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setAcceptDrops(True)
-
-    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
-        # Accept directories only
-        if event.mimeData().hasUrls():
-            urls = event.mimeData().urls()
-            if len(urls) == 1 and urls[0].isLocalFile() and urls[0].toLocalFile():
-                path = Path(urls[0].toLocalFile())
-                if path.is_dir():
-                    event.acceptProposedAction()
-                    self.dropbox.setStyleSheet("#dropbox { background: #141414 }")
-                    return
-
-        event.ignore()
-
-    def dragLeaveEvent(self, _event: QDragLeaveEvent) -> None:
-        self.dropbox.setStyleSheet("#dropbox { background: #080808 }")
-
-    def dropEvent(self, event: QDropEvent) -> None:
-        urls = event.mimeData().urls()
-        if urls and urls[0].isLocalFile():
-            path = Path(urls[0].toLocalFile())
-            if path.is_dir():
-                neon_player.instance().load(path)
-                event.acceptProposedAction()
-                return
-
-        event.ignore()
 
 
 class HoverRowTable(QTableWidget):
