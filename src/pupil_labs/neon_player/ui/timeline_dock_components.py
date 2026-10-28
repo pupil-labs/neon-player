@@ -1,4 +1,3 @@
-# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 import math
 
 import pyqtgraph as pg

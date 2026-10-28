@@ -29,7 +29,9 @@ class PluginInstallationDialog(QDialog):
         self.setLayout(layout)
 
         self.label = QLabel(
-            f"The <b>{plugin_req}</b> plugin file requires the following {len(dependencies_to_install)} package(s) to be installed. Additional dependencies may be installed as well."  # noqa: E501
+            f"The <b>{plugin_req}</b> plugin file requires the following "
+            f"{len(dependencies_to_install)} package(s) to be installed. "
+            "Additional dependencies may be installed as well."
         )
         self.label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
@@ -66,8 +68,5 @@ class PluginInstallationDialog(QDialog):
         self.button_box.setEnabled(False)
         self.job = neon_player.instance().job_manager.run_background_action(
             "Install dependencies", "install_packages", *self.dependencies_to_install
-        )
-        assert self.job is not None, (
-            "Dependency installation must start a background job"
         )
         self.job.finished.connect(self.close)
