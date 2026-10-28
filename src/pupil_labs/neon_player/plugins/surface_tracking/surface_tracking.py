@@ -371,7 +371,7 @@ class SurfaceTrackingPlugin(Plugin):
                 if surface.location is None:
                     return
                 anchors = perspective_transform(
-                    normalized_corners(),
+                    normalized_corners(),  # type: ignore[no-untyped-call]
                     surface.location[1],
                 )
 
@@ -554,7 +554,7 @@ class SurfaceTrackingPlugin(Plugin):
                 surface2image = defining_location[1]
 
                 # set surface size
-                image = utils.crop_image(
+                image = utils.crop_image(  # type: ignore[no-untyped-call]
                     np.zeros((1, 1, 3), np.uint8),
                     surface2image,
                     width=500,
@@ -1181,7 +1181,10 @@ def _prepare_surface_positions_export(
         raise ValueError("Surface positions require scene dimensions")
     timestamps = np.zeros(num_indices, dtype=np.int64)
     detected_markers = np.empty(num_indices, dtype=StringDType())
-    corner_coords = np.zeros((num_indices, normalized_corners().size), dtype=np.float64)
+    corner_coords = np.zeros(
+        (num_indices, normalized_corners().size),
+        dtype=np.float64,  # type: ignore[no-untyped-call]
+    )
     for row_index, frame_index in enumerate(export_indices):
         frame_markers = markers_by_frame[frame_index]
         if not frame_markers:
@@ -1221,7 +1224,10 @@ def _prepare_surface_positions_export(
 def _get_position_for_export(
     location: SurfaceLocation, camera: Camera, scene_size: tuple[int, int]
 ) -> npt.NDArray[np.float64]:
-    corners = perspective_transform(normalized_corners(), location[1])
+    corners = perspective_transform(
+        normalized_corners(),
+        location[1],  # type: ignore[no-untyped-call]
+    )
     corners = camera.distort_points(corners)
 
     max_value = np.tile(np.atleast_2d(scene_size), (len(corners), 1))
