@@ -87,7 +87,10 @@ class BackgroundJob(QObject):
 
     def _on_socket_disconnected(self) -> None:
         socket = self.socket
-        assert socket is not None, "Job socket must exist when handling disconnection"
+        if not socket:
+            logger.debug("Job socket did not exist when handling disconnection")
+            return
+
         err = socket.error()
         if err not in (None, QLocalSocket.LocalSocketError.PeerClosedError):
             logger.warning(

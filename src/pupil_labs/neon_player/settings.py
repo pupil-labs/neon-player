@@ -167,9 +167,11 @@ def load_recording_settings(
             data: object = json.loads(settings_path.read_text())
             if not isinstance(data, dict):
                 raise TypeError("Recording settings must be a JSON object")
+
             loaded: object = RecordingSettings.from_dict(data)
             if not isinstance(loaded, RecordingSettings):
                 raise TypeError("Unexpected recording settings class")
+
             settings = loaded
         except Exception:
             logger.exception("Failed to load settings")

@@ -32,7 +32,6 @@ class IPCLogger(logging.Handler):
 
         if not self._connect_to_log_socket():
             self._start_server()
-
         else:
             self.log_stream = QDataStream(self.log_socket)
             logging.getLogger().addHandler(self)

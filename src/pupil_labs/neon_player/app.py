@@ -1,4 +1,3 @@
-# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 import argparse
 import importlib.util
 import json
@@ -12,7 +11,7 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import numpy as np
-from pandas.errors import ChainedAssignmentError  # type: ignore[attr-defined]  # pandas stubs omit ChainedAssignmentError.
+from pandas.errors import ChainedAssignmentError  # type: ignore[attr-defined]
 from pupil_labs.neon_recording.sample import match_ts
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QAction, QIcon, QPainter
@@ -95,7 +94,7 @@ class NeonPlayerApp(QApplication):
         self.plugins_by_class: dict[str, Plugin] = {}
         self.plugins: list[Plugin] = []
         self.recording: nr.NeonRecording | None = None
-        self.playback_start_anchor: float = 0
+        self.playback_start_anchor: int = 0
         self.current_ts = 0
         self.playback_speed_options = [
             -4.0,
@@ -527,7 +526,9 @@ class NeonPlayerApp(QApplication):
             return
 
         now = time.time_ns()
-        elapsed_time = (self.current_ts - recording.start_time) / self.playback_speed
+        elapsed_time = round(
+            (self.current_ts - recording.start_time) / self.playback_speed
+        )
         self.playback_start_anchor = now - elapsed_time
 
     def set_playback_state(self, playing: bool) -> None:
@@ -599,9 +600,9 @@ class NeonPlayerApp(QApplication):
         tolerance: int | None = None,
     ) -> int:
         recording = self.recording
-        assert recording is not None, (
-            "Recording must be loaded before looking up a scene index"
-        )
+        if recording is None:
+            return -1
+
         if t < 0:
             t = self.current_ts
 
@@ -644,23 +645,21 @@ class NeonPlayerApp(QApplication):
 
     def get_export_window(self) -> tuple[int, int]:
         settings = self.recording_settings
-        assert self.recording is not None, (
-            "Recording must be loaded before getting the export window"
-        )
-        assert settings is not None, (
-            "Recording settings must be loaded before getting the export window"
-        )
+        if self.recording is None or settings is None:
+            raise RuntimeError(
+                "Recording and recording settings must be loaded before "
+                "getting the export window"
+            )
 
         return settings.export_window
 
     def set_export_window(self, export_window: tuple[int, int]) -> None:
         settings = self.recording_settings
-        assert self.recording is not None, (
-            "Recording must be loaded before setting the export window"
-        )
-        assert settings is not None, (
-            "Recording settings must be loaded before setting the export window"
-        )
+        if self.recording is None or settings is None:
+            raise RuntimeError(
+                "Recording and recording settings must be loaded before "
+                "setting the export window"
+            )
 
         if not isinstance(export_window, tuple) or len(export_window) != 2:
             raise ValueError(

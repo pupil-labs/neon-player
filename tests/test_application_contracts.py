@@ -78,11 +78,14 @@ def test_no_recording_controls(
         plugin.require_recording()
     with pytest.raises(AssertionError, match="Recording must be loaded"):
         qapp._reset_start_anchor()
-    with pytest.raises(AssertionError, match="Recording must be loaded"):
-        qapp.get_scene_idx_for_time(123)
-    with pytest.raises(AssertionError, match="Recording must be loaded"):
+    assert qapp.get_scene_idx_for_time(123) == -1
+    with pytest.raises(
+        RuntimeError, match="Recording and recording settings must be loaded"
+    ):
         qapp.get_export_window()
-    with pytest.raises(AssertionError, match="Recording must be loaded"):
+    with pytest.raises(
+        RuntimeError, match="Recording and recording settings must be loaded"
+    ):
         qapp.set_export_window((123, 456))
     with pytest.raises(RuntimeError, match="Not starting background job"):
         JobManager().run_background_action("test", "Plugin.export")
@@ -104,12 +107,14 @@ def test_unload_clears_recording_settings(
     recording.close.assert_called_once()
     assert qapp.recording is None
     assert qapp.recording_settings is None
-    with pytest.raises(AssertionError, match="Recording must be loaded"):
+    with pytest.raises(
+        RuntimeError, match="Recording and recording settings must be loaded"
+    ):
         qapp.get_export_window()
 
 
 @pytest.mark.parametrize("window", [(123, 456), (123, 123)])
-def test_export_window_preserves_timestamps(
+def test_app_set_export_window_preserves_timestamps(
     qapp: QApplication, monkeypatch: pytest.MonkeyPatch, window: tuple[int, int]
 ) -> None:
     settings = RecordingSettings()
@@ -120,8 +125,20 @@ def test_export_window_preserves_timestamps(
         qapp, "main_window", SimpleNamespace(timeline=timeline), raising=False
     )
     qapp.set_export_window(window)
+    assert qapp.recording_settings.export_window == window
     assert qapp.get_export_window() == window
     timeline.set_export_window.assert_called_once_with(window)
+
+
+def test_app_set_export_window_invalid(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window = (123, 456)
+    settings = RecordingSettings()
+    settings.export_window = window
+    monkeypatch.setattr(qapp, "recording", Mock())
+    monkeypatch.setattr(qapp, "recording_settings", settings)
+
     with pytest.raises(ValueError, match="cannot follow"):
         qapp.set_export_window((456, 123))
     assert qapp.get_export_window() == window
