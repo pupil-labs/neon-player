@@ -1,9 +1,12 @@
+import pytest
+
 from pupil_labs.neon_player.ui.timeline_dock_components import (
     TimelineHorizontalScrollBar,
 )
 
 
-def test_timeline_horizontal_scrollbar__hidden_for_full_recording_view(qapp):
+@pytest.mark.usefixtures("qapp")
+def test_timeline_horizontal_scrollbar__hidden_for_full_recording_view() -> None:
     scroll_bar = TimelineHorizontalScrollBar()
     scroll_bar.set_time_frame((100, 1100))
 
@@ -14,7 +17,8 @@ def test_timeline_horizontal_scrollbar__hidden_for_full_recording_view(qapp):
     assert scroll_bar.maximum() == 0
 
 
-def test_timeline_horizontal_scrollbar__tracks_view_and_scrolls_time_range(qapp):
+@pytest.mark.usefixtures("qapp")
+def test_timeline_horizontal_scrollbar__tracks_view_and_scrolls_time_range() -> None:
     scroll_bar = TimelineHorizontalScrollBar()
     scroll_bar.set_time_frame((100, 1100))
     changed_ranges = []

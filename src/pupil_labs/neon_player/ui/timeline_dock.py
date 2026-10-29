@@ -39,8 +39,8 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     TimeAxisItem,
     TimelineHorizontalScrollBar,
     TimelinePlotItem,
-    TimelineTableContainer,
     TimelineScrollArea,
+    TimelineTableContainer,
     TimestampLabel,
     TrimDurationMarker,
     TrimEndMarker,
@@ -276,12 +276,9 @@ class TimeLineDock(QWidget):
         self.timestamp_label.set_time(t - recording.start_time)
         self.playhead.set_time(t)
 
-    def on_timeline_view_range_changed(self, *_args: T.Any) -> None:
+    def on_timeline_view_range_changed(self, *_args: object) -> None:
         app = neon_player.instance()
         if app.recording is None:
-            return
-
-        if self.timestamps_plot is None:
             return
 
         self.horizontal_scroll_bar.set_view_range(
@@ -289,9 +286,6 @@ class TimeLineDock(QWidget):
         )
 
     def on_timeline_scroll(self, start: float, stop: float) -> None:
-        if self.timestamps_plot is None:
-            return
-
         self.timestamps_plot.setXRange(start, stop, padding=0)
 
     def show_context_menu(self, global_position: QPoint) -> None:
