@@ -238,7 +238,7 @@ class TimestampLabel(QLabel):
         self.setText(f"{hours:0>2,.0f}:{minutes:0>2.0f}:{seconds:0>6.3f}")
 
 
-class SmartSizePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not type this base class.
+class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not type this base class.
     def __init__(
         self, legend: FixedLegend, row_name: str, *args: object, **kwargs: object
     ) -> None:

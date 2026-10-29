@@ -37,8 +37,8 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     FixedLegend,
     PlayHead,
     ScrubbableViewBox,
-    SmartSizePlotItem,
     TimeAxisItem,
+    TimelinePlotItem,
     TimelineTableContainer,
     TimestampLabel,
     TrimDurationMarker,
@@ -84,7 +84,7 @@ class TimeLineDock(QWidget):
         super().__init__()
         app = neon_player.instance()
 
-        self.timeline_plots: dict[str, SmartSizePlotItem] = {}
+        self.timeline_plots: dict[str, TimelinePlotItem] = {}
         self.timeline_legends: dict[str, pg.LegendItem] = {}
         self.plot_colors = [
             QColor("#1f77b4"),
@@ -410,16 +410,16 @@ class TimeLineDock(QWidget):
     @T.overload
     def get_timeline_plot(
         self, timeline_row_name: str, create_if_missing: T.Literal[True]
-    ) -> SmartSizePlotItem: ...
+    ) -> TimelinePlotItem: ...
 
     @T.overload
     def get_timeline_plot(
         self, timeline_row_name: str, create_if_missing: bool = False
-    ) -> SmartSizePlotItem | None: ...
+    ) -> TimelinePlotItem | None: ...
 
     def get_timeline_plot(
         self, timeline_row_name: str, create_if_missing: bool = False
-    ) -> SmartSizePlotItem | None:
+    ) -> TimelinePlotItem | None:
         """Get or create a timeline plot (i.e., a row in the timeline).
 
         Args:
@@ -482,7 +482,7 @@ class TimeLineDock(QWidget):
             QSizePolicy.Policy.Ignored,
             QSizePolicy.Policy.Fixed,
         )
-        plot_item = SmartSizePlotItem(
+        plot_item = TimelinePlotItem(
             legend=legend,
             row_name=timeline_row_name,
             axisItems={"top": time_axis},
@@ -554,7 +554,7 @@ class TimeLineDock(QWidget):
         plot_name: str = "",
         color: QColor | None = None,
         **kwargs: T.Any,  # noqa: ANN401
-    ) -> SmartSizePlotItem | None:
+    ) -> TimelinePlotItem | None:
         """Add a new plot to the timeline.
 
         The newly created plot appears as one of the rows in the timeline.
@@ -672,7 +672,7 @@ class TimeLineDock(QWidget):
         | NDArray[np.integer[T.Any] | np.floating[T.Any]],
         plot_name: str = "",
         **kwargs: T.Any,  # noqa: ANN401
-    ) -> SmartSizePlotItem | None:
+    ) -> TimelinePlotItem | None:
         """Add a line graph to a timeline row.
 
         Args:
@@ -692,7 +692,7 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, T.SupportsFloat]]
         | NDArray[np.integer[T.Any] | np.floating[T.Any]],
         item_name: str = "",
-    ) -> SmartSizePlotItem | None:
+    ) -> TimelinePlotItem | None:
         """Add a scatter plot to a timeline row.
 
         Args:
@@ -720,7 +720,7 @@ class TimeLineDock(QWidget):
         | NDArray[np.integer[T.Any] | np.floating[T.Any]],
         item_name: str = "",
         color: str = "white",
-    ) -> SmartSizePlotItem | None:
+    ) -> TimelinePlotItem | None:
         """Add horizontal bars to show time ranges on the timeline.
 
         Args:
