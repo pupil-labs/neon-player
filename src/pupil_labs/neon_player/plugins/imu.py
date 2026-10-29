@@ -116,7 +116,7 @@ class IMUPlugin(neon_player.Plugin):
 
         export_file = destination / "imu.csv"
         self.imu_data[start_mask & stop_mask].to_csv(export_file, index=False)
-        logger.info(f"Wrote {export_file}")
+        logger.info(f"Exported IMU data to {export_file}")
 
     @property
     def orientation(self) -> bool:

@@ -216,7 +216,7 @@ class GazeDataPlugin(neon_player.Plugin):
         export_file = destination / "gaze.csv"
         gaze.to_csv(export_file, index=False)
 
-        logger.info(f"Wrote {export_file}")
+        logger.info(f"Exported gaze to {export_file}")
 
     @property
     @property_params(min=-1, max=1, step=0.01, decimals=3)

@@ -1,8 +1,6 @@
-# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 import json
 import logging
 from datetime import datetime
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
@@ -73,15 +71,8 @@ class ExportAllPlugin(neon_player.Plugin):
             with open(destination / "info.json", "w") as info_file:
                 json.dump(info_data, info_file, indent=4, sort_keys=True)
 
-            try:
-                app_version = version("pupil_labs.neon_player")
-            except PackageNotFoundError:
-                app_version = "?"
-
+            app_version = self.app.applicationVersion()
             export_window = self.app.get_export_window()
-            assert export_window is not None, (
-                "Export window must be available before exporting metadata"
-            )
             frame_indicies = [self.get_scene_idx_for_time(t) for t in export_window]
             rel_times_formatted = [
                 self.format_duration((t - recording.start_time) / 1e9)
@@ -105,13 +96,12 @@ class ExportAllPlugin(neon_player.Plugin):
                 for key, value in export_info.items():
                     out_file.write(f"{key},{value}\n")
 
-        if self.export_camera_calibrations:
+        if self.export_camera_calibrations and recording.calibration is not None:
             recording_calibration = recording.calibration
-            assert recording_calibration is not None, (
-                "Recording calibration must be available before exporting calibrations"
-            )
             calibration: dict[str, Any] = {}
-            for k, raw_value in recording_calibration.items():  # type: ignore[no-untyped-call]  # Neon Recording leaves Record.items untyped.
+
+            # TODO(type-checking): Neon Recording leaves Record.items untyped.
+            for k, raw_value in recording_calibration.items():  # type: ignore[no-untyped-call]
                 v = raw_value
                 if isinstance(v, np.ndarray):
                     v = v.tolist()

@@ -1,4 +1,3 @@
-# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 import logging
 import typing as T
 import uuid
@@ -149,8 +148,7 @@ class EventTypeListWidget(ValueListWidget):
             confirmed = plugin.user_confirm(
                 "Confirm event type deletion",
                 f"Deleting event type '{event_type.name}' will also delete its "
-                f"{len(events)}"
-                f" instance{suffix}. Do you want to proceed?",
+                f"{len(events)} instance{suffix}. Do you want to proceed?",
             )
             if not confirmed:
                 return
@@ -216,11 +214,8 @@ def _load_events_from_cache(
             raise TypeError(
                 "Cached events must map event identifiers to timestamp lists"
             )
-        validated_timestamps = []
-        for timestamp in timestamps:
-            if not isinstance(timestamp, int):
-                raise TypeError("Cached event timestamps must be integers")
-            validated_timestamps.append(timestamp)
+
+        validated_timestamps = [int(timestamp) for timestamp in timestamps]
         events[uid] = validated_timestamps
         if uid in event_type_cache:
             continue
@@ -299,15 +294,13 @@ class EventsPlugin(neon_player.Plugin):
 
         try:
             cached_events = self.load_cached_json("events.json")
+            if isinstance(cached_events, dict):
+                event_types, events = _load_events_from_cache(
+                    cached_events, list(self._event_types_by_name.values())
+                )
+                return event_types, events, "cache"
         except Exception:
             logger.exception("Failed to load events json")
-            cached_events = None
-
-        if isinstance(cached_events, dict):
-            event_types, events = _load_events_from_cache(
-                cached_events, list(self._event_types_by_name.values())
-            )
-            return event_types, events, "cache"
 
         event_types, events = _load_events_from_recording(
             recording, self.global_properties.global_event_types
@@ -541,9 +534,6 @@ class EventsPlugin(neon_player.Plugin):
             return
 
         current_export_window = self.app.get_export_window()
-        assert current_export_window is not None, (
-            "Export window must be available before setting an event boundary"
-        )
         if left:
             new_window = (closest_event, current_export_window[1])
         else:
@@ -564,9 +554,10 @@ class EventsPlugin(neon_player.Plugin):
         y = np.zeros_like(x)
         plot_item.items[0].setData(x, y)
 
+    # TODO(type-checking): property_params omits supported widget classes.
     @property
     @property_params(
-        widget=EventTypeListWidget,  # type: ignore[arg-type]  # property_params omits supported widget classes.
+        widget=EventTypeListWidget,  # type: ignore[arg-type]
         item_params={"label_field": "name"},
         prevent_add=True,
         primary=True,
@@ -706,12 +697,9 @@ class EventsPlugin(neon_player.Plugin):
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
-        export_window = self.app.get_export_window()
         recording = self.recording
         assert recording is not None, "Recording must be loaded before exporting events"
-        assert export_window is not None, (
-            "Export window must be available before exporting events"
-        )
+        export_window = self.app.get_export_window()
         events_df = self._prepare_events_export(recording, export_window)
 
         destination_file = destination / "events.csv"

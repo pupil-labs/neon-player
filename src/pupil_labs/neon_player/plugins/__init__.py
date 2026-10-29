@@ -94,13 +94,18 @@ class Plugin(PersistentPropertiesMixin, QObject):
         )
 
     def add_dynamic_action(self, name: str, func: T.Callable[..., object]) -> None:
-        my_prop_form = self.app.main_window.settings_panel.plugin_class_expanders[
-            self.__class__.__name__
-        ].content_widget
+        expanders = self.app.main_window.settings_panel.plugin_class_expanders
+        class_name = self.__class__.__name__
+        if class_name not in expanders:
+            raise RuntimeError(
+                "Plugin settings form does not exist, cannot add the dynamic action"
+            )
+
+        my_prop_form = expanders[class_name].content_widget
         if isinstance(my_prop_form, PropertyForm):
             my_prop_form.add_action(name, func)
         else:
-            raise TypeError("Plugin settings form is unavailable")
+            raise RuntimeError("Plugin settings form is unavailable")  # noqa: TRY004
 
     @classmethod
     def __init_subclass__(cls: type["Plugin"], **kwargs: object) -> None:
@@ -185,9 +190,8 @@ class Plugin(PersistentPropertiesMixin, QObject):
             t = self.app.current_ts
 
         recording = self.recording
-        assert recording is not None, (
-            "Recording must be loaded before checking gray frames"
-        )
+        if recording is None:
+            return True
 
         if t < recording.scene.time[0]:
             return True

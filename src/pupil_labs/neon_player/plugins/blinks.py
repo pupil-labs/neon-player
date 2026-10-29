@@ -56,4 +56,4 @@ class BlinksPlugin(neon_player.Plugin):
 
         export_file = destination / "blinks.csv"
         export_data.to_csv(export_file, index=False)
-        logger.info(f"Wrote {export_file}")
+        logger.info(f"Exported blinks to {export_file}")

@@ -239,4 +239,4 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         stop_mask = self.eyestate_data["timestamp [ns]"] <= stop_time
 
         self.eyestate_data[start_mask & stop_mask].to_csv(export_file, index=False)
-        logger.info(f"Wrote {export_file}")
+        logger.info(f"Exported eye state data to {export_file}")

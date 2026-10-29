@@ -1,4 +1,3 @@
-# Dependency typing exceptions are documented in docs/typing-exceptions.md.
 import json
 import logging
 import shutil
@@ -34,9 +33,7 @@ from pupil_labs.neon_player.plugins.events import (
 logger = logging.getLogger(__name__)
 
 
-def first[XDFValue](
-    xdf_dict: Mapping[str, XDFValue | list[XDFValue]], key: str, default: XDFValue
-) -> XDFValue:
+def first(xdf_dict: Mapping[str, Any], key: str, default: Any) -> Any:  # noqa: ANN401
     """Pick the first value from a str-list mapping.
 
     Many fields in the parsed XDF data contain one value which is wrapped
