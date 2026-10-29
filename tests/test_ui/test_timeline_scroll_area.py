@@ -1,12 +1,10 @@
-from unittest.mock import MagicMock
-
 import pytest
-
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import QWidget
 
 from pupil_labs.neon_player.ui.timeline_dock_components import TimelineScrollArea
+from tests.conftest import MockNeonPlayerApp
 
 
 @pytest.mark.parametrize(
@@ -17,7 +15,9 @@ from pupil_labs.neon_player.ui.timeline_dock_components import TimelineScrollAre
         Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier,
     ],
 )
-def test_timeline_scroll_area__modified_wheel_event_is_ignored(qapp, modifiers):
+def test_timeline_scroll_area__modified_wheel_event_is_ignored(
+    qapp: MockNeonPlayerApp, modifiers: Qt.KeyboardModifier
+) -> None:
     scroll_area = TimelineScrollArea()
     content = QWidget()
     content.setMinimumSize(100, 600)
@@ -54,8 +54,8 @@ def test_timeline_scroll_area__modified_wheel_event_is_ignored(qapp, modifiers):
     ],
 )
 def test_timeline_scroll_area__unhandled_modifier_wheel_event_scrolls(
-    qapp, modifiers
-):
+    qapp: MockNeonPlayerApp, modifiers: Qt.KeyboardModifier
+) -> None:
     scroll_area = TimelineScrollArea()
     content = QWidget()
     content.setMinimumSize(100, 600)

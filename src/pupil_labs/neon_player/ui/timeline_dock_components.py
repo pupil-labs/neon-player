@@ -26,10 +26,9 @@ class TimelineScrollArea(QScrollArea):
     def wheelEvent(self, event: QWheelEvent) -> None:
         # NOTE: pass pyqtgraph's zoom interactions (Shift+Scroll, Cmd/Ctrl+Scroll)
         # through w/o scrolling through timeline plots when there are many of them
-        modifiers = (
-            Qt.KeyboardModifier.ShiftModifier
-            | Qt.KeyboardModifier.ControlModifier
-        )
+        shift_modifier = Qt.KeyboardModifier.ShiftModifier
+        control_modifier = Qt.KeyboardModifier.ControlModifier
+        modifiers = shift_modifier | control_modifier
         if event.modifiers() & modifiers:
             event.ignore()
             return
