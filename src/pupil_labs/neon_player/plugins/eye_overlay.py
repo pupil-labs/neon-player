@@ -1,5 +1,6 @@
 from enum import Flag, auto
 
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QMouseEvent, QPainter
 from qt_property_widgets.utilities import property_params
@@ -39,6 +40,33 @@ class EyeOverlayPlugin(neon_player.Plugin):
         self.video_widget.mouse_moved.connect(self.on_mouse_moved)
         self.video_widget.mouse_pressed.connect(self.on_mouse_pressed)
 
+        self.scene_width: int = 0
+        self.scene_height: int = 0
+        self.eye_width: int = 0
+        self.eye_height: int = 0
+
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
+        scene = recording.scene
+        if scene.width is None or scene.height is None:
+            raise RuntimeError(
+                "Scene video dimensions are required for the eye overlay"
+            )
+
+        eye = recording.eye
+        if eye.width is None or eye.height is None:
+            raise RuntimeError("Eye video dimensions are required for the eye overlay")
+
+        self.scene_width = scene.width
+        self.scene_height = scene.height
+        self.eye_width = eye.width
+        self.eye_height = eye.height
+
+    def on_disabled(self) -> None:
+        self.scene_width = 0
+        self.scene_height = 0
+        self.eye_width = 0
+        self.eye_height = 0
+
     def on_mouse_pressed(self, event: QMouseEvent) -> None:
         self._drag_position = self.video_widget.map_point(event.pos())
         self.start_geometry = self.get_rect()
@@ -56,37 +84,18 @@ class EyeOverlayPlugin(neon_player.Plugin):
     def on_drag(self, event: QMouseEvent) -> None:
         recording = self.recording
         drag_position = self._drag_position
-        assert recording is not None, (
-            "Recording must be loaded before dragging the eye overlay"
-        )
-        assert drag_position is not None, (
-            "Drag position must be set before dragging the eye overlay"
-        )
-        scene = recording.scene
-        eye = recording.eye
-        scene_width, scene_height = scene.width, scene.height
-        eye_width, eye_height = eye.width, eye.height
-        assert scene_width is not None, (
-            "Scene width must be available before dragging the eye overlay"
-        )
-        assert scene_height is not None, (
-            "Scene height must be available before dragging the eye overlay"
-        )
-        assert eye_width is not None, (
-            "Eye width must be available before dragging the eye overlay"
-        )
-        assert eye_height is not None, (
-            "Eye height must be available before dragging the eye overlay"
-        )
+        if recording is None or drag_position is None:
+            return
+
         mapped_pos = self.video_widget.map_point(event.pos())
         offset = mapped_pos - drag_position
 
         if self._mouse_mode == ModifyDirection.MOVE:
-            proposed_x = self.offset_x + offset.x() / scene_width
-            proposed_y = self.offset_y + offset.y() / scene_height
+            proposed_x = self.offset_x + offset.x() / self.scene_width
+            proposed_y = self.offset_y + offset.y() / self.scene_height
 
-            max_x = 1 - (self._scale * eye_width) / scene_width
-            max_y = 1 - (self._scale * eye_height) / scene_height
+            max_x = 1 - (self._scale * self.eye_width) / self.scene_width
+            max_y = 1 - (self._scale * self.eye_height) / self.scene_height
 
             proposed_x = max(0, min(max_x, proposed_x))
             proposed_y = max(0, min(max_y, proposed_y))
@@ -107,29 +116,29 @@ class EyeOverlayPlugin(neon_player.Plugin):
             elif self._mouse_mode & ModifyDirection.RIGHT:
                 aligns.append("left")
                 fix_y = True
-                rect.setRight(min(scene_width, rect.right() + offset.x()))
+                rect.setRight(min(self.scene_width, rect.right() + offset.x()))
 
             if self._mouse_mode & ModifyDirection.TOP:
                 aligns.append("bottom")
                 rect.setTop(max(0, rect.top() + offset.y()))
             elif self._mouse_mode & ModifyDirection.BOTTOM:
                 aligns.append("top")
-                rect.setBottom(min(scene_height, rect.bottom() + offset.y()))
+                rect.setBottom(min(self.scene_height, rect.bottom() + offset.y()))
 
             if fix_y:
-                max_scale = (scene_height - rect.top()) / eye_height
-                self.scale = min(max_scale, max(0.2, rect.width() / eye_width))
-                rect.setHeight(self.scale * eye_height)
+                max_scale = (self.scene_height - rect.top()) / self.eye_height
+                self.scale = min(max_scale, max(0.2, rect.width() / self.eye_width))
+                rect.setHeight(self.scale * self.eye_height)
             else:
-                max_scale = (scene_width - rect.left()) / eye_width
-                self.scale = min(max_scale, max(0.2, rect.height() / eye_height))
-                rect.setWidth(self.scale * eye_width)
+                max_scale = (self.scene_width - rect.left()) / self.eye_width
+                self.scale = min(max_scale, max(0.2, rect.height() / self.eye_height))
+                rect.setWidth(self.scale * self.eye_width)
 
             for a in aligns:
                 self.align(rect, a)
 
-            self.offset_x = rect.left() / scene_width
-            self.offset_y = rect.top() / scene_height
+            self.offset_x = rect.left() / self.scene_width
+            self.offset_y = rect.top() / self.scene_height
 
         self.changed.emit()
         self.video_widget.update()
@@ -184,16 +193,8 @@ class EyeOverlayPlugin(neon_player.Plugin):
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         recording = self.recording
-        assert recording is not None, (
-            "Recording must be loaded before rendering the eye overlay"
-        )
-        width, height = recording.scene.width, recording.scene.height
-        assert width is not None, (
-            "Scene width must be available before rendering the eye overlay"
-        )
-        assert height is not None, (
-            "Scene height must be available before rendering the eye overlay"
-        )
+        if recording is None:
+            return
 
         eye_frame = recording.eye.sample([time_in_recording])[0]
         if abs(time_in_recording - eye_frame.time) / 1e9 > 1 / 30:
@@ -220,8 +221,8 @@ class EyeOverlayPlugin(neon_player.Plugin):
 
         painter.drawImage(
             QPointF(
-                self._offset_x * width,
-                self._offset_y * height,
+                self._offset_x * self.scene_width,
+                self._offset_y * self.scene_height,
             ),
             image,
         )
@@ -237,29 +238,11 @@ class EyeOverlayPlugin(neon_player.Plugin):
         painter.setOpacity(1.0)
 
     def get_rect(self) -> QRectF:
-        recording = self.recording
-        assert recording is not None, (
-            "Recording must be loaded before getting the eye overlay rectangle"
-        )
-        width, height = recording.scene.width, recording.scene.height
-        eye_width, eye_height = recording.eye.width, recording.eye.height
-        assert width is not None, (
-            "Scene width must be available before getting the eye overlay rectangle"
-        )
-        assert height is not None, (
-            "Scene height must be available before getting the eye overlay rectangle"
-        )
-        assert eye_width is not None, (
-            "Eye width must be available before getting the eye overlay rectangle"
-        )
-        assert eye_height is not None, (
-            "Eye height must be available before getting the eye overlay rectangle"
-        )
         return QRectF(
-            self._offset_x * width,
-            self._offset_y * height,
-            int(self._scale * eye_width),
-            int(self._scale * eye_height),
+            self._offset_x * self.scene_width,
+            self._offset_y * self.scene_height,
+            int(self._scale * self.eye_width),
+            int(self._scale * self.eye_height),
         )
 
     @property
