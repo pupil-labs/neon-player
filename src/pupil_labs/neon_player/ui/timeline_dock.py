@@ -916,12 +916,12 @@ class TimeLineDock(QWidget):
         plot_existed = timeline_row_name in self.timeline_plots
         plot_item = self.add_timeline_plot(timeline_row_name, data, plot_name, tooltip=tooltip, **kwargs)
         if plot_item is None:
-            return
+            return None
 
         # Show y-axis limits by default for line plots
         if show_y_limit_labels is None and not plot_existed:
             show_y_limit_labels = True
-        plot_item.set_y_limit_labels(show_y_limit_labels, units)
+        plot_item.configure_y_limit_labels(show_y_limit_labels, units)
 
         return plot_item
 
