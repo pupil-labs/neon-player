@@ -100,7 +100,7 @@ branch = true
 source = ["pupil_labs"]
 
 [tool.deptry]
-extend_exclude = ["examples/plugins/"]
+extend_exclude = ["examples/plugins/", "\\.scratch/"]
 
 [tool.deptry.package_module_name_map]
 nuitka = ["nuitka"]

@@ -715,9 +715,10 @@ class _OpticFlowTracker:
             while frontier and frontier[0][0] == previous:
                 indices.append(heappop(frontier)[1])
             current = direction * previous + direction
-            frame_index, next_points = self._track_pair(
-                direction * previous, current, points[indices]
-            )
+            _, previous_img = self._frame(direction * previous)
+            frame_index, current_img = self._frame(current)
+            next_points = calc_optic_flow(previous_img, current_img, points[indices])
+            del previous_img, current_img
             offsets = reference_points[indices] - next_points
             points[indices] = next_points
             for index, offset in zip(indices, offsets, strict=True):
@@ -732,13 +733,6 @@ class _OpticFlowTracker:
                 if current > plan.start if direction < 0 else current < plan.stop - 1:
                     heappush(frontier, (direction * current, index))
             yield len(indices)
-
-    def _track_pair(
-        self, previous: int, current: int, points: npt.NDArray[np.float32]
-    ) -> tuple[int, npt.NDArray[np.float32 | np.float64]]:
-        _, previous_image = self._frame(previous)
-        frame_index, current_image = self._frame(current)
-        return frame_index, calc_optic_flow(previous_image, current_image, points)
 
     def _frame(self, index: int) -> tuple[int, npt.NDArray[np.uint8]]:
         if index in self._gray_cache:

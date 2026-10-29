@@ -4,7 +4,6 @@ from collections.abc import Iterable, Sequence
 from multiprocessing import get_context
 from pathlib import Path
 from types import SimpleNamespace
-from typing import overload
 from unittest.mock import Mock, PropertyMock
 
 import cv2
@@ -30,16 +29,11 @@ class _SceneFrame:
         return self._gray
 
 
-class _SceneFrames(Sequence[_SceneFrame]):
-    def __init__(
-        self,
-        frames: Iterable[_SceneFrame],
-        *,
-        accesses: list[int] | None = None,
-    ) -> None:
+class _SceneFrames:
+    def __init__(self, frames: Iterable[_SceneFrame]) -> None:
         self._frames = list(frames)
         self._time = np.array([frame.time for frame in self._frames], dtype=np.int64)
-        self.accesses = [] if accesses is None else accesses
+        self.accesses: list[int] = []
         self.timestamp_reads = 0
 
     @property
@@ -50,15 +44,7 @@ class _SceneFrames(Sequence[_SceneFrame]):
     def __len__(self) -> int:
         return len(self._frames)
 
-    @overload
-    def __getitem__(self, key: int) -> _SceneFrame: ...
-
-    @overload
-    def __getitem__(self, key: slice) -> "_SceneFrames": ...
-
-    def __getitem__(self, key: int | slice) -> "_SceneFrame | _SceneFrames":
-        if isinstance(key, slice):
-            return _SceneFrames(self._frames[key], accesses=self.accesses)
+    def __getitem__(self, key: int) -> _SceneFrame:
         frame = self._frames[key]
         self.accesses.append(frame.index)
         return frame
