@@ -327,6 +327,9 @@ class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not
         y_range = self.getViewBox().viewRange()[1]
         y_min, y_max = y_range
         y_span = abs(y_max - y_min)
+
+        # NOTE: the amount of displayed digits after the floating point is
+        # set to have precision around 1% of the currently displayed range
         decimals = max(0, math.ceil(-math.log10(y_span) + 2)) if y_span else 0
         unit_suffix = f" {self.y_units}" if self.y_units else ""
 
