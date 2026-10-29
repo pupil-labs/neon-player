@@ -3,12 +3,22 @@ import typing as T
 
 import numpy as np
 import pyqtgraph as pg
+from numpy.typing import NDArray
 from pyqtgraph.GraphicsScene.mouseEvents import (
     MouseClickEvent,
     MouseDragEvent,
 )
 from PySide6.QtCore import QPoint, QPointF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QCursor, QIcon, QKeyEvent
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QCursor,
+    QIcon,
+    QKeyEvent,
+    QMouseEvent,
+    QPen,
+    QResizeEvent,
+)
 from PySide6.QtWidgets import (
     QComboBox,
     QGraphicsSceneMouseEvent,
@@ -35,9 +45,12 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     TrimEndMarker,
 )
 from pupil_labs.neon_player.ui.timeline_dock_utils import (
-    get_clicked_data_point, get_clicked_plot_item
+    get_clicked_data_point,
+    get_clicked_plot_item,
 )
 from pupil_labs.neon_player.utilities import clone_menu
+
+logger = logging.getLogger(__name__)
 
 
 class TimeLineDock(QWidget):
@@ -64,13 +77,14 @@ class TimeLineDock(QWidget):
             timeline.enable_plot_sorting()
         ```
     """
+
     key_pressed = Signal(QKeyEvent)
 
     def __init__(self) -> None:
         super().__init__()
         app = neon_player.instance()
 
-        self.timeline_plots: dict[str, pg.PlotItem] = {}
+        self.timeline_plots: dict[str, SmartSizePlotItem] = {}
         self.timeline_legends: dict[str, pg.LegendItem] = {}
         self.plot_colors = [
             QColor("#1f77b4"),
@@ -84,7 +98,9 @@ class TimeLineDock(QWidget):
             QColor("#bcbd22"),
             QColor("#17becf"),
         ]
-        self.data_point_actions = {}
+        self.data_point_actions: dict[
+            str, dict[str, T.Callable[[tuple[int, T.SupportsFloat]], object]]
+        ] = {}
 
         self.main_layout = QVBoxLayout()
         self.setLayout(self.main_layout)
@@ -163,9 +179,7 @@ class TimeLineDock(QWidget):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
 
-        self.playhead = PlayHead(
-            self.timestamps_plot, parent=self.graphics_view
-        )
+        self.playhead = PlayHead(self.timestamps_plot, parent=self.graphics_view)
         self.playhead.hide()
 
         app.playback_state_changed.connect(self.on_playback_state_changed)
@@ -173,22 +187,23 @@ class TimeLineDock(QWidget):
         app.recording_loaded.connect(self.on_recording_loaded)
         app.recording_unloaded.connect(self.on_recording_unloaded)
 
-        self.dragging = None
+        self.dragging: TrimEndMarker | None = None
+        self.trim_markers: list[TrimEndMarker] = []
         self.plot_sorting_enabled = True
 
     def sizeHint(self) -> QSize:
         return QSize(100, 150)
 
-    def keyPressEvent(self, event: QKeyEvent):
+    def keyPressEvent(self, event: QKeyEvent) -> None:
         self.key_pressed.emit(event)
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event: QResizeEvent) -> None:
         w = self.scroll_area.width() - self.scroll_area.verticalScrollBar().width()
         self.graphics_view.setFixedWidth(w)
         self.playhead.refresh_geometry()
         return super().resizeEvent(event)
 
-    def on_recording_loaded(self, recording: nr.NeonRecording):
+    def on_recording_loaded(self, recording: nr.NeonRecording) -> None:
         app = neon_player.instance()
 
         self.playhead.show()
@@ -204,28 +219,34 @@ class TimeLineDock(QWidget):
 
         trim_plot = self.get_timeline_plot("Export window", create_if_missing=True)
         export_window = app.get_export_window()
+        assert export_window is not None, (
+            "Export window is required to initialize the timeline"
+        )
         self.trim_markers = [TrimEndMarker(ts, plot=trim_plot) for ts in export_window]
         self.duration_marker = TrimDurationMarker(*self.trim_markers)
         for tm in [*self.trim_markers, self.duration_marker]:
             trim_plot.addItem(tm)
 
-    def on_recording_unloaded(self):
+    def on_recording_unloaded(self) -> None:
         trim_plot = self.get_timeline_plot("Export window", create_if_missing=False)
         if trim_plot is not None:
             trim_plot.clear()
         self.playhead.hide()
+        self.trim_markers = []
+        self.dragging = None
 
-    def on_playback_state_changed(self, is_playing: bool):
+    def on_playback_state_changed(self, is_playing: bool) -> None:
         icon_name = "pause.svg" if is_playing else "play.svg"
         self.play_button.setIcon(QIcon(str(neon_player.asset_path(icon_name))))
 
-    def on_playback_speed_changed(self, speed: float):
+    def on_playback_speed_changed(self, speed: float) -> None:
         prefix = " " if speed > 0 else ""
         self.speed_control.setCurrentText(f"{prefix}{speed:.3g}x")
 
-    def on_position_changed(self, t: int):
+    def on_position_changed(self, t: int) -> None:
         app = neon_player.instance()
-        if app.recording is None:
+        recording = app.recording
+        if recording is None:
             return
 
         if app.is_playing:
@@ -237,53 +258,53 @@ class TimeLineDock(QWidget):
                 padding=0,
             )
 
-        self.timestamp_label.set_time(t - app.recording.start_time)
+        self.timestamp_label.set_time(t - recording.start_time)
         self.playhead.set_time(t)
 
     def show_context_menu(self, global_position: QPoint) -> None:
         menu = neon_player.instance().main_window.get_menu(
             "Timeline", auto_create=False
         )
-        context_menu = QMenu() if menu is None else clone_menu(menu)
+        context_menu = clone_menu(menu) if isinstance(menu, QMenu) else QMenu()
         context_menu.exec(global_position)
 
-    def on_chart_area_mouse_moved(self, pos: QPointF):
+    def on_chart_area_mouse_moved(self, pos: QPointF) -> None:
         data_pos = self.timestamps_plot.getViewBox().mapSceneToView(pos)
         for tm in self.trim_markers:
             tm.set_highlighted(self.dragging == tm or tm.nearby(data_pos))
 
-    def on_whitespace_mouse_moved(self, event) -> None:
-        if event.buttons() == Qt.LeftButton:
+    def on_whitespace_mouse_moved(self, event: QMouseEvent) -> None:
+        if event.buttons() == Qt.MouseButton.LeftButton:
             self.on_chart_area_clicked(event)
 
-    def on_whitespace_mouse_clicked(self, event) -> None:
-        if event.button() == Qt.LeftButton:
+    def on_whitespace_mouse_clicked(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
             self.on_chart_area_clicked(event)
 
-        elif event.button() == Qt.RightButton:
+        elif event.button() == Qt.MouseButton.RightButton:
             view_pos = self.graphics_view.mapFrom(
                 self.graphics_view_container, event.pos()
             )
             scene_pos = self.graphics_view.mapToScene(view_pos)
 
             class SyntheticEvent:
-                def __init__(self, scene_pos, screen_pos):
+                def __init__(self, scene_pos: QPointF, screen_pos: QPoint) -> None:
                     self._scene_pos = scene_pos
                     self._screen_pos = screen_pos
 
-                def scenePos(self):
+                def scenePos(self) -> QPointF:
                     return self._scene_pos
 
-                def screenPos(self):
+                def screenPos(self) -> QPoint:
                     return self._screen_pos
 
-                def globalPos(self):
+                def globalPos(self) -> QPoint:
                     return self._screen_pos
 
-                def isAccepted(self):
+                def isAccepted(self) -> bool:
                     return False
 
-                def accept(self):
+                def accept(self) -> None:
                     pass
 
             synth_event = SyntheticEvent(scene_pos, event.globalPos())
@@ -291,7 +312,8 @@ class TimeLineDock(QWidget):
 
     def on_trim_area_drag_start(self, event: MouseDragEvent) -> None:
         app = neon_player.instance()
-        if app.recording is None:
+        recording = app.recording
+        if recording is None:
             return
 
         data_pos = self.timestamps_plot.getViewBox().mapSceneToView(event.scenePos())
@@ -304,7 +326,8 @@ class TimeLineDock(QWidget):
 
     def on_trim_area_dragged(self, event: MouseDragEvent) -> None:
         app = neon_player.instance()
-        if app.recording is None:
+        recording = app.recording
+        if recording is None:
             return
 
         data_pos = self.timestamps_plot.getViewBox().mapSceneToView(event.scenePos())
@@ -313,10 +336,14 @@ class TimeLineDock(QWidget):
             return
 
         self.dragging.time = max(
-            min(data_pos.x(), app.recording.stop_time), app.recording.start_time
+            min(data_pos.x(), recording.stop_time), recording.start_time
         )
-        app.seek_to(self.dragging.time)
-        app.recording_settings.export_window = self.get_export_window()
+        app.seek_to(int(self.dragging.time))
+        settings = app.recording_settings
+        assert settings is not None, (
+            "Recording settings are required to drag the trim area"
+        )
+        settings.export_window = self.get_export_window()
 
     def on_trim_area_drag_end(self, event: MouseDragEvent) -> None:
         self.dragging = None
@@ -328,7 +355,8 @@ class TimeLineDock(QWidget):
         self, event: QGraphicsSceneMouseEvent | MouseClickEvent | MouseDragEvent
     ) -> None:
         app = neon_player.instance()
-        if app.recording is None:
+        recording = app.recording
+        if recording is None:
             return
 
         click_types = [QGraphicsSceneMouseEvent, MouseClickEvent]
@@ -340,7 +368,10 @@ class TimeLineDock(QWidget):
                 if tm.nearby(data_pos, 0.5):
                     return
 
-        if event.buttons() == Qt.LeftButton or event.button() == Qt.LeftButton:
+        if (
+            event.buttons() == Qt.MouseButton.LeftButton
+            or event.button() == Qt.MouseButton.LeftButton
+        ):
             first_plot_item = next(iter(self.timeline_plots.values()))
 
             if hasattr(event, "scenePos"):
@@ -352,13 +383,13 @@ class TimeLineDock(QWidget):
 
             time_ns = int(mouse_point.x())
 
-            time_ns = max(app.recording.start_time, time_ns)
-            time_ns = min(app.recording.stop_time, time_ns)
+            time_ns = max(recording.start_time, time_ns)
+            time_ns = min(recording.stop_time, time_ns)
             app.seek_to(time_ns)
 
             return
 
-        if event.button() == Qt.RightButton:
+        if event.button() == Qt.MouseButton.RightButton:
             self.check_for_data_item_click(event)
 
     def check_for_data_item_click(self, event: MouseClickEvent) -> None:
@@ -376,9 +407,19 @@ class TimeLineDock(QWidget):
         row_name = clicked_plot_item.row_name
         self.on_data_point_clicked(row_name, clicked_data_point)
 
+    @T.overload
+    def get_timeline_plot(
+        self, timeline_row_name: str, create_if_missing: T.Literal[True]
+    ) -> SmartSizePlotItem: ...
+
+    @T.overload
     def get_timeline_plot(
         self, timeline_row_name: str, create_if_missing: bool = False
-    ) -> pg.PlotItem | None:
+    ) -> SmartSizePlotItem | None: ...
+
+    def get_timeline_plot(
+        self, timeline_row_name: str, create_if_missing: bool = False
+    ) -> SmartSizePlotItem | None:
         """Get or create a timeline plot (i.e., a row in the timeline).
 
         Args:
@@ -396,7 +437,7 @@ class TimeLineDock(QWidget):
         if not create_if_missing:
             return None
 
-        logging.debug(f"Adding plot '{timeline_row_name}' to timeline")
+        logger.debug(f"Adding plot '{timeline_row_name}' to timeline")
 
         row = self.graphics_layout.nextRow()
         is_timestamps_row = timeline_row_name == "Export window"
@@ -409,8 +450,9 @@ class TimeLineDock(QWidget):
             )
 
         app = neon_player.instance()
-        if app.recording is not None:
-            time_axis.set_time_frame(app.recording.start_time, app.recording.stop_time)
+        recording = app.recording
+        if recording is not None:
+            time_axis.set_time_frame(recording.start_time, recording.stop_time)
 
         vb = ScrubbableViewBox()
         if is_timestamps_row:
@@ -444,7 +486,7 @@ class TimeLineDock(QWidget):
             legend=legend,
             row_name=timeline_row_name,
             axisItems={"top": time_axis},
-            viewBox=vb
+            viewBox=vb,
         )
 
         if is_timestamps_row:
@@ -467,11 +509,11 @@ class TimeLineDock(QWidget):
         plot_item.hideAxis("bottom")
         plot_item.showGrid(x=True, y=False, alpha=0.3)
 
-        if app.recording:
-            duration = app.recording.stop_time - app.recording.start_time
+        if recording is not None:
+            duration = recording.stop_time - recording.start_time
             plot_item.getViewBox().setLimits(
-                xMin=app.recording.start_time - duration * 0.05,
-                xMax=app.recording.stop_time + duration * 0.05,
+                xMin=recording.start_time - duration * 0.05,
+                xMax=recording.stop_time + duration * 0.05,
             )
 
         self.timeline_plots[timeline_row_name] = plot_item
@@ -482,7 +524,9 @@ class TimeLineDock(QWidget):
 
         return plot_item
 
-    def get_timeline_series(self, plot_name: str, series_name: str) -> pg.PlotDataItem | None:
+    def get_timeline_series(
+        self, plot_name: str, series_name: str
+    ) -> pg.PlotDataItem | None:
         """Access timeline data series by their name.
 
         Args:
@@ -505,11 +549,12 @@ class TimeLineDock(QWidget):
     def add_timeline_plot(
         self,
         timeline_row_name: str,
-        data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
+        data: list[tuple[int, T.SupportsFloat]]
+        | NDArray[np.integer[T.Any] | np.floating[T.Any]],
         plot_name: str = "",
         color: QColor | None = None,
-        **kwargs: T.Any,
-    ) -> pg.PlotItem | None:
+        **kwargs: T.Any,  # noqa: ANN401
+    ) -> SmartSizePlotItem | None:
         """Add a new plot to the timeline.
 
         The newly created plot appears as one of the rows in the timeline.
@@ -530,12 +575,11 @@ class TimeLineDock(QWidget):
             The timeline plot, or ``None`` if no recording is open.
         """
         app = neon_player.instance()
-        if app.recording is None:
+        recording = app.recording
+        if recording is None:
             return None
 
         plot_item = self.get_timeline_plot(timeline_row_name, True)
-        if plot_item is None:
-            return None
 
         if color is None:
             plot_index = len(plot_item.items)
@@ -624,10 +668,11 @@ class TimeLineDock(QWidget):
     def add_timeline_line(
         self,
         timeline_row_name: str,
-        data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
+        data: list[tuple[int, T.SupportsFloat]]
+        | NDArray[np.integer[T.Any] | np.floating[T.Any]],
         plot_name: str = "",
-        **kwargs: T.Any,
-    ) -> pg.PlotItem | None:
+        **kwargs: T.Any,  # noqa: ANN401
+    ) -> SmartSizePlotItem | None:
         """Add a line graph to a timeline row.
 
         Args:
@@ -642,8 +687,12 @@ class TimeLineDock(QWidget):
         return self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
 
     def add_timeline_scatter(
-        self, name: str, data: list[tuple[int, T.SupportsFloat]] | np.ndarray, item_name: str = ""
-    ) -> pg.PlotItem | None:
+        self,
+        name: str,
+        data: list[tuple[int, T.SupportsFloat]]
+        | NDArray[np.integer[T.Any] | np.floating[T.Any]],
+        item_name: str = "",
+    ) -> SmartSizePlotItem | None:
         """Add a scatter plot to a timeline row.
 
         Args:
@@ -666,10 +715,12 @@ class TimeLineDock(QWidget):
     def add_timeline_broken_bar(
         self,
         timeline_row_name: str,
-        data: list[tuple[int, int, T.SupportsFloat]] | list[tuple[int, int]] | np.ndarray,
+        data: list[tuple[int, int, T.SupportsFloat]]
+        | list[tuple[int, int]]
+        | NDArray[np.integer[T.Any] | np.floating[T.Any]],
         item_name: str = "",
         color: str = "white",
-    ) -> pg.PlotItem | None:
+    ) -> SmartSizePlotItem | None:
         """Add horizontal bars to show time ranges on the timeline.
 
         Args:
@@ -684,8 +735,6 @@ class TimeLineDock(QWidget):
             The timeline row, or ``None`` if no recording is open.
         """
         plot_widget = self.get_timeline_plot(timeline_row_name, True)
-        if plot_widget is None:
-            return None
 
         plot_widget.getViewBox().allow_y_panning = False
         # plot_widget.getViewBox().setMouseEnabled(y=False)
@@ -780,16 +829,17 @@ class TimeLineDock(QWidget):
         return was_enabled
 
     def register_data_point_action(
-        self, row_name: str, action_name: str, callback: T.Callable
+        self,
+        row_name: str,
+        action_name: str,
+        callback: T.Callable[[tuple[int, T.SupportsFloat]], object],
     ) -> None:
         if row_name not in self.data_point_actions:
             self.data_point_actions[row_name] = {}
 
         self.data_point_actions[row_name][action_name] = callback
 
-    def unregister_data_point_action(
-        self, row_name: str, action_name: str
-    ) -> None:
+    def unregister_data_point_action(self, row_name: str, action_name: str) -> None:
         if row_name not in self.data_point_actions:
             return
 
@@ -800,16 +850,16 @@ class TimeLineDock(QWidget):
 
     def reset_view(self) -> None:
         app = neon_player.instance()
-        if app.recording is None:
+        recording = app.recording
+        if recording is None:
             return
 
         for plot_item in self.timeline_plots.values():
             padding = 0.7 if plot_item.has_bar else None
             plot_item.getViewBox().autoRange(padding=padding)
 
-        assert self.timestamps_plot is not None
         self.timestamps_plot.getViewBox().setRange(
-            xRange=[app.recording.start_time, app.recording.stop_time]
+            xRange=[recording.start_time, recording.stop_time]
         )
 
         self.playhead.refresh_geometry()
@@ -825,8 +875,8 @@ class TimeLineDock(QWidget):
 
 
 def _resolve_bar_colors(
-    values: np.ndarray, color_arg: str = "white", count: int = 1
-) -> tuple[list, list]:
+    values: NDArray[np.float64], color_arg: str = "white", count: int = 1
+) -> tuple[list[QPen], list[QBrush]]:
     """Determine pen and brush colors for bars based on values and color arg."""
     if values.size == 0 or np.all(np.isnan(values)):
         c = pg.mkColor(color_arg)
@@ -842,7 +892,7 @@ def _resolve_bar_colors(
 
     try:
         cmap = pg.colormap.get(color_arg)
-    except Exception:
+    except FileNotFoundError:
         cmap = pg.colormap.get("viridis")
 
     colors = cmap.map(norm_values, mode="qcolor")

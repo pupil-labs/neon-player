@@ -13,6 +13,8 @@ from tqdm import tqdm
 
 from pupil_labs import neon_player
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class ProgressUpdate:
@@ -44,10 +46,10 @@ class BackgroundJob(QObject):
         self,
         name: str,
         job_id: int,
-        recording_path: Path,
+        recording_path: Path | None,
         action_name: str,
-        *args: T.Any,
-    ):
+        *args: object,
+    ) -> None:
         super().__init__()
 
         self.name: str = name
@@ -56,19 +58,20 @@ class BackgroundJob(QObject):
         """Last reported progress; ``-1`` until the first update."""
 
         self.job_id = job_id
-        self.socket = None
-        self._expected_payload_size = None
+        self.progress: float = -1
+        self.socket: QLocalSocket | None = None
+        self._expected_payload_size: int | None = None
 
         server_name = f"neon-player-job-{job_id}"
         self.server = QLocalServer()
         QLocalServer.removeServer(server_name)  # remove any dangling sockets
         if not self.server.listen(server_name):
-            logging.error(f"Could not start IPC server for job {name}")
+            logger.error(f"Could not start IPC server for job {name}")
             return
 
         self.server.newConnection.connect(self._handle_connection)
 
-        args = [
+        command_args = [
             str(recording_path),
             "--progress-ipc-name",
             server_name,
@@ -77,38 +80,45 @@ class BackgroundJob(QObject):
         ] + [str(arg) for arg in args]
 
         if neon_player.is_frozen():
-            cmd = [sys.executable, *args]
+            cmd = [sys.executable, *command_args]
         else:
-            cmd = [sys.executable, "-m", "pupil_labs.neon_player", *args]
+            cmd = [sys.executable, "-m", "pupil_labs.neon_player", *command_args]
 
-        logging.debug(f"Executing bg job {' '.join(cmd)}")
+        logger.debug(f"Executing bg job {' '.join(cmd)}")
 
         self.proc = subprocess.Popen(cmd)  # noqa: S603
 
-        logging.info(f"Background job started: {self.name}")
+        logger.info(f"Background job started: {self.name}")
 
-    def _handle_connection(self):
+    def _handle_connection(self) -> None:
         self.socket = self.server.nextPendingConnection()
         self.socket.readyRead.connect(self._read_progress_update)
         self.socket.errorOccurred.connect(self._on_socket_error)
         self.socket.disconnected.connect(self._on_socket_disconnected)
         self.server.close()
 
-    def _on_socket_error(self, err):
+    def _on_socket_error(self, err: QLocalSocket.LocalSocketError) -> None:
         if err == QLocalSocket.LocalSocketError.PeerClosedError:
             return
 
-        logging.error("Job %s failed with unexpectedly with error %s", self.name, err)
+        logger.error(f"Job {self.name} failed unexpectedly with error {err}")
         self.cancel()
 
-    def _on_socket_disconnected(self):
-        err = self.socket.error()
+    def _on_socket_disconnected(self) -> None:
+        socket = self.socket
+        if not socket:
+            logger.debug("Job socket did not exist when handling disconnection")
+            return
+
+        err = socket.error()
         if err not in (None, QLocalSocket.LocalSocketError.PeerClosedError):
-            logging.warning(f"Unexpected job socket disconnection {err} for job {self.name}")
+            logger.warning(
+                f"Unexpected job socket disconnection {err} for job {self.name}"
+            )
 
         self.finished.emit()
 
-    def _read_progress_update(self):
+    def _read_progress_update(self) -> None:
         if not self.socket:
             return
 
@@ -130,7 +140,7 @@ class BackgroundJob(QObject):
                 self.progress_changed.emit(obj.progress)
                 self.progress = obj.progress
             except Exception:
-                logging.exception("Could not unpickle progress update")
+                logger.exception("Could not unpickle progress update")
 
     def cancel(self) -> None:
         """Stop the background job.
@@ -149,9 +159,9 @@ class JobManager(QObject):
     job_finished = Signal(BackgroundJob)
     job_canceled = Signal(BackgroundJob)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.current_jobs = []
+        self.current_jobs: list[BackgroundJob] = []
         self.job_counter = 0
 
     def work_job(self, job: T.Generator[ProgressUpdate, None, None]) -> None:
@@ -161,11 +171,11 @@ class JobManager(QObject):
             socket = QLocalSocket()
             socket.connectToServer(ipc_name)
             if not socket.waitForConnected(1000):
-                logging.error(f"Could not connect to IPC server {ipc_name}")
+                logger.error(f"Could not connect to IPC server {ipc_name}")
                 return
 
             if not hasattr(job, "__iter__"):
-                logging.warning("A background job did not generate progress updates")
+                logger.warning("A background job did not generate progress updates")
             else:
                 try:
                     outstream = QDataStream(socket)
@@ -174,8 +184,8 @@ class JobManager(QObject):
                         outstream.writeUInt32(len(data))
                         outstream.writeRawData(data)
                         socket.flush()
-                except Exception as e:
-                    logging.exception(f"IPC communication failed in work_job: {e}")
+                except Exception:
+                    logger.exception("IPC communication failed in work_job")
                     return
 
             socket.flush()
@@ -190,7 +200,7 @@ class JobManager(QObject):
                     pbar.refresh()
 
     def run_background_action(
-        self, name: str, action_name: str, *args: T.Any
+        self, name: str, action_name: str, *args: object
     ) -> BackgroundJob:
         """Run an long-running job in background so that the UI stays responsive.
 
@@ -208,17 +218,13 @@ class JobManager(QObject):
         Returns:
             The running job.
         """
-        if neon_player.instance().headless:
-            logging.warning("Not starting background job in headless mode")
-            return
+        app = neon_player.instance()
+        if app.headless:
+            raise RuntimeError("Not starting background job in headless mode")
 
-        neon_player.instance().save_settings(force=True)
-
-        recording = neon_player.instance().recording
-        if recording is None:
-            rec_dir = None
-        else:
-            rec_dir = neon_player.instance().recording._rec_dir
+        recording = app.recording
+        app.save_settings(force=True)
+        rec_dir = Path(str(recording._rec_dir)) if recording is not None else None
 
         job = BackgroundJob(
             name,
@@ -237,12 +243,12 @@ class JobManager(QObject):
         self.job_started.emit(job)
         self.updated.emit()
 
-        logging.info(f"{job.name} started in the background")
+        logger.info(f"{job.name} started in the background")
 
         return job
 
     def on_job_finished(self, job: BackgroundJob) -> None:
-        logging.info(f"{job.name} finished")
+        logger.info(f"{job.name} finished")
         neon_player.instance().show_notification(
             "Job finished", f"Job '{job.name}' has completed"
         )

@@ -3,16 +3,18 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtGui import QColor, QIcon
 from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
-from pupil_labs.neon_recording import NeonRecording
+
+logger = logging.getLogger(__name__)
 
 
 class PlotProps:
-    def __init__(self):
+    def __init__(self) -> None:
         self._pupil_diameter_plots = dict.fromkeys(("Left", "Right"), True)
         self._eyeball_center_plots = {
             f"{side} {component}": True
@@ -31,7 +33,7 @@ class PlotProps:
         }
         self._eyelid_aperture_plots = dict.fromkeys(("Left", "Right"), True)
 
-    def on_plot_visibilities_changed(self, name, value):
+    def on_plot_visibilities_changed(self, name: str, value: dict[str, bool]) -> None:
         pass
 
     @property
@@ -92,7 +94,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         PlotProps.__init__(self)
         neon_player.Plugin.__init__(self)
 
-        self.eyestate_data = None
+        self.eyestate_data: pd.DataFrame | None = None
         self.units = {
             "Pupil diameter": "mm",
             "Eyeball center": "mm",
@@ -115,7 +117,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
             "bottom right": QColor("#9467bd"),
         }
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: dict[str, object]) -> None:
         if state != {}:
             neon_player.Plugin.__setstate__(self, state)
         else:
@@ -131,6 +133,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         except AssertionError:
             return
 
+        # TODO(type-checking): Neon Recording omits NumPy tuple indices.
         eyeball = recording.eyeball
         pupil = recording.pupil
         eyestate_data_dict = {
@@ -138,34 +141,35 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
             "timestamp [ns]": eyeball.time,
             "pupil diameter left [mm]": pupil.diameter_left,
             "pupil diameter right [mm]": pupil.diameter_right,
-            "eyeball center left x [mm]": eyeball.center_left[:, 0],
-            "eyeball center left y [mm]": eyeball.center_left[:, 1],
-            "eyeball center left z [mm]": eyeball.center_left[:, 2],
-            "eyeball center right x [mm]": eyeball.center_right[:, 0],
-            "eyeball center right y [mm]": eyeball.center_right[:, 1],
-            "eyeball center right z [mm]": eyeball.center_right[:, 2],
-            "optical axis left x": eyeball.optical_axis_left[:, 0],
-            "optical axis left y": eyeball.optical_axis_left[:, 1],
-            "optical axis left z": eyeball.optical_axis_left[:, 2],
-            "optical axis right x": eyeball.optical_axis_right[:, 0],
-            "optical axis right y": eyeball.optical_axis_right[:, 1],
-            "optical axis right z": eyeball.optical_axis_right[:, 2],
+            "eyeball center left x [mm]": eyeball.center_left[:, 0],  # type: ignore[call-overload]
+            "eyeball center left y [mm]": eyeball.center_left[:, 1],  # type: ignore[call-overload]
+            "eyeball center left z [mm]": eyeball.center_left[:, 2],  # type: ignore[call-overload]
+            "eyeball center right x [mm]": eyeball.center_right[:, 0],  # type: ignore[call-overload]
+            "eyeball center right y [mm]": eyeball.center_right[:, 1],  # type: ignore[call-overload]
+            "eyeball center right z [mm]": eyeball.center_right[:, 2],  # type: ignore[call-overload]
+            "optical axis left x": eyeball.optical_axis_left[:, 0],  # type: ignore[call-overload]
+            "optical axis left y": eyeball.optical_axis_left[:, 1],  # type: ignore[call-overload]
+            "optical axis left z": eyeball.optical_axis_left[:, 2],  # type: ignore[call-overload]
+            "optical axis right x": eyeball.optical_axis_right[:, 0],  # type: ignore[call-overload]
+            "optical axis right y": eyeball.optical_axis_right[:, 1],  # type: ignore[call-overload]
+            "optical axis right z": eyeball.optical_axis_right[:, 2],  # type: ignore[call-overload]
         }
 
+        # TODO(type-checking): Neon Recording omits NumPy tuple indices.
         try:
             eyelid = recording.eyelid
             eyelid_data = {
-                "eyelid angle top left [rad]": eyelid.angle_left[:, 0],
-                "eyelid angle bottom left [rad]": eyelid.angle_left[:, 1],
+                "eyelid angle top left [rad]": eyelid.angle_left[:, 0],  # type: ignore[call-overload]
+                "eyelid angle bottom left [rad]": eyelid.angle_left[:, 1],  # type: ignore[call-overload]
                 "eyelid aperture left [mm]": eyelid.aperture_left,
-                "eyelid angle top right [rad]": eyelid.angle_right[:, 0],
-                "eyelid angle bottom right [rad]": eyelid.angle_right[:, 1],
+                "eyelid angle top right [rad]": eyelid.angle_right[:, 0],  # type: ignore[call-overload]
+                "eyelid angle bottom right [rad]": eyelid.angle_right[:, 1],  # type: ignore[call-overload]
                 "eyelid aperture right [mm]": eyelid.aperture_right,
             }
             eyestate_data_dict = {**eyestate_data_dict, **eyelid_data}
 
         except KeyError:
-            logging.warning("Eyelid data not found in recording")
+            logger.warning("Eyelid data not found in recording")
 
         self.eyestate_data = pd.DataFrame(eyestate_data_dict)
 
@@ -183,7 +187,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         timeline.remove_timeline_plot("Eyestate - Eyelid angle")
         timeline.remove_timeline_plot("Eyestate - Eyelid aperture")
 
-    def on_plot_visibilities_changed(self, name, value):
+    def on_plot_visibilities_changed(self, name: str, value: dict[str, bool]) -> None:
         return self._update_plot_visibilities(name, value)
 
     def _update_plot_visibilities(
@@ -211,7 +215,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
                 try:
                     data = self.eyestate_data[["timestamp [ns]", key]].to_numpy()
                 except KeyError:
-                    logging.warning(f"{key} data not found for this recording")
+                    logger.warning(f"{key} data not found for this recording")
                     data = np.empty((0, 2))
 
                 timeline.add_timeline_line(
@@ -235,3 +239,4 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         stop_mask = self.eyestate_data["timestamp [ns]"] <= stop_time
 
         self.eyestate_data[start_mask & stop_mask].to_csv(export_file, index=False)
+        logger.info(f"Exported eye state data to {export_file}")

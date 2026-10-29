@@ -3,8 +3,11 @@ import typing
 import webbrowser
 from pathlib import Path
 
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import (
+    QEvent,
     QKeyCombination,
+    QPoint,
     Qt,
     QTimer,
     QUrl,
@@ -13,11 +16,14 @@ from PySide6.QtGui import (
     QAction,
     QColor,
     QDesktopServices,
+    QDragEnterEvent,
+    QDropEvent,
     QIcon,
+    QMouseEvent,
     QPalette,
     QPixmap,
+    QWheelEvent,
 )
-from PySide6.QtUiTools import loadUiType
 from PySide6.QtWidgets import (
     QDialog,
     QDockWidget,
@@ -48,78 +54,34 @@ from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
+from pupil_labs.neon_player.ui.splash import SplashWidget
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
-from pupil_labs.neon_recording import NeonRecording
 
-try:
-    from pupil_labs.neon_player.ui.splash import Ui_Splash
-
-    Ui_Class, QtBaseClass = Ui_Splash, QWidget
-except Exception:
-    logging.warning("splash.ui is not compiled.")
-    Ui_Class, QtBaseClass = loadUiType(str(asset_path("splash.ui")))
-
-
-class SplashWidget(Ui_Class, QtBaseClass):
-    def __init__(self) -> None:
-        super().__init__()
-        self.setupUi(self)
-        self.logo.setPixmap(QPixmap(asset_path("Primary-White-76px.png")))
-        self.recent_button.setIcon(QIcon(str(asset_path("recent.svg"))))
-        self.recent_button.setObjectName("RecentButton")
-        self.recent_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setAcceptDrops(True)
-
-    def dragEnterEvent(self, event) -> None:
-        # Accept directories only
-        if event.mimeData().hasUrls():
-            urls = event.mimeData().urls()
-            if len(urls) == 1 and urls[0].isLocalFile() and urls[0].toLocalFile():
-                path = Path(urls[0].toLocalFile())
-                if path.is_dir():
-                    event.acceptProposedAction()
-                    self.dropbox.setStyleSheet("#dropbox { background: #141414 }")
-                    return
-
-        event.ignore()
-
-    def dragLeaveEvent(self, event) -> None:
-        self.dropbox.setStyleSheet("#dropbox { background: #080808 }")
-
-    def dropEvent(self, event) -> None:
-        urls = event.mimeData().urls()
-        if urls and urls[0].isLocalFile():
-            path = Path(urls[0].toLocalFile())
-            if path.is_dir():
-                neon_player.instance().load(path)
-                event.acceptProposedAction()
-                return
-
-        event.ignore()
+logger = logging.getLogger(__name__)
 
 
 class HoverRowTable(QTableWidget):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
         self.setMouseTracking(True)
 
-    def update_hovered_row(self, cursor_position):
+    def update_hovered_row(self, cursor_position: QPoint) -> None:
         idx = self.indexAt(cursor_position)
         if idx.isValid():
             self.setCurrentCell(idx.row(), 0)
             self.setCursor(Qt.CursorShape.PointingHandCursor)
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
         self.update_hovered_row(event.pos())
         super().mouseMoveEvent(event)
 
-    def wheelEvent(self, event):
+    def wheelEvent(self, event: QWheelEvent) -> None:
         self.update_hovered_row(event.position().toPoint())
         super().wheelEvent(event)
 
-    def leaveEvent(self, event):
+    def leaveEvent(self, event: QEvent) -> None:
         self.clearSelection()
         self.setCurrentCell(-1, -1)
         self.setCursor(Qt.CursorShape.ArrowCursor)
@@ -144,7 +106,9 @@ class RecentWidget(QWidget):
         title_layout.addWidget(QLabel("<h2>Recently Opened</h2>"))
         title_layout.addStretch()
 
-        self.empty_history_label = QLabel("Recently opened recordings will appear here.")
+        self.empty_history_label = QLabel(
+            "Recently opened recordings will appear here."
+        )
         self.empty_history_label.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.empty_history_label.setSizePolicy(
             QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
@@ -158,13 +122,15 @@ class RecentWidget(QWidget):
         self.table.setWordWrap(False)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels([
-            "Recording name",
-            "Wearer",
-            "Last opened",
-            "Recorded",
-            "Path",
-        ])
+        self.table.setHorizontalHeaderLabels(
+            [
+                "Recording name",
+                "Wearer",
+                "Last opened",
+                "Recorded",
+                "Path",
+            ]
+        )
         self.table.cellClicked.connect(self.on_table_cell_clicked)
 
         horiz_header = self.table.horizontalHeader()
@@ -242,8 +208,9 @@ class RecentWidget(QWidget):
         self.table.setSortingEnabled(True)
         self.table.sortByColumn(2, Qt.SortOrder.DescendingOrder)
 
-    def on_table_cell_clicked(self, row: int, column: int) -> None:
+    def on_table_cell_clicked(self, row: int, _column: int) -> None:
         item = self.table.item(row, 0)
+        assert item is not None, "Clicked recent-recording row must contain an item"
         path_str = item.data(Qt.ItemDataRole.UserRole)
         if not path_str:
             return
@@ -494,12 +461,14 @@ class MainWindow(QMainWindow):
                 "&Playback/&Play\\Pause", "Space", self.on_play_action
             ),
             self.register_action(
-                "&Playback/Skip forward 5s", Qt.Key.Key_Right, lambda: app.seek_by(5e9)
+                "&Playback/Skip forward 5s",
+                Qt.Key.Key_Right,
+                lambda: app.seek_by(5_000_000_000),
             ),
             self.register_action(
                 "&Playback/Skip backwards 5s",
                 Qt.Key.Key_Left,
-                lambda: app.seek_by(-5e9),
+                lambda: app.seek_by(-5_000_000_000),
             ),
             self.register_action(
                 "&Playback/Next scene frame",
@@ -533,7 +502,7 @@ class MainWindow(QMainWindow):
         self.on_recording_closed()
         self.status_label.clicked.connect(self.console_window.show)
 
-    def reset_docks(self):
+    def reset_docks(self) -> None:
         docks_and_areas = {
             self.timeline_dock: Qt.DockWidgetArea.BottomDockWidgetArea,
             self.settings_dock: Qt.DockWidgetArea.RightDockWidgetArea,
@@ -544,7 +513,7 @@ class MainWindow(QMainWindow):
             dock.setFloating(False)
             dock.show()
 
-    def on_recording_opened(self):
+    def on_recording_opened(self) -> None:
         self.greeting_switcher.setCurrentIndex(1)
         self.timeline_dock.show()
         self.settings_dock.show()
@@ -552,7 +521,7 @@ class MainWindow(QMainWindow):
         self.statusBar().show()
         QTimer.singleShot(1, self.timeline.reset_view)
 
-    def on_recording_closed(self):
+    def on_recording_closed(self) -> None:
         self.greeting_switcher.setCurrentIndex(0)
         self.timeline_dock.hide()
         self.settings_dock.hide()
@@ -580,7 +549,7 @@ class MainWindow(QMainWindow):
                 job = job_manager.current_jobs[0]
                 if job.progress > 0:
                     self.job_progress_bar.setRange(0, 100)
-                    self.job_progress_bar.setValue(100 * job.progress)
+                    self.job_progress_bar.setValue(int(100 * job.progress))
                     self.job_progress_bar.setFormat(f"{job.name} - %p%")
                 else:
                     self.job_progress_bar.setRange(0, 0)
@@ -614,24 +583,26 @@ class MainWindow(QMainWindow):
 
     def on_show_recording_folder(self) -> None:
         app = neon_player.instance()
-        if app.recording is None:
+        recording = app.recording
+        if recording is None:
             return
 
-        url = QUrl.fromLocalFile(str(app.recording._rec_dir))
+        url = QUrl.fromLocalFile(str(recording._rec_dir))
         QDesktopServices.openUrl(url)
 
     def on_show_recording_cache(self) -> None:
         app = neon_player.instance()
-        if app.recording is None:
+        recording = app.recording
+        if recording is None:
             return
 
-        url = QUrl.fromLocalFile(str(app.recording._rec_dir / ".neon_player"))
+        url = QUrl.fromLocalFile(str(recording._rec_dir / ".neon_player"))
         QDesktopServices.openUrl(url)
 
-    def dragEnterEvent(self, event):
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         return self.splash_widget.dragEnterEvent(event)
 
-    def dropEvent(self, event):
+    def dropEvent(self, event: QDropEvent) -> None:
         return self.splash_widget.dropEvent(event)
 
     def on_play_action(self) -> None:
@@ -652,14 +623,27 @@ class MainWindow(QMainWindow):
             ),
         )
 
-    def get_menu(self, menu_path: str, auto_create: bool = True) -> QMenu | QMenuBar:
+    @typing.overload
+    def get_menu(
+        self, menu_path: str, auto_create: typing.Literal[True] = True
+    ) -> QMenu | QMenuBar: ...
+
+    @typing.overload
+    def get_menu(
+        self, menu_path: str, auto_create: bool
+    ) -> QMenu | QMenuBar | None: ...
+
+    def get_menu(
+        self, menu_path: str, auto_create: bool = True
+    ) -> QMenu | QMenuBar | None:
         menu: QMenu | QMenuBar = self.menuBar()
         parts = menu_path.split("/")
         for depth, part in enumerate(parts):
             for action in menu.actions():
                 text_matches = action.text().replace("&", "") == part.replace("&", "")
-                if action.menu() is not None and text_matches:
-                    menu = action.menu()  # type: ignore
+                submenu = action.menu()
+                if isinstance(submenu, QMenu) and text_matches:
+                    menu = submenu
                     break
             else:
                 if not auto_create:
@@ -701,7 +685,7 @@ class MainWindow(QMainWindow):
 
         raise ValueError(f"Action {action_path} not found")
 
-    def sort_action_menu(self, menu_path: str):
+    def sort_action_menu(self, menu_path: str) -> None:
         menu = self.get_menu(menu_path)
         sorted_actions = sorted(menu.actions(), key=lambda a: a.text().lower())
         for action in sorted_actions:
@@ -714,7 +698,7 @@ class MainWindow(QMainWindow):
         self,
         action_path: str,
         shortcut: QtShortcutType = None,
-        on_triggered: typing.Callable | None = None,
+        on_triggered: typing.Callable[[], object] | None = None,
     ) -> QAction:
         menu_path, action_name = action_path.rsplit("/", 1)
 
@@ -729,7 +713,7 @@ class MainWindow(QMainWindow):
 
         return action
 
-    def unregister_action(self, action_path: str):
+    def unregister_action(self, action_path: str) -> None:
         menu_path, action_name = action_path.rsplit("/", 1)
 
         menu = self.get_menu(menu_path)
@@ -748,7 +732,9 @@ class MainWindow(QMainWindow):
         dock = QDockWidget(title, self)
         dock.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
         dock.setWidget(widget)
-        dock.setFeatures(dock.features() & ~QDockWidget.DockWidgetClosable)
+        dock.setFeatures(
+            dock.features() & ~QDockWidget.DockWidgetFeature.DockWidgetClosable
+        )
         self.addDockWidget(area, dock)
 
         return dock
@@ -789,7 +775,8 @@ class GlobalSettingsDialog(QDialog):
             if cls.global_properties is not None:
                 plugin_props_form = PropertyForm(cls.global_properties)
                 SlotDebouncer.debounce(
-                    plugin_props_form.changed, neon_player.instance().save_settings
+                    plugin_props_form.changed,
+                    neon_player.instance().save_settings,
                 )
                 expander_list.add_expander(
                     f"Plugin: {cls.get_label()}", plugin_props_form
@@ -814,7 +801,7 @@ class RecordingSettingsDialog(QDialog):
 
 
 class StatusBarLogHandler(logging.Handler):
-    def __init__(self, label: QWidget) -> None:
+    def __init__(self, label: QLabel | QPushButton) -> None:
         super().__init__()
         self.label = label
 

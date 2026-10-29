@@ -94,25 +94,6 @@ jobs:
       - name: Run tests
         run: uv run python -m pytest tests --cov --cov-config=pyproject.toml --cov-report=html
 
-  type-check:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - name: Check out
-        uses: actions/checkout@v6
-
-      - name: Set up the environment
-        uses: ./.github/actions/setup-python-env
-        with:
-          python-version: "3.12"
-
-      - name: Check typing
-        run: uv run mypy
-
   docs:
     runs-on: ubuntu-latest
     steps:

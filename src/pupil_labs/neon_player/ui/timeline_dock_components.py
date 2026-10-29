@@ -2,12 +2,14 @@ import math
 
 import pyqtgraph as pg
 from pyqtgraph.GraphicsScene.mouseEvents import MouseDragEvent
-from PySide6.QtCore import QObject, QPoint, QPointF, QRect, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPolygon
+from PySide6.QtCore import QObject, QPoint, QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPolygon
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
+    QGraphicsItem,
     QGraphicsRectItem,
     QGraphicsSceneMouseEvent,
+    QGraphicsSceneWheelEvent,
     QLabel,
     QSizePolicy,
     QStyleOptionGraphicsItem,
@@ -18,13 +20,13 @@ from PySide6.QtWidgets import (
 from pupil_labs.neon_player.ui import GUIEventNotifier
 
 
-class ScrubbableViewBox(pg.ViewBox):
+class ScrubbableViewBox(pg.ViewBox):  # type: ignore[misc]  # pyqtgraph does not type this base class.
     scrub_start = Signal(MouseDragEvent)
     scrub_end = Signal(MouseDragEvent)
     scrubbed = Signal(object)
     zoomed = Signal()
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *_args: object, **_kwargs: object) -> None:
         super().__init__()
         self.allow_y_panning = True
 
@@ -37,12 +39,13 @@ class ScrubbableViewBox(pg.ViewBox):
             else:
                 self.scrubbed.emit(ev)
 
-        return super().mousePressEvent(ev)
+        super().mousePressEvent(ev)
 
-    def mouseDragEvent(self, ev: MouseDragEvent, axis=None) -> None:
+    def mouseDragEvent(self, ev: MouseDragEvent, axis: int | None = None) -> None:
         if ev.button() == Qt.MouseButton.MiddleButton:
             self.setMouseEnabled(x=True, y=self.allow_y_panning)
-            return super().mouseDragEvent(ev, axis)
+            super().mouseDragEvent(ev, axis)
+            return
 
         if self.state["mouseMode"] == pg.ViewBox.RectMode:
             super().mouseDragEvent(ev, axis)
@@ -60,7 +63,7 @@ class ScrubbableViewBox(pg.ViewBox):
 
         ev.accept()
 
-    def wheelEvent(self, ev, axis=None) -> None:
+    def wheelEvent(self, ev: QGraphicsSceneWheelEvent, axis: int | None = None) -> None:
         mouse_enabled = {
             "x": Qt.KeyboardModifier.ControlModifier in ev.modifiers(),
             "y": Qt.KeyboardModifier.ShiftModifier in ev.modifiers(),
@@ -75,16 +78,18 @@ class ScrubbableViewBox(pg.ViewBox):
         ev.ignore()
 
 
-class TimeAxisItem(pg.AxisItem):
-    def __init__(self, *args, **kwargs):
+class TimeAxisItem(pg.AxisItem):  # type: ignore[misc]  # pyqtgraph does not type this base class.
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, tickPen=pg.mkPen({"color": "#aaaaaa"}), **kwargs)
         self.recording_start_time_ns = 0
         self.recording_stop_time_ns = 0
 
-        self.interval = 1
+        self.interval = 1.0
         self.setStyle(autoReduceTextSpace=False)
 
-    def tickValues(self, minVal, maxVal, size):
+    def tickValues(
+        self, minVal: float, maxVal: float, size: float
+    ) -> list[tuple[float, list[float]]]:
         if self.recording_start_time_ns == 0 or self.recording_stop_time_ns == 0:
             return []
 
@@ -170,7 +175,9 @@ class TimeAxisItem(pg.AxisItem):
         # Return in the format expected by PyQtGraph: [(tick_scale, [ticks]), ...]
         return [(1.0, major_ticks), (0.5, minor_tick_list)]
 
-    def tickStrings(self, values, scale, spacing):
+    def tickStrings(
+        self, values: list[float], _scale: float, _spacing: float
+    ) -> list[str]:
         if self.recording_start_time_ns == 0:
             return ["" for _ in values]
 
@@ -197,20 +204,20 @@ class TimeAxisItem(pg.AxisItem):
 
         return strings
 
-    def set_time_frame(self, start: int, end: int):
+    def set_time_frame(self, start: int, end: int) -> None:
         self.recording_start_time_ns = start
         self.recording_stop_time_ns = end
 
 
-class FixedLegend(pg.LegendItem):
+class FixedLegend(pg.LegendItem):  # type: ignore[misc]  # pyqtgraph does not type this base class.
     def mouseDragEvent(self, event: MouseDragEvent) -> None:
         event.ignore()
 
-    def addItem(self, *args, **kwargs):
+    def addItem(self, *args: object, **kwargs: object) -> None:
         super().addItem(*args, **kwargs)
         self.setColumnCount(max(1, math.ceil(len(self.items) / 3)))
 
-    def removeItem(self, *args, **kwargs):
+    def removeItem(self, *args: object, **kwargs: object) -> None:
         super().removeItem(*args, **kwargs)
         self.setColumnCount(max(1, math.ceil(len(self.items) / 3)))
 
@@ -231,11 +238,13 @@ class TimestampLabel(QLabel):
         self.setText(f"{hours:0>2,.0f}:{minutes:0>2.0f}:{seconds:0>6.3f}")
 
 
-class SmartSizePlotItem(pg.PlotItem):
-    def __init__(self, legend, row_name, *args, **kwargs) -> None:
+class SmartSizePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not type this base class.
+    def __init__(
+        self, legend: FixedLegend, row_name: str, *args: object, **kwargs: object
+    ) -> None:
         super().__init__(*args, **kwargs)
 
-        self.setDownsampling(auto=True, mode='subsample')
+        self.setDownsampling(auto=True, mode="subsample")
         self.legend_handle = legend
         self.row_name = row_name
 
@@ -245,15 +254,15 @@ class SmartSizePlotItem(pg.PlotItem):
         self.preferred_height_2d = 150
         self.adjust_size()
 
-    def addItem(self, *args, **kwargs) -> None:
+    def addItem(self, *args: object, **kwargs: object) -> None:
         super().addItem(*args, **kwargs)
         self.adjust_size()
 
-    def removeItem(self, *args, **kwargs) -> None:
+    def removeItem(self, *args: object, **kwargs: object) -> None:
         super().removeItem(*args, **kwargs)
         self.adjust_size()
 
-    def adjust_size(self):
+    def adjust_size(self) -> None:
         height = self.preferred_height_2d if self.has_line else self.preferred_height_1d
 
         self.setFixedHeight(height)
@@ -292,8 +301,8 @@ class SmartSizePlotItem(pg.PlotItem):
 
 
 class PlotOverlay(QWidget):
-    def __init__(self, linked_plot: pg.PlotItem, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, linked_plot: pg.PlotItem, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
         self.linked_plot = linked_plot
 
         linked_plot.vb.sigResized.connect(self.refresh_geometry)
@@ -301,19 +310,23 @@ class PlotOverlay(QWidget):
     def get_x_pixel_for_x_value(self, x_value: float) -> float:
         vb = self.linked_plot.vb
         x_range = vb.viewRange()[0]
-        return (x_value - x_range[0]) / (x_range[1] - x_range[0]) * vb.width() - 1
+        return float(
+            (x_value - x_range[0]) / (x_range[1] - x_range[0]) * vb.width() - 1
+        )
 
     def refresh_geometry(self) -> None:
         vb = self.linked_plot.vb
         plot_rect = vb.mapToScene(vb.geometry()).boundingRect()
+        parent = self.parentWidget()
+        assert parent is not None, "Plot overlay must have a parent to refresh geometry"
         self.setGeometry(
-            plot_rect.x(), 20, plot_rect.width(), self.parent().height() - 20
+            int(plot_rect.x()), 20, int(plot_rect.width()), parent.height() - 20
         )
 
 
 class PlayHead(PlotOverlay):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, linked_plot: pg.PlotItem, parent: QWidget | None = None) -> None:
+        super().__init__(linked_plot, parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.color = QColor("#6D7BE0")
         self.t = 0
@@ -322,7 +335,7 @@ class PlayHead(PlotOverlay):
         self.t = t
         self.update()
 
-    def paintEvent(self, event) -> None:
+    def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setPen(self.color)
         painter.setBrush(self.color)
@@ -331,32 +344,38 @@ class PlayHead(PlotOverlay):
 
         if x < 0:
             painter.drawPolygon(
-                QPolygon([
-                    QPoint(0, 10),
-                    QPoint(10, 0),
-                    QPoint(10, 20),
-                ])
+                QPolygon(
+                    [
+                        QPoint(0, 10),
+                        QPoint(10, 0),
+                        QPoint(10, 20),
+                    ]
+                )
             )
 
         elif x > self.width():
             painter.drawPolygon(
-                QPolygon([
-                    QPoint(self.rect().right(), 10),
-                    QPoint(self.rect().right() - 10, 0),
-                    QPoint(self.rect().right() - 10, 20),
-                ])
+                QPolygon(
+                    [
+                        QPoint(self.rect().right(), 10),
+                        QPoint(self.rect().right() - 10, 0),
+                        QPoint(self.rect().right() - 10, 20),
+                    ]
+                )
             )
 
         else:
-            painter.fillRect(QRect(x - 1, 0, 3, self.height()), self.color)
+            painter.fillRect(QRectF(x - 1, 0, 3, self.height()), self.color)
 
         painter.end()
 
 
 class TrimEndMarker(QGraphicsEllipseItem):
-    def __init__(self, time, plot: pg.PlotItem, *args, **kwargs) -> None:
-        super().__init__(time, -1, 0, 2, *args, **kwargs)
-        self._time = time
+    def __init__(
+        self, time: int, plot: pg.PlotItem, parent: QGraphicsItem | None = None
+    ) -> None:
+        super().__init__(time, -1, 0, 2, parent)
+        self._time: float = time
         self._plot = plot
 
         class _Emitter(QObject):
@@ -374,11 +393,11 @@ class TrimEndMarker(QGraphicsEllipseItem):
         self.setBrush(self.normal_brush)
 
     @property
-    def time(self) -> int:
+    def time(self) -> float:
         return self._time
 
     @time.setter
-    def time(self, value: int) -> None:
+    def time(self, value: float) -> None:
         self._time = value
         self.time_changed.emit(value)
         self.update()
@@ -391,7 +410,12 @@ class TrimEndMarker(QGraphicsEllipseItem):
             self.setPen(self.normal_pen)
             self.setBrush(self.normal_brush)
 
-    def paint(self, painter: QPainter, option, widget: QWidget | None = None) -> None:
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionGraphicsItem,
+        widget: QWidget | None = None,
+    ) -> None:
         scale_x = painter.worldTransform().m11()
         scale_y = painter.worldTransform().m22()
         scaled_width = 2 * abs(scale_y) / scale_x
@@ -402,7 +426,7 @@ class TrimEndMarker(QGraphicsEllipseItem):
 
         super().paint(painter, option, widget)
 
-    def nearby(self, pos: QPoint | QPointF, buffer=0.25):
+    def nearby(self, pos: QPoint | QPointF, buffer: float = 0.25) -> bool:
         rect = self.rect()
         dx = rect.width() * buffer
         dy = rect.height() * buffer
@@ -411,8 +435,13 @@ class TrimEndMarker(QGraphicsEllipseItem):
 
 
 class TrimDurationMarker(QGraphicsRectItem):
-    def __init__(self, start_marker, end_marker, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        start_marker: TrimEndMarker,
+        end_marker: TrimEndMarker,
+        parent: QGraphicsItem | None = None,
+    ) -> None:
+        super().__init__(parent)
 
         self.setPen(pg.mkPen("#ccc", width=0))
         self.setBrush(pg.mkBrush("#ccc"))
@@ -435,8 +464,8 @@ class TrimDurationMarker(QGraphicsRectItem):
         self.update()
 
 
-class TimelineTableContainer(GUIEventNotifier, QWidget):
-    def __init__(self, table):
+class TimelineTableContainer(GUIEventNotifier):
+    def __init__(self, table: QWidget) -> None:
         super().__init__()
         self.setMouseTracking(True)
 

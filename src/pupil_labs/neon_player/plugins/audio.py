@@ -1,8 +1,11 @@
-import av
 import fractions
-import numpy as np
 import typing as T
 
+import av
+import numpy as np
+import numpy.typing as npt
+from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.video.reader import StreamNotFound
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
@@ -17,17 +20,24 @@ from scipy.io import wavfile
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import ProgressUpdate
-from pupil_labs.neon_recording import NeonRecording
-from pupil_labs.video.reader import StreamNotFound
 
 
 def _prepare_audio_frame(
-    audio_data: np.ndarray, format: str, time: float, stream: av.AudioStream
+    audio_data: (
+        npt.NDArray[np.uint8]
+        | npt.NDArray[np.int16]
+        | npt.NDArray[np.int32]
+        | npt.NDArray[np.float32]
+        | npt.NDArray[np.float64]
+    ),
+    audio_format: str,
+    time: float,
+    stream: av.AudioStream,
 ) -> av.AudioFrame:
     assert stream.time_base is not None
 
     audio_frame = av.AudioFrame.from_ndarray(
-        audio_data, format=format, layout=stream.layout.name
+        audio_data, format=audio_format, layout=stream.layout.name
     )
     audio_frame.sample_rate = stream.rate
     audio_frame.time_base = stream.time_base
@@ -53,7 +63,7 @@ class AudioPlugin(neon_player.Plugin):
         self.app.seeked.connect(self.on_user_seeked)
         self.app.speed_changed.connect(self.on_speed_changed)
 
-        self.cache_file = self.get_cache_path() / "audio.wav"
+        self.cache_file = self.require_cache_path() / "audio.wav"
 
         self.volume_button = VolumeButton()
         self.volume_button.setIconSize(QSize(32, 32))
@@ -73,20 +83,21 @@ class AudioPlugin(neon_player.Plugin):
             self.sync_position()
 
     def sync_position(self) -> None:
-        if not self.recording or not self.recording_has_audio:
+        recording = self.recording
+        if not recording or not self.recording_has_audio:
             self.has_audio_at_ts = False
             return
 
         position = self.app.current_ts
         try:
-            rel_time_ms = round((position - self.recording.audio.time[0]) / 1e6)
+            rel_time_ms = round((position - recording.audio.time[0]) / 1e6)
 
             # Delay playback if the audio has not yet started, but will
             # start eventually with the current playback speed
             self.has_audio_at_ts = rel_time_ms >= 0
             if not self.has_audio_at_ts and self.app.playback_speed > 0:
                 delay_ms = -rel_time_ms / self.app.playback_speed
-                QTimer.singleShot(delay_ms, self.sync_and_start_playback)
+                QTimer.singleShot(round(delay_ms), self.sync_and_start_playback)
                 self.player.setPosition(0)
                 return
 
@@ -94,7 +105,7 @@ class AudioPlugin(neon_player.Plugin):
         except StreamNotFound:
             pass
 
-    def on_speed_changed(self, speed: float) -> None:
+    def on_speed_changed(self, _speed: float) -> None:
         # NOTE: On MacOS, setting negative playback rates often leads to a bus error
         # and crashes the application. To prevent this, we stop playback instead of
         # setting a negative playback rate.
@@ -110,7 +121,7 @@ class AudioPlugin(neon_player.Plugin):
     def on_volume_changed(self, volume: float) -> None:
         self.audio_output.setVolume(volume)
 
-    def on_user_seeked(self, position: int) -> None:
+    def on_user_seeked(self, _position: int) -> None:
         self.sync_position()
 
     def on_playback_state_changed(self, is_playing: bool) -> None:
@@ -124,7 +135,7 @@ class AudioPlugin(neon_player.Plugin):
         if self.has_audio_at_ts and self.app.is_playing and self.app.playback_speed > 0:
             self.player.play()
 
-    def on_recording_loaded(self, recording: NeonRecording) -> None:
+    def on_recording_loaded(self, _recording: NeonRecording) -> None:
         self.recording_has_audio = False
         if not self.cache_file.exists():
             if self.app.headless:
@@ -141,6 +152,10 @@ class AudioPlugin(neon_player.Plugin):
             self.load_audio()
 
     def load_audio(self) -> None:
+        recording = self.recording
+        if recording is None:
+            return
+
         if not self.cache_file.exists():
             return
 
@@ -154,35 +169,41 @@ class AudioPlugin(neon_player.Plugin):
 
         # load the audio data into a numpy array
         _, audio_data = wavfile.read(str(self.cache_file))
-        timestamps = np.arange(len(audio_data)) / self.recording.audio.rate
+        timestamps = np.arange(len(audio_data)) / recording.audio.rate
         timestamps *= 1e9
-        timestamps += self.recording.scene.time[0]
+        timestamps += recording.scene.time[0]
 
         data = np.column_stack((timestamps, audio_data))
         timeline = self.get_timeline()
         timeline.add_timeline_line("Audio", data)
 
     def extract_audio(self) -> T.Generator[ProgressUpdate, None, None]:
+        recording = self.recording
+        if recording is None:
+            return
+
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
 
         container = av.open(str(self.cache_file), "w")
         try:
-            stream = container.add_stream("pcm_s16le", rate=self.recording.audio.rate)
+            stream = container.add_stream("pcm_s16le", rate=recording.audio.rate)
+            if not isinstance(stream, av.AudioStream):
+                raise TypeError("Audio extraction requires an audio stream")
         except StreamNotFound:
             yield ProgressUpdate(1.0)
             return
 
         # Setting these parameters once and reusing them below to ensure
         # consistency across frames that come from different mp4 files
-        stream.layout = self.recording.audio[0].av_frame.layout
+        stream.layout = recording.audio[0].av_frame.layout
         stream.time_base = fractions.Fraction(1, stream.rate)
 
-        start_time = self.recording.audio.time[0]
+        start_time = recording.audio.time[0]
         next_expected_frame_time = None
         frame_duration = 0
-        for frame in self.recording.audio:
+        for frame in recording.audio:
             raw_audio = frame.to_ndarray()
-            format = frame.av_frame.format
+            audio_format = frame.av_frame.format
 
             if next_expected_frame_time is not None:
                 # fill in gaps
@@ -193,7 +214,10 @@ class AudioPlugin(neon_player.Plugin):
 
                     silence_rel_time = (next_expected_frame_time - start_time) / 1e9
                     silence_frame = _prepare_audio_frame(
-                        silence.astype(np.float32), format, silence_rel_time, stream
+                        silence.astype(np.float32),
+                        audio_format,
+                        silence_rel_time,
+                        stream,
                     )
                     for packet in stream.encode(silence_frame):
                         container.mux(packet)
@@ -202,11 +226,11 @@ class AudioPlugin(neon_player.Plugin):
             next_expected_frame_time = frame.time + frame_duration * 1e9
 
             rel_time = (frame.time - start_time) / 1e9
-            frame_copy = _prepare_audio_frame(raw_audio, format, rel_time, stream)
+            frame_copy = _prepare_audio_frame(raw_audio, audio_format, rel_time, stream)
             for packet in stream.encode(frame_copy):
                 container.mux(packet)
 
-            yield ProgressUpdate(frame.idx / len(self.recording.audio))
+            yield ProgressUpdate(frame.idx / len(recording.audio))
 
         # Flush encoder
         for packet in stream.encode(None):
@@ -253,6 +277,6 @@ class VolumeButton(QPushButton):
         QTimer.singleShot(1, set_position)
 
     def on_slider_moved(self, value: int) -> None:
-        self.setIcon(QPixmap(neon_player.asset_path(f"volume-{value//25}.svg")))
+        self.setIcon(QPixmap(neon_player.asset_path(f"volume-{value // 25}.svg")))
         self._volume = value / 100
         self.volume_changed.emit(self._volume)

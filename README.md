@@ -40,6 +40,7 @@ from pupil_labs.neon_player import Plugin, action
 from PySide6.QtWidgets import QMessageBox
 from qt_property_widgets.utilities import property_params
 
+
 class MyPlugin(Plugin):
     def __init__(self):
         super().__init__()
@@ -83,11 +84,9 @@ class MyPlugin(Plugin):
             "Slow Job Test", "MyPlugin.bg_task", count_to
         )
 
-        job.finished.connect(lambda: QMessageBox.information(
-            None,
-            "Attention",
-            "Slow job finished!"
-        ))
+        job.finished.connect(
+            lambda: QMessageBox.information(None, "Attention", "Slow job finished!")
+        )
 ```
 
 # Scripting
@@ -96,6 +95,7 @@ Every function defined in a plugin can be scripted from the command line without
 
 ```python
 from pupil_labs.neon_player import Plugin
+
 
 class MyPlugin(Plugin):
     def my_function(self, arg1: int, arg2: str) -> None:

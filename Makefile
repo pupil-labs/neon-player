@@ -1,19 +1,39 @@
+PRETTIER_VERSION := 3.0.3
+PRETTIER := npm exec --yes --package=prettier@$(PRETTIER_VERSION) -- prettier
+
 .PHONY: install
 install: ## Install the virtual environment and install the pre-commit hooks
 	@echo "🚀 Creating virtual environment using uv"
 	@uv sync
 	@uv run pre-commit install
 
-.PHONY: check
-check: ## Run code quality tools.
+.PHONY: lint format-check typecheck deptry prettier-format check
+lint:
+	@echo "🚀 Linting code: Running ruff"
+	uv run --locked ruff check --config ruff.toml .
+
+format-check:
+	@echo "🚀 Checking code formatting: Running ruff"
+	uv run --locked ruff format --check --config ruff.toml .
+
+typecheck:
+	@echo "🚀 Static type checking: Running mypy"
+	uv run --locked mypy
+
+deptry:
+	@echo "🚀 Checking for obsolete dependencies: Running deptry"
+	uv run --locked deptry .
+
+prettier-format:
+	$(PRETTIER) --write .
+
+check: lint format-check typecheck deptry prettier-format
 	@echo "🚀 Checking lock file consistency with 'pyproject.toml'"
 	@uv lock --locked
-	@echo "🚀 Linting code: Running pre-commit"
-	@uv run pre-commit run -a
-#	@echo "🚀 Static type checking: Running mypy"
-#	@uv run mypy
-#	@echo "🚀 Checking for obsolete dependencies: Running deptry"
-#	@uv run deptry .
+
+check-precommit: lint format-check deptry prettier-format
+	@echo "🚀 Checking lock file consistency with 'pyproject.toml'"
+	@uv lock --locked
 
 .PHONY: test
 test: ## Test the code with pytest

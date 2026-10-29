@@ -1,5 +1,4 @@
 import logging
-import typing as T
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
@@ -16,6 +15,8 @@ from PySide6.QtWidgets import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import BackgroundJob
+
+logger = logging.getLogger(__name__)
 
 LOG_COLORS = {
     "DEBUG": Qt.GlobalColor.green,
@@ -48,7 +49,7 @@ class QTextEditLogger(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         """Emit a log record to the text edit."""
         msg = self.format(record)
-        color = LOG_COLORS.get(record.levelname, Qt.GlobalColor.white).name
+        color = LOG_COLORS.get(record.levelname, Qt.GlobalColor.white)
         self._append_text(msg, color)
 
     def _append_text(self, text: str, color: Qt.GlobalColor | None = None) -> None:
@@ -82,8 +83,8 @@ class QTextEditLogger(logging.Handler):
 
 
 class JobProgressBar(QWidget):
-    def __init__(self, job: BackgroundJob, *args: T.Any, **kwargs: T.Any) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, job: BackgroundJob, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
 
         self.main_layout = QHBoxLayout()
         self.main_layout.setContentsMargins(0, 0, 0, 0)
@@ -103,9 +104,9 @@ class JobProgressBar(QWidget):
         self.worker = job
         self.worker.progress_changed.connect(self.on_worker_progress)
 
-    def on_worker_progress(self, v: float):
+    def on_worker_progress(self, v: float) -> None:
         self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(v * 100)
+        self.progress_bar.setValue(int(v * 100))
 
 
 class ConsoleWindow(QWidget):
@@ -181,12 +182,12 @@ class ConsoleWindow(QWidget):
         """Copy the current log contents to the clipboard."""
         cb = neon_player.instance().clipboard()
         cb.setText(self.console_widget.toPlainText())
-        logging.info("Log copied to clipboard")
+        logger.info("Log copied to clipboard")
 
     def clear_log(self) -> None:
         """Clear the log display."""
         self.console_widget.clear()
-        logging.info("Log display cleared")
+        logger.info("Log display cleared")
 
     def on_job_added(self, job: BackgroundJob) -> None:
         self.job_table_layout.addRow(job.name, JobProgressBar(job))
@@ -194,6 +195,7 @@ class ConsoleWindow(QWidget):
     def remove_job(self, job: BackgroundJob) -> None:
         for row_idx in range(self.job_table_layout.rowCount()):
             item = self.job_table_layout.itemAt(row_idx, QFormLayout.ItemRole.FieldRole)
+            assert item is not None, "Job table row must contain a field item"
             widget = item.widget()
             if isinstance(widget, JobProgressBar) and widget.worker == job:
                 self.job_table_layout.removeRow(row_idx)
