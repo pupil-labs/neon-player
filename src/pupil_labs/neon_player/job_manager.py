@@ -58,7 +58,6 @@ class BackgroundJob(QObject):
         """Last reported progress; ``-1`` until the first update."""
 
         self.job_id = job_id
-        self.progress: float = -1
         self.socket: QLocalSocket | None = None
         self._expected_payload_size: int | None = None
 
