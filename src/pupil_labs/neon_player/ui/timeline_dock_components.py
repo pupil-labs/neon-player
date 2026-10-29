@@ -280,7 +280,7 @@ class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not
     def y_units(self) -> str:
         return self._y_units
 
-    def set_y_limit_labels(
+    def configure_y_limit_labels(
         self, show: bool | None = None, units: str | None = None
     ) -> None:
         """
@@ -307,12 +307,8 @@ class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not
             return
 
         if not self._y_range_labels:
-            upper_label = pg.TextItem(
-                anchor=(0, 0), color="#a09fa6"
-            )
-            lower_label = pg.TextItem(
-                anchor=(0, 1), color="#a09fa6"
-            )
+            upper_label = pg.TextItem(anchor=(0, 0), color="#a09fa6")
+            lower_label = pg.TextItem(anchor=(0, 1), color="#a09fa6")
             font = QFont()
             font.setPointSize(10)
             for label in (upper_label, lower_label):

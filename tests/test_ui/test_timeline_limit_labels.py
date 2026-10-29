@@ -1,16 +1,19 @@
+import pytest
+
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.timeline_dock_components import TimelinePlotItem
 
 
 class DummyLegend:
-    def setFixedHeight(self, _height):
+    def setFixedHeight(self, _height: int) -> None:
         pass
 
-    def parentItem(self):
+    def parentItem(self) -> "DummyLegend":
         return self
 
 
-def test_timeline_plot_item_left_axis_is_a_border_without_ticks_or_values(qapp):
+@pytest.mark.usefixtures("qapp")
+def test_timeline_plot_item_left_axis_is_a_border_without_ticks_or_values() -> None:
     plot = TimelinePlotItem(DummyLegend(), "row")
     left_axis = plot.getAxis("left")
 
@@ -19,7 +22,8 @@ def test_timeline_plot_item_left_axis_is_a_border_without_ticks_or_values(qapp):
     assert left_axis.style["tickLength"] == 0
 
 
-def test_smart_size_plot_item_y_limit_labels_follow_visible_range(qapp):
+@pytest.mark.usefixtures("qapp")
+def test_smart_size_plot_item_y_limit_labels_follow_visible_range() -> None:
     plot = TimelinePlotItem(DummyLegend(), "row")
     view_box = plot.getViewBox()
 
@@ -27,7 +31,7 @@ def test_smart_size_plot_item_y_limit_labels_follow_visible_range(qapp):
     assert plot._y_range_labels == []
 
     view_box.setRange(xRange=(0, 100), yRange=(-0.1, 0.1), padding=0)
-    plot.set_y_limit_labels(True, "m")
+    plot.configure_y_limit_labels(True, "m")
 
     assert plot.show_y_limit_labels
     assert plot.y_units == "m"
@@ -53,35 +57,44 @@ def test_smart_size_plot_item_y_limit_labels_follow_visible_range(qapp):
     assert upper_label.toPlainText() == "10.0 m"
     assert lower_label.toPlainText() == "-10.0 m"
 
-    plot.set_y_limit_labels(False)
+    plot.configure_y_limit_labels(False)
     assert not plot.show_y_limit_labels
     assert plot._y_range_labels == []
 
 
 class DummyTimelineDock:
-    def __init__(self):
-        self.timeline_plots = {}
+    def __init__(self) -> None:
+        self.timeline_plots: dict[str, DummyLinePlot] = {}
 
-    def get_timeline_plot(self, row_name, _create_if_missing=False):
+    def get_timeline_plot(
+        self, row_name: str, _create_if_missing: bool = False
+    ) -> "DummyLinePlot | None":
         return self.timeline_plots.get(row_name)
 
-    def add_timeline_plot(self, row_name, _data, _plot_name="", **_kwargs):
+    def add_timeline_plot(
+        self,
+        row_name: str,
+        _data: list[tuple[int, float]],
+        _plot_name: str = "",
+        **_kwargs: object,
+    ) -> "DummyLinePlot":
         plot = self.timeline_plots.setdefault(row_name, DummyLinePlot())
         return plot
 
 
 class DummyLinePlot:
-    def __init__(self):
+    def __init__(self) -> None:
         self.show_y_limit_labels = False
-        self.units = None
+        self.units: str | None = None
 
-    def set_y_limit_labels(self, show, units):
+    def configure_y_limit_labels(self, show: bool | None, units: str | None) -> None:
         if show is not None:
             self.show_y_limit_labels = show
         self.units = units
 
 
-def test_add_timeline_line_defaults_to_labels_on_new_rows_and_preserves_existing(qapp):
+@pytest.mark.usefixtures("qapp")
+def test_add_timeline_line_defaults_labels_and_preserves_existing() -> None:
     dock = DummyTimelineDock()
 
     TimeLineDock.add_timeline_line(dock, "new", [])
@@ -95,7 +108,8 @@ def test_add_timeline_line_defaults_to_labels_on_new_rows_and_preserves_existing
     assert existing_plot.units == "deg"
 
 
-def test_add_timeline_line_explicit_visibility_overrides_default(qapp):
+@pytest.mark.usefixtures("qapp")
+def test_add_timeline_line_explicit_visibility_overrides_default() -> None:
     dock = DummyTimelineDock()
 
     TimeLineDock.add_timeline_line(

@@ -680,7 +680,7 @@ class TimeLineDock(QWidget):
             timeline_row_name: Label for the timeline row.
             data: Timestamp and value pairs; timestamps are in nanoseconds.
             plot_name: Optional name shown in the row legend.
-            show_y_limit_labels: Whether to show labels for y-axis limits. 
+            show_y_limit_labels: Whether to show labels for y-axis limits.
                 The limits are shown by default for line plots.
             units: Units to display in the labels of y-axis limits.
             **kwargs: Additional line options passed to pyqtgraph.
@@ -691,12 +691,12 @@ class TimeLineDock(QWidget):
         plot_existed = timeline_row_name in self.timeline_plots
         plot_item = self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
         if plot_item is None:
-            return
+            return None
 
         # Show y-axis limits by default for line plots
         if show_y_limit_labels is None and not plot_existed:
             show_y_limit_labels = True
-        plot_item.set_y_limit_labels(show_y_limit_labels, units)
+        plot_item.configure_y_limit_labels(show_y_limit_labels, units)
 
         return plot_item
 
