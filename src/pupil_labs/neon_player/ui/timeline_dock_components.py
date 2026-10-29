@@ -239,6 +239,10 @@ class TimestampLabel(QLabel):
 
 
 class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not type this base class.
+    """
+    A wrapper class around [`pyqtgraph.PlotItem`][] that preserves a fixed height.
+    """
+
     def __init__(
         self, legend: FixedLegend, row_name: str, *args: object, **kwargs: object
     ) -> None:

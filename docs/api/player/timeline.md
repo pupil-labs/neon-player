@@ -12,3 +12,5 @@
             - remove_timeline_series
             - disable_plot_sorting
             - enable_plot_sorting
+
+::: pupil_labs.neon_player.ui.timeline_dock_components.TimelinePlotItem
