@@ -6,6 +6,10 @@ from pathlib import Path
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.neon_recording.sample import match_ts
+from pupil_labs.neon_recording.timeseries import GazeTimeseries, WornTimeseries
+from pupil_labs.neon_recording.timeseries.gaze import GazeArray
 from PySide6.QtCore import QObject, QPointF, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter
 from qt_property_widgets.utilities import (
@@ -24,9 +28,8 @@ from pupil_labs.neon_player.utilities import (
     get_scene_intrinsics,
     unproject_points,
 )
-from pupil_labs.neon_recording import NeonRecording
-from pupil_labs.neon_recording.timeseries import GazeTimeseries, WornTimeseries
-from pupil_labs.neon_recording.sample import match_ts
+
+logger = logging.getLogger(__name__)
 
 
 class Aggregation(enum.Enum):
@@ -36,7 +39,7 @@ class Aggregation(enum.Enum):
     First = "First"
     Last = "Last"
 
-    def apply(self, samples):
+    def apply(self, samples: np.ndarray) -> np.ndarray:
         if self is Aggregation.Raw or len(samples) == 0:
             v = samples
 
@@ -82,7 +85,7 @@ class GazeDataPlugin(neon_player.Plugin):
             viz.on_recording_loaded(recording)
 
         try:
-            self.worn_data = self.recording.worn
+            self.worn_data = recording.worn
 
             worn_on = self.worn_data.worn // 255
             worn_on = np.concatenate([[0], worn_on])
@@ -100,35 +103,53 @@ class GazeDataPlugin(neon_player.Plugin):
                 tooltip=default_broken_bar_tooltip(prefix="On"),
             )
 
-        except Exception:
+        except Exception:  # noqa: BLE001
             self.worn_data = None
-            logging.warning("Failed to load worn data")
+            logger.warning(
+                "Failed to load worn data. Gaze visualizations will be "
+                "rendered assuming the headset is always worn."
+            )
 
     def on_disabled(self) -> None:
         if self.worn_data:
             self.get_timeline().remove_timeline_plot("Worn")
             self.worn_data = None
 
-    def render(self, painter: QPainter, time_in_recording: int) -> None:
-        if self.recording is None:
+    def render(self, painter: QPainter, time_in_recording: int) -> None:  # noqa: C901
+        recording = self.recording
+        if not recording:
             return
 
         scene_idx = self.get_scene_idx_for_time(time_in_recording)
-        if scene_idx >= len(self.recording.scene) or scene_idx < 0:
+        if scene_idx >= len(recording.scene) or scene_idx < 0:
             return
 
         samples = self.get_gazes_for_scene(scene_idx)
         gazes = samples.point
-        offset_gazes = apply_offset(self.recording, gazes, self.offset)
+        offset_gazes = apply_offset(recording, gazes, self.offset)
 
         try:
-            worns = self.worn_data.sample(samples.time).worn
-        except Exception:
+            if self.worn_data is None:
+                raise ValueError("No worn data available")
+
+            # TODO(type-checking): Neon Recording mistypes its timestamp arrays.
+            worns: npt.NDArray[np.float64 | np.int64] = self.worn_data.sample(
+                samples.time  # type: ignore[arg-type]
+            ).worn
+        except Exception:  # noqa: BLE001
+            if self.worn_data is not None and len(samples) > 0:
+                logger.debug(
+                    f"No matching worn data for {time_in_recording}, assuming "
+                    f"that the headset was worn"
+                )
+
             worns = np.array([255])
 
-        aggregations = {}
-        offset_aggregations = {}
-        worn_aggregations = {}
+        aggregations: dict[Aggregation, npt.NDArray[np.float32 | np.float64]] = {}
+        offset_aggregations: dict[
+            Aggregation, npt.NDArray[np.float32 | np.float64]
+        ] = {}
+        worn_aggregations: dict[Aggregation, npt.NDArray[np.float64 | np.int64]] = {}
         for viz in self._visualizations:
             if viz._aggregation not in aggregations:
                 aggregations[viz._aggregation] = viz._aggregation.apply(gazes)
@@ -157,43 +178,47 @@ class GazeDataPlugin(neon_player.Plugin):
                 aggregation_dict[viz._aggregation][renderable_mask],
             )
 
-    def get_gazes_for_scene(self, scene_idx: int = -1):
+    def get_gazes_for_scene(self, scene_idx: int = -1) -> GazeArray:
+        recording = self.recording
+        if not recording:
+            raise RuntimeError("Gaze samples require a loaded recording")
+
         if scene_idx < 0:
             scene_idx = self.get_scene_idx_for_time()
 
-        gaze_start_time = self.recording.scene[scene_idx].time
-        after_mask = self.recording.gaze.time >= gaze_start_time
+        gaze_start_time = recording.scene[scene_idx].time
+        after_mask = recording.gaze.time >= gaze_start_time
 
-        if scene_idx < len(self.recording.scene) - 1:
-            gaze_end_ts = self.recording.scene[scene_idx + 1].time
-            before_mask = self.recording.gaze.time < gaze_end_ts
+        if scene_idx < len(recording.scene) - 1:
+            gaze_end_ts = recording.scene[scene_idx + 1].time
+            before_mask = recording.gaze.time < gaze_end_ts
             time_mask = after_mask & before_mask
         else:
             time_mask = after_mask
 
-        return self.recording.gaze[time_mask]
+        # TODO(type-checking): Neon Recording leaves Timeseries.data untyped.
+        return recording.gaze[time_mask]  # type: ignore[no-any-return]
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
-        if self.recording is None:
+        recording = self.recording
+        if recording is None:
             return
 
+        export_window = self.app.get_export_window()
         gaze = _prepare_gaze_export(
-            self.recording,
-            self.worn_data,
-            self.app.get_export_window(),
-            self.offset
+            recording, self.worn_data, export_window, self.offset
         )
 
         if gaze.empty:
-            logging.warning("No gaze data are present in the export window")
+            logger.warning("No gaze data are present in the export window")
             return
 
         export_file = destination / "gaze.csv"
         gaze.to_csv(export_file, index=False)
 
-        logging.info(f"Wrote {export_file}")
+        logger.info(f"Exported gaze to {export_file}")
 
     @property
     @property_params(min=-1, max=1, step=0.01, decimals=3)
@@ -232,18 +257,19 @@ class GazeDataPlugin(neon_player.Plugin):
 
     @visualizations.setter
     def visualizations(self, value: list["GazeVisualization"]) -> None:
+        recording = self.recording
         self._visualizations = value
 
         for viz in self._visualizations:
             viz.changed.connect(self.changed.emit)
-            if self.recording is not None:
-                viz.on_recording_loaded(self.recording)
+            if recording is not None:
+                viz.on_recording_loaded(recording)
 
 
 class GazeVisualization(PersistentPropertiesMixin, QObject):
     changed = Signal()
 
-    _known_types: T.ClassVar[list] = []
+    _known_types: T.ClassVar[list[type["GazeVisualization"]]] = []
 
     def __init__(self) -> None:
         super().__init__()
@@ -257,11 +283,11 @@ class GazeVisualization(PersistentPropertiesMixin, QObject):
     def render(
         self,
         painter: QPainter,
-        gazes: npt.NDArray[np.float64],
+        gazes: npt.NDArray[np.float32 | np.float64],
     ) -> None:
         raise NotImplementedError("Subclasses must implement this method")
 
-    def __init_subclass__(cls: type["GazeVisualization"], **kwargs: dict) -> None:
+    def __init_subclass__(cls: type["GazeVisualization"], **kwargs: object) -> None:
         GazeVisualization._known_types.append(cls)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
@@ -270,13 +296,13 @@ class GazeVisualization(PersistentPropertiesMixin, QObject):
     def to_dict(
         self,
         include_class_name: bool = False,
-        condition: T.Callable[[dict], bool] | None = None,
-        recursive: bool = False
-    ) -> dict:
+        condition: T.Callable[[dict[str, T.Any]], bool] | None = None,
+        recursive: bool = False,
+    ) -> dict[str, T.Any]:
         state = super().to_dict(
             include_class_name=include_class_name,
             condition=condition,
-            recursive=recursive
+            recursive=recursive,
         )
 
         # NOTE: Gaze visualizations require the class name to be loaded correctly
@@ -324,8 +350,8 @@ class CircleViz(GazeVisualization):
         self._color = QColor(255, 0, 0, 128)
         self._radius = 30
         self._stroke_width = 10
-        self._applied_radius = self._radius
-        self._applied_stroke_width = self._stroke_width
+        self._applied_radius: float = self._radius
+        self._applied_stroke_width: float = self._stroke_width
 
     def cap_radius_stroke(self) -> None:
         """
@@ -343,9 +369,11 @@ class CircleViz(GazeVisualization):
         self._applied_radius = self.radius / 2 + self.stroke_width / 4
         self._applied_stroke_width = 2 * self._applied_radius
 
-    def render(self, painter: QPainter, gazes: npt.NDArray[np.float64]) -> None:
+    def render(
+        self, painter: QPainter, gazes: npt.NDArray[np.float32 | np.float64]
+    ) -> None:
         pen = painter.pen()
-        pen.setWidth(self._applied_stroke_width)
+        pen.setWidthF(self._applied_stroke_width)
         pen.setColor(self._color)
         painter.setPen(pen)
 
@@ -381,6 +409,7 @@ class CircleViz(GazeVisualization):
         self._stroke_width = value
         self.cap_radius_stroke()
 
+
 class CrosshairViz(GazeVisualization):
     label = "Crosshair"
 
@@ -395,7 +424,7 @@ class CrosshairViz(GazeVisualization):
     def render(
         self,
         painter: QPainter,
-        gazes: npt.NDArray[np.float64],
+        gazes: npt.NDArray[np.float32 | np.float64],
     ) -> None:
         brush = painter.brush()
         pen = painter.pen()
@@ -487,23 +516,17 @@ class CrosshairViz(GazeVisualization):
 
 def apply_offset(
     recording: NeonRecording,
-    gazes: np.ndarray,
-    offset: tuple[float, float]
-) -> np.ndarray:
-    exit_conditions = [
-        recording is None,
-        recording.scene.width is None,
-        recording.scene.height is None
-    ]
-    if any(exit_conditions):
+    gazes: npt.NDArray[np.float32 | np.float64],
+    offset: tuple[float, float],
+) -> npt.NDArray[np.float32 | np.float64]:
+    width = recording.scene.width
+    height = recording.scene.height
+    if width is None or height is None:
         return gazes
 
     offset_x, offset_y = offset
-    offset_pixels = np.array([
-        offset_x * recording.scene.width,
-        offset_y * recording.scene.height,
-    ])
-    return gazes + offset_pixels
+    offset_pixels = np.array([offset_x * width, offset_y * height])
+    return np.asarray(gazes + offset_pixels)
 
 
 def _prepare_gaze_export(
@@ -520,7 +543,8 @@ def _prepare_gaze_export(
     if not len(export_gazes):
         return pd.DataFrame()
 
-    export_gaze_points = apply_offset(recording, export_gazes.point, gaze_offset)
+    # TODO(type-checking): Neon Recording mistypes numerical field arrays.
+    export_gaze_points = apply_offset(recording, export_gazes.point, gaze_offset)  # type: ignore[arg-type]
 
     scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(recording)
     spherical_coords = cart_to_spherical(
@@ -531,23 +555,27 @@ def _prepare_gaze_export(
         )
     )
 
-    gaze = pd.DataFrame({
-        "recording id": recording.info["recording_id"],
-        "timestamp [ns]": export_gazes.time,
-        "gaze x [px]": export_gaze_points[:, 0],
-        "gaze y [px]": export_gaze_points[:, 1],
-        "azimuth [deg]": spherical_coords[2],
-        "elevation [deg]": spherical_coords[1],
-    })
+    gaze = pd.DataFrame(
+        {
+            "recording id": recording.info["recording_id"],
+            "timestamp [ns]": export_gazes.time,
+            "gaze x [px]": export_gaze_points[:, 0],
+            "gaze y [px]": export_gaze_points[:, 1],
+            "azimuth [deg]": spherical_coords[2],
+            "elevation [deg]": spherical_coords[1],
+        }
+    )
     if worn_data:
-        gaze["worn"] = _prepare_worn_export(export_gazes, worn_data)
+        # TODO(type-checking): Neon Recording mistypes masked array selection.
+        gaze["worn"] = _prepare_worn_export(export_gazes, worn_data)  # type: ignore[arg-type]
     else:
-        logging.warning("No worn data to export")
+        logger.warning("No worn data to export")
 
     try:
+        # TODO(type-checking): Neon Recording mistypes indexed timestamps.
         matched_fixation_ids = (
             find_ranged_index(
-                export_gazes.time,
+                export_gazes.time,  # type: ignore[arg-type]
                 recording.fixations.start_time,
                 recording.fixations.stop_time,
             )
@@ -556,12 +584,13 @@ def _prepare_gaze_export(
         gaze["fixation id"] = matched_fixation_ids
         gaze["fixation id"] = gaze["fixation id"].replace(0, None)
     except Exception:
-        logging.warning("Failed to match fixations")
+        logger.warning("Failed to match fixations", exc_info=True)
 
     try:
+        # TODO(type-checking): Neon Recording mistypes indexed timestamps.
         matched_blink_ids = (
             find_ranged_index(
-                export_gazes.time,
+                export_gazes.time,  # type: ignore[arg-type]
                 recording.blinks.start_time,
                 recording.blinks.stop_time,
             )
@@ -570,13 +599,16 @@ def _prepare_gaze_export(
         gaze["blink id"] = matched_blink_ids
         gaze["blink id"] = gaze["blink id"].replace(0, None)
     except Exception:
-        logging.warning("Failed to match blinks")
+        logger.warning("Failed to match blinks", exc_info=True)
 
     return gaze
 
 
-def _prepare_worn_export(gazes: GazeTimeseries, worn: WornTimeseries) -> np.ndarray:
-    gaze_in_worn_idx = match_ts(gazes.time, worn.time)
+def _prepare_worn_export(
+    gazes: GazeTimeseries, worn: WornTimeseries
+) -> npt.NDArray[np.float64]:
+    # TODO(type-checking): Neon Recording mistypes its timestamp arrays.
+    gaze_in_worn_idx = match_ts(gazes.time, worn.time)  # type: ignore[arg-type]
     matched = gazes.time == worn.time[gaze_in_worn_idx]
     matched_indices = gaze_in_worn_idx[matched]
     export_worn = np.full_like(gazes.time, np.nan, dtype=np.float64)

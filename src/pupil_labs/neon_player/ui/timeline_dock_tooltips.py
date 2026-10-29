@@ -2,32 +2,35 @@ import dataclasses
 import html
 import logging
 import typing as T
-import numpy as np
-import pyqtgraph as pg
-
 from bisect import bisect_left
 from functools import partial
+
+import numpy as np
+import pyqtgraph as pg
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
 
 from pupil_labs.neon_player.ui.timeline_dock_components import format_timestamp_ns
+
+logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
 class TimelineSeriesHover:
     name: str
     """The name of the time series, empty if not set."""
-    timestamp_ns: int
+    timestamp_ns: int | None
     """The timestamp of the hovered data point."""
     index: int
     """The index of the hovered data point."""
-    value: float
+    value: float | None
     """The y-axis value that corresponds to the data point."""
 
 
 @dataclasses.dataclass(frozen=True)
 class TimelineBarSeriesHover(TimelineSeriesHover):
     """Value and source details for one plotted series at the hovered time."""
+
     start_ts: int
     """The start timestamp of the hovered bar."""
     stop_ts: int
@@ -40,10 +43,15 @@ class TimelineBarSeriesHover(TimelineSeriesHover):
 class TimelineLineSeriesHover(TimelineSeriesHover):
     """The closest line point to the current hover timestamp."""
 
+    value: float
+
 
 @dataclasses.dataclass(frozen=True)
 class TimelineScatterSeriesHover(TimelineSeriesHover):
     """The closest scatter point to the current hover timestamp"""
+
+    timestamp_ns: int
+    value: float
 
 
 @dataclasses.dataclass(frozen=True)
@@ -62,8 +70,8 @@ class TimelineTooltipContext:
         return {entry.name: entry.value for entry in self.series}
 
 
-TimelineTooltipCallback: T.TypeAlias = T.Callable[[TimelineTooltipContext], str]
-TimelineTooltipConfig: T.TypeAlias = TimelineTooltipCallback | QWidget
+type TimelineTooltipCallback = T.Callable[[TimelineTooltipContext], str]
+type TimelineTooltipConfig = TimelineTooltipCallback | QWidget
 
 
 def format_value(value: float, precision: int, units: str) -> str:
@@ -82,15 +90,19 @@ def format_duration(start_ts: int, stop_ts: int) -> str:
 
 
 def _default_line_tooltip(
-    context: TimelineTooltipContext,
-    precision: int = 3,
-    units: str = ""
+    context: TimelineTooltipContext, precision: int = 3, units: str = ""
 ) -> str:
     if not all(isinstance(s, TimelineLineSeriesHover) for s in context.series):
-        logging.warning("Default line tooltip requires the plot to have only line series")
+        logger.warning(
+            "Default line tooltip requires the plot to have only line series"
+        )
         return ""
 
-    formatted_values = [format_value(s.value, precision, units) for s in context.series]
+    formatted_values = [
+        format_value(s.value, precision, units)
+        for s in context.series
+        if isinstance(s, TimelineLineSeriesHover)
+    ]
     if len(formatted_values) == 1:
         return formatted_values[0]
 
@@ -100,12 +112,14 @@ def _default_line_tooltip(
         f'<td style="padding-right: 6px"><b>{html.escape(name)}</b>:</td>'
         f'<td style="text-align: right">{value}</td>'
         "</tr>"
-        for name, value in zip(names, formatted_values)
+        for name, value in zip(names, formatted_values, strict=True)
     )
     return f'<table cellspacing="0" cellpadding="0">{rows}</table>'
 
 
-def default_line_tooltip(*, precision: int = 3, units: str = "") -> TimelineTooltipCallback:
+def default_line_tooltip(
+    *, precision: int = 3, units: str = ""
+) -> TimelineTooltipCallback:
     """Create a line tooltip formatter with optional numeric precision and units.
 
     The tooltip is formatted as `{value} {units}` if the plot contains one data series.
@@ -121,10 +135,11 @@ def _default_scatter_tooltip(
     if len(context.series) != 1 or not isinstance(
         context.series[0], TimelineScatterSeriesHover
     ):
-        logging.warning("Default scatter tooltip requires exactly one scatter series")
+        logger.warning("Default scatter tooltip requires exactly one scatter series")
         return ""
 
     entry = context.series[0]
+    assert isinstance(entry, TimelineScatterSeriesHover)
     total_count = total() if callable(total) else total
     timestamp = format_timestamp_ns(
         entry.timestamp_ns,
@@ -132,7 +147,9 @@ def _default_scatter_tooltip(
         always_show_hours=True,
         show_milliseconds=True,
     )
-    return f"<b>{html.escape(name)}</b> ({entry.index + 1}/{total_count})<br>{timestamp}"
+    return (
+        f"<b>{html.escape(name)}</b> ({entry.index + 1}/{total_count})<br>{timestamp}"
+    )
 
 
 def default_scatter_tooltip(
@@ -149,7 +166,7 @@ def _default_broken_bar_tooltip(context: TimelineTooltipContext, prefix: str) ->
     if len(context.series) != 1 or not isinstance(
         context.series[0], TimelineBarSeriesHover
     ):
-        logging.warning(
+        logger.warning(
             "Default broken-bar tooltip requires exactly one broken-bar series"
         )
         return ""
@@ -172,7 +189,10 @@ def default_broken_bar_tooltip(*, prefix: str = "") -> TimelineTooltipCallback:
 
 
 def _get_series_hover(
-    item: T.Any, series_name: str, timestamp_ns: int, tolerance_ns: int
+    item: pg.PlotDataItem,
+    series_name: str,
+    timestamp_ns: int,
+    tolerance_ns: int,
 ) -> TimelineSeriesHover | None:
     kind = "scatter" if item.opts.get("symbol") is not None else "point"
     timestamps, values = item.getData()
@@ -183,16 +203,18 @@ def _get_series_hover(
     candidates = [i for i in (index - 1, index) if 0 <= i < len(timestamps)]
     closest = min(candidates, key=lambda i: abs(timestamps[i] - timestamp_ns))
     if abs(timestamps[closest] - timestamp_ns) <= tolerance_ns:
-        hover_type = (
-            TimelineScatterSeriesHover
-            if kind == "scatter"
-            else TimelineLineSeriesHover
-        )
-        return hover_type(
+        if kind == "scatter":
+            return TimelineScatterSeriesHover(
+                value=float(values[closest]),
+                name=series_name,
+                index=closest,
+                timestamp_ns=int(timestamps[closest]),
+            )
+        return TimelineLineSeriesHover(
             value=float(values[closest]),
             name=series_name,
             index=closest,
-            timestamp_ns=int(timestamps[closest]) if kind == "scatter" else None,
+            timestamp_ns=None,
         )
     return None
 
@@ -207,7 +229,7 @@ def _get_bar_graph_series_hover(
     starts = np.asarray(starts)
     stops = np.asarray(stops)
     if starts.size != stops.size:
-        logging.warning("Bar graph starts and stops must have equal lengths")
+        logger.warning("Bar graph starts and stops must have equal lengths")
         return None
 
     matches = np.flatnonzero((starts <= timestamp_ns) & (timestamp_ns <= stops))
@@ -242,7 +264,9 @@ def _get_item_name(item: pg.BarGraphItem | pg.PlotDataItem) -> str:
 
 
 def _get_hovered_timeline_series(
-    items: T.Iterable[T.Any], timestamp_ns: int, tolerance_ns: int
+    items: T.Iterable[pg.BarGraphItem | pg.PlotDataItem],
+    timestamp_ns: int,
+    tolerance_ns: int,
 ) -> list[TimelineSeriesHover]:
     values: list[TimelineSeriesHover] = []
     for item in items:
@@ -250,6 +274,7 @@ def _get_hovered_timeline_series(
             continue
 
         series_name = _get_item_name(item)
+        series: TimelineSeriesHover | None
         if isinstance(item, pg.BarGraphItem):
             series = _get_bar_graph_series_hover(item, series_name, timestamp_ns)
         else:
@@ -282,7 +307,9 @@ class TimelineTooltipWidget(QFrame):
         self._layout.setContentsMargins(7, 4, 7, 4)
         self._text_label = QLabel(self)
         self._text_label.setTextFormat(Qt.TextFormat.RichText)
-        self._text_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self._text_label.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
         self._text_label.setWordWrap(True)
         self._text_label.setMaximumWidth(420)
         self._content_widget: QWidget = self._text_label
@@ -322,7 +349,9 @@ class TimelineTooltipWidget(QFrame):
         if parent is None:
             return
         available = parent.rect().adjusted(4, 4, -4, -4)
-        self.resize(min(self.width(), available.width()), min(self.height(), available.height()))
+        self.resize(
+            min(self.width(), available.width()), min(self.height(), available.height())
+        )
         position = parent.mapFromGlobal(global_cursor_position) + self.CURSOR_OFFSET
         position.setX(min(position.x(), available.right() - self.width() + 1))
         position.setY(min(position.y(), available.bottom() - self.height() + 1))
@@ -339,7 +368,10 @@ class TimelineTooltipWidget(QFrame):
         self._layout.removeWidget(self._content_widget)
         self._content_widget.hide()
         self._content_widget = widget
-        if widget is not self._text_label and id(widget) not in self._owned_content_widgets:
+        if (
+            widget is not self._text_label
+            and id(widget) not in self._owned_content_widgets
+        ):
             self.own_content_widget(widget)
         widget.setParent(self)
         self._layout.addWidget(widget)

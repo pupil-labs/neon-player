@@ -11,19 +11,21 @@ from pathlib import Path
 import mediapipe as mp
 import numpy as np
 import pandas as pd
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPolygonF
 from qt_property_widgets.utilities import action_params, property_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action, utilities
-from pupil_labs.neon_recording import NeonRecording
+
+logger = logging.getLogger(__name__)
 
 
 class FaceDetection(Plugin):
     label = "Face Detection"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         self.detection_job = None
@@ -102,7 +104,7 @@ class FaceDetection(Plugin):
         }
         self._intersection_radius = 64
 
-    def on_recording_loaded(self, recording: NeonRecording) -> None:
+    def on_recording_loaded(self, _recording: NeonRecording) -> None:
         self.load_object_cache()
 
     def load_object_cache(self) -> None:
@@ -224,7 +226,7 @@ class FaceDetection(Plugin):
             pixels = frame.bgr
             results = face_mesh.process(pixels)
             if results.multi_face_landmarks:
-                logging.info(f"Detected face on frame {frame_idx}")
+                logger.info(f"Detected face on frame {frame_idx}")
                 results_by_frame.append(results.multi_face_landmarks)
             else:
                 results_by_frame.append(None)
@@ -277,7 +279,7 @@ class FaceDetection(Plugin):
         destination_path = destination / "face_aois.csv"
         export_data_frame = pd.DataFrame(data)
         export_data_frame.to_csv(destination_path, index=False)
-        logging.info(f"Exported {destination_path}")
+        logger.info(f"Exported {destination_path}")
 
     def create_path_from_landmarks(
         self, landmarks: list[tuple[float, float]]

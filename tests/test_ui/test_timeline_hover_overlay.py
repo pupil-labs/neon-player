@@ -1,17 +1,26 @@
+from collections.abc import Generator
+
 import pyqtgraph as pg
 import pytest
 from PySide6.QtCore import QEvent
 
 from pupil_labs.neon_player.ui.timeline_dock_components import (
     TimeAxisItem,
-    TimestampLabel,
     TimelineHoverMarker,
+    TimestampLabel,
     format_timestamp_ns,
 )
+from tests.conftest import MockNeonPlayerApp
+
+type TimelineHoverState = tuple[
+    pg.GraphicsView, pg.PlotItem, pg.PlotItem, TimelineHoverMarker
+]
 
 
 @pytest.fixture
-def timeline_hover_marker(qapp):
+def timeline_hover_marker(
+    qapp: MockNeonPlayerApp,
+) -> Generator[TimelineHoverState, None, None]:
     graphics_view = pg.GraphicsView()
     graphics_layout = pg.GraphicsLayout()
     graphics_view.setCentralItem(graphics_layout)
@@ -39,8 +48,8 @@ def timeline_hover_marker(qapp):
 
 
 def test_timeline_hover_marker_tracks_time_range_and_spans_rows(
-    qapp, timeline_hover_marker
-):
+    qapp: MockNeonPlayerApp, timeline_hover_marker: TimelineHoverState
+) -> None:
     graphics_view, plot, _, marker = timeline_hover_marker
 
     marker.set_cursor_time(50)
@@ -74,8 +83,8 @@ def test_timeline_hover_marker_tracks_time_range_and_spans_rows(
 
 
 def test_timeline_hover_marker_hides_when_pointer_leaves_viewport(
-    qapp, timeline_hover_marker
-):
+    qapp: MockNeonPlayerApp, timeline_hover_marker: TimelineHoverState
+) -> None:
     graphics_view, _, _, marker = timeline_hover_marker
     marker.set_cursor_time(25)
     qapp.processEvents()
@@ -88,8 +97,8 @@ def test_timeline_hover_marker_hides_when_pointer_leaves_viewport(
 
 
 def test_timeline_hover_marker_refreshes_geometry_after_resize(
-    qapp, timeline_hover_marker
-):
+    qapp: MockNeonPlayerApp, timeline_hover_marker: TimelineHoverState
+) -> None:
     graphics_view, _, _, marker = timeline_hover_marker
     initial_width = marker.width()
 
@@ -100,7 +109,7 @@ def test_timeline_hover_marker_refreshes_geometry_after_resize(
     assert marker.width() > initial_width
 
 
-def test_timestamp_label_and_time_axis_ticks_share_timestamp_formatting():
+def test_timestamp_label_and_time_axis_ticks_share_timestamp_formatting() -> None:
     time_axis = TimeAxisItem(orientation="top")
     recording_start = 1_700_000_000_000_000_000
     time_axis.set_time_frame(recording_start, recording_start + 5_000_000_000_000)
@@ -135,8 +144,8 @@ def test_timestamp_label_and_time_axis_ticks_share_timestamp_formatting():
 
 
 def test_timeline_hover_marker_hides_outside_recording_interval(
-    qapp, timeline_hover_marker
-):
+    timeline_hover_marker: TimelineHoverState,
+) -> None:
     _, _, _, marker = timeline_hover_marker
 
     marker.set_cursor_time(-1)
@@ -157,8 +166,8 @@ def test_timeline_hover_marker_hides_outside_recording_interval(
 
 
 def test_timeline_hover_marker_draws_clamped_white_on_grey_badge(
-    qapp, timeline_hover_marker
-):
+    qapp: MockNeonPlayerApp, timeline_hover_marker: TimelineHoverState
+) -> None:
     _, _, _, marker = timeline_hover_marker
     marker.set_cursor_time(1)
     qapp.processEvents()

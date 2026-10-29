@@ -2,20 +2,20 @@ import typing as T
 
 import numpy as np
 import pyqtgraph as pg
-
 from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
 
-from pupil_labs.neon_player.ui.timeline_dock_components import SmartSizePlotItem
+from pupil_labs.neon_player.ui.timeline_dock_components import TimelinePlotItem
 
 
-def get_clicked_plot_item(items: list[T.Any]) -> SmartSizePlotItem | None:
+def get_clicked_plot_item(items: list[object]) -> TimelinePlotItem | None:
     for item in items:
-        if isinstance(item, SmartSizePlotItem):
+        if isinstance(item, TimelinePlotItem):
             return item
     return None
 
+
 def get_clicked_data_point(
-    plot_item: SmartSizePlotItem | None, event: MouseClickEvent
+    plot_item: TimelinePlotItem | None, event: MouseClickEvent
 ) -> tuple[int, T.SupportsFloat] | None:
     if plot_item is None:
         return None
@@ -24,7 +24,9 @@ def get_clicked_data_point(
         if not isinstance(item, pg.PlotDataItem):
             continue
 
-        if not hasattr(item, "scatter") or not isinstance(item.scatter, pg.ScatterPlotItem):
+        if not hasattr(item, "scatter") or not isinstance(
+            item.scatter, pg.ScatterPlotItem
+        ):
             continue
 
         scatter = item.scatter

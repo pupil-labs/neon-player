@@ -1,6 +1,8 @@
+import logging
 from pathlib import Path
 
 import pandas as pd
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtGui import QIcon
 from qt_property_widgets.utilities import action_params
 from scipy.spatial.transform import Rotation
@@ -8,7 +10,8 @@ from scipy.spatial.transform import Rotation
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
 from pupil_labs.neon_player.ui.timeline_dock_tooltips import default_line_tooltip
-from pupil_labs.neon_recording import NeonRecording
+
+logger = logging.getLogger(__name__)
 
 
 class IMUPlugin(neon_player.Plugin):
@@ -32,23 +35,26 @@ class IMUPlugin(neon_player.Plugin):
         rotations = Rotation.from_quat(recording.imu.rotation)
         eulers = rotations.as_euler(seq="yxz", degrees=True)
 
-        self.imu_data = pd.DataFrame({
-            "recording id": recording.info["recording_id"],
-            "timestamp [ns]": recording.imu.time,
-            "gyro x [deg/s]": recording.imu.angular_velocity[:, 0],
-            "gyro y [deg/s]": recording.imu.angular_velocity[:, 1],
-            "gyro z [deg/s]": recording.imu.angular_velocity[:, 2],
-            "acceleration x [g]": recording.imu.acceleration[:, 0],
-            "acceleration y [g]": recording.imu.acceleration[:, 1],
-            "acceleration z [g]": recording.imu.acceleration[:, 2],
-            "roll [deg]": eulers[:, 0],
-            "pitch [deg]": eulers[:, 1],
-            "yaw [deg]": eulers[:, 2],
-            "quaternion x": recording.imu.rotation[:, 0],
-            "quaternion y": recording.imu.rotation[:, 1],
-            "quaternion z": recording.imu.rotation[:, 2],
-            "quaternion w": recording.imu.rotation[:, 3],
-        })
+        # TODO(type-checking): Neon Recording omits NumPy tuple indices.
+        self.imu_data = pd.DataFrame(
+            {
+                "recording id": recording.info["recording_id"],
+                "timestamp [ns]": recording.imu.time,
+                "gyro x [deg/s]": recording.imu.angular_velocity[:, 0],  # type: ignore[call-overload]
+                "gyro y [deg/s]": recording.imu.angular_velocity[:, 1],  # type: ignore[call-overload]
+                "gyro z [deg/s]": recording.imu.angular_velocity[:, 2],  # type: ignore[call-overload]
+                "acceleration x [g]": recording.imu.acceleration[:, 0],  # type: ignore[call-overload]
+                "acceleration y [g]": recording.imu.acceleration[:, 1],  # type: ignore[call-overload]
+                "acceleration z [g]": recording.imu.acceleration[:, 2],  # type: ignore[call-overload]
+                "roll [deg]": eulers[:, 0],
+                "pitch [deg]": eulers[:, 1],
+                "yaw [deg]": eulers[:, 2],
+                "quaternion x": recording.imu.rotation[:, 0],  # type: ignore[call-overload]
+                "quaternion y": recording.imu.rotation[:, 1],  # type: ignore[call-overload]
+                "quaternion z": recording.imu.rotation[:, 2],  # type: ignore[call-overload]
+                "quaternion w": recording.imu.rotation[:, 3],  # type: ignore[call-overload]
+            }
+        )
 
         self.update_plots()
 
@@ -114,6 +120,7 @@ class IMUPlugin(neon_player.Plugin):
 
         export_file = destination / "imu.csv"
         self.imu_data[start_mask & stop_mask].to_csv(export_file, index=False)
+        logger.info(f"Exported IMU data to {export_file}")
 
     @property
     def orientation(self) -> bool:
