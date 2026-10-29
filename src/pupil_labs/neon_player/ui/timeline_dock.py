@@ -79,6 +79,8 @@ class TimeLineDock(QWidget):
         ```
     """
 
+    TIMELINE_PADDING = 0.05
+
     key_pressed = Signal(QKeyEvent)
 
     def __init__(self) -> None:
@@ -217,14 +219,15 @@ class TimeLineDock(QWidget):
 
         self.playhead.show()
         self.horizontal_scroll_bar.set_time_frame(
-            (recording.start_time, recording.stop_time)
+            (recording.start_time, recording.stop_time),
+            padding=self.TIMELINE_PADDING,
         )
+        duration = recording.stop_time - recording.start_time
         for plot_item in self.timeline_plots.values():
             plot_item.setXRange(recording.start_time, recording.stop_time, padding=0)
-            duration = recording.stop_time - recording.start_time
             plot_item.getViewBox().setLimits(
-                xMin=recording.start_time - duration * 0.05,
-                xMax=recording.stop_time + duration * 0.05,
+                xMin=recording.start_time - duration * self.TIMELINE_PADDING,
+                xMax=recording.stop_time + duration * self.TIMELINE_PADDING,
             )
             axis = plot_item.getAxis("top")
             axis.set_time_frame(recording.start_time, recording.stop_time)
@@ -539,8 +542,8 @@ class TimeLineDock(QWidget):
         if recording is not None:
             duration = recording.stop_time - recording.start_time
             plot_item.getViewBox().setLimits(
-                xMin=recording.start_time - duration * 0.05,
-                xMax=recording.stop_time + duration * 0.05,
+                xMin=recording.start_time - duration * self.TIMELINE_PADDING,
+                xMax=recording.stop_time + duration * self.TIMELINE_PADDING,
             )
 
         self.timeline_plots[timeline_row_name] = plot_item
