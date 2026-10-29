@@ -36,9 +36,9 @@ def test_export_data_without_recording(
 ) -> None:
     monkeypatch.setattr(qapp, "recording", None)
     plugin = FixationsPlugin()
-    with pytest.raises(AssertionError, match="Recording must be loaded"):
+    with pytest.raises(RuntimeError, match="A loaded recording is required"):
         plugin.get_export_fixations()
-    with pytest.raises(AssertionError, match="Recording must be loaded"):
+    with pytest.raises(RuntimeError, match="A loaded recording is required"):
         plugin.get_export_saccades()
 
 
