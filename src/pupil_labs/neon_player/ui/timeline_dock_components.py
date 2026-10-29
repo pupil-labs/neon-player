@@ -288,8 +288,8 @@ class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not
 
         Args:
             show: Whether to show the labels. Provide `True` or `False` to show
-                or hide the labels. `None` (default) keeps the current setting.
-            units: Units to display after each y-limit value. `None` (default)
+                or hide the labels, respectively. `None` keeps the current setting.
+            units: Units to display after each y-limit value. `None`
                 keeps the current setting.
         """
         if show is not None:
