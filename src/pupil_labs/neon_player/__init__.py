@@ -26,6 +26,17 @@ def instance(required: bool) -> "NeonPlayerApp | None": ...
 
 
 def instance(required: bool = True) -> "NeonPlayerApp | None":
+    """Return the running Neon Player application instance.
+
+    !!! warning
+        Within the plugin implementation, it is recommended to use the
+        [`Plugin.app`][pupil_labs.neon_player.Plugin.app]
+        field to access the main application.
+
+    Args:
+        required: If `True` (default), the result is guaranteed to be an instance of
+            `NeonPlayerApp`, or an error will be raised.
+    """
     from pupil_labs.neon_player.app import NeonPlayerApp  # noqa: PLC0415
 
     app = NeonPlayerApp.instance()
@@ -36,6 +47,15 @@ def instance(required: bool = True) -> "NeonPlayerApp | None":
 
 
 def action(func: T.Callable[..., object]) -> object:
+    """Mark a plugin method as an action that users can run.
+
+    Apply this decorator to methods that should appear as plugin actions. For
+    each action, a corresponding button is added to the plugin settings.
+
+    Args:
+        func: Plugin method to make available as an action.
+    """
+
     @functools.wraps(func)
     def wrapper(*args: object, **kwargs: object) -> object:
         return func(*args, **kwargs)

@@ -93,3 +93,25 @@ jobs:
 
       - name: Run tests
         run: uv run python -m pytest tests --cov --cov-config=pyproject.toml --cov-report=html
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v6
+        with:
+          lfs: "true"
+
+      - name: Set up the environment
+        uses: ./.github/actions/setup-python-env
+
+      - name: Check that the docs build w/o errors
+        run: make docs-test
+
+      - name: Deploy dev docs
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          git fetch origin gh-pages --depth=1 || echo "gh-pages does not exist but will be created"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          uv run mike deploy dev --push

@@ -2,6 +2,9 @@ target-version = "py312"
 fix = true
 unsafe-fixes = false
 preview = false
+exclude = [
+    "docs/examples/",
+]
 
 [lint]
 extend-select = [

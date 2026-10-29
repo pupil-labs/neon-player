@@ -18,14 +18,29 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ProgressUpdate:
+    """Progress information yielded by a background job."""
+
     progress: float = 0.0
+    """Fraction from 0.0 (not started) to 1.0 (complete).
+
+    This value controls the progress bar shown in the UI while the job is
+    running in background.
+    """
     datum: T.Any = None
 
 
 class BackgroundJob(QObject):
-    progress_changed = Signal(float)
-    finished = Signal()
-    canceled = Signal()
+    """A background job started via [`JobManager.run_background_action`][].
+
+    Connect to the job's signals to receive updates on its status and progress.
+    """
+
+    progress_changed: Signal = Signal(float)
+    """Emitted with progress from 0.0 to 1.0."""
+    finished: Signal = Signal()
+    """Emitted when the background process exits."""
+    canceled: Signal = Signal()
+    """Emitted when the job is canceled."""
 
     def __init__(
         self,
@@ -37,9 +52,12 @@ class BackgroundJob(QObject):
     ) -> None:
         super().__init__()
 
-        self.name = name
-        self.job_id = job_id
+        self.name: str = name
+        """Job name shown in the UI."""
         self.progress: float = -1
+        """Last reported progress; ``-1`` until the first update."""
+
+        self.job_id = job_id
         self.socket: QLocalSocket | None = None
         self._expected_payload_size: int | None = None
 
@@ -124,12 +142,17 @@ class BackgroundJob(QObject):
                 logger.exception("Could not unpickle progress update")
 
     def cancel(self) -> None:
+        """Stop the background job.
+
+        Once the job is stopped, the ``canceled`` signal is emitted."""
         self.proc.terminate()
         self.proc.wait()
         self.canceled.emit()
 
 
 class JobManager(QObject):
+    """Start and track long-running plugin actions."""
+
     updated = Signal()
     job_started = Signal(BackgroundJob)
     job_finished = Signal(BackgroundJob)
@@ -178,6 +201,22 @@ class JobManager(QObject):
     def run_background_action(
         self, name: str, action_name: str, *args: object
     ) -> BackgroundJob:
+        """Run an long-running job in background so that the UI stays responsive.
+
+        Background jobs are not available when Neon Player is running in
+        headless mode.
+
+        Args:
+            name: Job name shown in the UI.
+            action_name: Name of the action to run, formatted as
+                ``"PluginClass.method"``. The method should yield
+                [`ProgressUpdate`][ProgressUpdate] values to report progress
+                to the main application.
+            *args: Arbitrary amount of action arguments.
+
+        Returns:
+            The running job.
+        """
         app = neon_player.instance()
         if app.headless:
             raise RuntimeError("Not starting background job in headless mode")

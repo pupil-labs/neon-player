@@ -14,7 +14,7 @@ repos:
     hooks:
       - id: project-check
         name: Project checks
-        entry: make check-precommit
+        entry: make check
         language: system
         pass_filenames: false
         always_run: true
