@@ -1488,12 +1488,12 @@
 
                   <details class="mkdocstrings-source">
                     <summary>Source code in <code>src/pupil_labs/neon_player/job_manager.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">152</span>
-<span class="normal">153</span>
-<span class="normal">154</span>
-<span class="normal">155</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">161</span>
+<span class="normal">162</span>
+<span class="normal">163</span>
+<span class="normal">164</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">current_jobs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">current_jobs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">BackgroundJob</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">job_counter</span> <span class="o">=</span> <span class="mi">0</span>
 </code></pre></div></td></tr></table></div>
                   </details>
@@ -1519,7 +1519,9 @@
 
 
 <a href="#pupil_labs.neon_player.job_manager.JobManager.run_background_action" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">run_background_action</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n">action_name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="typing.Any" href="https://docs.python.org/3/library/typing.html#typing.Any">Any</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-internal" title="            BackgroundJob (pupil_labs.neon_player.job_manager.BackgroundJob)" href="#pupil_labs.neon_player.job_manager.BackgroundJob">BackgroundJob</a></span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">run_background_action</span><span class="p">(</span>
+    <span class="n">name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n">action_name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#object">object</a></span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-internal" title="            BackgroundJob (pupil_labs.neon_player.job_manager.BackgroundJob)" href="#pupil_labs.neon_player.job_manager.BackgroundJob">BackgroundJob</a></span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1557,7 +1559,7 @@ to the main application.</p>
         </li>
         <li class="doc-section-item field-body">
             <b><code>*args</code></b>
-              (<code><a class="autorefs autorefs-external" title="typing.Any" href="https://docs.python.org/3/library/typing.html#typing.Any">Any</a></code>, default:
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#object">object</a></code>, default:
                   <code>()</code>
 )
           –
@@ -1582,16 +1584,7 @@ to the main application.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pupil_labs/neon_player/job_manager.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">192</span>
-<span class="normal">193</span>
-<span class="normal">194</span>
-<span class="normal">195</span>
-<span class="normal">196</span>
-<span class="normal">197</span>
-<span class="normal">198</span>
-<span class="normal">199</span>
-<span class="normal">200</span>
-<span class="normal">201</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">201</span>
 <span class="normal">202</span>
 <span class="normal">203</span>
 <span class="normal">204</span>
@@ -1632,8 +1625,13 @@ to the main application.</p>
 <span class="normal">239</span>
 <span class="normal">240</span>
 <span class="normal">241</span>
-<span class="normal">242</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">run_background_action</span><span class="p">(</span>
-    <span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">action_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Any</span>
+<span class="normal">242</span>
+<span class="normal">243</span>
+<span class="normal">244</span>
+<span class="normal">245</span>
+<span class="normal">246</span>
+<span class="normal">247</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">run_background_action</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">action_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="nb">object</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BackgroundJob</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Run an long-running job in background so that the UI stays responsive.</span>
 
@@ -1651,17 +1649,13 @@ to the main application.</p>
 <span class="sd">    Returns:</span>
 <span class="sd">        The running job.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">neon_player</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">headless</span><span class="p">:</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Not starting background job in headless mode&quot;</span><span class="p">)</span>
-        <span class="k">return</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">neon_player</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">app</span><span class="o">.</span><span class="n">headless</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Not starting background job in headless mode&quot;</span><span class="p">)</span>
 
-    <span class="n">neon_player</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">save_settings</span><span class="p">(</span><span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-
-    <span class="n">recording</span> <span class="o">=</span> <span class="n">neon_player</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">recording</span>
-    <span class="k">if</span> <span class="n">recording</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">rec_dir</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">rec_dir</span> <span class="o">=</span> <span class="n">neon_player</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">recording</span><span class="o">.</span><span class="n">_rec_dir</span>
+    <span class="n">recording</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">recording</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">save_settings</span><span class="p">(</span><span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">rec_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">recording</span><span class="o">.</span><span class="n">_rec_dir</span><span class="p">))</span> <span class="k">if</span> <span class="n">recording</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
 
     <span class="n">job</span> <span class="o">=</span> <span class="n">BackgroundJob</span><span class="p">(</span>
         <span class="n">name</span><span class="p">,</span>
@@ -1680,7 +1674,7 @@ to the main application.</p>
     <span class="bp">self</span><span class="o">.</span><span class="n">job_started</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="n">job</span><span class="p">)</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">updated</span><span class="o">.</span><span class="n">emit</span><span class="p">()</span>
 
-    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">job</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> started in the background&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">job</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> started in the background&quot;</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">job</span>
 </code></pre></div></td></tr></table></div>
@@ -1706,7 +1700,13 @@ to the main application.</p>
 
 
 <a href="#pupil_labs.neon_player.job_manager.BackgroundJob" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">BackgroundJob</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n">job_id</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span><span class="p">,</span> <span class="n">recording_path</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="pathlib.Path" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path">Path</a></span><span class="p">,</span> <span class="n">action_name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="typing.Any" href="https://docs.python.org/3/library/typing.html#typing.Any">Any</a></span><span class="p">)</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">BackgroundJob</span><span class="p">(</span>
+    <span class="n">name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span>
+    <span class="n">job_id</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span><span class="p">,</span>
+    <span class="n">recording_path</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="pathlib.Path" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path">Path</a></span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">action_name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span>
+    <span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#object">object</a></span><span class="p">,</span>
+<span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents first">
@@ -1817,9 +1817,7 @@ to the main application.</p>
 
                   <details class="mkdocstrings-source">
                     <summary>Source code in <code>src/pupil_labs/neon_player/job_manager.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">43</span>
-<span class="normal">44</span>
-<span class="normal">45</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">45</span>
 <span class="normal">46</span>
 <span class="normal">47</span>
 <span class="normal">48</span>
@@ -1862,14 +1860,16 @@ to the main application.</p>
 <span class="normal">85</span>
 <span class="normal">86</span>
 <span class="normal">87</span>
-<span class="normal">88</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+<span class="normal">88</span>
+<span class="normal">89</span>
+<span class="normal">90</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
     <span class="bp">self</span><span class="p">,</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">job_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-    <span class="n">recording_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="n">recording_path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">action_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">,</span>
-<span class="p">):</span>
+    <span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">name</span>
@@ -1878,19 +1878,19 @@ to the main application.</p>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Last reported progress; ``-1`` until the first update.&quot;&quot;&quot;</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">job_id</span> <span class="o">=</span> <span class="n">job_id</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">socket</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">_expected_payload_size</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">socket</span><span class="p">:</span> <span class="n">QLocalSocket</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_expected_payload_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="n">server_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;neon-player-job-</span><span class="si">{</span><span class="n">job_id</span><span class="si">}</span><span class="s2">&quot;</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">server</span> <span class="o">=</span> <span class="n">QLocalServer</span><span class="p">()</span>
     <span class="n">QLocalServer</span><span class="o">.</span><span class="n">removeServer</span><span class="p">(</span><span class="n">server_name</span><span class="p">)</span>  <span class="c1"># remove any dangling sockets</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">listen</span><span class="p">(</span><span class="n">server_name</span><span class="p">):</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not start IPC server for job </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not start IPC server for job </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">return</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">newConnection</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_handle_connection</span><span class="p">)</span>
 
-    <span class="n">args</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">command_args</span> <span class="o">=</span> <span class="p">[</span>
         <span class="nb">str</span><span class="p">(</span><span class="n">recording_path</span><span class="p">),</span>
         <span class="s2">&quot;--progress-ipc-name&quot;</span><span class="p">,</span>
         <span class="n">server_name</span><span class="p">,</span>
@@ -1899,15 +1899,15 @@ to the main application.</p>
     <span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
 
     <span class="k">if</span> <span class="n">neon_player</span><span class="o">.</span><span class="n">is_frozen</span><span class="p">():</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span><span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">]</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span><span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">,</span> <span class="o">*</span><span class="n">command_args</span><span class="p">]</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span><span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">,</span> <span class="s2">&quot;-m&quot;</span><span class="p">,</span> <span class="s2">&quot;pupil_labs.neon_player&quot;</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">]</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span><span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">,</span> <span class="s2">&quot;-m&quot;</span><span class="p">,</span> <span class="s2">&quot;pupil_labs.neon_player&quot;</span><span class="p">,</span> <span class="o">*</span><span class="n">command_args</span><span class="p">]</span>
 
-    <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Executing bg job </span><span class="si">{</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Executing bg job </span><span class="si">{</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">proc</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>  <span class="c1"># noqa: S603</span>
 
-    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Background job started: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Background job started: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
                   </details>
 
@@ -2066,13 +2066,13 @@ to the main application.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pupil_labs/neon_player/job_manager.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">135</span>
-<span class="normal">136</span>
-<span class="normal">137</span>
-<span class="normal">138</span>
-<span class="normal">139</span>
-<span class="normal">140</span>
-<span class="normal">141</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">cancel</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">144</span>
+<span class="normal">145</span>
+<span class="normal">146</span>
+<span class="normal">147</span>
+<span class="normal">148</span>
+<span class="normal">149</span>
+<span class="normal">150</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">cancel</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Stop the background job.</span>
 
 <span class="sd">    Once the job is stopped, the ``canceled`` signal is emitted.&quot;&quot;&quot;</span>

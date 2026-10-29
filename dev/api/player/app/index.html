@@ -1718,7 +1718,6 @@
   
       instance-attribute
    (pupil_labs.neon_player.app.NeonPlayerApp.current_ts)" href="#pupil_labs.neon_player.app.NeonPlayerApp.current_ts">current_ts</a></code></b>
-              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></code>)
           –
           <div class="doc-md-description">
             <p>Current timestamp in nanoseconds.</p>
@@ -1865,17 +1864,7 @@
 
                   <details class="mkdocstrings-source">
                     <summary>Source code in <code>src/pupil_labs/neon_player/app.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 95</span>
-<span class="normal"> 96</span>
-<span class="normal"> 97</span>
-<span class="normal"> 98</span>
-<span class="normal"> 99</span>
-<span class="normal">100</span>
-<span class="normal">101</span>
-<span class="normal">102</span>
-<span class="normal">103</span>
-<span class="normal">104</span>
-<span class="normal">105</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">105</span>
 <span class="normal">106</span>
 <span class="normal">107</span>
 <span class="normal">108</span>
@@ -1962,13 +1951,36 @@
 <span class="normal">189</span>
 <span class="normal">190</span>
 <span class="normal">191</span>
-<span class="normal">192</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">argv</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="normal">192</span>
+<span class="normal">193</span>
+<span class="normal">194</span>
+<span class="normal">195</span>
+<span class="normal">196</span>
+<span class="normal">197</span>
+<span class="normal">198</span>
+<span class="normal">199</span>
+<span class="normal">200</span>
+<span class="normal">201</span>
+<span class="normal">202</span>
+<span class="normal">203</span>
+<span class="normal">204</span>
+<span class="normal">205</span>
+<span class="normal">206</span>
+<span class="normal">207</span>
+<span class="normal">208</span>
+<span class="normal">209</span>
+<span class="normal">210</span>
+<span class="normal">211</span>
+<span class="normal">212</span>
+<span class="normal">213</span>
+<span class="normal">214</span>
+<span class="normal">215</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">argv</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">_initializing</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">argv</span><span class="p">)</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="n">app_version</span> <span class="o">=</span> <span class="n">version</span><span class="p">(</span><span class="s2">&quot;pupil_labs.neon_player&quot;</span><span class="p">)</span>
-    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+    <span class="k">except</span> <span class="n">PackageNotFoundError</span><span class="p">:</span>
         <span class="n">app_version</span> <span class="o">=</span> <span class="s2">&quot;?&quot;</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">setApplicationName</span><span class="p">(</span><span class="s2">&quot;Neon Player&quot;</span><span class="p">)</span>
@@ -1984,22 +1996,33 @@
     <span class="bp">self</span><span class="o">.</span><span class="n">plugins</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Plugin</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">recording</span><span class="p">:</span> <span class="n">nr</span><span class="o">.</span><span class="n">NeonRecording</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Currently opened Neon recording, if any.&quot;&quot;&quot;</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">playback_start_anchor</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">current_ts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">playback_start_anchor</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">current_ts</span> <span class="o">=</span> <span class="mi">0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Current timestamp in nanoseconds.&quot;&quot;&quot;</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">playback_speed_options</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
-        <span class="o">-</span><span class="mf">4.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.25</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.125</span><span class="p">,</span> <span class="mf">0.125</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">4.0</span>
+        <span class="o">-</span><span class="mf">4.0</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">2.0</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">1.0</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">0.25</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">0.125</span><span class="p">,</span>
+        <span class="mf">0.125</span><span class="p">,</span>
+        <span class="mf">0.25</span><span class="p">,</span>
+        <span class="mf">0.5</span><span class="p">,</span>
+        <span class="mf">1.0</span><span class="p">,</span>
+        <span class="mf">2.0</span><span class="p">,</span>
+        <span class="mf">4.0</span><span class="p">,</span>
     <span class="p">]</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">playback_speed</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Playback speed as a multiplier; negative values play backward.&quot;&quot;&quot;</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">settings</span> <span class="o">=</span> <span class="n">GeneralSettings</span><span class="p">()</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">loading_recording</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">recording_settings</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">recording_settings</span><span class="p">:</span> <span class="n">RecordingSettings</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">recording_history</span> <span class="o">=</span> <span class="n">RecordingHistory</span><span class="p">()</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">refresh_timer</span> <span class="o">=</span> <span class="n">QTimer</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">refresh_timer</span><span class="o">.</span><span class="n">setInterval</span><span class="p">(</span><span class="mi">1000</span> <span class="o">/</span> <span class="mi">30</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">refresh_timer</span><span class="o">.</span><span class="n">setInterval</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="mi">1000</span> <span class="o">/</span> <span class="mi">30</span><span class="p">))</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">refresh_timer</span><span class="o">.</span><span class="n">timeout</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">poll</span><span class="p">)</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">job_manager</span> <span class="o">=</span> <span class="n">JobManager</span><span class="p">()</span>
@@ -2020,7 +2043,7 @@
     <span class="bp">self</span><span class="o">.</span><span class="n">main_window</span> <span class="o">=</span> <span class="n">MainWindow</span><span class="p">()</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">ipc_logger</span> <span class="o">=</span> <span class="n">IPCLogger</span><span class="p">()</span>
-    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
         <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">applicationName</span><span class="p">()</span><span class="si">}</span><span class="s2"> v</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">applicationVersion</span><span class="p">()</span><span class="si">}</span><span class="s2"> starting up&quot;</span>
     <span class="p">)</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">_setup_frozen</span><span class="p">()</span>
@@ -2037,18 +2060,20 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">find_plugins</span><span class="p">(</span><span class="n">plugin_search_path</span><span class="p">)</span>
 
     <span class="k">try</span><span class="p">:</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">settings</span> <span class="o">=</span> <span class="n">GeneralSettings</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">load_global_settings</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">settings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">load_global_settings</span><span class="p">()</span>
     <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Settings file not found&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Settings file not found&quot;</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s2">&quot;Failed to load settings&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s2">&quot;Failed to load settings&quot;</span><span class="p">)</span>
 
     <span class="k">try</span><span class="p">:</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">recording_history</span> <span class="o">=</span> <span class="n">RecordingHistory</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">load_recording_history</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">recording_history</span> <span class="o">=</span> <span class="n">RecordingHistory</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">load_recording_history</span><span class="p">()</span>
+        <span class="p">)</span>
     <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Recording history file not found&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Recording history file not found&quot;</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s2">&quot;Failed to load recording history&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s2">&quot;Failed to load recording history&quot;</span><span class="p">)</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">recording_history</span><span class="o">.</span><span class="n">changed</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">save_history</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">job</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">recording</span><span class="p">:</span>
@@ -2110,7 +2135,7 @@
   </span>
 
 <a href="#pupil_labs.neon_player.app.NeonPlayerApp.current_ts" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">current_ts</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span> <span class="o">=</span> <span class="mi">0</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">current_ts</span> <span class="o">=</span> <span class="mi">0</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2208,14 +2233,14 @@ job.</p>
   </span>
 
 <a href="#pupil_labs.neon_player.app.NeonPlayerApp.export_window_changed" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">export_window_changed</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="PySide6.QtCore.Signal" href="https://doc.qt.io/qtforpython-6/PySide6/QtCore/Signal.html#PySide6.QtCore.Signal">Signal</a></span> <span class="o">=</span> <span class="n"><a class="autorefs autorefs-external" title="PySide6.QtCore.Signal" href="https://doc.qt.io/qtforpython-6/PySide6/QtCore/Signal.html#PySide6.QtCore.Signal">Signal</a></span><span class="p">(</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple">tuple</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span><span class="p">,</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span><span class="p">])</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">export_window_changed</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="PySide6.QtCore.Signal" href="https://doc.qt.io/qtforpython-6/PySide6/QtCore/Signal.html#PySide6.QtCore.Signal">Signal</a></span> <span class="o">=</span> <span class="n"><a class="autorefs autorefs-external" title="PySide6.QtCore.Signal" href="https://doc.qt.io/qtforpython-6/PySide6/QtCore/Signal.html#PySide6.QtCore.Signal">Signal</a></span><span class="p">()</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
 
         <p>Emitted when the export window changes.</p>
-<p>Signal parameter contains the start and end timestamps of
-the export window in nanoseconds.</p>
+<p>Use <code>get_export_window()</code> to retrieve the start and end timestamps
+of the export window in nanoseconds.</p>
 
     </div>
 
@@ -2388,7 +2413,12 @@ back a recording, and <code>False</code> otherwise.</p>
 
 
 <a href="#pupil_labs.neon_player.app.NeonPlayerApp.show_notification" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">show_notification</span><span class="p">(</span><span class="n">title</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n">icon</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="PySide6.QtWidgets.QSystemTrayIcon.MessageIcon" href="https://doc.qt.io/qtforpython-6/PySide6/QtWidgets/QSystemTrayIcon.html#PySide6.QtWidgets.QSystemTrayIcon.MessageIcon">MessageIcon</a></span> <span class="o">|</span> <span class="n"><a class="autorefs autorefs-external" title="PySide6.QtGui.QIcon" href="https://doc.qt.io/qtforpython-6/PySide6/QtGui/QIcon.html#PySide6.QtGui.QIcon">QIcon</a></span> <span class="o">=</span> <span class="n"><span title="PySide6.QtWidgets.QSystemTrayIcon.MessageIcon.Information">Information</span></span><span class="p">,</span> <span class="n">duration</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span> <span class="o">=</span> <span class="mi">10000</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">show_notification</span><span class="p">(</span>
+    <span class="n">title</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span>
+    <span class="n">message</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span>
+    <span class="n">icon</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="PySide6.QtWidgets.QSystemTrayIcon.MessageIcon" href="https://doc.qt.io/qtforpython-6/PySide6/QtWidgets/QSystemTrayIcon.html#PySide6.QtWidgets.QSystemTrayIcon.MessageIcon">MessageIcon</a></span> <span class="o">|</span> <span class="n"><a class="autorefs autorefs-external" title="PySide6.QtGui.QIcon" href="https://doc.qt.io/qtforpython-6/PySide6/QtGui/QIcon.html#PySide6.QtGui.QIcon">QIcon</a></span> <span class="o">=</span> <span class="n"><span title="PySide6.QtWidgets.QSystemTrayIcon.MessageIcon.Information">Information</span></span><span class="p">,</span>
+    <span class="n">duration</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span> <span class="o">=</span> <span class="mi">10000</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2439,23 +2469,23 @@ back a recording, and <code>False</code> otherwise.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pupil_labs/neon_player/app.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">377</span>
-<span class="normal">378</span>
-<span class="normal">379</span>
-<span class="normal">380</span>
-<span class="normal">381</span>
-<span class="normal">382</span>
-<span class="normal">383</span>
-<span class="normal">384</span>
-<span class="normal">385</span>
-<span class="normal">386</span>
-<span class="normal">387</span>
-<span class="normal">388</span>
-<span class="normal">389</span>
-<span class="normal">390</span>
-<span class="normal">391</span>
-<span class="normal">392</span>
-<span class="normal">393</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">show_notification</span><span class="p">(</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">429</span>
+<span class="normal">430</span>
+<span class="normal">431</span>
+<span class="normal">432</span>
+<span class="normal">433</span>
+<span class="normal">434</span>
+<span class="normal">435</span>
+<span class="normal">436</span>
+<span class="normal">437</span>
+<span class="normal">438</span>
+<span class="normal">439</span>
+<span class="normal">440</span>
+<span class="normal">441</span>
+<span class="normal">442</span>
+<span class="normal">443</span>
+<span class="normal">444</span>
+<span class="normal">445</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">show_notification</span><span class="p">(</span>
     <span class="bp">self</span><span class="p">,</span>
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -2509,14 +2539,14 @@ back a recording, and <code>False</code> otherwise.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pupil_labs/neon_player/app.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">514</span>
-<span class="normal">515</span>
-<span class="normal">516</span>
-<span class="normal">517</span>
-<span class="normal">518</span>
-<span class="normal">519</span>
-<span class="normal">520</span>
-<span class="normal">521</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">set_playback_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">playing</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">581</span>
+<span class="normal">582</span>
+<span class="normal">583</span>
+<span class="normal">584</span>
+<span class="normal">585</span>
+<span class="normal">586</span>
+<span class="normal">587</span>
+<span class="normal">588</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">set_playback_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">playing</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Start or pause playback.</span>
 
 <span class="sd">    Args:</span>
@@ -2561,14 +2591,14 @@ back a recording, and <code>False</code> otherwise.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pupil_labs/neon_player/app.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">486</span>
-<span class="normal">487</span>
-<span class="normal">488</span>
-<span class="normal">489</span>
-<span class="normal">490</span>
-<span class="normal">491</span>
-<span class="normal">492</span>
-<span class="normal">493</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">set_playback_speed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">speed</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">549</span>
+<span class="normal">550</span>
+<span class="normal">551</span>
+<span class="normal">552</span>
+<span class="normal">553</span>
+<span class="normal">554</span>
+<span class="normal">555</span>
+<span class="normal">556</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">set_playback_speed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">speed</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Set the playback rate; negative values play the recording backward.</span>
 
 <span class="sd">    Args:</span>
@@ -2614,32 +2644,32 @@ boundaries (start/stop time) of the opened recording.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pupil_labs/neon_player/app.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">549</span>
-<span class="normal">550</span>
-<span class="normal">551</span>
-<span class="normal">552</span>
-<span class="normal">553</span>
-<span class="normal">554</span>
-<span class="normal">555</span>
-<span class="normal">556</span>
-<span class="normal">557</span>
-<span class="normal">558</span>
-<span class="normal">559</span>
-<span class="normal">560</span>
-<span class="normal">561</span>
-<span class="normal">562</span>
-<span class="normal">563</span>
-<span class="normal">564</span>
-<span class="normal">565</span>
-<span class="normal">566</span>
-<span class="normal">567</span>
-<span class="normal">568</span>
-<span class="normal">569</span>
-<span class="normal">570</span>
-<span class="normal">571</span>
-<span class="normal">572</span>
-<span class="normal">573</span>
-<span class="normal">574</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">seek_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ts</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">616</span>
+<span class="normal">617</span>
+<span class="normal">618</span>
+<span class="normal">619</span>
+<span class="normal">620</span>
+<span class="normal">621</span>
+<span class="normal">622</span>
+<span class="normal">623</span>
+<span class="normal">624</span>
+<span class="normal">625</span>
+<span class="normal">626</span>
+<span class="normal">627</span>
+<span class="normal">628</span>
+<span class="normal">629</span>
+<span class="normal">630</span>
+<span class="normal">631</span>
+<span class="normal">632</span>
+<span class="normal">633</span>
+<span class="normal">634</span>
+<span class="normal">635</span>
+<span class="normal">636</span>
+<span class="normal">637</span>
+<span class="normal">638</span>
+<span class="normal">639</span>
+<span class="normal">640</span>
+<span class="normal">641</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">seek_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ts</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Move the playhead to a timestamp.</span>
 
 <span class="sd">    Args:</span>
@@ -2679,7 +2709,7 @@ boundaries (start/stop time) of the opened recording.</p>
 
 
 <a href="#pupil_labs.neon_player.app.NeonPlayerApp.get_export_window" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">get_export_window</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple">tuple</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span><span class="p">,</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">get_export_window</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple">tuple</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span><span class="p">,</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span><span class="p">]</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2690,17 +2720,10 @@ boundaries (start/stop time) of the opened recording.</p>
 <p><span class="doc-section-title">Returns:</span></p>
     <ul>
         <li class="doc-section-item field-body">
-              <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple">tuple</a>[<a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a>, <a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a>] | None</code>
+              <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple">tuple</a>[<a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a>, <a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a>]</code>
           –
           <div class="doc-md-description">
-            <p>The <code>(start, end)</code> timestamp pair (in nanoseconds), or <code>None</code></p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-              <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple">tuple</a>[<a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a>, <a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a>] | None</code>
-          –
-          <div class="doc-md-description">
-            <p>if no recording is open.</p>
+            <p>The <code>(start, end)</code> timestamp pair (in nanoseconds).</p>
           </div>
         </li>
     </ul>
@@ -2708,27 +2731,33 @@ boundaries (start/stop time) of the opened recording.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pupil_labs/neon_player/app.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">634</span>
-<span class="normal">635</span>
-<span class="normal">636</span>
-<span class="normal">637</span>
-<span class="normal">638</span>
-<span class="normal">639</span>
-<span class="normal">640</span>
-<span class="normal">641</span>
-<span class="normal">642</span>
-<span class="normal">643</span>
-<span class="normal">644</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_export_window</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">705</span>
+<span class="normal">706</span>
+<span class="normal">707</span>
+<span class="normal">708</span>
+<span class="normal">709</span>
+<span class="normal">710</span>
+<span class="normal">711</span>
+<span class="normal">712</span>
+<span class="normal">713</span>
+<span class="normal">714</span>
+<span class="normal">715</span>
+<span class="normal">716</span>
+<span class="normal">717</span>
+<span class="normal">718</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_export_window</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Get the start and end timestamps of the current export window.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        The ``(start, end)`` timestamp pair (in nanoseconds), or ``None``</span>
-<span class="sd">        if no recording is open.</span>
+<span class="sd">        The ``(start, end)`` timestamp pair (in nanoseconds).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">settings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording_settings</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">settings</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="s2">&quot;Recording and recording settings must be loaded before &quot;</span>
+            <span class="s2">&quot;getting the export window&quot;</span>
+        <span class="p">)</span>
 
-    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording_settings</span><span class="o">.</span><span class="n">export_window</span>
+    <span class="k">return</span> <span class="n">settings</span><span class="o">.</span><span class="n">export_window</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2778,25 +2807,32 @@ boundaries (start/stop time) of the opened recording.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pupil_labs/neon_player/app.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">646</span>
-<span class="normal">647</span>
-<span class="normal">648</span>
-<span class="normal">649</span>
-<span class="normal">650</span>
-<span class="normal">651</span>
-<span class="normal">652</span>
-<span class="normal">653</span>
-<span class="normal">654</span>
-<span class="normal">655</span>
-<span class="normal">656</span>
-<span class="normal">657</span>
-<span class="normal">658</span>
-<span class="normal">659</span>
-<span class="normal">660</span>
-<span class="normal">661</span>
-<span class="normal">662</span>
-<span class="normal">663</span>
-<span class="normal">664</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">set_export_window</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">export_window</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">720</span>
+<span class="normal">721</span>
+<span class="normal">722</span>
+<span class="normal">723</span>
+<span class="normal">724</span>
+<span class="normal">725</span>
+<span class="normal">726</span>
+<span class="normal">727</span>
+<span class="normal">728</span>
+<span class="normal">729</span>
+<span class="normal">730</span>
+<span class="normal">731</span>
+<span class="normal">732</span>
+<span class="normal">733</span>
+<span class="normal">734</span>
+<span class="normal">735</span>
+<span class="normal">736</span>
+<span class="normal">737</span>
+<span class="normal">738</span>
+<span class="normal">739</span>
+<span class="normal">740</span>
+<span class="normal">741</span>
+<span class="normal">742</span>
+<span class="normal">743</span>
+<span class="normal">744</span>
+<span class="normal">745</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">set_export_window</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">export_window</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Set the export window.</span>
 
 <span class="sd">    Args:</span>
@@ -2805,15 +2841,22 @@ boundaries (start/stop time) of the opened recording.</p>
 <span class="sd">    Raises:</span>
 <span class="sd">        ValueError: If the value is not a two-item tuple.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">return</span>
+    <span class="n">settings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording_settings</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">settings</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="s2">&quot;Recording and recording settings must be loaded before &quot;</span>
+            <span class="s2">&quot;setting the export window&quot;</span>
+        <span class="p">)</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">export_window</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">export_window</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
             <span class="s2">&quot;Export window must be a tuple with two integer timestamps (start, end)&quot;</span>
         <span class="p">)</span>
 
-    <span class="bp">self</span><span class="o">.</span><span class="n">recording_settings</span><span class="o">.</span><span class="n">export_window</span> <span class="o">=</span> <span class="n">export_window</span>
+    <span class="k">if</span> <span class="n">export_window</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">export_window</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Export window start cannot follow its end&quot;</span><span class="p">)</span>
+
+    <span class="n">settings</span><span class="o">.</span><span class="n">export_window</span> <span class="o">=</span> <span class="n">export_window</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">main_window</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">set_export_window</span><span class="p">(</span><span class="n">export_window</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
@@ -2837,12 +2880,14 @@ boundaries (start/stop time) of the opened recording.</p>
 
 
 <a href="#pupil_labs.neon_player.instance" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">instance</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-internal" title="            NeonPlayerApp (pupil_labs.neon_player.app.NeonPlayerApp)" href="#pupil_labs.neon_player.app.NeonPlayerApp">NeonPlayerApp</a></span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">instance</span><span class="p">(</span><span class="n">required</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-internal" title="            NeonPlayerApp (pupil_labs.neon_player.app.NeonPlayerApp)" href="#pupil_labs.neon_player.app.NeonPlayerApp">NeonPlayerApp</a></span> <span class="o">|</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents first">
 
         <p>Return the running Neon Player application instance.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
 <p>Within the plugin implementation, it is recommended to use the
 <a class="autorefs autorefs-internal" title="            app
 
@@ -2851,27 +2896,64 @@ boundaries (start/stop time) of the opened recording.</p>
       property
   " href="../../plugin/#pupil_labs.neon_player.Plugin.app"><code>Plugin.app</code></a>
 field to access the main application.</p>
+</div>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>required</code></b>
+              (<code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></code>, default:
+                  <code>True</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>If <code>True</code> (default), the result is guaranteed to be an instance of
+<code>NeonPlayerApp</code>, or an error will be raised.</p>
+          </div>
+        </li>
+    </ul>
 
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/pupil_labs/neon_player/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">20</span>
-<span class="normal">21</span>
-<span class="normal">22</span>
-<span class="normal">23</span>
-<span class="normal">24</span>
-<span class="normal">25</span>
-<span class="normal">26</span>
-<span class="normal">27</span>
-<span class="normal">28</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">instance</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="s2">&quot;NeonPlayerApp&quot;</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">28</span>
+<span class="normal">29</span>
+<span class="normal">30</span>
+<span class="normal">31</span>
+<span class="normal">32</span>
+<span class="normal">33</span>
+<span class="normal">34</span>
+<span class="normal">35</span>
+<span class="normal">36</span>
+<span class="normal">37</span>
+<span class="normal">38</span>
+<span class="normal">39</span>
+<span class="normal">40</span>
+<span class="normal">41</span>
+<span class="normal">42</span>
+<span class="normal">43</span>
+<span class="normal">44</span>
+<span class="normal">45</span>
+<span class="normal">46</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">instance</span><span class="p">(</span><span class="n">required</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;NeonPlayerApp | None&quot;</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the running Neon Player application instance.</span>
 
-<span class="sd">    Within the plugin implementation, it is recommended to use the</span>
-<span class="sd">    [`Plugin.app`][pupil_labs.neon_player.Plugin.app]</span>
-<span class="sd">    field to access the main application.&quot;&quot;&quot;</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">pupil_labs.neon_player.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">NeonPlayerApp</span>
+<span class="sd">    !!! warning</span>
+<span class="sd">        Within the plugin implementation, it is recommended to use the</span>
+<span class="sd">        [`Plugin.app`][pupil_labs.neon_player.Plugin.app]</span>
+<span class="sd">        field to access the main application.</span>
 
-    <span class="k">return</span> <span class="n">NeonPlayerApp</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span>
+<span class="sd">    Args:</span>
+<span class="sd">        required: If `True` (default), the result is guaranteed to be an instance of</span>
+<span class="sd">            `NeonPlayerApp`, or an error will be raised.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">pupil_labs.neon_player.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">NeonPlayerApp</span>  <span class="c1"># noqa: PLC0415</span>
+
+    <span class="n">app</span> <span class="o">=</span> <span class="n">NeonPlayerApp</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">required</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">NeonPlayerApp</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Neon Player application is not initialized&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">app</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">NeonPlayerApp</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>

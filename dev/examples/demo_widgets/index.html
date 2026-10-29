@@ -1136,7 +1136,6 @@ configurable in the sidebar.</p>
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-
 <span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 
@@ -1153,19 +1152,21 @@ configurable in the sidebar.</p>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">pupil_labs.neon_player</span><span class="w"> </span><span class="kn">import</span> <span class="n">Plugin</span><span class="p">,</span> <span class="n">action</span>
 
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
 
 <span class="k">class</span><span class="w"> </span><span class="nc">ClickMeWidget</span><span class="p">(</span><span class="n">PropertyWidget</span><span class="p">):</span>
     <span class="n">value_changed</span> <span class="o">=</span> <span class="n">Signal</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">from_property_impl</span><span class="p">(</span><span class="n">prop</span><span class="p">:</span> <span class="nb">property</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;ClickMeWidget&quot;</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_property_impl</span><span class="p">(</span><span class="n">_prop</span><span class="p">:</span> <span class="nb">property</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;ClickMeWidget&quot;</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">ClickMeWidget</span><span class="p">()</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">from_type</span><span class="p">(</span><span class="bp">cls</span><span class="p">:</span> <span class="nb">type</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;ClickMeWidget&quot;</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_type</span><span class="p">(</span><span class="n">_value_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;ClickMeWidget&quot;</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">ClickMeWidget</span><span class="p">()</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="mi">0</span>
 
@@ -1178,10 +1179,10 @@ configurable in the sidebar.</p>
         <span class="bp">self</span><span class="o">.</span><span class="n">grid_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">grid_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">button</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_update_label_text</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_label_text</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Clicks so far: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">on_button_clicked</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">on_button_clicked</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">+=</span> <span class="mi">1</span>
 
     <span class="nd">@property</span>
@@ -1204,7 +1205,7 @@ configurable in the sidebar.</p>
 <span class="k">class</span><span class="w"> </span><span class="nc">CustomType</span><span class="p">(</span><span class="n">PersistentPropertiesMixin</span><span class="p">,</span> <span class="n">QObject</span><span class="p">):</span>
     <span class="n">changed</span> <span class="o">=</span> <span class="n">Signal</span><span class="p">()</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="mi">0</span>
@@ -1231,7 +1232,7 @@ configurable in the sidebar.</p>
 <span class="k">class</span><span class="w"> </span><span class="nc">DemoWidgets</span><span class="p">(</span><span class="n">Plugin</span><span class="p">):</span>
     <span class="n">label</span> <span class="o">=</span> <span class="s2">&quot;Widgets Demo&quot;</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_bool_property</span> <span class="o">=</span> <span class="kc">False</span>
@@ -1352,8 +1353,8 @@ configurable in the sidebar.</p>
 
     <span class="nd">@property</span>
     <span class="nd">@property_params</span><span class="p">(</span>
-        <span class="n">prevent_add</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>             <span class="c1"># set to True to hide the &quot;Add&quot; button</span>
-        <span class="n">add_button_text</span><span class="o">=</span><span class="s2">&quot;Add item&quot;</span><span class="p">,</span>    <span class="c1"># changes the text of the &quot;Add&quot; button</span>
+        <span class="n">prevent_add</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># set to True to hide the &quot;Add&quot; button</span>
+        <span class="n">add_button_text</span><span class="o">=</span><span class="s2">&quot;Add item&quot;</span><span class="p">,</span>  <span class="c1"># changes the text of the &quot;Add&quot; button</span>
     <span class="p">)</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">list_property</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_list_property</span>
@@ -1363,12 +1364,7 @@ configurable in the sidebar.</p>
         <span class="bp">self</span><span class="o">.</span><span class="n">_list_property</span> <span class="o">=</span> <span class="n">value</span>
 
     <span class="nd">@property</span>
-    <span class="nd">@property_params</span><span class="p">(</span>
-        <span class="n">prevent_add</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-        <span class="n">item_params</span><span class="o">=</span><span class="p">{</span>
-            <span class="s2">&quot;label_field&quot;</span><span class="p">:</span> <span class="s2">&quot;name&quot;</span>
-        <span class="p">}</span>
-    <span class="p">)</span>
+    <span class="nd">@property_params</span><span class="p">(</span><span class="n">prevent_add</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">item_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;label_field&quot;</span><span class="p">:</span> <span class="s2">&quot;name&quot;</span><span class="p">})</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">custom_type_list</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">CustomType</span><span class="p">]:</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_custom_type_list</span>
 
@@ -1391,11 +1387,11 @@ configurable in the sidebar.</p>
         <span class="c1"># icon=QIcon.fromTheme(&quot;document-edit&quot;)  # uncomment to set a custom icon</span>
     <span class="p">)</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">print_to_console</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Current values of properties: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Current values of properties: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
     <span class="nd">@action</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">default_action</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">param1</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">param2</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Default action triggered with params: </span><span class="si">{</span><span class="n">param1</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">param2</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Default action triggered with params: </span><span class="si">{</span><span class="n">param1</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">param2</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div>
 
 

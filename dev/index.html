@@ -1138,11 +1138,13 @@ python<span class="w"> </span>-m<span class="w"> </span>pupil_labs.neon_player<s
 <li>If your plugin has multiple files, put them in a folder with a <code>__init__.py</code> file that either defines your <code>Plugin</code> class or imports a module which does. Do not create an instance of your plugin - just define the class which inherits from <code>pupil_labs.neon_player.Plugin</code>.</li>
 <li>If your plugin needs python dependencies, list them as <a href="https://packaging.python.org/en/latest/specifications/inline-script-metadata/#inline-script-metadata">inline script metadata (aka PEP 723)</a>. Neon Player will detect these and install them to <code>$HOME/Pupil Labs/Neon Player/plugins/site-packages</code> automatically.</li>
 </ul>
-<p>To expose a plugin setting to the GUI, define a property with getter/setter functions and appropriate type hints. You can control some options of the parameter GUI widget using th <code>@property_params</code> decorator. For example, by defining a <code>min</code> and <code>max</code> for <code>int</code> or <code>float</code> properties, the UI will present a slider. For an overview of available built-in widgets and their parameters, see <a href="examples/plugins/demo_widgets.py">this demo plugin</a>.</p>
+<p>To expose a plugin setting to the GUI, define a property with getter/setter functions and appropriate type hints. You can control some options of the parameter GUI widget using th <code>@property_params</code> decorator. For example, by defining a <code>min</code> and <code>max</code> for <code>int</code> or <code>float</code> properties, the UI will present a slider. For an overview of available built-in widgets and their parameters, see
+<a href="https://github.com/pupil-labs/neon-player/tree/main/examples/plugins/demo_widgets.py">this demo plugin</a>.</p>
 <p>You can also expose a function to the GUI by using the <code>@action</code> decorator. It will appear as a button, with each of its arguments as an input field</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pupil_labs.neon_player</span><span class="w"> </span><span class="kn">import</span> <span class="n">Plugin</span><span class="p">,</span> <span class="n">action</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">PySide6.QtWidgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">QMessageBox</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">qt_property_widgets.utilities</span><span class="w"> </span><span class="kn">import</span> <span class="n">property_params</span>
+
 
 <span class="k">class</span><span class="w"> </span><span class="nc">MyPlugin</span><span class="p">(</span><span class="n">Plugin</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -1184,15 +1186,14 @@ python<span class="w"> </span>-m<span class="w"> </span>pupil_labs.neon_player<s
             <span class="s2">&quot;Slow Job Test&quot;</span><span class="p">,</span> <span class="s2">&quot;MyPlugin.bg_task&quot;</span><span class="p">,</span> <span class="n">count_to</span>
         <span class="p">)</span>
 
-        <span class="n">job</span><span class="o">.</span><span class="n">finished</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">QMessageBox</span><span class="o">.</span><span class="n">information</span><span class="p">(</span>
-            <span class="kc">None</span><span class="p">,</span>
-            <span class="s2">&quot;Attention&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;Slow job finished!&quot;</span>
-        <span class="p">))</span>
+        <span class="n">job</span><span class="o">.</span><span class="n">finished</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span>
+            <span class="k">lambda</span><span class="p">:</span> <span class="n">QMessageBox</span><span class="o">.</span><span class="n">information</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;Attention&quot;</span><span class="p">,</span> <span class="s2">&quot;Slow job finished!&quot;</span><span class="p">)</span>
+        <span class="p">)</span>
 </code></pre></div>
 <h1 id="scripting">Scripting<a class="headerlink" href="#scripting" title="Permanent link">&para;</a></h1>
 <p>Every function defined in a plugin can be scripted from the command line without using the GUI. Please use type hints in your function signature so that arguments can be typcast/coerced for you.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pupil_labs.neon_player</span><span class="w"> </span><span class="kn">import</span> <span class="n">Plugin</span>
+
 
 <span class="k">class</span><span class="w"> </span><span class="nc">MyPlugin</span><span class="p">(</span><span class="n">Plugin</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">my_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg1</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">arg2</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>

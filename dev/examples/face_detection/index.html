@@ -1127,19 +1127,21 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">mediapipe</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mp</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pupil_labs.neon_recording</span><span class="w"> </span><span class="kn">import</span> <span class="n">NeonRecording</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">PySide6.QtCore</span><span class="w"> </span><span class="kn">import</span> <span class="n">QPointF</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">PySide6.QtGui</span><span class="w"> </span><span class="kn">import</span> <span class="n">QColor</span><span class="p">,</span> <span class="n">QIcon</span><span class="p">,</span> <span class="n">QPainter</span><span class="p">,</span> <span class="n">QPainterPath</span><span class="p">,</span> <span class="n">QPolygonF</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">qt_property_widgets.utilities</span><span class="w"> </span><span class="kn">import</span> <span class="n">action_params</span><span class="p">,</span> <span class="n">property_params</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">pupil_labs</span><span class="w"> </span><span class="kn">import</span> <span class="n">neon_player</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pupil_labs.neon_player</span><span class="w"> </span><span class="kn">import</span> <span class="n">Plugin</span><span class="p">,</span> <span class="n">ProgressUpdate</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">utilities</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pupil_labs.neon_recording</span><span class="w"> </span><span class="kn">import</span> <span class="n">NeonRecording</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">FaceDetection</span><span class="p">(</span><span class="n">Plugin</span><span class="p">):</span>
     <span class="n">label</span> <span class="o">=</span> <span class="s2">&quot;Face Detection&quot;</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">detection_job</span> <span class="o">=</span> <span class="kc">None</span>
@@ -1218,7 +1220,7 @@
         <span class="p">}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_intersection_radius</span> <span class="o">=</span> <span class="mi">64</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">on_recording_loaded</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">recording</span><span class="p">:</span> <span class="n">NeonRecording</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">on_recording_loaded</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_recording</span><span class="p">:</span> <span class="n">NeonRecording</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">load_object_cache</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">load_object_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -1340,7 +1342,7 @@
             <span class="n">pixels</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">bgr</span>
             <span class="n">results</span> <span class="o">=</span> <span class="n">face_mesh</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">pixels</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">results</span><span class="o">.</span><span class="n">multi_face_landmarks</span><span class="p">:</span>
-                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Detected face on frame </span><span class="si">{</span><span class="n">frame_idx</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Detected face on frame </span><span class="si">{</span><span class="n">frame_idx</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">results_by_frame</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">results</span><span class="o">.</span><span class="n">multi_face_landmarks</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">results_by_frame</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
@@ -1393,7 +1395,7 @@
         <span class="n">destination_path</span> <span class="o">=</span> <span class="n">destination</span> <span class="o">/</span> <span class="s2">&quot;face_aois.csv&quot;</span>
         <span class="n">export_data_frame</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
         <span class="n">export_data_frame</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">destination_path</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Exported </span><span class="si">{</span><span class="n">destination_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Exported </span><span class="si">{</span><span class="n">destination_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">create_path_from_landmarks</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">landmarks</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span>
