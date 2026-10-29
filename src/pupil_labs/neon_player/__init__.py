@@ -28,9 +28,10 @@ def instance(required: bool) -> "NeonPlayerApp | None": ...
 def instance(required: bool = True) -> "NeonPlayerApp | None":
     """Return the running Neon Player application instance.
 
-    Within the plugin implementation, it is recommended to use the
-    [`Plugin.app`][pupil_labs.neon_player.Plugin.app]
-    field to access the main application.
+    !!! warning
+        Within the plugin implementation, it is recommended to use the
+        [`Plugin.app`][pupil_labs.neon_player.Plugin.app]
+        field to access the main application.
 
     Args:
         required: If `True` (default), the result is guaranteed to be an instance of
