@@ -77,19 +77,28 @@ class TimelineHorizontalScrollBar(QScrollBar):
     def __init__(self) -> None:
         super().__init__(Qt.Orientation.Horizontal)
         self._time_frame: tuple[float, float] | None = None
+        self._full_view_span = 0.0
         self._visible_span = 0.0
         self.valueChanged.connect(self._on_value_changed)
         self.hide()
 
-    def set_time_frame(self, time_frame: tuple[float, float] | None) -> None:
+    def set_time_frame(
+        self,
+        time_frame: tuple[float, float] | None,
+        padding: float = 0.0,
+    ) -> None:
         if time_frame is None or time_frame[1] <= time_frame[0]:
             self._time_frame = None
+            self._full_view_span = 0.0
             self._visible_span = 0.0
             self.hide()
             self.setRange(0, 0)
             return
 
-        self._time_frame = time_frame
+        start, stop = time_frame
+        duration = stop - start
+        self._time_frame = (start - duration * padding, stop + duration * padding)
+        self._full_view_span = duration
 
     def set_view_range(self, start: float, stop: float) -> None:
         if self._time_frame is None:
@@ -117,7 +126,7 @@ class TimelineHorizontalScrollBar(QScrollBar):
         finally:
             self.blockSignals(was_blocked)
 
-        zoomed_in = self._visible_span < duration * (1 - 1e-6)
+        zoomed_in = self._visible_span < self._full_view_span * (1 - 1e-6)
         self.setVisible(zoomed_in)
 
     def _on_value_changed(self, value: int) -> None:
