@@ -1,22 +1,22 @@
 import json
 import logging
-
 from pathlib import Path
+from typing import Any
+
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 
 from pupil_labs import neon_player
-from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_player import GlobalPluginProperties, Plugin
+
+logger = logging.getLogger(__name__)
 
 
 def plugin_label_lookup(cls_name: str) -> str:
     try:
         cls = Plugin.get_class_by_name(cls_name)
-        if cls and hasattr(cls, "label"):
-            return cls.label
-        else:
-            return cls_name
+        return cls.get_label()
     except ValueError:
         pass
 
@@ -34,13 +34,15 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
         plugin_names = [k.__name__ for k in Plugin.known_classes]
         plugin_names.sort()
         self._default_plugins = dict.fromkeys(plugin_names, False)
-        self._default_plugins.update({
-            "GazeDataPlugin": True,
-            "AudioPlugin": True,
-            "SceneRendererPlugin": True,
-            "EventsPlugin": True,
-            "ExportAllPlugin": True,
-        })
+        self._default_plugins.update(
+            {
+                "GazeDataPlugin": True,
+                "AudioPlugin": True,
+                "SceneRendererPlugin": True,
+                "EventsPlugin": True,
+                "ExportAllPlugin": True,
+            }
+        )
 
     @property
     def skip_gray_frames_on_load(self) -> bool:
@@ -97,7 +99,7 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
         super().__init__()
         app = neon_player.instance()
         self._enabled_plugins = app.settings.default_plugins.copy() if app else {}
-        self._plugin_states: dict[str, dict] = {}
+        self._plugin_states: dict[str, dict[str, object]] = {}
         self._export_window: tuple[int, int] = (-1, -1)
 
     @property
@@ -127,9 +129,9 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
 
     @property
     @property_params(widget=None)
-    def plugin_states(self) -> dict[str, dict]:
+    def plugin_states(self) -> dict[str, dict[str, object]]:
         app = neon_player.instance()
-        if app.recording_settings == self:
+        if app is not None and app.recording_settings is self:
             # NOTE: to_dict is applied recursively to decompose custom objects into
             # primitives, thereby dropping all references that prevent garbage
             # collection of plugins when switching recordings
@@ -145,10 +147,10 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
         return self._plugin_states
 
     @plugin_states.setter
-    def plugin_states(self, value: dict[str, dict]) -> None:
+    def plugin_states(self, value: dict[str, dict[str, object]]) -> None:
         self._plugin_states = value.copy()
 
-    def __setstate__(self, state: dict) -> None:
+    def __setstate__(self, state: dict[str, Any]) -> None:
         super().__setstate__(state)
         for kls in Plugin.known_classes:
             if kls.__name__ not in state["enabled_plugins"]:
@@ -161,23 +163,33 @@ def load_recording_settings(
     settings = None
     if settings_path.exists():
         try:
-            logging.info(f"Loading recording settings from {settings_path}")
-            settings = RecordingSettings.from_dict(
-                json.loads(settings_path.read_text())
-            )
-        except Exception as e:
-            logging.exception(f"Failed to load settings: {str(e)}")
+            logger.info(f"Loading recording settings from {settings_path}")
+            data: object = json.loads(settings_path.read_text())
+            if not isinstance(data, dict):
+                raise TypeError("Recording settings must be a JSON object")
+
+            loaded: object = RecordingSettings.from_dict(data)
+            if not isinstance(loaded, RecordingSettings):
+                raise TypeError("Unexpected recording settings class")
+
+            settings = loaded
+        except Exception:
+            logger.exception("Failed to load settings")
 
     if settings is None:
-        logging.info(f"Using default recording settings")
+        logger.info("Using default recording settings")
         settings = RecordingSettings()
         settings.export_window = (
             recording.start_time,
             recording.stop_time,
         )
 
-    if len(settings.export_window) != 2 or any([el < 0 for el in settings.export_window]):
-        logging.warning("Invalid export window in settings")
+    if (
+        len(settings.export_window) != 2
+        or any(el < 0 for el in settings.export_window)
+        or settings.export_window[0] > settings.export_window[1]
+    ):
+        logger.warning("Invalid export window in settings")
         settings.export_window = (
             recording.start_time,
             recording.stop_time,

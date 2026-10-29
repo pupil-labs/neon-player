@@ -4,7 +4,7 @@ description = ""
 authors = [{ name = "Pupil Labs GmbH", email = "info@pupil-labs.com" }]
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = ">=3.11, <4.0"
+requires-python = ">=3.12, <4.0"
 keywords = []
 dynamic = ["version"]
 classifiers = [
@@ -19,7 +19,6 @@ classifiers = [
 
 dependencies = [
     "av>=16.0.0",
-    "nuitka<2.8",
     "numpy<2.4.0",
     "numpyencoder>=0.3.2",
     "opencv-python>=4.11.0.86",
@@ -30,13 +29,12 @@ dependencies = [
     "pupil-labs-marker-mapper>=1.0.0",
     "pupil-labs-neon-recording==2.1.6",
     "pupil-labs-video>=1.0.13",
-    "pyobjc; sys_platform == 'darwin'",
+    "pyobjc-framework-Cocoa; sys_platform == 'darwin'",
     "pyqtgraph>=0.13.7",
     "pyside6>=6.10.2",
     "pyxdf>=1.17.5",
     "qt-property-widgets>=0.10.0",
     "scipy>=1.15.2",
-    "setuptools>=78.1.0",
     "tqdm>=4.67.1",
 ]
 
@@ -53,8 +51,9 @@ Issues = "https://github.com/pupil-labs/pl-neon-player/issues"
 neon-player = "pupil_labs.neon_player.main:main"
 
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+build = ["nuitka<2.8"]
+dev = [
     "pytest>=8.2",
     "pytest-qt>=4.5.0",
     "pre-commit>=2.20.0",
@@ -82,6 +81,8 @@ dev-dependencies = [
     # YORE: EOL 3.10: Remove line.
     "tomli>=2.0; python_version < '3.11'",
     "scipy-stubs>=1.17.1.5",
+    "ruff",
+    "types-tqdm>=4.70.0.20260906",
 ]
 
 [build-system]
@@ -99,13 +100,19 @@ skip_empty = true
 branch = true
 source = ["pupil_labs"]
 
+[tool.deptry]
+extend_exclude = ["examples/plugins/"]
+
+[tool.deptry.package_module_name_map]
+pyobjc-framework-Cocoa = ["AppKit"]
+
 [tool.deptry.per_rule_ignores]
 DEP001 = ["pupil_labs", "cv2"]
-DEP002 = ["opencv-python"]
+DEP002 = ["opencv-python", "protobuf"]
 DEP003 = ["pupil_labs", "typing_extensions"]
 
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/pupil_labs", "src/pupil_labs/neon_player"]
+packages = ["src/pupil_labs"]

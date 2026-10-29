@@ -1,5 +1,6 @@
 import time
 
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QPoint, QPointF, QPropertyAnimation, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColorConstants,
@@ -16,7 +17,6 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs import neon_player
-from pupil_labs.neon_recording import NeonRecording
 
 
 class ScalingWidget(QOpenGLWidget):
@@ -25,7 +25,7 @@ class ScalingWidget(QOpenGLWidget):
     mouse_clicked = Signal(QMouseEvent)
     mouse_moved = Signal(QMouseEvent)
 
-    def __init__(self, parent: QWidget):
+    def __init__(self, parent: QWidget | None) -> None:
         super().__init__(parent)
 
         surface_format = self.format()
@@ -35,10 +35,10 @@ class ScalingWidget(QOpenGLWidget):
         self.setMouseTracking(True)
 
         self.source_size = QSize(100, 100)
-        self.scaled_children_positions = {}
+        self.scaled_children_positions: dict[QWidget, tuple[float, float, bool]] = {}
         self._mouse_down = False
 
-        self._last_frame_time = None
+        self._last_frame_time: float | None = None
         self._fps = 0.0
         self.fps_label = QLabel(self)
         self.fps_label.resize(1024, 24)
@@ -56,23 +56,23 @@ class ScalingWidget(QOpenGLWidget):
         self.offset = QPointF(0, 0)
         self.scale = 1.0
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self._mouse_down = True
 
         self.mouse_pressed.emit(event)
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton and self._mouse_down:
             self.mouse_clicked.emit(event)
             self._mouse_down = False
 
         self.mouse_released.emit(event)
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
         self.mouse_moved.emit(event)
 
-    def on_fade_finished(self):
+    def on_fade_finished(self) -> None:
         self._last_frame_time = None
 
     def map_point(self, point: QPoint | QPointF) -> QPointF:
@@ -83,7 +83,7 @@ class ScalingWidget(QOpenGLWidget):
         painter.translate(self.offset)
         painter.scale(self.scale, self.scale)
 
-    def paintEvent(self, event: QPaintEvent) -> None:
+    def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setRenderHints(
             QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform
@@ -109,6 +109,7 @@ class ScalingWidget(QOpenGLWidget):
         super().resizeEvent(event)
         self.adjust_size()
         for child in self.children():
+            assert isinstance(child, QWidget), "Scaling widget children must be widgets"
             self.update_child_position(child)
 
     def adjust_size(self) -> None:
@@ -166,12 +167,15 @@ class ScalingWidget(QOpenGLWidget):
 
 
 class VideoRenderWidget(ScalingWidget):
-    def __init__(self, parent: QWidget = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.ts = None
+        self.ts: int | None = None
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
-        self.source_size = QSize(recording.scene.width, recording.scene.height)
+        width, height = recording.scene.width, recording.scene.height
+        assert width is not None, "Scene width is required when loading a recording"
+        assert height is not None, "Scene height is required when loading a recording"
+        self.source_size = QSize(width, height)
         self.adjust_size()
         self.repaint()
 

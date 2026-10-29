@@ -14,8 +14,8 @@ class ProgressActionForm(ActionForm):
         return ProgressActionForm.from_type(hints["return"])
 
     @staticmethod
-    def from_type(cls: type) -> "ProgressActionForm":
-        return ProgressActionForm(cls())
+    def from_type(value_type: type) -> "ProgressActionForm":
+        return ProgressActionForm(value_type())
 
     def _setup_form(self) -> None:
         super()._setup_form()
@@ -25,7 +25,7 @@ class ProgressActionForm(ActionForm):
         self.progress_bar.hide()
 
     def _on_action_button_pressed(self) -> None:
-        v = self.value()
+        v = super()._on_action_button_pressed()
         if isinstance(v, BackgroundJob):
             self.progress_bar.setValue(0)
             self.progress_bar.show()
@@ -37,7 +37,7 @@ class ProgressActionForm(ActionForm):
 
     def on_job_progress(self, progress: float) -> None:
         self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(progress * 100)
+        self.progress_bar.setValue(int(progress * 100))
 
     def on_job_done(self) -> None:
         self.progress_bar.hide()

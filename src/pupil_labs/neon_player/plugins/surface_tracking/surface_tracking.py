@@ -4,6 +4,7 @@ import pickle
 import shutil
 import typing as T
 import uuid
+from dataclasses import dataclass
 from itertools import starmap
 from pathlib import Path
 
@@ -14,12 +15,12 @@ import numpy.typing as npt
 import pandas as pd
 import pupil_apriltags
 import pupil_labs.video as plv
-from dataclasses import dataclass
 from numpy.dtypes import StringDType
 from pupil_labs.camera import Camera, perspective_transform
-from pupil_labs.marker_mapper import Surface, utils
-from pupil_labs.marker_mapper.surface import normalized_corners
+from pupil_labs.marker_mapper import utils
+from pupil_labs.marker_mapper.surface import Surface, normalized_corners
 from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.neon_recording.timeseries.gaze import GazeArray
 from PySide6.QtCore import QPointF, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
@@ -39,12 +40,13 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSpacerItem,
     QVBoxLayout,
-    QWidget
+    QWidget,
 )
 from qt_property_widgets.utilities import action_params, property_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action
+from pupil_labs.neon_player.plugins.video_exporter import VideoExporter
 from pupil_labs.neon_player.settings import RecordingSettings
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.utilities import (
@@ -56,12 +58,11 @@ from pupil_labs.neon_player.utilities import (
 from .tracked_surface import TrackedSurface
 from .ui import MarkerEditWidget
 
-if T.TYPE_CHECKING:
-    from pupil_labs.neon_recording.timeseries import GazeTimeseries
-    from pupil_labs.neon_player.plugins.video_exporter import VideoExporter
+logger = logging.getLogger(__name__)
 
-SurfaceData: T.TypeAlias = dict[str, T.Any]
-SurfaceLocation: T.TypeAlias = tuple[np.ndarray, np.ndarray]
+
+type SurfaceData = dict[str, T.Any]
+type SurfaceLocation = tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
 
 
 @dataclass
@@ -76,8 +77,8 @@ class SurfaceImportDialog(QDialog):
         surfaces_to_import: list[SurfaceData],
         existing_surfaces: list[TrackedSurface],
         import_callback: T.Callable[[SurfaceData], None],
-        parent: QWidget | None = None
-    ):
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.surfaces_to_import = surfaces_to_import
         self.existing_surfaces = existing_surfaces
@@ -95,7 +96,9 @@ class SurfaceImportDialog(QDialog):
         layout.addLayout(self.surface_grid)
         self._populate_surface_grid()
 
-        spacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+        spacer = QSpacerItem(
+            20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding
+        )
         layout.addItem(spacer)
 
         close_button = QPushButton("Close")
@@ -149,13 +152,14 @@ class SurfaceTrackingPlugin(Plugin):
 
     def __init__(self) -> None:
         super().__init__()
-        self.marker_cache_file = self.get_cache_path() / "markers.npy"
-        self.surface_cache_file = self.get_cache_path() / "surfaces.npy"
+        self.marker_cache_file = self.require_cache_path() / "markers.npy"
+        self.surface_cache_file = self.require_cache_path() / "surfaces.npy"
 
         self._draw_marker_ids = False
         self._draw_names = True
         self._export_overlays = False
 
+        self.scene_size: tuple[int, int] = (0, 0)
         self.markers_by_frame: list[list[DetectedMarker]] = []
         self.surface_locations: dict[str, list[SurfaceLocation | None]] = {}
 
@@ -179,6 +183,7 @@ class SurfaceTrackingPlugin(Plugin):
             surface.cleanup_widgets()
 
         self._surfaces.clear()
+        self.scene_size = (0, 0)
 
     def _update_displays(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
@@ -229,11 +234,22 @@ class SurfaceTrackingPlugin(Plugin):
                 )
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
+        calibration = recording.calibration
+        if calibration is None:
+            raise RuntimeError("Surface tracking requires camera calibration")
+
+        width, height = recording.scene.width, recording.scene.height
+        if width is None or height is None:
+            raise RuntimeError(
+                "Surface tracking requires scene width and height to be known"
+            )
+        self.scene_size = (width, height)
+
         self.camera = Camera(
-            recording.scene.width,
-            recording.scene.height,
-            self.recording.calibration.scene_camera_matrix,
-            self.recording.calibration.scene_distortion_coefficients,
+            width,
+            height,
+            calibration.scene_camera_matrix,
+            calibration.scene_distortion_coefficients,
         )
         self.attempt_marker_cache_load()
 
@@ -253,17 +269,18 @@ class SurfaceTrackingPlugin(Plugin):
             self.marker_detection_job.finished.connect(self._load_marker_cache)
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:  # noqa: C901
+        recording = self.require_recording()
         self._update_displays()
         if not self._export_overlays:
-            exporter = T.cast("VideoExporter", Plugin.get_instance_by_name("VideoExporter"))
-            if exporter is not None and exporter.is_exporting:
+            exporter = Plugin.get_instance_by_name("VideoExporter")
+            if isinstance(exporter, VideoExporter) and exporter.is_exporting:
                 return
 
         frame_idx = self.get_scene_idx_for_time(time_in_recording)
         if frame_idx < 0:
             return
 
-        scene_frame = self.recording.scene.sample([time_in_recording])[0]
+        scene_frame = recording.scene.sample([time_in_recording])[0]
         if abs(time_in_recording - scene_frame.time) / 1e9 > 1 / 30:
             return
 
@@ -293,14 +310,16 @@ class SurfaceTrackingPlugin(Plugin):
             if show_heatmap and surface._heatmap is not None:
                 export_window = self.app.get_export_window()
                 if export_window[0] <= time_in_recording <= export_window[1]:
-                    scalar = np.array([
-                        [1 / surface._heatmap.shape[1], 0.0, 0.0],
-                        [0.0, 1 / surface._heatmap.shape[0], 0.0],
-                        [0.0, 0.0, 1.0],
-                    ], dtype=np.float64)
+                    scalar = np.array(
+                        [
+                            [1 / surface._heatmap.shape[1], 0.0, 0.0],
+                            [0.0, 1 / surface._heatmap.shape[0], 0.0],
+                            [0.0, 0.0, 1.0],
+                        ],
+                        dtype=np.float64,
+                    )
 
                     heatmap_to_scene = location[1] @ scalar
-                    scene_size = self.recording.scene.width, self.recording.scene.height
 
                     rgb_heatmap = cv2.applyColorMap(
                         surface._heatmap, surface.heatmap_color.value
@@ -309,7 +328,7 @@ class SurfaceTrackingPlugin(Plugin):
                     undistorted_heatmap = cv2.warpPerspective(
                         rgb_heatmap,
                         heatmap_to_scene,
-                        scene_size,
+                        self.scene_size,
                     )
                     undistorted_mask = cv2.warpPerspective(
                         255
@@ -318,16 +337,18 @@ class SurfaceTrackingPlugin(Plugin):
                             dtype="uint8",
                         ),
                         heatmap_to_scene,
-                        scene_size,
+                        self.scene_size,
                     )
 
                     # @TODO: use optimal matrix to have less edge truncation
                     distorted_heatmap = self.camera.distort_image(undistorted_heatmap)
                     distorted_mask = self.camera.distort_image(undistorted_mask)
-                    distorted_heatmap_rgba = np.dstack((
-                        distorted_heatmap,
-                        distorted_mask,
-                    ))
+                    distorted_heatmap_rgba = np.dstack(
+                        (
+                            distorted_heatmap,
+                            distorted_mask,
+                        )
+                    )
 
                     painter.setOpacity(surface.heatmap_alpha)
                     painter.drawImage(0, 0, qimage_from_frame(distorted_heatmap_rgba))
@@ -337,11 +358,11 @@ class SurfaceTrackingPlugin(Plugin):
             if surface.edit and surface.handle_widgets:
                 try:
                     vrw = self.app.main_window.video_widget
-                    points = [
+                    widget_points = [
                         vrw.scaled_children_positions[w]
                         for w in surface.handle_widgets.values()
                     ]
-                    anchors = np.array([[p[0], p[1]] for p in points])
+                    anchors = np.array([[p[0], p[1]] for p in widget_points])
                     anchors = self.camera.undistort_points(anchors)
                 except KeyError:
                     pass
@@ -350,7 +371,7 @@ class SurfaceTrackingPlugin(Plugin):
                 if surface.location is None:
                     return
                 anchors = perspective_transform(
-                    normalized_corners(),
+                    normalized_corners(),  # type: ignore[no-untyped-call]
                     surface.location[1],
                 )
 
@@ -386,9 +407,9 @@ class SurfaceTrackingPlugin(Plugin):
     def _distort_and_trace_surface(
         self,
         painter: QPainter,
-        anchors: np.ndarray,
+        anchors: npt.NDArray[np.float64],
         resolution: int = 10,
-    ) -> np.ndarray:
+    ) -> npt.NDArray[np.float64]:
         points = insert_interpolated_points(anchors, resolution)
         points = self.camera.distort_points(points)
 
@@ -414,7 +435,7 @@ class SurfaceTrackingPlugin(Plugin):
     def _distort_and_draw_marker(
         self,
         painter: QPainter,
-        points: np.ndarray,
+        points: npt.NDArray[np.float64],
         marker_id: int,
         resolution: int = 10,
     ) -> None:
@@ -463,6 +484,7 @@ class SurfaceTrackingPlugin(Plugin):
             painter.setPen(old_pen)
 
     def _load_marker_cache(self) -> None:
+        recording = self.require_recording()
         self.markers_by_frame = np.load(self.marker_cache_file, allow_pickle=True)
         self.trigger_scene_update()
         for frame_markers in self.markers_by_frame:
@@ -479,13 +501,15 @@ class SurfaceTrackingPlugin(Plugin):
         )
         change_indices = np.where(np.diff(marker_count_by_frame) != 0)[0]
         start_indices = np.concatenate(([0], change_indices + 1))
-        stop_indices = np.concatenate((
-            change_indices,
-            [len(marker_count_by_frame) - 1],
-        ))
+        stop_indices = np.concatenate(
+            (
+                change_indices,
+                [len(marker_count_by_frame) - 1],
+            )
+        )
 
-        start_times = self.recording.scene.time[start_indices].tolist()
-        stop_times = self.recording.scene.time[stop_indices].tolist()
+        start_times = recording.scene.time[start_indices].tolist()
+        stop_times = recording.scene.time[stop_indices].tolist()
 
         n_markers = marker_count_by_frame[start_indices].tolist()
 
@@ -493,31 +517,44 @@ class SurfaceTrackingPlugin(Plugin):
             "Marker visibility",
             [
                 (start, stop, n)
-                for start, stop, n in zip(start_times, stop_times, n_markers)
+                for start, stop, n in zip(  # type: ignore[call-overload]  # Neon Recording mistypes indexed timestamps.
+                    start_times, stop_times, n_markers, strict=False
+                )
                 if n > 0
             ],
         )
 
     def _load_surface_locations_cache(self, surface_uid: str) -> None:
         surface = self.get_surface(surface_uid)
-        surf_path = self.get_cache_path() / f"{surface_uid}_surface.pkl"
+        surf_path = self.require_cache_path() / f"{surface_uid}_surface.pkl"
         if surf_path.exists():
             with surf_path.open("rb") as f:
                 surface.tracker_surface = pickle.load(f)  # noqa: S301
 
-        locations_path = self.get_cache_path() / f"{surface_uid}_locations.npy"
+        locations_path = self.require_cache_path() / f"{surface_uid}_locations.npy"
         if locations_path.exists():
             data = np.load(locations_path, allow_pickle=True)
             self.surface_locations[surface_uid] = [
-                None if location is None else tuple(np.array(v, dtype=np.float64) for v in location)
+                None
+                if location is None
+                else (
+                    np.array(location[0], dtype=np.float64),
+                    np.array(location[1], dtype=np.float64),
+                )
                 for location in data
             ]
 
             if surface.preview_options.render_size == (0, 0):
-                surface2image = self.surface_locations[surface_uid][surface.defining_frame_index][1]
+                defining_location = self.surface_locations[surface_uid][
+                    surface.defining_frame_index
+                ]
+                assert defining_location is not None, (
+                    "Defining surface location is required to set preview size"
+                )
+                surface2image = defining_location[1]
 
                 # set surface size
-                image = utils.crop_image(
+                image = utils.crop_image(  # type: ignore[no-untyped-call]
                     np.zeros((1, 1, 3), np.uint8),
                     surface2image,
                     width=500,
@@ -543,12 +580,14 @@ class SurfaceTrackingPlugin(Plugin):
             self.attempt_load_surface_heatmap(surface_uid)
 
     def add_visibility_timeline(self, surface: TrackedSurface) -> None:
-        surf_viz_path = self.get_cache_path() / f"{surface.uid}_surface_visibility.pkl"
+        surf_viz_path = (
+            self.require_cache_path() / f"{surface.uid}_surface_visibility.pkl"
+        )
         if not surf_viz_path.exists():
             return
 
         with surf_viz_path.open("rb") as f:
-            visibilities = pickle.load(f)
+            visibilities = pickle.load(f)  # noqa: S301
 
         self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
         self.get_timeline().add_timeline_broken_bar(
@@ -556,18 +595,20 @@ class SurfaceTrackingPlugin(Plugin):
         )
 
     def add_surface_gaze_timeline(self, surface: TrackedSurface) -> None:
-        gaze_upon_file = self.get_cache_path() / f"{surface.uid}_gazes.pkl"
+        gaze_upon_file = self.require_cache_path() / f"{surface.uid}_gazes.pkl"
         if not gaze_upon_file.exists():
             return
 
         self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
         with open(gaze_upon_file, "rb") as f:
             self.get_timeline().add_timeline_broken_bar(
-                f"Surface Gaze: {surface.name}", pickle.load(f), color="#73F7FF"
+                f"Surface Gaze: {surface.name}",
+                pickle.load(f),  # noqa: S301
+                color="#73F7FF",
             )
 
     def attempt_load_surface_heatmap(self, surface_uid: str) -> None:
-        cache_file = self.get_cache_path() / f"{surface_uid}_heatmap.png"
+        cache_file = self.require_cache_path() / f"{surface_uid}_heatmap.png"
         if cache_file.exists():
             self._load_surface_heatmap(surface_uid)
             return
@@ -595,15 +636,16 @@ class SurfaceTrackingPlugin(Plugin):
     def bg_build_heatmap(
         self, surface_uid: str
     ) -> T.Generator[ProgressUpdate, None, None]:
+        recording = self.require_recording()
         surface = self.get_surface(surface_uid)
 
         start_time, stop_time = self.app.get_export_window()
-        start_mask = self.recording.scene.time >= start_time
-        stop_mask = self.recording.scene.time <= stop_time
-        scene_frames = self.recording.scene[start_mask & stop_mask]
+        start_mask = recording.scene.time >= start_time
+        stop_mask = recording.scene.time <= stop_time
+        scene_frames = recording.scene[start_mask & stop_mask]
 
         mapped_gazes = np.empty((0, 2), dtype=np.float32)
-        gaze_ons = np.zeros([len(self.recording.scene)], dtype=np.uint8)
+        gaze_ons = np.zeros([len(recording.scene)], dtype=np.uint8)
 
         for idx, frame in enumerate(scene_frames):
             location = self.surface_locations[surface_uid][frame.index]
@@ -613,17 +655,20 @@ class SurfaceTrackingPlugin(Plugin):
             surface.location = location
 
             start_time = frame.time
-            if frame.index < len(self.recording.scene) - 1:
-                stop_time = self.recording.scene[frame.index + 1].time
+            if frame.index < len(recording.scene) - 1:
+                stop_time = recording.scene[frame.index + 1].time
             else:
                 stop_time = start_time + 1e9 / 30
 
-            start_mask = self.recording.gaze.time >= start_time
-            stop_mask = self.recording.gaze.time <= stop_time
+            start_mask = recording.gaze.time >= start_time
+            stop_mask = recording.gaze.time <= stop_time
 
-            gazes = self.recording.gaze[start_mask & stop_mask]
+            gazes = recording.gaze[start_mask & stop_mask]
             if len(gazes) > 0:
                 frame_gazes = surface.apply_offset_and_map_gazes(gazes)
+                assert frame_gazes is not None, (
+                    "Gaze plugin is required to build a heatmap"
+                )
                 mapped_gazes = np.append(mapped_gazes, frame_gazes, axis=0)
 
                 valid_rows = np.all((frame_gazes >= 0) & (frame_gazes <= 1), axis=1)
@@ -663,31 +708,31 @@ class SurfaceTrackingPlugin(Plugin):
         hist *= (255.0 / hist_max) if hist_max else 0.0
         hist = hist.astype(np.uint8)
 
-        cache_file = self.get_cache_path() / f"{surface.uid}_heatmap.png"
+        cache_file = self.require_cache_path() / f"{surface.uid}_heatmap.png"
         cv2.imwrite(str(cache_file), hist)
 
         # gaze on cache for timeline
         gaze_ons = np.concatenate([[0], gaze_ons])
         gaze_diff = np.diff(gaze_ons)
-        start_times = self.recording.scene.time[gaze_diff == 1].tolist()
-        stop_times = self.recording.scene.time[gaze_diff == -1].tolist()
+        start_times = recording.scene.time[gaze_diff == 1].tolist()
+        stop_times = recording.scene.time[gaze_diff == -1].tolist()
         if len(stop_times) < len(start_times):
-            stop_times.append(self.recording.scene[-1].time)
+            stop_times.append(recording.scene[-1].time)
 
         gaze_upon_cache_data = list(zip(start_times, stop_times, strict=False))
-        gaze_upon_file = self.get_cache_path() / f"{surface.uid}_gazes.pkl"
+        gaze_upon_file = self.require_cache_path() / f"{surface.uid}_gazes.pkl"
         with open(gaze_upon_file, "wb") as f:
             pickle.dump(gaze_upon_cache_data, f)
 
     def _load_surface_heatmap(self, surface_uid: str) -> None:
         surface = self.get_surface(surface_uid)
-        cache_file = self.get_cache_path() / f"{surface_uid}_heatmap.png"
+        cache_file = self.require_cache_path() / f"{surface_uid}_heatmap.png"
         surface._heatmap = cv2.imread(str(cache_file))
         self.trigger_scene_update()
         self.add_surface_gaze_timeline(surface)
 
     def recalculate_heatmap(self, surface_uid: str) -> None:
-        cache_file = self.get_cache_path() / f"{surface_uid}_heatmap.png"
+        cache_file = self.require_cache_path() / f"{surface_uid}_heatmap.png"
         if cache_file.exists():
             cache_file.unlink()
 
@@ -776,7 +821,7 @@ class SurfaceTrackingPlugin(Plugin):
                 lambda s=surface: self.on_locations_invalidated(s)
             )
 
-            locations_path = self.get_cache_path() / f"{surface.uid}_locations.npy"
+            locations_path = self.require_cache_path() / f"{surface.uid}_locations.npy"
             if locations_path.exists():
                 self._load_surface_locations_cache(surface.uid)
 
@@ -799,10 +844,10 @@ class SurfaceTrackingPlugin(Plugin):
                 "locations.npy",
                 "heatmap.png",
                 "surface_visibility.pkl",
-                "gazes.pkl"
+                "gazes.pkl",
             ]
             for surface_file in surface_files:
-                file_path = self.get_cache_path() / f"{surface.uid}_{surface_file}"
+                file_path = self.require_cache_path() / f"{surface.uid}_{surface_file}"
                 if file_path.exists():
                     file_path.unlink()
 
@@ -825,11 +870,11 @@ class SurfaceTrackingPlugin(Plugin):
                 w.hide()
 
     def on_locations_invalidated(self, surface: "TrackedSurface") -> None:
-        locations_path = self.get_cache_path() / f"{surface.uid}_locations.npy"
+        locations_path = self.require_cache_path() / f"{surface.uid}_locations.npy"
         if locations_path.exists():
-           locations_path.unlink()
+            locations_path.unlink()
 
-        surf_path = self.get_cache_path() / f"{surface.uid}_surface.pkl"
+        surf_path = self.require_cache_path() / f"{surface.uid}_surface.pkl"
         with surf_path.open("wb") as f:
             pickle.dump(surface.tracker_surface, f)
 
@@ -856,13 +901,14 @@ class SurfaceTrackingPlugin(Plugin):
         raise ValueError(f"No surface with ID `{uid}` exists")
 
     def bg_detect_markers(self) -> T.Generator[ProgressUpdate, None, None]:
-        logging.info("Detecting markers...")
+        recording = self.require_recording()
+        logger.info("Detecting markers...")
         detector = pupil_apriltags.Detector(
             families="tag36h11", nthreads=2, quad_decimate=2.0, decode_sharpening=1.0
         )
 
         markers_by_frame = []
-        for frame_idx, frame in enumerate(self.recording.scene):
+        for frame_idx, frame in enumerate(recording.scene):
             # @TODO: apply brightness/contrast adjustments
             detected_markers = detector.detect(frame.gray)
 
@@ -873,7 +919,7 @@ class SurfaceTrackingPlugin(Plugin):
             ]
             markers_by_frame.append(detected_markers)
 
-            yield ProgressUpdate((frame_idx + 1) / len(self.recording.scene))
+            yield ProgressUpdate((frame_idx + 1) / len(recording.scene))
 
         self.marker_cache_file.parent.mkdir(parents=True, exist_ok=True)
         with self.marker_cache_file.open("wb") as f:
@@ -883,16 +929,17 @@ class SurfaceTrackingPlugin(Plugin):
         self,
         uid: str,
     ) -> T.Generator[ProgressUpdate, None, None]:
+        recording = self.require_recording()
         starting_frame_idx = self.get_surface(uid).defining_frame_index
 
         if starting_frame_idx >= len(self.markers_by_frame):
-            logging.error("Marker detection not yet complete")
+            logger.error("Marker detection not yet complete")
             return
 
         markers = self.markers_by_frame[starting_frame_idx]
 
         # load surface from disk
-        surf_path = self.get_cache_path() / f"{uid}_surface.pkl"
+        surf_path = self.require_cache_path() / f"{uid}_surface.pkl"
         if surf_path.exists():
             with surf_path.open("rb") as f:
                 tracker_surf = pickle.load(f)  # noqa: S301
@@ -908,37 +955,38 @@ class SurfaceTrackingPlugin(Plugin):
 
             yield ProgressUpdate((frame_idx + 1) / len(self.markers_by_frame))
 
-        locations_path = self.get_cache_path() / f"{uid}_locations.npy"
+        locations_path = self.require_cache_path() / f"{uid}_locations.npy"
         locations_path.parent.mkdir(parents=True, exist_ok=True)
         with locations_path.open("wb") as f:
             np.save(f, np.array(locations, dtype=object))
 
-        surf_path = self.get_cache_path() / f"{uid}_surface.pkl"
+        surf_path = self.require_cache_path() / f"{uid}_surface.pkl"
         with surf_path.open("wb") as f:
             pickle.dump(tracker_surf, f)
 
         visibility = np.array([1 if val else 0 for val in locations])
         visibility = np.concatenate([[0], visibility])
         viz_diff = np.diff(visibility)
-        start_times = self.recording.scene.time[viz_diff == 1].tolist()
-        stop_times = self.recording.scene.time[viz_diff == -1].tolist()
+        start_times = recording.scene.time[viz_diff == 1].tolist()
+        stop_times = recording.scene.time[viz_diff == -1].tolist()
         if len(stop_times) < len(start_times):
-            stop_times.append(self.recording.scene[-1].time)
+            stop_times.append(recording.scene[-1].time)
 
         visibilities = list(zip(start_times, stop_times, strict=False))
-        surf_viz_path = self.get_cache_path() / f"{uid}_surface_visibility.pkl"
+        surf_viz_path = self.require_cache_path() / f"{uid}_surface_visibility.pkl"
         with surf_viz_path.open("wb") as f:
             pickle.dump(visibilities, f)
 
     def bg_export_surface_video(
         self, destination: Path, uid: str
     ) -> T.Generator[ProgressUpdate, None, None]:
+        recording = self.require_recording()
         surface = self.get_surface(uid)
 
         start_time, stop_time = self.app.get_export_window()
-        start_mask = self.recording.scene.time >= start_time
-        stop_mask = self.recording.scene.time <= stop_time
-        scene_frames = self.recording.scene[start_mask & stop_mask]
+        start_mask = recording.scene.time >= start_time
+        stop_mask = recording.scene.time <= stop_time
+        scene_frames = recording.scene[start_mask & stop_mask]
 
         with plv.Writer(destination / f"{surface.name}_surface_view.mp4") as writer:
             for output_idx, scene_frame in enumerate(scene_frames):
@@ -960,27 +1008,30 @@ class SurfaceTrackingPlugin(Plugin):
                     frame_pixels = ndarray_from_qimage(frame)
                     av_frame = av.VideoFrame.from_ndarray(frame_pixels, format="bgr24")
 
-                    plv_frame = plv.VideoFrame(av_frame=av_frame, index=output_idx, time=rel_ts, source="")
+                    plv_frame = plv.VideoFrame(
+                        av_frame=av_frame, index=output_idx, time=rel_ts, source=""
+                    )
                     writer.write_frame(plv_frame)
 
                 yield ProgressUpdate((output_idx + 1) / len(scene_frames))
 
     @action
     @action_params(
-        compact=True,
-        icon=QIcon(str(neon_player.asset_path("duplicate.svg")))
+        compact=True, icon=QIcon(str(neon_player.asset_path("duplicate.svg")))
     )
     def import_surface_definitions(self, source: Path = Path()) -> None:
         # get surface definitions from json
         json_path = source / ".neon_player" / "settings.json"
         other_recording = RecordingSettings.from_dict(json.load(json_path.open("r")))
-        surface_settings = other_recording.plugin_states.get('SurfaceTrackingPlugin', {})
-        surfaces = surface_settings.get('surfaces', [])
+        surface_settings = other_recording.plugin_states.get(
+            "SurfaceTrackingPlugin", {}
+        )
+        surfaces = surface_settings.get("surfaces", [])
         if len(surfaces) == 0:
             QMessageBox.information(
                 None,
                 "Import Surface Definitions",
-                "No surface definitions found in the selected recording."
+                "No surface definitions found in the selected recording.",
             )
             return
 
@@ -988,12 +1039,16 @@ class SurfaceTrackingPlugin(Plugin):
         dialog = SurfaceImportDialog(
             surfaces,
             self.surfaces,
-            lambda surface_data: self._import_surface(surface_data, source)
+            lambda surface_data: self._import_surface(surface_data, source),
         )
         dialog.exec()
 
-    def _import_surface(self, surface_data: dict, source_path: Path) -> None:
-        logging.info(f"Importing {surface_data['name']} ({surface_data['uid']}) from {source_path}")
+    def _import_surface(self, surface_data: SurfaceData, source_path: Path) -> None:
+        recording = self.require_recording()
+        logger.info(
+            f"Importing {surface_data['name']} ({surface_data['uid']}) "
+            f"from {source_path}"
+        )
         src_def_file = (
             source_path
             / ".neon_player"
@@ -1002,17 +1057,17 @@ class SurfaceTrackingPlugin(Plugin):
             / f"{surface_data['uid']}_surface.pkl"
         )
         if not src_def_file.exists():
-            logging.error(f"Surface definition file {src_def_file} not found")
+            logger.error(f"Surface definition file {src_def_file} not found")
             return
 
         new_def_file = (
-            self.recording._rec_dir
+            recording._rec_dir
             / ".neon_player"
             / "cache"
             / "SurfaceTrackingPlugin"
             / src_def_file.name
         )
-        shutil.copy(src_def_file, new_def_file)
+        shutil.copy(src_def_file, str(new_def_file))
 
         surfaces = self._surfaces.copy()
         surface = TrackedSurface.from_dict(surface_data)
@@ -1030,8 +1085,9 @@ class SurfaceTrackingPlugin(Plugin):
                         " Please wait for the background job(s) to complete "
                         "and try again."
                     )
-                logging.warning(
-                    f"Surface locations are not available for surface `{surface.name}`, "
+                logger.warning(
+                    f"Surface locations are not available for surface "
+                    f"`{surface.name}`, "
                     f"skipping it in the export.{jobs_running}"
                 )
                 continue
@@ -1057,12 +1113,14 @@ class SurfaceTrackingPlugin(Plugin):
                 destination,
             )
 
-    def _get_gazes_in_export_window(self) -> "GazeTimeseries":
+    def _get_gazes_in_export_window(self) -> GazeArray:
+        recording = self.require_recording()
         start_time, stop_time = self.app.get_export_window()
-        start_mask = self.recording.gaze.time >= start_time
-        stop_mask = self.recording.gaze.time <= stop_time
+        start_mask = recording.gaze.time >= start_time
+        stop_mask = recording.gaze.time <= stop_time
 
-        return self.recording.gaze[start_mask & stop_mask]
+        gazes = T.cast(GazeArray, recording.gaze[start_mask & stop_mask])
+        return gazes
 
     def bg_export_surface_gazes(
         self, surface_uid: str, destination: Path
@@ -1081,20 +1139,22 @@ class SurfaceTrackingPlugin(Plugin):
             surface.export_fixations(gazes_in_window, destination)
             yield ProgressUpdate(1.0)
         except Exception:
-            logging.exception(
+            logger.exception(
                 "Failed to export surface fixations. Is fixation plugin enabled?"
             )
 
     def bg_export_surface_positions(
         self, surface_uid: str, destination: Path
     ) -> T.Generator[ProgressUpdate, None, None]:
+        recording = self.require_recording()
         surface = self.get_surface(surface_uid)
+        export_window = self.app.get_export_window()
         positions = _prepare_surface_positions_export(
-            self.recording,
-            self.app.get_export_window(),
+            recording,
+            export_window,
             self.markers_by_frame,
             self.surface_locations[surface_uid],
-            self.camera
+            self.camera,
         )
         positions.to_csv(
             destination / f"surface_positions_{surface.name}.csv", index=False
@@ -1111,16 +1171,20 @@ def _prepare_surface_positions_export(
 ) -> pd.DataFrame:
     start_time, stop_time = export_window
     export_mask = np.logical_and(
-        recording.scene.time >= start_time,
-        recording.scene.time <= stop_time
+        recording.scene.time >= start_time, recording.scene.time <= stop_time
     )
     export_indices = np.flatnonzero(export_mask)
     num_indices = len(export_indices)
 
     scene_size = (recording.scene.width, recording.scene.height)
+    if scene_size[0] is None or scene_size[1] is None:
+        raise ValueError("Surface positions require scene dimensions")
     timestamps = np.zeros(num_indices, dtype=np.int64)
     detected_markers = np.empty(num_indices, dtype=StringDType())
-    corner_coords = np.zeros((num_indices, normalized_corners().size), dtype=float)
+    corner_coords = np.zeros(
+        (num_indices, normalized_corners().size),  # type: ignore[no-untyped-call]
+        dtype=np.float64,
+    )
     for row_index, frame_index in enumerate(export_indices):
         frame_markers = markers_by_frame[frame_index]
         if not frame_markers:
@@ -1135,7 +1199,9 @@ def _prepare_surface_positions_export(
         marker_ids = ";".join([str(m.tag_id) for m in frame_markers])
         detected_markers[row_index] = marker_ids
 
-        anchors = _get_position_for_export(location, camera, scene_size)
+        anchors = _get_position_for_export(
+            location, camera, (scene_size[0], scene_size[1])
+        )
         corner_coords[row_index, :] = anchors.flatten()
 
     positions = {
@@ -1146,10 +1212,8 @@ def _prepare_surface_positions_export(
 
     # NOTE: the order of names below should always match the output of
     # `normalized_corners().flatten()`
-    corner_names = [
-        "tl x", "tl y", "tr x", "tr y", "br x", "br y", "bl x", "bl y"
-    ]
-    for name, coords in zip(corner_names, corner_coords.T):
+    corner_names = ["tl x", "tl y", "tr x", "tr y", "br x", "br y", "bl x", "bl y"]
+    for name, coords in zip(corner_names, corner_coords.T, strict=True):
         positions[f"{name} [px]"] = coords
 
     positions_df = pd.DataFrame(positions)
@@ -1158,11 +1222,12 @@ def _prepare_surface_positions_export(
 
 
 def _get_position_for_export(
-    location: SurfaceLocation,
-    camera: Camera,
-    scene_size: tuple[int, int]
-) -> np.ndarray:
-    corners = perspective_transform(normalized_corners(), location[1])
+    location: SurfaceLocation, camera: Camera, scene_size: tuple[int, int]
+) -> npt.NDArray[np.float64]:
+    corners = perspective_transform(
+        normalized_corners(),  # type: ignore[no-untyped-call]
+        location[1],
+    )
     corners = camera.distort_points(corners)
 
     max_value = np.tile(np.atleast_2d(scene_size), (len(corners), 1))
@@ -1173,27 +1238,29 @@ def _get_position_for_export(
     return corners
 
 
-def insert_interpolated_points(points: npt.NDArray, n_between: int = 10) -> npt.NDArray:
-    points = np.asarray(points, dtype=float)
-    points = np.concatenate((points, points[0:1]), axis=0)
+def insert_interpolated_points(
+    points: npt.ArrayLike, n_between: int = 10
+) -> npt.NDArray[np.float64]:
+    point_array = np.asarray(points, dtype=np.float64)
+    point_array = np.concatenate((point_array, point_array[0:1]), axis=0)
 
-    n_pts, dim = points.shape
+    n_pts, dim = point_array.shape
     if n_pts < 2:
-        return points.copy()
+        return point_array.copy()
 
     t = np.linspace(0, 1, n_between + 2)[:, None]
 
     out_len = n_pts + (n_pts - 1) * n_between
-    out = np.empty((out_len, dim), dtype=float)
+    out = np.empty((out_len, dim), dtype=np.float64)
 
     idx = 0
     for i in range(n_pts - 1):
-        p0, p1 = points[i], points[i + 1]
+        p0, p1 = point_array[i], point_array[i + 1]
         segment = (1 - t) * p0 + t * p1
         out[idx : idx + n_between + 1] = segment[:-1]
         idx += n_between + 1
 
     # Append the final original point
-    out[-1] = points[-1]
+    out[-1] = point_array[-1]
 
     return out
