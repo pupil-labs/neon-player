@@ -17,9 +17,11 @@ if TYPE_CHECKING:
 
 
 def test_fixations_plugin__to_dict__viz_have_class_names(
-    qapp: "MockNeonPlayerApp", mock_neon_recording: Callable[..., NeonRecording]
+    qapp: "MockNeonPlayerApp",
+    mock_neon_recording: Callable[..., NeonRecording],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    qapp.recording = mock_neon_recording()
+    monkeypatch.setattr(qapp, "recording", mock_neon_recording())
 
     plugin = FixationsPlugin()
     plugin.visualizations = [ScanpathViz(), FixationCircleViz()]
