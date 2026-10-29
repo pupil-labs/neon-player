@@ -424,6 +424,7 @@ class XDFPlugin(Plugin):
         self._offset_ns = 0
         self.update_timeline()
 
+    # TODO(type-checking): optional getters break persisted union conversion.
     @property
     @property_params(
         label="File Path (.xdf)",
@@ -432,7 +433,7 @@ class XDFPlugin(Plugin):
     )
     def file_path(self) -> FilePath:
         # Returning None keeps FilePathWidget visually empty.
-        return FilePath(self._xdf_path) if self._xdf_path != Path("") else None  # type: ignore[return-value]  # Optional getters break persisted union conversion.
+        return FilePath(self._xdf_path) if self._xdf_path != Path("") else None  # type: ignore[return-value]
 
     @file_path.setter
     def file_path(self, value: FilePath | None) -> None:
@@ -470,15 +471,17 @@ class XDFPlugin(Plugin):
     def available_data_stream_options(self) -> list[tuple[str, str]]:
         return [(s.display_name, s.uid) for s in self.available_data_streams]
 
+    # TODO(type-checking): property_params omits supported widget classes.
+    # TODO(type-checking): optional getters break persisted union conversion.
     @property
     @property_params(
         label="Data Stream",
-        widget=DynamicComboWidget,  # type: ignore[arg-type]  # property_params omits supported widget classes.
+        widget=DynamicComboWidget,  # type: ignore[arg-type]
         options_source="available_data_stream_options",
         options_changed_signal="streams_changed",
     )
     def data_stream_uid(self) -> str:
-        return self._data_stream_uid  # type: ignore[return-value]  # Optional getters break persisted union conversion.
+        return self._data_stream_uid  # type: ignore[return-value]
 
     @data_stream_uid.setter
     def data_stream_uid(self, value: str | None) -> None:
@@ -526,15 +529,17 @@ class XDFPlugin(Plugin):
     def available_marker_stream_options(self) -> list[tuple[str, str]]:
         return [(s.display_name, s.uid) for s in self.available_marker_streams]
 
+    # TODO(type-checking): property_params omits supported widget classes.
+    # TODO(type-checking): optional getters break persisted union conversion.
     @property
     @property_params(
         label="Marker Stream",
-        widget=DynamicComboWidget,  # type: ignore[arg-type]  # property_params omits supported widget classes.
+        widget=DynamicComboWidget,  # type: ignore[arg-type]
         options_source="available_marker_stream_options",
         options_changed_signal="streams_changed",
     )
     def marker_stream_uid(self) -> str:
-        return self._marker_stream_uid  # type: ignore[return-value]  # Optional getters break persisted union conversion.
+        return self._marker_stream_uid  # type: ignore[return-value]
 
     @marker_stream_uid.setter
     def marker_stream_uid(self, value: str | None) -> None:
@@ -580,10 +585,11 @@ class XDFPlugin(Plugin):
         self._available_sync_events = sorted(value)
         self.sync_events_changed.emit()
 
+    # TODO(type-checking): property_params omits supported widget classes.
     @property
     @property_params(
         label="Sync Event",
-        widget=DynamicComboWidget,  # type: ignore[arg-type]  # property_params omits supported widget classes.
+        widget=DynamicComboWidget,  # type: ignore[arg-type]
         options_source="available_sync_events",
         options_changed_signal="sync_events_changed",
     )
@@ -707,7 +713,6 @@ class XDFPlugin(Plugin):
             "XDFPlugin._bg_load_xdf",
             self._xdf_path,
         )
-        assert self._xdf_load_job is not None, "XDF loading must start a background job"
         self._xdf_load_job.finished.connect(self._on_xdf_load_finished)
 
     def _on_xdf_load_finished(self) -> None:
@@ -1114,10 +1119,6 @@ class XDFPlugin(Plugin):
     @action
     @action_params(compact=True, icon=QIcon(str(asset_path("info.svg"))))
     def debug_events(self) -> None:
-        recording = self.recording
-        if not recording:
-            return
-
         logger.info("--- NEON EVENTS ---")
         neon_events: list[tuple[str, int]] = []
         for event_name, neon_timestamps in self._neon_events.items():
@@ -1134,7 +1135,7 @@ class XDFPlugin(Plugin):
         for marker_name, xdf_timestamps in self.marker_stream.markers.items():
             offset_timestamps = apply_offset(np.array(xdf_timestamps), self._offset_ns)
             for xdf_ts, offset_ts in zip(
-                xdf_timestamps, offset_timestamps, strict=False
+                xdf_timestamps, offset_timestamps, strict=True
             ):
                 xdf_events.append((marker_name, xdf_ts, offset_ts))
         for name, xdf_ts, offset_ts in xdf_events:
