@@ -273,6 +273,17 @@ class TimeLineDock(QWidget):
         for tm in self.trim_markers:
             tm.set_highlighted(self.dragging == tm or tm.nearby(data_pos))
 
+        hovered_plot = next(
+            (
+                plot
+                for name, plot in self.timeline_plots.items()
+                if name != "Export window" and plot.sceneBoundingRect().contains(pos)
+            ),
+            None,
+        )
+        for plot in self.timeline_plots.values():
+            plot.set_hovered(plot is hovered_plot)
+
     def on_whitespace_mouse_moved(self, event: QMouseEvent) -> None:
         if event.buttons() == Qt.MouseButton.LeftButton:
             self.on_chart_area_clicked(event)

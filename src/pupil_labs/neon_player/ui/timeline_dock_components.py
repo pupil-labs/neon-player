@@ -252,6 +252,7 @@ class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not
         self.legend_handle = legend
         self.row_name = row_name
         self._show_y_limit_labels = False
+        self._hovered = False
         self._y_units = ""
         self._y_range_labels: list[pg.TextItem] = []
         view_box = self.getViewBox()
@@ -318,6 +319,15 @@ class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not
             self._y_range_labels = [upper_label, lower_label]
 
         self._update_y_limit_labels()
+        self._set_y_range_labels_visible(self._hovered)
+
+    def set_hovered(self, hovered: bool) -> None:
+        self._hovered = hovered
+        self._set_y_range_labels_visible(hovered)
+
+    def _set_y_range_labels_visible(self, visible: bool) -> None:
+        for label in self._y_range_labels:
+            label.setVisible(self._show_y_limit_labels and visible)
 
     def _update_y_limit_labels(self, *_args: object) -> None:
         if not self._show_y_limit_labels or not self._y_range_labels:

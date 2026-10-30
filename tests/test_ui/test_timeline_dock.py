@@ -7,7 +7,10 @@ from pytestqt.qtbot import QtBot
 
 from pupil_labs.neon_player.settings import RecordingSettings
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
-from pupil_labs.neon_player.ui.timeline_dock_components import TrimEndMarker
+from pupil_labs.neon_player.ui.timeline_dock_components import (
+    TimelinePlotItem,
+    TrimEndMarker,
+)
 from tests.conftest import MockNeonPlayerApp
 
 
@@ -23,6 +26,37 @@ def test_timeline_callbacks_without_recording(
     timeline.on_chart_area_mouse_moved(QPointF(0, 0))
     assert timeline.playhead.t == 0
     assert timeline.trim_markers == []
+
+
+def test_y_limit_labels_are_visible_only_for_hovered_timeline_row(
+    qtbot: QtBot, qapp: MockNeonPlayerApp, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    first_row = timeline.get_timeline_plot("First", create_if_missing=True)
+    second_row = timeline.get_timeline_plot("Second", create_if_missing=True)
+    first_row.configure_y_limit_labels(True)
+    second_row.configure_y_limit_labels(True)
+    timeline.resize(800, 500)
+    timeline.show()
+    qtbot.waitExposed(timeline)
+
+    def row_center(row: TimelinePlotItem) -> QPointF:
+        return row.sceneBoundingRect().center()
+
+    timeline.on_chart_area_mouse_moved(row_center(first_row))
+    assert all(label.isVisible() for label in first_row._y_range_labels)
+    assert not any(label.isVisible() for label in second_row._y_range_labels)
+
+    timeline.on_chart_area_mouse_moved(row_center(second_row))
+    assert not any(label.isVisible() for label in first_row._y_range_labels)
+    assert all(label.isVisible() for label in second_row._y_range_labels)
+
+    timeline.on_chart_area_mouse_moved(QPointF(-1000, -1000))
+    assert not any(label.isVisible() for label in first_row._y_range_labels)
+    assert not any(label.isVisible() for label in second_row._y_range_labels)
 
 
 def test_trim_markers_preserve_timestamps_and_empty_export_window(
