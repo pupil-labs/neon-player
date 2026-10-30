@@ -9,7 +9,7 @@ from pyqtgraph.GraphicsScene.mouseEvents import (
     MouseClickEvent,
     MouseDragEvent,
 )
-from PySide6.QtCore import QPoint, QPointF, QSize, Qt, Signal
+from PySide6.QtCore import QPoint, QPointF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -56,7 +56,7 @@ from pupil_labs.neon_player.ui.timeline_dock_utils import (
     get_clicked_data_point,
     get_clicked_plot_item,
 )
-from pupil_labs.neon_player.utilities import SignalDebouncer, clone_menu
+from pupil_labs.neon_player.utilities import clone_menu
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,6 @@ class TimeLineDock(QWidget):
     """
 
     key_pressed = Signal(QKeyEvent)
-    tooltip_update_requested = Signal(QPointF, float)
 
     def __init__(self) -> None:
         super().__init__()
@@ -161,10 +160,14 @@ class TimeLineDock(QWidget):
         self.graphics_layout.setContentsMargins(0, 0, 0, 0)
         self.graphics_view.setCentralItem(self.graphics_layout)
         self.tooltip_widget = TimelineTooltipWidget(self.graphics_view.viewport())
+        self._pending_tooltip_update: tuple[QPointF, int] | None = None
+        self._tooltip_update_timer = QTimer(self)
+        self._tooltip_update_timer.setSingleShot(True)
+        self._tooltip_update_timer.setInterval(10)
+        self._tooltip_update_timer.timeout.connect(self._update_pending_tooltip)
 
         self.graphics_view.scene().sigMouseClicked.connect(self.on_chart_area_clicked)
         self.graphics_view.scene().sigMouseMoved.connect(self.on_chart_area_mouse_moved)
-        self.tooltip_update_requested.connect(self._update_tooltip)
 
         self.scroll_area = QScrollArea()
         self.scroll_area.setHorizontalScrollBarPolicy(
@@ -308,9 +311,15 @@ class TimeLineDock(QWidget):
         else:
             self.hover_marker.set_cursor_time(None)
 
-        SignalDebouncer.debounce(
-            self.tooltip_update_requested, 0.01, pos, round(data_pos.x())
-        )
+        self._pending_tooltip_update = (pos, round(data_pos.x()))
+        self._tooltip_update_timer.start()
+
+    def _update_pending_tooltip(self) -> None:
+        if self._pending_tooltip_update is None:
+            return
+        pos, timestamp_ns = self._pending_tooltip_update
+        self._pending_tooltip_update = None
+        self._update_tooltip(pos, timestamp_ns)
 
     def _update_tooltip(self, pos: QPointF, timestamp_ns: int) -> None:
         if self.recording is None:
@@ -383,6 +392,17 @@ class TimeLineDock(QWidget):
         timeline_row_name: str,
         tooltip: TimelineTooltipConfig | None,
     ) -> None:
+        """Set or clear the tooltip configuration for a timeline row.
+
+        The row must already exist. Custom widgets must implement
+        ``update_tooltip(context)`` and be parentless when first registered;
+        the timeline adopts them until the configuration is replaced or the
+        row is removed. Passing ``None`` clears the configuration.
+
+        Args:
+            timeline_row_name: Label of the row to configure.
+            tooltip: Callback, custom tooltip widget, or ``None`` to clear.
+        """
         previous = self.timeline_tooltips.get(timeline_row_name)
         current = TimeLineDock._normalize_timeline_tooltip(self, tooltip)
         new_widgets = {id(current): current} if isinstance(current, QWidget) else {}
@@ -771,7 +791,11 @@ class TimeLineDock(QWidget):
                 displays multiple time series.
             color: Optional line color. If the color not provided, the default
                 color palette is used.
-            tooltip: TODO.
+            tooltip: Optional tooltip content for the row. A callback receives a
+                :class:`TimelineTooltipContext` and returns rich-text HTML, or a
+                parentless ``QWidget`` implementing ``update_tooltip(context)``
+                can provide custom content. ``None`` leaves the row without a
+                tooltip. The tooltip is updated while hovering a nearby data point.
             **kwargs: Additional plotting options passed to pyqtgraph.
 
         Returns:
@@ -903,7 +927,8 @@ class TimeLineDock(QWidget):
             timeline_row_name: Label for the timeline row.
             data: Timestamp and value pairs; timestamps are in nanoseconds.
             plot_name: Optional name shown in the row legend.
-            tooltip: TODO.
+            tooltip: Optional tooltip callback or custom widget for the row; see
+                :meth:`add_timeline_plot` for the callback and widget contract.
             **kwargs: Additional line options passed to pyqtgraph.
 
         Returns:
@@ -926,7 +951,8 @@ class TimeLineDock(QWidget):
             name: Label for the timeline row.
             data: Timestamp and value pairs; timestamps are in nanoseconds.
             item_name: Optional name shown in the row legend.
-            tooltip: TODO.
+            tooltip: Optional tooltip callback or custom widget for the row; see
+                :meth:`add_timeline_plot` for the callback and widget contract.
 
         Returns:
             The timeline row, or ``None`` if no recording is open.
@@ -960,7 +986,8 @@ class TimeLineDock(QWidget):
                 values control the bar colors when supplied.
             item_name: Optional name shown in the row legend.
             color: Color name or pyqtgraph color map name.
-            tooltip: TODO.
+            tooltip: Optional tooltip callback or custom widget for the row; see
+                :meth:`add_timeline_plot` for the callback and widget contract.
 
         Returns:
             The timeline row, or ``None`` if no recording is open.

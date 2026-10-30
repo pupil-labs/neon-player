@@ -17,6 +17,13 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass(frozen=True)
 class TimelineSeriesHover:
+    """Details for a time series whose data is under the timeline pointer.
+
+    ``timestamp_ns`` is populated for scatter points. For line plots, the
+    hovered time is represented by the context timestamp and the selected
+    point's ``index`` and ``value``.
+    """
+
     name: str
     """The name of the time series, empty if not set."""
     timestamp_ns: int | None
@@ -29,7 +36,11 @@ class TimelineSeriesHover:
 
 @dataclasses.dataclass(frozen=True)
 class TimelineBarSeriesHover(TimelineSeriesHover):
-    """Value and source details for one plotted series at the hovered time."""
+    """Details for the first bar in a series that contains the hover time.
+
+    Bar start and stop values are recording-axis nanoseconds. ``value`` is
+    ``None`` when the bars were added without values.
+    """
 
     start_ts: int
     """The start timestamp of the hovered bar."""
@@ -41,14 +52,14 @@ class TimelineBarSeriesHover(TimelineSeriesHover):
 
 @dataclasses.dataclass(frozen=True)
 class TimelineLineSeriesHover(TimelineSeriesHover):
-    """The closest line point to the current hover timestamp."""
+    """The closest line sample within the hover tolerance."""
 
     value: float
 
 
 @dataclasses.dataclass(frozen=True)
 class TimelineScatterSeriesHover(TimelineSeriesHover):
-    """The closest scatter point to the current hover timestamp"""
+    """The closest scatter sample within the hover tolerance."""
 
     timestamp_ns: int
     value: float
@@ -56,7 +67,15 @@ class TimelineScatterSeriesHover(TimelineSeriesHover):
 
 @dataclasses.dataclass(frozen=True)
 class TimelineTooltipContext:
-    """Stable callback input with row values and optional per-series details."""
+    """Snapshot passed to a timeline row's tooltip callback or widget.
+
+    ``timestamp_ns`` is the pointer's position on the recording time axis;
+    ``origin_ns`` is the recording start used to format relative timestamps.
+    ``series`` contains only plotted series with a point within the hover
+    tolerance or a bar covering the pointer time. ``row_name`` is the row
+    label. The :attr:`values` convenience mapping uses each series name as a
+    key; duplicate or empty names therefore share a key.
+    """
 
     timestamp_ns: int
     """The timestamp of the hover marker."""
@@ -67,11 +86,19 @@ class TimelineTooltipContext:
 
     @property
     def values(self) -> dict[str, T.Any | None]:
+        """Map each hovered series name to its value."""
         return {entry.name: entry.value for entry in self.series}
 
 
 type TimelineTooltipCallback = T.Callable[[TimelineTooltipContext], str]
+"""Callback returning rich-text HTML for a timeline tooltip."""
 type TimelineTooltipConfig = TimelineTooltipCallback | QWidget
+"""A tooltip callback or a custom widget implementing ``update_tooltip(context)``.
+
+Custom widgets must be parentless when registered and can belong to only one
+timeline row. The timeline adopts and disposes of the widget when its
+configuration is replaced or the row is removed.
+"""
 
 
 def format_value(value: float, precision: int, units: str) -> str:
@@ -289,7 +316,11 @@ def _get_hovered_timeline_series(
 
 
 class TimelineTooltipWidget(QFrame):
-    """Persistent, mouse-transparent tooltip surface for timeline hover content."""
+    """Persistent mouse-transparent surface used to display row tooltip content.
+
+    Text content is rendered as rich text. Custom tooltip widgets are adopted
+    while registered and released when their row configuration changes.
+    """
 
     CURSOR_OFFSET = QPoint(14, 18)
 
