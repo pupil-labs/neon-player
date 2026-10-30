@@ -3,7 +3,7 @@ import math
 import pyqtgraph as pg
 from pyqtgraph.GraphicsScene.mouseEvents import MouseDragEvent
 from PySide6.QtCore import QObject, QPoint, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPolygon
+from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPolygon, QWheelEvent
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
     QGraphicsItem,
@@ -11,6 +11,8 @@ from PySide6.QtWidgets import (
     QGraphicsSceneMouseEvent,
     QGraphicsSceneWheelEvent,
     QLabel,
+    QScrollArea,
+    QScrollBar,
     QSizePolicy,
     QStyleOptionGraphicsItem,
     QVBoxLayout,
@@ -18,6 +20,90 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs.neon_player.ui import GUIEventNotifier
+
+
+class TimelineScrollArea(QScrollArea):
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        # NOTE: pass pyqtgraph's zoom interactions (Shift+Scroll, Cmd/Ctrl+Scroll)
+        # through w/o scrolling through timeline plots when there are many of them
+        shift_modifier = Qt.KeyboardModifier.ShiftModifier
+        control_modifier = Qt.KeyboardModifier.ControlModifier
+        modifiers = shift_modifier | control_modifier
+        if event.modifiers() & modifiers:
+            event.ignore()
+            return
+
+        super().wheelEvent(event)
+
+
+class TimelineHorizontalScrollBar(QScrollBar):
+    range_changed = Signal(float, float)
+
+    _SCALE = 1_000_000
+
+    def __init__(self) -> None:
+        super().__init__(Qt.Orientation.Horizontal)
+        self._time_frame: tuple[float, float] | None = None
+        self._full_view_span = 0.0
+        self._visible_span = 0.0
+        self.valueChanged.connect(self._on_value_changed)
+        self.hide()
+
+    def set_time_frame(
+        self,
+        time_frame: tuple[float, float] | None,
+        padding: float = 0.0,
+    ) -> None:
+        if time_frame is None or time_frame[1] <= time_frame[0]:
+            self._time_frame = None
+            self._full_view_span = 0.0
+            self._visible_span = 0.0
+            self.hide()
+            self.setRange(0, 0)
+            return
+
+        start, stop = time_frame
+        duration = stop - start
+        self._time_frame = (start - duration * padding, stop + duration * padding)
+        self._full_view_span = duration
+
+    def set_view_range(self, start: float, stop: float) -> None:
+        if self._time_frame is None:
+            self.hide()
+            return
+
+        time_start, time_stop = self._time_frame
+        view_start = max(start, time_start)
+        view_stop = min(stop, time_stop)
+
+        duration = time_stop - time_start
+        self._visible_span = view_stop - view_start
+        page_step = min(
+            self._SCALE,
+            max(1, round(self._visible_span / duration * self._SCALE)),
+        )
+        maximum = self._SCALE - page_step
+        value = round((view_start - time_start) / duration * self._SCALE)
+
+        was_blocked = self.blockSignals(True)
+        try:
+            self.setPageStep(page_step)
+            self.setSingleStep(max(1, page_step // 50))
+            self.setRange(0, maximum)
+            self.setValue(min(maximum, value))
+        finally:
+            self.blockSignals(was_blocked)
+
+        zoomed_in = self._visible_span < self._full_view_span * (1 - 1e-6)
+        self.setVisible(zoomed_in)
+
+    def _on_value_changed(self, value: int) -> None:
+        if self._time_frame is None:
+            return
+
+        time_start, time_stop = self._time_frame
+        start = time_start + value / self._SCALE * (time_stop - time_start)
+        self.range_changed.emit(start, start + self._visible_span)
 
 
 class ScrubbableViewBox(pg.ViewBox):  # type: ignore[misc]  # pyqtgraph does not type this base class.
@@ -65,8 +151,8 @@ class ScrubbableViewBox(pg.ViewBox):  # type: ignore[misc]  # pyqtgraph does not
 
     def wheelEvent(self, ev: QGraphicsSceneWheelEvent, axis: int | None = None) -> None:
         mouse_enabled = {
-            "x": Qt.KeyboardModifier.ControlModifier in ev.modifiers(),
-            "y": Qt.KeyboardModifier.ShiftModifier in ev.modifiers(),
+            "x": Qt.KeyboardModifier.ShiftModifier in ev.modifiers(),
+            "y": Qt.KeyboardModifier.ControlModifier in ev.modifiers(),
         }
         mouse_enabled["y"] = self.allow_y_panning and mouse_enabled["y"]
 
