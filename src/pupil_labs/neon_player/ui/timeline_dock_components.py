@@ -88,6 +88,7 @@ class TimelineHorizontalScrollBar(QScrollBar):
         was_blocked = self.blockSignals(True)
         try:
             self.setPageStep(page_step)
+            self.setSingleStep(max(1, page_step // 50))
             self.setRange(0, maximum)
             self.setValue(min(maximum, value))
         finally:
