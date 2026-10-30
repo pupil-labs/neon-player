@@ -151,8 +151,8 @@ class ScrubbableViewBox(pg.ViewBox):  # type: ignore[misc]  # pyqtgraph does not
 
     def wheelEvent(self, ev: QGraphicsSceneWheelEvent, axis: int | None = None) -> None:
         mouse_enabled = {
-            "x": Qt.KeyboardModifier.ControlModifier in ev.modifiers(),
-            "y": Qt.KeyboardModifier.ShiftModifier in ev.modifiers(),
+            "x": Qt.KeyboardModifier.ShiftModifier in ev.modifiers(),
+            "y": Qt.KeyboardModifier.ControlModifier in ev.modifiers(),
         }
         mouse_enabled["y"] = self.allow_y_panning and mouse_enabled["y"]
 
