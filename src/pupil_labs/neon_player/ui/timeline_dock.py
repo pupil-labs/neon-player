@@ -8,7 +8,7 @@ from pyqtgraph.GraphicsScene.mouseEvents import (
     MouseClickEvent,
     MouseDragEvent,
 )
-from PySide6.QtCore import QPoint, QPointF, QSize, Qt, Signal
+from PySide6.QtCore import QPoint, QPointF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -21,6 +21,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QComboBox,
+    QFrame,
     QGraphicsSceneMouseEvent,
     QHBoxLayout,
     QMenu,
@@ -52,6 +53,9 @@ from pupil_labs.neon_player.ui.timeline_dock_utils import (
 from pupil_labs.neon_player.utilities import clone_menu
 
 logger = logging.getLogger(__name__)
+
+_PINNED_AXIS_HEIGHT = 25
+_EXPORT_WINDOW_ROW_HEIGHT = 50
 
 
 class TimeLineDock(QWidget):
@@ -185,10 +189,47 @@ class TimeLineDock(QWidget):
         self.timestamps_plot.getViewBox().sigRangeChanged.connect(
             self.on_timeline_view_range_changed
         )
-        self.timestamps_plot.showAxis("top")
+        self.timestamps_plot.hideAxis("top")
         self.timestamps_plot.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
+
+        # The time axis lives outside the vertically scrolling rows. It shares
+        # the export-window plot's view range but does not accept mouse input.
+        self.axis_graphics_view = pg.GraphicsView()
+        self.axis_graphics_view.setBackground("transparent")
+        self.axis_graphics_view.setFrameShape(QFrame.Shape.NoFrame)
+        self.axis_graphics_layout = pg.GraphicsLayout()
+        self.axis_graphics_layout.setSpacing(0)
+        self.axis_graphics_layout.setContentsMargins(0, 0, 0, 0)
+        self.axis_graphics_view.setCentralItem(self.axis_graphics_layout)
+        self.axis_graphics_view.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.axis_graphics_view.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+
+        self.pinned_time_axis = TimeAxisItem(orientation="top")
+        self.pinned_time_axis.setHeight(_PINNED_AXIS_HEIGHT)
+        self.pinned_time_axis.linkToView(self.timestamps_plot.getViewBox())
+        self.axis_graphics_layout.addItem(self.pinned_time_axis, row=0, col=0)
+        self.axis_header_spacer = QWidget()
+        self.axis_header_spacer.setFixedWidth(0)
+        self.axis_header_right_spacer = QWidget()
+        self.axis_header_right_spacer.setFixedWidth(0)
+        self.axis_header_layout = QHBoxLayout()
+        self.axis_header_layout.setContentsMargins(0, 0, 0, 0)
+        self.axis_header_layout.setSpacing(0)
+        self.axis_header_layout.addWidget(self.axis_header_spacer)
+        self.axis_header_layout.addWidget(self.axis_graphics_view, 1)
+        self.axis_header_layout.addWidget(self.axis_header_right_spacer)
+        self.axis_header_container = QWidget()
+        self.axis_header_container.setLayout(self.axis_header_layout)
+        self.axis_header_container.setFixedHeight(_PINNED_AXIS_HEIGHT)
+        self.main_layout.insertWidget(1, self.axis_header_container)
+        self._sync_pinned_axis_geometry()
+        QTimer.singleShot(0, self._sync_pinned_axis_geometry)
 
         self.playhead = PlayHead(self.timestamps_plot, parent=self.graphics_view)
         self.playhead.hide()
@@ -209,10 +250,43 @@ class TimeLineDock(QWidget):
         self.key_pressed.emit(event)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
-        w = self.scroll_area.width() - self.scroll_area.verticalScrollBar().width()
-        self.graphics_view.setFixedWidth(w)
+        w = (
+            self.scroll_area.width()
+            - self.scroll_area.verticalScrollBar().width()
+            - self.scroll_area.frameWidth()
+            - 3
+        )
+        if self.graphics_view.width() != w:
+            self.graphics_view.setFixedWidth(w)
         self.playhead.refresh_geometry()
-        return super().resizeEvent(event)
+        super().resizeEvent(event)
+
+    def _sync_pinned_axis_geometry(self) -> None:
+        """Match the pinned axis's data area to the timeline plot area."""
+        if not hasattr(self, "axis_header_spacer") or not hasattr(
+            self, "timestamps_plot"
+        ):
+            return
+
+        main_viewbox = self.timestamps_plot.getViewBox()
+        main_left = self.graphics_view.mapTo(
+            self,
+            self.graphics_view.mapFromScene(main_viewbox.sceneBoundingRect().topLeft()),
+        ).x()
+        main_right = self.graphics_view.mapTo(
+            self,
+            self.graphics_view.mapFromScene(
+                main_viewbox.sceneBoundingRect().bottomRight()
+            ),
+        ).x()
+        header_left = self.axis_header_container.mapTo(self, QPoint(0, 0)).x()
+        header_right = header_left + self.axis_header_container.width()
+        left_width = max(0, main_left - header_left)
+        right_width = max(0, header_right - main_right - 1)
+        if self.axis_header_spacer.width() != left_width:
+            self.axis_header_spacer.setFixedWidth(left_width)
+        if self.axis_header_right_spacer.width() != right_width:
+            self.axis_header_right_spacer.setFixedWidth(right_width)
 
     def on_recording_loaded(self, recording: nr.NeonRecording) -> None:
         app = neon_player.instance()
@@ -233,6 +307,7 @@ class TimeLineDock(QWidget):
             axis.set_time_frame(recording.start_time, recording.stop_time)
 
         self.on_timeline_view_range_changed()
+        self.pinned_time_axis.set_time_frame(recording.start_time, recording.stop_time)
 
         trim_plot = self.get_timeline_plot("Export window", create_if_missing=True)
         export_window = app.get_export_window()
@@ -250,6 +325,7 @@ class TimeLineDock(QWidget):
         if trim_plot is not None:
             trim_plot.clear()
         self.playhead.hide()
+        self.pinned_time_axis.set_time_frame(0, 0)
         self.trim_markers = []
         self.dragging = None
 
@@ -531,15 +607,17 @@ class TimeLineDock(QWidget):
         )
 
         if is_timestamps_row:
-            plot_item.preferred_height_1d = 50
+            plot_item.preferred_height_1d = _EXPORT_WINDOW_ROW_HEIGHT
             plot_item.adjust_size()
-            legend_label.anchor((0.5, 0), (0.5, 0), (0, 20))
+            legend_label.anchor((0.5, 0), (0.5, 0), (0, 5))
 
         legend.layout.setSpacing(0)
         self.timeline_legends[timeline_row_name] = legend
 
         self.graphics_layout.addItem(legend_container, row=row, col=0)
         self.graphics_layout.addItem(plot_item, row=row, col=1)
+        self._sync_pinned_axis_geometry()
+        QTimer.singleShot(0, self._sync_pinned_axis_geometry)
 
         plot_item.setMouseEnabled(x=False, y=False)
         plot_item.hideButtons()
@@ -636,6 +714,9 @@ class TimeLineDock(QWidget):
 
         if self.plot_sorting_enabled:
             self.sort_plots()
+        else:
+            self._sync_pinned_axis_geometry()
+            QTimer.singleShot(0, self._sync_pinned_axis_geometry)
 
         return plot_item
 
@@ -664,6 +745,9 @@ class TimeLineDock(QWidget):
 
         if self.plot_sorting_enabled:
             self.sort_plots()
+        else:
+            self._sync_pinned_axis_geometry()
+            QTimer.singleShot(0, self._sync_pinned_axis_geometry)
 
     def remove_timeline_series(self, plot_name: str, series_name: str) -> None:
         """Remove one named data series, removing its row if it becomes empty.
@@ -866,6 +950,7 @@ class TimeLineDock(QWidget):
             self.graphics_layout.addItem(legend, row=row, col=0)
             self.graphics_layout.addItem(plot, row=row, col=1)
 
+        self._sync_pinned_axis_geometry()
         self.fix_scroll_size()
 
     def enable_plot_sorting(self) -> None:
