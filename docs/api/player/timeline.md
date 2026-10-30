@@ -28,6 +28,8 @@
 
 ::: pupil_labs.neon_player.ui.timeline_dock_tooltips.TimelineTooltipCallback
 
+::: pupil_labs.neon_player.ui.timeline_dock_tooltips.TimelineTooltipWidget
+
 ::: pupil_labs.neon_player.ui.timeline_dock_tooltips.TimelineTooltipConfig
 
 ::: pupil_labs.neon_player.ui.timeline_dock_tooltips.default_line_tooltip
