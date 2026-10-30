@@ -76,6 +76,7 @@ class IMUPlugin(neon_player.Plugin):
                     "IMU - Orientation",
                     data.to_numpy(),
                     euler_axis,
+                    units="deg",
                 )
         elif not self._show_orientation and orientation_plot is not None:
             timeline.remove_timeline_plot("IMU - Orientation")
@@ -88,6 +89,7 @@ class IMUPlugin(neon_player.Plugin):
                     "IMU - Gyroscope",
                     data.to_numpy(),
                     gyro_axis,
+                    units="deg/s",
                 )
         elif not self._show_gyro and gyro_plot is not None:
             timeline.remove_timeline_plot("IMU - Gyroscope")
@@ -100,6 +102,7 @@ class IMUPlugin(neon_player.Plugin):
                     "IMU - Acceleration",
                     data.to_numpy(),
                     acc_axis,
+                    units="g",
                 )
         elif not self._show_acceleration and acc_plot is not None:
             timeline.remove_timeline_plot("IMU - Acceleration")
