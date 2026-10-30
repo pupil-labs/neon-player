@@ -49,6 +49,7 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
 from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
     TimelineTooltipConfig,
     TimelineTooltipContext,
+    TimelineTooltipOverlay,
     TimelineTooltipWidget,
     _get_hovered_timeline_series,
 )
@@ -159,7 +160,7 @@ class TimeLineDock(QWidget):
         self.graphics_layout.setSpacing(0)
         self.graphics_layout.setContentsMargins(0, 0, 0, 0)
         self.graphics_view.setCentralItem(self.graphics_layout)
-        self.tooltip_widget = TimelineTooltipWidget(self.graphics_view.viewport())
+        self.tooltip_widget = TimelineTooltipOverlay(self.graphics_view.viewport())
         self._pending_tooltip_update: tuple[QPointF, int] | None = None
         self._tooltip_update_timer = QTimer(self)
         self._tooltip_update_timer.setSingleShot(True)
@@ -405,9 +406,13 @@ class TimeLineDock(QWidget):
         """
         previous = self.timeline_tooltips.get(timeline_row_name)
         current = TimeLineDock._normalize_timeline_tooltip(self, tooltip)
-        new_widgets = {id(current): current} if isinstance(current, QWidget) else {}
+        new_widgets = (
+            {id(current): current} if isinstance(current, TimelineTooltipWidget) else {}
+        )
         previous_widgets = (
-            {id(previous): previous} if isinstance(previous, QWidget) else {}
+            {id(previous): previous}
+            if isinstance(previous, TimelineTooltipWidget)
+            else {}
         )
         if new_widgets:
             TimeLineDock._validate_timeline_tooltip_widgets(
@@ -468,18 +473,19 @@ class TimeLineDock(QWidget):
         if tooltip is None:
             return None
         if isinstance(tooltip, QWidget):
-            update_tooltip = getattr(tooltip, "update_tooltip", None)
-            if not callable(update_tooltip):
+            if not isinstance(tooltip, TimelineTooltipWidget):
                 raise TypeError(
-                    "Timeline tooltip widgets must implement update_tooltip(context)"
+                    "Timeline tooltip widgets must subclass TimelineTooltipWidget"
                 )
             return tooltip
         if callable(tooltip):
             return tooltip
-        raise TypeError("Timeline tooltip must be a callback, QWidget, or None")
+        raise TypeError(
+            "Timeline tooltip must be a callback, TimelineTooltipWidget, or None"
+        )
 
     def _validate_timeline_tooltip_widgets(
-        self, widgets: dict[int, QWidget], timeline_row_name: str
+        self, widgets: dict[int, TimelineTooltipWidget], timeline_row_name: str
     ) -> None:
         for widget_id, widget in widgets.items():
             current_owner = getattr(self, "_tooltip_widget_rows", {}).get(widget_id)

@@ -20,6 +20,7 @@ from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
 from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
     TimelineBarSeriesHover,
     TimelineTooltipContext,
+    TimelineTooltipWidget,
 )
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 
@@ -44,7 +45,7 @@ def marker_visibility_tooltip(context: TimelineTooltipContext) -> str:
     return f"{marker_count} detected marker{suffix}"
 
 
-class SurfaceTimelineTooltip(QWidget):
+class SurfaceTimelineTooltip(TimelineTooltipWidget):
     """Static key for the event colors used in Surface Tracking timelines."""
 
     ENTRIES = (

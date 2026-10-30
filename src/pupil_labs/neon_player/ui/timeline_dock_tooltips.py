@@ -92,8 +92,18 @@ class TimelineTooltipContext:
 
 type TimelineTooltipCallback = T.Callable[[TimelineTooltipContext], str]
 """Callback returning rich-text HTML for a timeline tooltip."""
-type TimelineTooltipConfig = TimelineTooltipCallback | QWidget
-"""A tooltip callback or a custom widget implementing ``update_tooltip(context)``.
+
+
+class TimelineTooltipWidget(QWidget):
+    """Base class for custom widgets used as timeline row tooltips."""
+
+    def update_tooltip(self, context: TimelineTooltipContext) -> None:
+        """Update this widget for the current pointer position."""
+        raise NotImplementedError
+
+
+type TimelineTooltipConfig = TimelineTooltipCallback | TimelineTooltipWidget
+"""A tooltip callback or a custom timeline tooltip widget.
 
 Custom widgets must be parentless when registered and can belong to only one
 timeline row. The timeline adopts and disposes of the widget when its
@@ -315,7 +325,7 @@ def _get_hovered_timeline_series(
     return values
 
 
-class TimelineTooltipWidget(QFrame):
+class TimelineTooltipOverlay(QFrame):
     """Persistent mouse-transparent surface used to display row tooltip content.
 
     Text content is rendered as rich text. Custom tooltip widgets are adopted
