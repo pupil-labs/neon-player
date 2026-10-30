@@ -219,7 +219,9 @@ class TimeLineDock(QWidget):
         self.axis_header_right_spacer = QWidget()
         self.axis_header_right_spacer.setFixedWidth(0)
         self.axis_header_layout = QHBoxLayout()
-        self.axis_header_layout.setContentsMargins(0, 0, 0, 0)
+        self.axis_header_layout.setContentsMargins(
+            self.scroll_area.frameWidth(), 0, 0, 0
+        )
         self.axis_header_layout.setSpacing(0)
         self.axis_header_layout.addWidget(self.axis_header_spacer)
         self.axis_header_layout.addWidget(self.axis_graphics_view, 1)
@@ -250,14 +252,13 @@ class TimeLineDock(QWidget):
         self.key_pressed.emit(event)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
-        w = (
-            self.scroll_area.width()
-            - self.scroll_area.verticalScrollBar().width()
-            - self.scroll_area.frameWidth()
-            - 3
-        )
+        w = self.scroll_area.viewport().width()
+        frame_width = self.scroll_area.frameWidth()
         if self.graphics_view.width() != w:
             self.graphics_view.setFixedWidth(w)
+        header_width = w + frame_width
+        if self.axis_header_container.width() != header_width:
+            self.axis_header_container.setFixedWidth(header_width)
         self.playhead.refresh_geometry()
         super().resizeEvent(event)
 
@@ -279,8 +280,9 @@ class TimeLineDock(QWidget):
                 main_viewbox.sceneBoundingRect().bottomRight()
             ),
         ).x()
-        header_left = self.axis_header_container.mapTo(self, QPoint(0, 0)).x()
-        header_right = header_left + self.axis_header_container.width()
+        header_origin = self.axis_header_container.mapTo(self, QPoint(0, 0)).x()
+        header_left = header_origin + self.scroll_area.frameWidth()
+        header_right = header_origin + self.axis_header_container.width()
         left_width = max(0, main_left - header_left)
         right_width = max(0, header_right - main_right - 1)
         if self.axis_header_spacer.width() != left_width:

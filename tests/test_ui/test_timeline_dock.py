@@ -152,6 +152,18 @@ def test_pinned_time_axis_stays_in_place_when_timeline_scrolls(
     qtbot.addWidget(timeline)
     timeline.resize(500, 180)
     timeline.show()
+    qtbot.wait(50)
+    assert timeline.graphics_view.width() == timeline.scroll_area.viewport().width()
+    assert timeline.axis_header_container.width() == (
+        timeline.scroll_area.viewport().width() + timeline.scroll_area.frameWidth()
+    )
+    assert (
+        timeline.axis_header_container.mapTo(
+            timeline,
+            QPoint(timeline.scroll_area.frameWidth(), 0),
+        ).x()
+        == timeline.scroll_area.viewport().mapTo(timeline, QPoint(0, 0)).x()
+    )
     for row in range(10):
         timeline.get_timeline_plot(f"row {row}", create_if_missing=True)
     timeline.fix_scroll_size()
