@@ -29,6 +29,11 @@ from pupil_labs.neon_player.plugins.events import (
     EventsPlugin,
     _load_events_from_recording,
 )
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
+    default_broken_bar_tooltip,
+    default_line_tooltip,
+    default_scatter_tooltip,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -993,7 +998,20 @@ class XDFPlugin(Plugin):
                 continue
 
             if not plot_item.items:
-                timeline.add_timeline_scatter(timeline_row_name, [])
+
+                def get_total(marker_name: str = name) -> int:
+                    if self.marker_stream is None:
+                        return 0
+                    return len(self.marker_stream.markers.get(marker_name, []))
+
+                timeline.add_timeline_scatter(
+                    timeline_row_name,
+                    [],
+                    tooltip=default_scatter_tooltip(
+                        name=name,
+                        total=get_total,
+                    ),
+                )
 
             y = np.zeros_like(offset_timestamps)
             plot_item.items[0].setData(offset_timestamps, y)
@@ -1030,6 +1048,7 @@ class XDFPlugin(Plugin):
             data_stream_row_name,
             [(plot_ts[0], plot_ts[-1])],
             color="#00FFFF",
+            tooltip=default_broken_bar_tooltip(prefix="Aligned"),
         )
         self._active_timeline_row_names["data"].add(data_stream_row_name)
 
@@ -1075,6 +1094,7 @@ class XDFPlugin(Plugin):
                 timeline_row_name=row_name,
                 data=plot_data_matrix,
                 plot_name="",
+                tooltip=default_line_tooltip(),
             )
             if plot_item is not None:
                 plot_item.preferred_height_2d = 60

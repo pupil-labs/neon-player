@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from functools import partial
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -7,6 +8,7 @@ from pupil_labs.camera import Camera
 from pupil_labs.marker_mapper.surface import normalized_corners
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.timeseries.gaze import GazeArray
+from PySide6.QtWidgets import QLabel
 
 from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
 from pupil_labs.neon_player.plugins.surface_tracking import SurfaceTrackingPlugin
@@ -18,10 +20,35 @@ from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
 from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import (
     TrackedSurface,
 )
+from pupil_labs.neon_player.plugins.surface_tracking.ui import SurfaceTimelineTooltip
 from tests.mocks import mock_gaze_timeseries, mock_scene_timeseries
 
 if TYPE_CHECKING:
     from tests.conftest import MockNeonPlayerApp
+
+
+@pytest.mark.usefixtures("qapp")
+def test_surface_timeline_tooltip_legend_and_row_registration() -> None:
+    tooltip = SurfaceTimelineTooltip()
+    labels = [label.text() for label in tooltip.findChildren(QLabel) if label.text()]
+    swatches = tooltip.findChildren(QLabel, "surfaceTimelineTooltipSwatch")
+    assert labels == [text for _, text in SurfaceTimelineTooltip.ENTRIES]
+    assert [swatch.styleSheet() for swatch in swatches] == [
+        f"background-color: {color}; border-radius: 3px;"
+        for color, _ in SurfaceTimelineTooltip.ENTRIES
+    ]
+
+    calls = []
+
+    class DummyTimeline:
+        def add_timeline_broken_bar(self, *_args: object, **_kwargs: object) -> None:
+            calls.append((_args, _kwargs))
+
+    plugin = SurfaceTrackingPlugin()
+    plugin.get_timeline = partial(DummyTimeline)
+    plugin._add_legend_timeline_row("row", np.empty((0, 3)))
+
+    assert isinstance(calls[0][1]["tooltip"], SurfaceTimelineTooltip)
 
 
 def mock_transform(x0: float, y0: float, w: float, h: float) -> np.ndarray:

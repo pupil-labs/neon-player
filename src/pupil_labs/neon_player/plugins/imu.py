@@ -9,6 +9,7 @@ from scipy.spatial.transform import Rotation
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import default_line_tooltip
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,7 @@ class IMUPlugin(neon_player.Plugin):
                     "IMU - Orientation",
                     data.to_numpy(),
                     euler_axis,
+                    tooltip=default_line_tooltip(units="deg"),
                 )
         elif not self._show_orientation and orientation_plot is not None:
             timeline.remove_timeline_plot("IMU - Orientation")
@@ -88,6 +90,7 @@ class IMUPlugin(neon_player.Plugin):
                     "IMU - Gyroscope",
                     data.to_numpy(),
                     gyro_axis,
+                    tooltip=default_line_tooltip(units="deg/s"),
                 )
         elif not self._show_gyro and gyro_plot is not None:
             timeline.remove_timeline_plot("IMU - Gyroscope")
@@ -100,6 +103,7 @@ class IMUPlugin(neon_player.Plugin):
                     "IMU - Acceleration",
                     data.to_numpy(),
                     acc_axis,
+                    tooltip=default_line_tooltip(units="g"),
                 )
         elif not self._show_acceleration and acc_plot is not None:
             timeline.remove_timeline_plot("IMU - Acceleration")
