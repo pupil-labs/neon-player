@@ -164,6 +164,7 @@ class TimeLineDock(QWidget):
 
         # Ensure at least 10 ms pass between successive tooltip updates
         self._pending_tooltip_update: tuple[QPointF, int] | None = None
+        self._context_menu_open = False
         self._tooltip_update_timer = QTimer(self)
         self._tooltip_update_timer.setSingleShot(True)
         self._tooltip_update_timer.setInterval(10)
@@ -299,9 +300,18 @@ class TimeLineDock(QWidget):
             "Timeline", auto_create=False
         )
         context_menu = clone_menu(menu) if isinstance(menu, QMenu) else QMenu()
-        context_menu.exec(global_position)
+        self._context_menu_open = True
+        self._pending_tooltip_update = None
+        self._tooltip_update_timer.stop()
+        try:
+            context_menu.exec(global_position)
+        finally:
+            self._context_menu_open = False
 
     def on_chart_area_mouse_moved(self, pos: QPointF) -> None:
+        if self._context_menu_open:
+            return
+
         data_pos = self.timestamps_plot.getViewBox().mapSceneToView(pos)
         for tm in self.trim_markers:
             tm.set_highlighted(self.dragging == tm or tm.nearby(data_pos))
@@ -319,8 +329,13 @@ class TimeLineDock(QWidget):
             self._tooltip_update_timer.start()
 
     def _update_pending_tooltip(self) -> None:
+        if self._context_menu_open:
+            self._pending_tooltip_update = None
+            return
+
         if self._pending_tooltip_update is None:
             return
+
         pos, timestamp_ns = self._pending_tooltip_update
         self._pending_tooltip_update = None
         self._update_tooltip(pos, timestamp_ns)
