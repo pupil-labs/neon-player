@@ -161,6 +161,8 @@ class TimeLineDock(QWidget):
         self.graphics_layout.setContentsMargins(0, 0, 0, 0)
         self.graphics_view.setCentralItem(self.graphics_layout)
         self.tooltip_widget = TimelineTooltipOverlay(self.graphics_view.viewport())
+
+        # Ensure at least 10 ms pass between successive tooltip updates
         self._pending_tooltip_update: tuple[QPointF, int] | None = None
         self._tooltip_update_timer = QTimer(self)
         self._tooltip_update_timer.setSingleShot(True)
@@ -313,7 +315,8 @@ class TimeLineDock(QWidget):
             self.hover_marker.set_cursor_time(None)
 
         self._pending_tooltip_update = (pos, round(data_pos.x()))
-        self._tooltip_update_timer.start()
+        if not self._tooltip_update_timer.isActive():
+            self._tooltip_update_timer.start()
 
     def _update_pending_tooltip(self) -> None:
         if self._pending_tooltip_update is None:
