@@ -1117,16 +1117,26 @@
 <div class="highlight"><pre><span></span><code><span class="c1"># /// script</span>
 <span class="c1"># requires-python = &quot;&gt;=3.11&quot;</span>
 <span class="c1"># dependencies = [</span>
-<span class="c1">#     &quot;mediapipe&lt;0.10.30&quot;,</span>
+<span class="c1">#     &quot;mediapipe&gt;=1.2.0&quot;,</span>
 <span class="c1"># ]</span>
 <span class="c1"># ///</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">T</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tempfile</span><span class="w"> </span><span class="kn">import</span> <span class="n">TemporaryDirectory</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">urllib.request</span><span class="w"> </span><span class="kn">import</span> <span class="n">urlopen</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">mediapipe</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mp</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mediapipe.tasks.python</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseOptions</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mediapipe.tasks.python.vision</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">FaceLandmarker</span><span class="p">,</span>
+    <span class="n">FaceLandmarkerOptions</span><span class="p">,</span>
+    <span class="n">FaceLandmarksConnections</span><span class="p">,</span>
+    <span class="n">RunningMode</span><span class="p">,</span>
+    <span class="n">drawing_utils</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pupil_labs.neon_recording</span><span class="w"> </span><span class="kn">import</span> <span class="n">NeonRecording</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">PySide6.QtCore</span><span class="w"> </span><span class="kn">import</span> <span class="n">QPointF</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">PySide6.QtGui</span><span class="w"> </span><span class="kn">import</span> <span class="n">QColor</span><span class="p">,</span> <span class="n">QIcon</span><span class="p">,</span> <span class="n">QPainter</span><span class="p">,</span> <span class="n">QPainterPath</span><span class="p">,</span> <span class="n">QPolygonF</span>
@@ -1147,8 +1157,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">detection_job</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">faces</span> <span class="o">=</span> <span class="kc">None</span>
 
-        <span class="n">mp_drawing</span> <span class="o">=</span> <span class="n">mp</span><span class="o">.</span><span class="n">solutions</span><span class="o">.</span><span class="n">drawing_utils</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">drawing_spec</span> <span class="o">=</span> <span class="n">mp_drawing</span><span class="o">.</span><span class="n">DrawingSpec</span><span class="p">(</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">drawing_spec</span> <span class="o">=</span> <span class="n">drawing_utils</span><span class="o">.</span><span class="n">DrawingSpec</span><span class="p">(</span>
             <span class="n">thickness</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
             <span class="n">circle_radius</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
             <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">255</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
@@ -1224,15 +1233,13 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">load_object_cache</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">load_object_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">objects_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_cache_path</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;faces.npy&quot;</span>
+        <span class="n">objects_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_cache_path</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;faces_landmarker.npy&quot;</span>
 
         <span class="k">if</span> <span class="n">objects_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_load_object_cache</span><span class="p">()</span>
             <span class="k">return</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">headless</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">bg_detect</span><span class="p">()</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_load_object_cache</span><span class="p">()</span>
             <span class="k">return</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">detection_job</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -1258,18 +1265,15 @@
         <span class="k">if</span> <span class="n">frame_faces</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span>
 
-        <span class="n">mp_drawing</span> <span class="o">=</span> <span class="n">mp</span><span class="o">.</span><span class="n">solutions</span><span class="o">.</span><span class="n">drawing_utils</span>
-        <span class="n">mp_face_mesh</span> <span class="o">=</span> <span class="n">mp</span><span class="o">.</span><span class="n">solutions</span><span class="o">.</span><span class="n">face_mesh</span>
-
         <span class="n">overlay</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
             <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">recording</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span>
         <span class="p">)</span>
 
         <span class="k">for</span> <span class="n">face</span> <span class="ow">in</span> <span class="n">frame_faces</span><span class="p">:</span>
-            <span class="n">mp_drawing</span><span class="o">.</span><span class="n">draw_landmarks</span><span class="p">(</span>
+            <span class="n">drawing_utils</span><span class="o">.</span><span class="n">draw_landmarks</span><span class="p">(</span>
                 <span class="n">image</span><span class="o">=</span><span class="n">overlay</span><span class="p">,</span>
                 <span class="n">landmark_list</span><span class="o">=</span><span class="n">face</span><span class="p">,</span>
-                <span class="n">connections</span><span class="o">=</span><span class="n">mp_face_mesh</span><span class="o">.</span><span class="n">FACEMESH_CONTOURS</span><span class="p">,</span>
+                <span class="n">connections</span><span class="o">=</span><span class="n">FaceLandmarksConnections</span><span class="o">.</span><span class="n">FACE_LANDMARKS_CONTOURS</span><span class="p">,</span>
                 <span class="n">landmark_drawing_spec</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">drawing_spec</span><span class="p">,</span>
                 <span class="n">connection_drawing_spec</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">drawing_spec</span><span class="p">,</span>
             <span class="p">)</span>
@@ -1317,39 +1321,65 @@
         <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">aoi_indices</span><span class="p">[</span><span class="n">aoi_name</span><span class="p">]</span>
         <span class="k">return</span> <span class="p">[</span>
             <span class="p">(</span>
-                <span class="n">face</span><span class="o">.</span><span class="n">landmark</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">x</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">width</span><span class="p">,</span>
-                <span class="n">face</span><span class="o">.</span><span class="n">landmark</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">y</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">height</span><span class="p">,</span>
+                <span class="n">face</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">x</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">width</span><span class="p">,</span>
+                <span class="n">face</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">y</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">height</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="k">for</span> <span class="n">face</span> <span class="ow">in</span> <span class="n">frame_faces</span>
             <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">indices</span>
         <span class="p">]</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_load_object_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">objects_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_cache_path</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;faces.npy&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">detection_job</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">objects_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_cache_path</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;faces_landmarker.npy&quot;</span>
         <span class="k">if</span> <span class="n">objects_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">faces</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">objects_file</span><span class="p">),</span> <span class="n">allow_pickle</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">changed</span><span class="o">.</span><span class="n">emit</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">bg_detect</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Generator</span><span class="p">[</span><span class="n">ProgressUpdate</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
-        <span class="n">mp_face_mesh</span> <span class="o">=</span> <span class="n">mp</span><span class="o">.</span><span class="n">solutions</span><span class="o">.</span><span class="n">face_mesh</span>
-        <span class="n">face_mesh</span> <span class="o">=</span> <span class="n">mp_face_mesh</span><span class="o">.</span><span class="n">FaceMesh</span><span class="p">(</span>
-            <span class="n">static_image_mode</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-            <span class="n">refine_landmarks</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-            <span class="n">min_detection_confidence</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span>
+        <span class="n">cache_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_cache_path</span><span class="p">()</span>
+        <span class="n">cache_path</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">global_cache_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_global_cache_path</span><span class="p">()</span>
+        <span class="n">global_cache_path</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">model_path</span> <span class="o">=</span> <span class="n">global_cache_path</span> <span class="o">/</span> <span class="s2">&quot;face_landmarker.task&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">model_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">model_url</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">&quot;https://storage.googleapis.com/mediapipe-models/face_landmarker/&quot;</span>
+                <span class="s2">&quot;face_landmarker/float16/1/face_landmarker.task&quot;</span>
+            <span class="p">)</span>
+            <span class="k">with</span> <span class="n">TemporaryDirectory</span><span class="p">(</span><span class="nb">dir</span><span class="o">=</span><span class="n">global_cache_path</span><span class="p">)</span> <span class="k">as</span> <span class="n">temporary_dir</span><span class="p">:</span>
+                <span class="n">temporary_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">temporary_dir</span><span class="p">)</span> <span class="o">/</span> <span class="n">model_path</span><span class="o">.</span><span class="n">name</span>
+                <span class="k">with</span> <span class="n">urlopen</span><span class="p">(</span><span class="n">model_url</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span> <span class="k">as</span> <span class="n">response</span><span class="p">:</span>
+                    <span class="n">temporary_path</span><span class="o">.</span><span class="n">write_bytes</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+                <span class="n">temporary_path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">model_path</span><span class="p">)</span>
+
+        <span class="n">options</span> <span class="o">=</span> <span class="n">FaceLandmarkerOptions</span><span class="p">(</span>
+            <span class="n">base_options</span><span class="o">=</span><span class="n">BaseOptions</span><span class="p">(</span><span class="n">model_asset_path</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">model_path</span><span class="p">)),</span>
+            <span class="n">running_mode</span><span class="o">=</span><span class="n">RunningMode</span><span class="o">.</span><span class="n">VIDEO</span><span class="p">,</span>
+            <span class="n">num_faces</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">min_face_detection_confidence</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span>
         <span class="p">)</span>
 
         <span class="n">results_by_frame</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">frame_idx</span><span class="p">,</span> <span class="n">frame</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">recording</span><span class="o">.</span><span class="n">scene</span><span class="p">):</span>
-            <span class="n">pixels</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">bgr</span>
-            <span class="n">results</span> <span class="o">=</span> <span class="n">face_mesh</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">pixels</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">results</span><span class="o">.</span><span class="n">multi_face_landmarks</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Detected face on frame </span><span class="si">{</span><span class="n">frame_idx</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                <span class="n">results_by_frame</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">results</span><span class="o">.</span><span class="n">multi_face_landmarks</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">results_by_frame</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="n">previous_timestamp_ms</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="k">with</span> <span class="n">FaceLandmarker</span><span class="o">.</span><span class="n">create_from_options</span><span class="p">(</span><span class="n">options</span><span class="p">)</span> <span class="k">as</span> <span class="n">face_landmarker</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">frame_idx</span><span class="p">,</span> <span class="n">frame</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">recording</span><span class="o">.</span><span class="n">scene</span><span class="p">):</span>
+                <span class="n">image</span> <span class="o">=</span> <span class="n">mp</span><span class="o">.</span><span class="n">Image</span><span class="p">(</span>
+                    <span class="n">image_format</span><span class="o">=</span><span class="n">mp</span><span class="o">.</span><span class="n">ImageFormat</span><span class="o">.</span><span class="n">SRGB</span><span class="p">,</span>
+                    <span class="n">data</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">frame</span><span class="o">.</span><span class="n">rgb</span><span class="p">),</span>
+                <span class="p">)</span>
+                <span class="n">timestamp_ms</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span>
+                    <span class="n">previous_timestamp_ms</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>
+                    <span class="nb">int</span><span class="p">((</span><span class="n">frame</span><span class="o">.</span><span class="n">time</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">recording</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">//</span> <span class="mi">1_000_000</span><span class="p">),</span>
+                <span class="p">)</span>
+                <span class="n">previous_timestamp_ms</span> <span class="o">=</span> <span class="n">timestamp_ms</span>
+                <span class="n">results</span> <span class="o">=</span> <span class="n">face_landmarker</span><span class="o">.</span><span class="n">detect_for_video</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">timestamp_ms</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">results</span><span class="o">.</span><span class="n">face_landmarks</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Detected face on frame </span><span class="si">{</span><span class="n">frame_idx</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">results_by_frame</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">results</span><span class="o">.</span><span class="n">face_landmarks</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">)</span>
 
-            <span class="k">yield</span> <span class="n">ProgressUpdate</span><span class="p">((</span><span class="n">frame_idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">recording</span><span class="o">.</span><span class="n">scene</span><span class="p">))</span>
+                <span class="k">yield</span> <span class="n">ProgressUpdate</span><span class="p">((</span><span class="n">frame_idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">recording</span><span class="o">.</span><span class="n">scene</span><span class="p">))</span>
 
-        <span class="n">destination</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_cache_path</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;faces.npy&quot;</span>
+        <span class="n">destination</span> <span class="o">=</span> <span class="n">cache_path</span> <span class="o">/</span> <span class="s2">&quot;faces_landmarker.npy&quot;</span>
         <span class="n">destination</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="n">np</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">destination</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">results_by_frame</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">))</span>
 
