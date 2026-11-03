@@ -249,6 +249,24 @@ class Plugin(PersistentPropertiesMixin, QObject):
         reply = QMessageBox.question(None, title, message)
         return reply == QMessageBox.StandardButton.Yes
 
+    def get_global_cache_path(self) -> Path:
+        """Get this plugin's global cache folder.
+
+        Use this folder for files that can be reused across recordings. The path
+        is available without an open recording. Callers must create the folder
+        before writing files; this method does not create it.
+
+        Returns:
+            Path to this plugin's global cache folder.
+        """
+        return (
+            Path.home()
+            / "Pupil Labs"
+            / "Neon Player"
+            / "cache"
+            / self.__class__.__name__
+        )
+
     def get_cache_path(self) -> Path | None:
         """Get this plugin's cache folder for the current recording.
 

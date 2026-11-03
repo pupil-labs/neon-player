@@ -160,7 +160,8 @@ def test_load_switch_and_delayed_callbacks_after_unload(
         app_module, "load_recording_settings", Mock(side_effect=settings)
     )
     monkeypatch.setattr(app_module.os, "chdir", Mock())
-    monkeypatch.setattr(QTimer, "singleShot", Mock())
+    schedule = Mock()
+    monkeypatch.setattr(QTimer, "singleShot", schedule)
     monkeypatch.setattr(qapp, "save_settings", Mock())
     monkeypatch.setattr(qapp, "set_playback_state", Mock())
     monkeypatch.setattr(qapp, "seek_to", Mock())
@@ -184,8 +185,45 @@ def test_load_switch_and_delayed_callbacks_after_unload(
     assert qapp.get_export_window() == (300, 400)
     qapp.unload()
     recordings[1].close.assert_called_once()
+    for scheduled in schedule.call_args_list:
+        scheduled.args[1]()
     with pytest.raises(AssertionError, match="Recording must be loaded"):
         qapp.on_recording_load_complete()
     with pytest.raises(AssertionError, match="Recording settings must be loaded"):
         qapp.toggle_plugins_by_settings()
     assert qapp.recording_settings is None
+
+
+def test_background_job_runs_after_recording_loaded(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recording = Mock()
+    monkeypatch.setattr(qapp, "recording", recording)
+    monkeypatch.setattr(qapp, "recording_settings", RecordingSettings())
+    monkeypatch.setattr(qapp, "loading_recording", True, raising=False)
+    monkeypatch.setattr(qapp, "_initializing", True, raising=False)
+    monkeypatch.setattr(qapp, "main_window", Mock(), raising=False)
+    monkeypatch.setattr(qapp, "args", SimpleNamespace(job=["FaceDetection.bg_detect"]))
+    seen = []
+
+    def run_jobs(_jobs: list[str]) -> None:
+        seen.append(qapp.loading_recording)
+        qapp.recording = None
+
+    monkeypatch.setattr(qapp, "run_jobs", run_jobs)
+    qapp._initialize_recording(recording)
+    assert seen == [False]
+
+
+def test_global_cache_without_recording(
+    tmp_path: Path, qapp: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: tmp_path))
+    monkeypatch.setattr(qapp, "recording", None)
+
+    class ExamplePlugin(Plugin):
+        pass
+
+    path = ExamplePlugin().get_global_cache_path()
+    assert path == tmp_path / "Pupil Labs" / "Neon Player" / "cache" / "ExamplePlugin"
+    assert not path.exists()

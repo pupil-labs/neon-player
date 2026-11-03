@@ -26,6 +26,7 @@
             - trigger_scene_update
             - get_scene_idx_for_time
             - is_time_gray
+            - get_global_cache_path
             - get_cache_path
             - load_cached_json
             - save_cached_json
