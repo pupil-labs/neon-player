@@ -222,13 +222,15 @@ class FaceDetection(Plugin):
     def bg_detect(self) -> T.Generator[ProgressUpdate, None, None]:
         cache_path = self.get_cache_path()
         cache_path.mkdir(parents=True, exist_ok=True)
-        model_path = cache_path / "face_landmarker.task"
+        global_cache_path = self.get_global_cache_path()
+        global_cache_path.mkdir(parents=True, exist_ok=True)
+        model_path = global_cache_path / "face_landmarker.task"
         if not model_path.exists():
             model_url = (
                 "https://storage.googleapis.com/mediapipe-models/face_landmarker/"
                 "face_landmarker/float16/1/face_landmarker.task"
             )
-            with TemporaryDirectory(dir=cache_path) as temporary_dir:
+            with TemporaryDirectory(dir=global_cache_path) as temporary_dir:
                 temporary_path = Path(temporary_dir) / model_path.name
                 with urlopen(model_url, timeout=60) as response:
                     temporary_path.write_bytes(response.read())

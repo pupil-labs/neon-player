@@ -1,5 +1,6 @@
 import runpy
 from importlib import import_module
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Self
@@ -46,8 +47,9 @@ def test_face_mesh_and_aoi_use_tasks_landmarks(
 
 
 @pytest.mark.usefixtures("qapp")
+@pytest.mark.parametrize("model_cached", [False, True])
 def test_detection_caches_tasks_results(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, model_cached: bool
 ) -> None:
     mp = pytest.importorskip("mediapipe")
     example = runpy.run_path(
@@ -63,8 +65,25 @@ def test_detection_caches_tasks_results(
         scene=Scene(SimpleNamespace(time=t, rgb=pixels) for t in Scene.time)
     )
     monkeypatch.setattr(Plugin, "recording", property(lambda _self: recording))
-    monkeypatch.setattr(plugin, "get_cache_path", lambda: tmp_path)
-    (tmp_path / "face_landmarker.task").touch()
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: tmp_path))
+    model_path = (
+        tmp_path
+        / "Pupil Labs"
+        / "Neon Player"
+        / "cache"
+        / "FaceDetection"
+        / "face_landmarker.task"
+    )
+    if model_cached:
+        model_path.parent.mkdir(parents=True)
+        model_path.write_bytes(b"model")
+    downloads = []
+
+    def download_model(url: str, timeout: int) -> BytesIO:
+        downloads.append((url, timeout))
+        return BytesIO(b"model")
+
+    monkeypatch.setitem(plugin.bg_detect.__globals__, "urlopen", download_model)
     landmark_module = import_module(
         "mediapipe.tasks.python.components.containers.landmark"
     )
@@ -86,14 +105,27 @@ def test_detection_caches_tasks_results(
                 face_landmarks=[landmarks] if timestamp_ms == 0 else []
             )
 
+    def create_detector(options: object) -> Detector:
+        assert Path(options.base_options.model_asset_path) == model_path
+        assert model_path.read_bytes() == b"model"
+        return Detector()
+
     monkeypatch.setattr(
-        mp.tasks.vision.FaceLandmarker,
-        "create_from_options",
-        lambda _options: Detector(),
+        mp.tasks.vision.FaceLandmarker, "create_from_options", create_detector
     )
-    assert len(list(plugin.bg_detect())) == 3
-    assert timestamps == [0, 1, 33]
-    assert closed == [True]
+    for recording_name in ("recording_a", "recording_b"):
+        cache_path = (
+            tmp_path / recording_name / ".neon_player" / "cache" / "FaceDetection"
+        )
+        monkeypatch.setattr(
+            plugin, "get_cache_path", lambda _cache_path=cache_path: _cache_path
+        )
+        assert len(list(plugin.bg_detect())) == 3
+        assert (cache_path / "faces_landmarker.npy").exists()
+        assert not (cache_path / "face_landmarker.task").exists()
+    assert len(downloads) == (0 if model_cached else 1)
+    assert timestamps == [0, 1, 33, 0, 1, 33]
+    assert closed == [True, True]
     changed = QSignalSpy(plugin.changed)
     plugin._load_object_cache()
     assert plugin.faces[0][0][0].x == 0.25

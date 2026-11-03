@@ -213,3 +213,17 @@ def test_background_job_runs_after_recording_loaded(
     monkeypatch.setattr(qapp, "run_jobs", run_jobs)
     qapp._initialize_recording(recording)
     assert seen == [False]
+
+
+def test_global_cache_without_recording(
+    tmp_path: Path, qapp: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: tmp_path))
+    monkeypatch.setattr(qapp, "recording", None)
+
+    class ExamplePlugin(Plugin):
+        pass
+
+    path = ExamplePlugin().get_global_cache_path()
+    assert path == tmp_path / "Pupil Labs" / "Neon Player" / "cache" / "ExamplePlugin"
+    assert not path.exists()
