@@ -585,9 +585,7 @@ class PlotOverlay(QWidget):
         plot_rect = vb.mapToScene(vb.geometry()).boundingRect()
         parent = self.parentWidget()
         assert parent is not None, "Plot overlay must have a parent to refresh geometry"
-        self.setGeometry(
-            int(plot_rect.x()), 20, int(plot_rect.width()), parent.height() - 20
-        )
+        self.setGeometry(int(plot_rect.x()), 0, int(plot_rect.width()), parent.height())
 
 
 class PlayHead(PlotOverlay):

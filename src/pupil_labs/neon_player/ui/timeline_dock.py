@@ -186,7 +186,6 @@ class TimeLineDock(QWidget):
         self.timestamps_plot.getViewBox().sigRangeChanged.connect(
             self.on_timeline_view_range_changed
         )
-        self.timestamps_plot.hideAxis("top")
         self.timestamps_plot.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
@@ -508,13 +507,9 @@ class TimeLineDock(QWidget):
 
         row = self.graphics_layout.nextRow()
         is_timestamps_row = timeline_row_name == "Export window"
-
-        if is_timestamps_row:
-            time_axis = TimeAxisItem(orientation="top")
-        else:
-            time_axis = TimeAxisItem(
-                orientation="top", showValues=False, pen=pg.mkPen(color="#ffff0000")
-            )
+        time_axis = TimeAxisItem(
+            orientation="top", showValues=False, pen=pg.mkPen(color="#ffff0000")
+        )
 
         app = neon_player.instance()
         recording = app.recording
@@ -949,7 +944,8 @@ class TimeLineDock(QWidget):
             plot_item.getViewBox().autoRange(padding=padding)
 
         self.timestamps_plot.getViewBox().setRange(
-            xRange=[recording.start_time, recording.stop_time]
+            xRange=[recording.start_time, recording.stop_time],
+            padding=self.TIMELINE_PADDING,
         )
 
         self.playhead.refresh_geometry()
