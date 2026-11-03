@@ -219,7 +219,11 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
                     data = np.empty((0, 2))
 
                 timeline.add_timeline_line(
-                    group_display_title, data, legend_label, color=color
+                    group_display_title,
+                    data,
+                    legend_label,
+                    color=color,
+                    units=self.units.get(group_name),
                 )
 
             elif not enabled and existing_plot is not None:
