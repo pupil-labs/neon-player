@@ -38,6 +38,8 @@ class FaceDetection(Plugin):
     def __init__(self) -> None:
         super().__init__()
 
+        self._num_faces = 1
+        self._min_face_detection_confidence = 0.15
         self.detection_job = None
         self.faces = None
 
@@ -239,8 +241,8 @@ class FaceDetection(Plugin):
         options = FaceLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=str(model_path)),
             running_mode=RunningMode.VIDEO,
-            num_faces=1,
-            min_face_detection_confidence=0.15,
+            num_faces=self.num_faces,
+            min_face_detection_confidence=self.min_face_detection_confidence,
         )
 
         results_by_frame = []
@@ -322,6 +324,26 @@ class FaceDetection(Plugin):
         painter_path.addPolygon(polygon)
         painter_path.closeSubpath()
         return painter_path
+
+    @property
+    @property_params(min=1)
+    def num_faces(self) -> int:
+        return self._num_faces
+
+    @num_faces.setter
+    def num_faces(self, value: int) -> None:
+        self._num_faces = value
+        self.changed.emit()
+
+    @property
+    @property_params(min=0.0, max=1.0, step=0.05)
+    def min_face_detection_confidence(self) -> float:
+        return self._min_face_detection_confidence
+
+    @min_face_detection_confidence.setter
+    def min_face_detection_confidence(self, value: float) -> None:
+        self._min_face_detection_confidence = value
+        self.changed.emit()
 
     @property
     def render_meshes(self) -> bool:
