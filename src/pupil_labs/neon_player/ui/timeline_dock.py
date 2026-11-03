@@ -54,8 +54,6 @@ from pupil_labs.neon_player.utilities import clone_menu
 
 logger = logging.getLogger(__name__)
 
-_EXPORT_WINDOW_ROW_HEIGHT = 50
-
 
 class TimeLineDock(QWidget):
     """Displays the data as the plots in the Timeline dock.
@@ -559,7 +557,7 @@ class TimeLineDock(QWidget):
         )
 
         if is_timestamps_row:
-            plot_item.preferred_height_1d = _EXPORT_WINDOW_ROW_HEIGHT
+            plot_item.preferred_height_1d = 30
             plot_item.adjust_size()
             legend_label.anchor((0.5, 0), (0.5, 0), (0, 5))
 
