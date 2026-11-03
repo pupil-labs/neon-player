@@ -120,7 +120,7 @@ def test_pinned_time_axis_tracks_range_and_recording_lifecycle(
     timeline = TimeLineDock()
     qtbot.addWidget(timeline)
 
-    assert not timeline.timestamps_plot.getAxis("top").isVisible()
+    assert timeline.timestamps_plot.getAxis("top").isVisible()
     assert isinstance(timeline.pinned_axis, TimelinePinnedAxis)
     assert not timeline.pinned_axis.isHidden()
     assert (
