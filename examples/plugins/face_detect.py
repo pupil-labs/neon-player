@@ -7,6 +7,7 @@
 import logging
 import typing as T
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from urllib.request import urlopen
 
 import mediapipe as mp
@@ -227,8 +228,6 @@ class FaceDetection(Plugin):
                 "https://storage.googleapis.com/mediapipe-models/face_landmarker/"
                 "face_landmarker/float16/1/face_landmarker.task"
             )
-            from tempfile import TemporaryDirectory
-
             with TemporaryDirectory(dir=cache_path) as temporary_dir:
                 temporary_path = Path(temporary_dir) / model_path.name
                 with urlopen(model_url, timeout=60) as response:
