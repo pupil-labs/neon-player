@@ -227,13 +227,13 @@ class FaceDetection(Plugin):
                 "https://storage.googleapis.com/mediapipe-models/face_landmarker/"
                 "face_landmarker/float16/1/face_landmarker.task"
             )
-            temporary_path = model_path.with_suffix(".download")
-            try:
+            from tempfile import TemporaryDirectory
+
+            with TemporaryDirectory(dir=cache_path) as temporary_dir:
+                temporary_path = Path(temporary_dir) / model_path.name
                 with urlopen(model_url, timeout=60) as response:
                     temporary_path.write_bytes(response.read())
                 temporary_path.replace(model_path)
-            finally:
-                temporary_path.unlink(missing_ok=True)
 
         options = FaceLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=str(model_path)),
