@@ -107,6 +107,7 @@ class TimeLineDock(QWidget):
         ] = {}
 
         self.main_layout = QVBoxLayout()
+        self.main_layout.setSpacing(0)
         self.setLayout(self.main_layout)
 
         self.toolbar_layout = QHBoxLayout()
@@ -194,7 +195,6 @@ class TimeLineDock(QWidget):
             self.timestamps_plot.getViewBox(), left_margin=self.scroll_area.frameWidth()
         )
         self.main_layout.insertWidget(1, self.pinned_axis)
-        self._sync_pinned_axis_geometry()
         QTimer.singleShot(0, self._sync_pinned_axis_geometry)
 
         self.playhead = PlayHead(self.timestamps_plot, parent=self.graphics_view)

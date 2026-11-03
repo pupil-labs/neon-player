@@ -57,6 +57,7 @@ class TimelinePinnedAxis(QWidget):
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
         self.axis_view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.axis_view.setFixedHeight(self._HEIGHT)
 
         self.time_axis = TimeAxisItem(orientation="top")
         self.time_axis.setHeight(self._HEIGHT)
