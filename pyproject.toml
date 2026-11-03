@@ -24,7 +24,6 @@ dependencies = [
     "opencv-python>=4.11.0.86",
     "packaging>=26.1",
     "pandas>=2.2.3",
-    "protobuf<6",
     "pupil-apriltags>=1.0.4.post11",
     "pupil-labs-marker-mapper>=1.0.0",
     "pupil-labs-neon-recording==2.1.6",
