@@ -494,10 +494,19 @@ class NeonPlayerApp(QApplication):
         else:
             self.seek_to(self.recording.start_time)
 
-        QTimer.singleShot(0, self.toggle_plugins_by_settings)
-        QTimer.singleShot(10, self.on_recording_load_complete)
+        recording = self.recording
+        QTimer.singleShot(0, lambda: self._initialize_recording(recording))
         self.recording_settings.plugins_changed.connect(self.toggle_plugins_by_settings)
         SlotDebouncer.debounce(self.recording_settings.changed, self.save_settings)
+
+    def _initialize_recording(self, recording: nr.NeonRecording) -> None:
+        if self.recording is not recording:
+            return
+        self.toggle_plugins_by_settings()
+        self.on_recording_load_complete()
+        if self.args.job:
+            logger.info("Running jobs")
+            self.run_jobs(self.args.job)
 
     def on_recording_load_complete(self) -> None:
         recording = self.recording
@@ -522,10 +531,6 @@ class NeonPlayerApp(QApplication):
 
         timeline.enable_plot_sorting()
         self._initializing = False
-
-        if self.args.job:
-            logger.info("Running jobs")
-            self.run_jobs(self.args.job)
 
     def get_action(self, action_path: str) -> QAction:
         return self.main_window.get_action(action_path)
