@@ -82,6 +82,8 @@ dev = [
     "scipy-stubs>=1.17.1.5",
     "ruff",
     "types-tqdm>=4.70.0.20260906",
+    # test_examples
+    "mediapipe>=1.2.0",
 ]
 
 [build-system]

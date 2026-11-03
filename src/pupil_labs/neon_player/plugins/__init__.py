@@ -250,9 +250,9 @@ class Plugin(PersistentPropertiesMixin, QObject):
         return reply == QMessageBox.StandardButton.Yes
 
     def get_global_cache_path(self) -> Path:
-        """Get this plugin's cache folder shared across recordings.
+        """Get this plugin's global cache folder.
 
-        Use this folder for reusable files such as downloaded models. The path
+        Use this folder for files that can be reused across recordings. The path
         is available without an open recording. Callers must create the folder
         before writing files; this method does not create it.
 
