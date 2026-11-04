@@ -169,19 +169,17 @@ def _load_events_from_recording(
     event_type_cache: dict[str, EventType] = {}
     events: dict[str, list[int]] = {}
 
-    for event in recording.events:
-        event_name = str(event.event)
-
+    for event_name in np.unique(recording.events.event):
         # Look up or create the event type
         et = event_type_cache.get(event_name)
         if et is None:
             et = EventType.from_name(event_name)
             event_type_cache[event_name] = et
 
-        # Add event to the dictionary
-        if et.uid not in events:
-            events[et.uid] = []
-        events[et.uid].append(int(event.time))
+        # Add event timestamps to the dictionary
+        mask = recording.events.event == event_name
+        timestamps = sorted(recording.events.time[mask].astype(int))
+        events[et.uid] = timestamps
 
     for event_name in global_event_types:
         if event_name in event_type_cache:
@@ -216,7 +214,7 @@ def _load_events_from_cache(
             )
 
         validated_timestamps = [int(timestamp) for timestamp in timestamps]
-        events[uid] = validated_timestamps
+        events[uid] = sorted(validated_timestamps)
         if uid in event_type_cache:
             continue
 
@@ -609,6 +607,7 @@ class EventsPlugin(neon_player.Plugin):
             if event_type.uid not in self._events:
                 self._events[event_type.uid] = []
             self._events[event_type.uid].extend(timestamps)
+            self._events[event_type.uid].sort()
 
         self.save_cached_json("events.json", self._events)
         self._update_gui_for_event_types(event_types_to_add=event_types_to_add)
@@ -645,7 +644,7 @@ class EventsPlugin(neon_player.Plugin):
             timestamps_to_remove = set(timestamps)
             remaining_timestamps = existing_timestamps - timestamps_to_remove
             if remaining_timestamps:
-                self._events[event_type.uid] = list(remaining_timestamps)
+                self._events[event_type.uid] = sorted(remaining_timestamps)
                 event_types_to_update.append(event_type)
                 continue
 

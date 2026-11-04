@@ -103,6 +103,7 @@ source = ["pupil_labs"]
 extend_exclude = ["examples/plugins/"]
 
 [tool.deptry.package_module_name_map]
+nuitka = ["nuitka"]
 pyobjc-framework-Cocoa = ["AppKit"]
 
 [tool.deptry.per_rule_ignores]
