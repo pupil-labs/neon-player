@@ -26,6 +26,10 @@ from pupil_labs.neon_player.ui import GUIEventNotifier
 
 
 class TimelineScrollArea(QScrollArea):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setFrameShape(QFrame.Shape.NoFrame)
+
     def wheelEvent(self, event: QWheelEvent) -> None:
         # NOTE: pass pyqtgraph's zoom interactions (Shift+Scroll, Cmd/Ctrl+Scroll)
         # through w/o scrolling through timeline plots when there are many of them
@@ -44,7 +48,9 @@ class TimelinePinnedAxis(QWidget):
 
     _HEIGHT = 25
 
-    def __init__(self, viewbox: pg.ViewBox, *, left_margin: int = 0) -> None:
+    def __init__(
+        self, viewbox: pg.ViewBox, *, margins: tuple[int, int, int, int] = (0, 0, 0, 0)
+    ) -> None:
         super().__init__()
         self.axis_view = pg.GraphicsView(self)
         self.axis_view.setBackground("transparent")
@@ -68,8 +74,9 @@ class TimelinePinnedAxis(QWidget):
         self.left_spacer.setFixedWidth(0)
         self.right_spacer = QWidget(self)
         self.right_spacer.setFixedWidth(0)
+
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(left_margin, 0, 0, 0)
+        layout.setContentsMargins(*margins)
         layout.setSpacing(0)
         layout.addWidget(self.left_spacer)
         layout.addWidget(self.axis_view, 1)
@@ -78,10 +85,8 @@ class TimelinePinnedAxis(QWidget):
 
     def set_time_frame(self, start: int, stop: int) -> None:
         self.time_axis.set_time_frame(start, stop)
-
-    def set_header_width(self, width: int) -> None:
-        if self.width() != width:
-            self.setFixedWidth(width)
+        self.time_axis.picture = None
+        self.time_axis.update()
 
     def sync_geometry(
         self,

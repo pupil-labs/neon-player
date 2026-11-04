@@ -192,7 +192,8 @@ class TimeLineDock(QWidget):
         )
 
         self.pinned_axis = TimelinePinnedAxis(
-            self.timestamps_plot.getViewBox(), left_margin=self.scroll_area.frameWidth()
+            self.timestamps_plot.getViewBox(),
+            margins=(0, 0, self.scroll_area.verticalScrollBar().width(), 0),
         )
         self.main_layout.insertWidget(1, self.pinned_axis)
         QTimer.singleShot(0, self._sync_pinned_axis_geometry)
@@ -217,11 +218,8 @@ class TimeLineDock(QWidget):
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         w = self.scroll_area.viewport().width()
-        frame_width = self.scroll_area.frameWidth()
         if self.graphics_view.width() != w:
             self.graphics_view.setFixedWidth(w)
-        header_width = w + frame_width
-        self.pinned_axis.set_header_width(header_width)
         self.playhead.refresh_geometry()
         super().resizeEvent(event)
 
@@ -554,14 +552,13 @@ class TimeLineDock(QWidget):
         if is_timestamps_row:
             plot_item.preferred_height_1d = 30
             plot_item.adjust_size()
-            legend_label.anchor((0.5, 0), (0.5, 0), (0, 5))
+            legend_label.anchor((0.5, 0), (0.5, 0), (0, 2.5))
 
         legend.layout.setSpacing(0)
         self.timeline_legends[timeline_row_name] = legend
 
         self.graphics_layout.addItem(legend_container, row=row, col=0)
         self.graphics_layout.addItem(plot_item, row=row, col=1)
-        self._sync_pinned_axis_geometry()
         QTimer.singleShot(0, self._sync_pinned_axis_geometry)
 
         plot_item.setMouseEnabled(x=False, y=False)
@@ -659,9 +656,7 @@ class TimeLineDock(QWidget):
 
         if self.plot_sorting_enabled:
             self.sort_plots()
-        else:
-            self._sync_pinned_axis_geometry()
-            QTimer.singleShot(0, self._sync_pinned_axis_geometry)
+        QTimer.singleShot(0, self._sync_pinned_axis_geometry)
 
         return plot_item
 
@@ -690,9 +685,7 @@ class TimeLineDock(QWidget):
 
         if self.plot_sorting_enabled:
             self.sort_plots()
-        else:
-            self._sync_pinned_axis_geometry()
-            QTimer.singleShot(0, self._sync_pinned_axis_geometry)
+        QTimer.singleShot(0, self._sync_pinned_axis_geometry)
 
     def remove_timeline_series(self, plot_name: str, series_name: str) -> None:
         """Remove one named data series, removing its row if it becomes empty.
@@ -858,6 +851,7 @@ class TimeLineDock(QWidget):
 
         if self.plot_sorting_enabled:
             self.sort_plots()
+        QTimer.singleShot(0, self._sync_pinned_axis_geometry)
 
         return plot_widget
 
@@ -895,7 +889,6 @@ class TimeLineDock(QWidget):
             self.graphics_layout.addItem(legend, row=row, col=0)
             self.graphics_layout.addItem(plot, row=row, col=1)
 
-        self._sync_pinned_axis_geometry()
         self.fix_scroll_size()
 
     def enable_plot_sorting(self) -> None:
