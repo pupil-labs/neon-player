@@ -8,6 +8,7 @@ from functools import partial
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QBrush, QColor, QPen
 from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
 
 from pupil_labs.neon_player.ui.timeline_dock_components import format_timestamp_ns
@@ -35,20 +36,18 @@ class TimelineSeriesHover:
     """The index of the hovered data point / bar."""
     value: float | None
     """The y-axis value that corresponds to the data point."""
+    color: QColor | None
+    """The color of line / scatter / bar elements."""
 
 
 @dataclasses.dataclass(frozen=True)
 class TimelineBarSeriesHover(TimelineSeriesHover):
-    """Details for the first bar in a series that contains the hover time.
-
-    Bar start and stop values are recording-axis nanoseconds. ``value`` is
-    ``None`` when the bars were added without values.
-    """
+    """Details for the first bar in a series that contains the hover time."""
 
     start_ts: int
-    """The start timestamp of the hovered bar."""
+    """The start timestamp of the hovered bar (in nanoseconds)."""
     stop_ts: int
-    """The stop timestamp of the hovered bar."""
+    """The stop timestamp of the hovered bar (in nanoseconds)."""
     value: float | None
     """The bar value that corresponds to the bar, if set."""
 
@@ -93,7 +92,7 @@ class TimelineTooltipContext:
 
 
 type TimelineTooltipCallback = T.Callable[[TimelineTooltipContext], str]
-"""Callback returning rich-text HTML for a timeline tooltip."""
+"""Callback returning the timeline tooltip string (optionally, as HTML)."""
 
 
 class TimelineTooltipWidget(QWidget):
@@ -131,27 +130,29 @@ def format_duration(start_ts: int, stop_ts: int) -> str:
 def _default_line_tooltip(
     context: TimelineTooltipContext, precision: int = 3, units: str = ""
 ) -> str:
-    if not all(isinstance(s, TimelineLineSeriesHover) for s in context.series):
-        logger.warning(
-            "Default line tooltip requires the plot to have only line series"
-        )
-        return ""
+    formatted_values = []
+    for s in context.series:
+        if not isinstance(s, TimelineLineSeriesHover):
+            logger.warning(
+                "Default line tooltip requires the plot to have only line series"
+            )
+            return ""
+        formatted_values.append(format_value(s.value, precision, units))
 
-    formatted_values = [
-        format_value(s.value, precision, units)
-        for s in context.series
-        if isinstance(s, TimelineLineSeriesHover)
-    ]
     if len(formatted_values) == 1:
         return formatted_values[0]
 
     names = [s.name or f"Series {index + 1}" for index, s in enumerate(context.series)]
+    colors = [s.color.name() if s.color else "#1c2021" for s in context.series]
     rows = "".join(
         "<tr>"
-        f'<td style="padding-right: 6px"><b>{html.escape(name)}</b>:</td>'
+        f'<td><span style="color: {color}">―</span></td>'
+        '<td style="padding-left: 3px; padding-right: 6px">'
+        f"<b>{html.escape(name)}</b>:"
+        "</td>"
         f'<td style="text-align: right">{value}</td>'
         "</tr>"
-        for name, value in zip(names, formatted_values, strict=True)
+        for name, value, color in zip(names, formatted_values, colors, strict=True)
     )
     return f'<table cellspacing="0" cellpadding="0">{rows}</table>'
 
@@ -241,21 +242,29 @@ def _get_series_hover(
     index = bisect_left(timestamps, timestamp_ns)
     candidates = [i for i in (index - 1, index) if 0 <= i < len(timestamps)]
     closest = min(candidates, key=lambda i: abs(timestamps[i] - timestamp_ns))
-    if abs(timestamps[closest] - timestamp_ns) <= tolerance_ns:
-        if kind == "scatter":
-            return TimelineScatterSeriesHover(
-                value=float(values[closest]),
-                name=series_name,
-                index=closest,
-                timestamp_ns=int(timestamps[closest]),
-            )
-        return TimelineLineSeriesHover(
+    if abs(timestamps[closest] - timestamp_ns) > tolerance_ns:
+        return None
+
+    pen_key = "symbolPen" if kind == "scatter" else "pen"
+    pen = item.opts.get(pen_key)
+    color = pen.color() if isinstance(pen, QPen) else None
+
+    if kind == "scatter":
+        return TimelineScatterSeriesHover(
             value=float(values[closest]),
             name=series_name,
             index=closest,
-            timestamp_ns=None,
+            timestamp_ns=int(timestamps[closest]),
+            color=color,
         )
-    return None
+
+    return TimelineLineSeriesHover(
+        value=float(values[closest]),
+        name=series_name,
+        index=closest,
+        timestamp_ns=None,
+        color=color,
+    )
 
 
 def _get_bar_graph_series_hover(
@@ -282,6 +291,15 @@ def _get_bar_graph_series_hover(
     if values is not None and index < len(values):
         value = values[index]
 
+    color = None
+    brushes = getattr(item, "brushes", None)
+    if (
+        brushes is not None
+        and index < len(brushes)
+        and isinstance(brushes[index], QBrush)
+    ):
+        color = brushes[index].color()
+
     return TimelineBarSeriesHover(
         value=value,
         name=series_name,
@@ -289,6 +307,7 @@ def _get_bar_graph_series_hover(
         index=index,
         start_ts=int(start),
         stop_ts=int(stop),
+        color=color,
     )
 
 
