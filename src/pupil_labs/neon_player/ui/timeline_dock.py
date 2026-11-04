@@ -25,7 +25,6 @@ from PySide6.QtWidgets import (
     QGraphicsSceneMouseEvent,
     QHBoxLayout,
     QMenu,
-    QScrollArea,
     QSizePolicy,
     QToolButton,
     QVBoxLayout,
@@ -39,8 +38,11 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     PlayHead,
     ScrubbableViewBox,
     TimeAxisItem,
+    TimelineHorizontalScrollBar,
     TimelineHoverMarker,
+    TimelinePinnedAxis,
     TimelinePlotItem,
+    TimelineScrollArea,
     TimelineTableContainer,
     TimestampLabel,
     TrimDurationMarker,
@@ -87,6 +89,8 @@ class TimeLineDock(QWidget):
         ```
     """
 
+    TIMELINE_PADDING = 0.05
+
     key_pressed = Signal(QKeyEvent)
 
     def __init__(self) -> None:
@@ -116,6 +120,7 @@ class TimeLineDock(QWidget):
         ] = {}
 
         self.main_layout = QVBoxLayout()
+        self.main_layout.setSpacing(0)
         self.setLayout(self.main_layout)
 
         self.toolbar_layout = QHBoxLayout()
@@ -173,7 +178,7 @@ class TimeLineDock(QWidget):
         self.graphics_view.scene().sigMouseClicked.connect(self.on_chart_area_clicked)
         self.graphics_view.scene().sigMouseMoved.connect(self.on_chart_area_mouse_moved)
 
-        self.scroll_area = QScrollArea()
+        self.scroll_area = TimelineScrollArea()
         self.scroll_area.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
@@ -190,22 +195,35 @@ class TimeLineDock(QWidget):
         self.scroll_area.setWidgetResizable(True)
         self.main_layout.addWidget(self.scroll_area)
 
+        self.horizontal_scroll_bar = TimelineHorizontalScrollBar()
+        self.horizontal_scroll_bar.range_changed.connect(self.on_timeline_scroll)
+        self.main_layout.addWidget(self.horizontal_scroll_bar)
+
         self.setMouseTracking(True)
 
         # Add a permanent timeline with timestamps
         self.timestamps_plot = self.get_timeline_plot(
             "Export window", create_if_missing=True
         )
-        self.timestamps_plot.showAxis("top")
+        assert self.timestamps_plot is not None
+        self.timestamps_plot.getViewBox().sigRangeChanged.connect(
+            self.on_timeline_view_range_changed
+        )
         self.timestamps_plot.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
+
+        self.pinned_axis = TimelinePinnedAxis(
+            self.timestamps_plot.getViewBox(),
+        )
+        self.main_layout.insertWidget(1, self.pinned_axis)
+        QTimer.singleShot(0, self._sync_pinned_axis_geometry)
 
         self.playhead = PlayHead(self.timestamps_plot, parent=self.graphics_view)
         self.playhead.hide()
 
         self.hover_marker = TimelineHoverMarker(
-            self.timestamps_plot, parent=self.graphics_view
+            self.timestamps_plot, self.pinned_axis, parent=self.graphics_view
         )
         self.hover_marker.hide()
 
@@ -225,28 +243,56 @@ class TimeLineDock(QWidget):
         self.key_pressed.emit(event)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
-        w = self.scroll_area.width() - self.scroll_area.verticalScrollBar().width()
-        self.graphics_view.setFixedWidth(w)
+        w = self.scroll_area.viewport().width()
+        if self.graphics_view.width() != w:
+            self.graphics_view.setFixedWidth(w)
         self.playhead.refresh_geometry()
         self.hover_marker.refresh_geometry()
         if self.tooltip_widget.isVisible():
             self.tooltip_widget.show_at(QCursor.pos())
-        return super().resizeEvent(event)
+        super().resizeEvent(event)
+        QTimer.singleShot(0, self._sync_pinned_axis_geometry)
+
+    def _sync_pinned_axis_geometry(self) -> None:
+        """Match the pinned axis's data area to the timeline plot area."""
+        if not hasattr(self, "pinned_axis"):
+            return
+
+        viewport_width = self.scroll_area.viewport().width()
+        if self.graphics_view.width() != viewport_width:
+            self.graphics_view.setFixedWidth(viewport_width)
+            QTimer.singleShot(0, self._sync_pinned_axis_geometry)
+            return
+
+        self.pinned_axis.sync_geometry(
+            self,
+            self.graphics_view,
+            self.timestamps_plot.getViewBox(),
+            self.scroll_area.frameWidth(),
+        )
+        self.hover_marker.label.refresh_geometry()
 
     def on_recording_loaded(self, recording: nr.NeonRecording) -> None:
         app = neon_player.instance()
         self.recording = recording
 
         self.playhead.show()
+        self.horizontal_scroll_bar.set_time_frame(
+            (recording.start_time, recording.stop_time),
+            padding=self.TIMELINE_PADDING,
+        )
+        duration = recording.stop_time - recording.start_time
         for plot_item in self.timeline_plots.values():
             plot_item.setXRange(recording.start_time, recording.stop_time, padding=0)
-            duration = recording.stop_time - recording.start_time
             plot_item.getViewBox().setLimits(
-                xMin=recording.start_time - duration * 0.05,
-                xMax=recording.stop_time + duration * 0.05,
+                xMin=recording.start_time - duration * self.TIMELINE_PADDING,
+                xMax=recording.stop_time + duration * self.TIMELINE_PADDING,
             )
             axis = plot_item.getAxis("top")
             axis.set_time_frame(recording.start_time, recording.stop_time)
+
+        self.on_timeline_view_range_changed()
+        self.pinned_axis.set_time_frame(recording.start_time, recording.stop_time)
 
         trim_plot = self.get_timeline_plot("Export window", create_if_missing=True)
         export_window = app.get_export_window()
@@ -259,6 +305,7 @@ class TimeLineDock(QWidget):
             trim_plot.addItem(tm)
 
     def on_recording_unloaded(self) -> None:
+        self.horizontal_scroll_bar.set_time_frame(None)
         trim_plot = self.get_timeline_plot("Export window", create_if_missing=False)
         if trim_plot is not None:
             trim_plot.clear()
@@ -266,6 +313,7 @@ class TimeLineDock(QWidget):
         self.hover_marker.set_cursor_time(None)
         self.tooltip_widget.hide()
         self.recording = None
+        self.pinned_axis.set_time_frame(0, 0)
         self.trim_markers = []
         self.dragging = None
 
@@ -295,6 +343,18 @@ class TimeLineDock(QWidget):
         self.timestamp_label.set_time(t - recording.start_time)
         self.playhead.set_time(t)
 
+    def on_timeline_view_range_changed(self, *_args: object) -> None:
+        app = neon_player.instance()
+        if app.recording is None:
+            return
+
+        self.horizontal_scroll_bar.set_view_range(
+            *self.timestamps_plot.getViewBox().viewRange()[0]
+        )
+
+    def on_timeline_scroll(self, start: float, stop: float) -> None:
+        self.timestamps_plot.setXRange(start, stop, padding=0)
+
     def show_context_menu(self, global_position: QPoint) -> None:
         menu = neon_player.instance().main_window.get_menu(
             "Timeline", auto_create=False
@@ -316,13 +376,17 @@ class TimeLineDock(QWidget):
         for tm in self.trim_markers:
             tm.set_highlighted(self.dragging == tm or tm.nearby(data_pos))
 
-        if any(
-            plot_item.sceneBoundingRect().contains(pos)
-            for plot_item in self.timeline_plots.values()
-        ):
-            self.hover_marker.set_cursor_time(round(data_pos.x()))
-        else:
-            self.hover_marker.set_cursor_time(None)
+        hovered_plot = next(
+            (
+                plot
+                for plot in self.timeline_plots.values()
+                if plot.sceneBoundingRect().contains(pos)
+            ),
+            None,
+        )
+        for plot in self.timeline_plots.values():
+            plot.set_hovered(plot is hovered_plot)
+        self.hover_marker.set_cursor_time(round(data_pos.x()) if hovered_plot else None)
 
         self._pending_tooltip_update = (pos, round(data_pos.x()))
         if not self._tooltip_update_timer.isActive():
@@ -686,13 +750,9 @@ class TimeLineDock(QWidget):
 
         row = self.graphics_layout.nextRow()
         is_timestamps_row = timeline_row_name == "Export window"
-
-        if is_timestamps_row:
-            time_axis = TimeAxisItem(orientation="top")
-        else:
-            time_axis = TimeAxisItem(
-                orientation="top", showValues=False, pen=pg.mkPen(color="#ffff0000")
-            )
+        time_axis = TimeAxisItem(
+            orientation="top", showValues=False, pen=pg.mkPen(color="#ffff0000")
+        )
 
         app = neon_player.instance()
         recording = app.recording
@@ -735,21 +795,21 @@ class TimeLineDock(QWidget):
         )
 
         if is_timestamps_row:
-            plot_item.preferred_height_1d = 50
+            plot_item.preferred_height_1d = 30
             plot_item.adjust_size()
-            legend_label.anchor((0.5, 0), (0.5, 0), (0, 20))
+            legend_label.anchor((0.5, 0), (0.5, 0), (0, 2.5))
 
         legend.layout.setSpacing(0)
         self.timeline_legends[timeline_row_name] = legend
 
         self.graphics_layout.addItem(legend_container, row=row, col=0)
         self.graphics_layout.addItem(plot_item, row=row, col=1)
+        QTimer.singleShot(0, self._sync_pinned_axis_geometry)
 
         plot_item.setMouseEnabled(x=False, y=False)
         plot_item.hideButtons()
         plot_item.setMenuEnabled(False)
         plot_item.setClipToView(True)
-        plot_item.hideAxis("left")
         plot_item.hideAxis("right")
         plot_item.hideAxis("bottom")
         plot_item.showGrid(x=True, y=False, alpha=0.3)
@@ -757,8 +817,8 @@ class TimeLineDock(QWidget):
         if recording is not None:
             duration = recording.stop_time - recording.start_time
             plot_item.getViewBox().setLimits(
-                xMin=recording.start_time - duration * 0.05,
-                xMax=recording.stop_time + duration * 0.05,
+                xMin=recording.start_time - duration * self.TIMELINE_PADDING,
+                xMax=recording.stop_time + duration * self.TIMELINE_PADDING,
             )
 
         self.timeline_plots[timeline_row_name] = plot_item
@@ -859,6 +919,7 @@ class TimeLineDock(QWidget):
 
         if self.plot_sorting_enabled:
             self.sort_plots()
+        QTimer.singleShot(0, self._sync_pinned_axis_geometry)
 
         return plot_item
 
@@ -895,6 +956,7 @@ class TimeLineDock(QWidget):
 
         if self.plot_sorting_enabled:
             self.sort_plots()
+        QTimer.singleShot(0, self._sync_pinned_axis_geometry)
 
     def remove_timeline_series(self, plot_name: str, series_name: str) -> None:
         """Remove one named data series, removing its row if it becomes empty.
@@ -943,6 +1005,8 @@ class TimeLineDock(QWidget):
         | NDArray[np.integer[T.Any] | np.floating[T.Any]],
         plot_name: str = "",
         tooltip: TimelineTooltipConfig | None = None,
+        show_y_limit_labels: bool | None = None,
+        units: str | None = None,
         **kwargs: T.Any,  # noqa: ANN401
     ) -> TimelinePlotItem | None:
         """Add a line graph to a timeline row.
@@ -953,14 +1017,27 @@ class TimeLineDock(QWidget):
             plot_name: Optional name shown in the row legend.
             tooltip: Optional tooltip callback or custom widget for the row; see
                 :meth:`add_timeline_plot` for the callback and widget contract.
+            show_y_limit_labels: Show labels for y-axis limits on hover over
+                the plot. The limits are shown by default for line plots.
+            units: Units to display in the labels of y-axis limits.
             **kwargs: Additional line options passed to pyqtgraph.
 
         Returns:
             The timeline row, or ``None`` if no recording is open.
         """
-        return self.add_timeline_plot(
+        plot_existed = timeline_row_name in self.timeline_plots
+        plot_item = self.add_timeline_plot(
             timeline_row_name, data, plot_name, tooltip=tooltip, **kwargs
         )
+        if plot_item is None:
+            return None
+
+        # Show y-axis limits by default for line plots
+        if show_y_limit_labels is None and not plot_existed:
+            show_y_limit_labels = True
+        plot_item.configure_y_limit_labels(show_y_limit_labels, units)
+
+        return plot_item
 
     def add_timeline_scatter(
         self,
@@ -1066,6 +1143,7 @@ class TimeLineDock(QWidget):
 
         if self.plot_sorting_enabled:
             self.sort_plots()
+        QTimer.singleShot(0, self._sync_pinned_axis_geometry)
 
         return plot_widget
 
@@ -1151,7 +1229,8 @@ class TimeLineDock(QWidget):
             plot_item.getViewBox().autoRange(padding=padding)
 
         self.timestamps_plot.getViewBox().setRange(
-            xRange=[recording.start_time, recording.stop_time]
+            xRange=[recording.start_time, recording.stop_time],
+            padding=self.TIMELINE_PADDING,
         )
 
         self.playhead.refresh_geometry()
