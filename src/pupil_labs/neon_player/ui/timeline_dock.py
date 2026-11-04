@@ -38,6 +38,7 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     ScrubbableViewBox,
     TimeAxisItem,
     TimelineHorizontalScrollBar,
+    TimelineHoverMarker,
     TimelinePinnedAxis,
     TimelinePlotItem,
     TimelineScrollArea,
@@ -200,6 +201,11 @@ class TimeLineDock(QWidget):
         self.playhead = PlayHead(self.timestamps_plot, parent=self.graphics_view)
         self.playhead.hide()
 
+        self.hover_marker = TimelineHoverMarker(
+            self.timestamps_plot, self.pinned_axis, parent=self.graphics_view
+        )
+        self.hover_marker.hide()
+
         app.playback_state_changed.connect(self.on_playback_state_changed)
         app.position_changed.connect(self.on_position_changed)
         app.recording_loaded.connect(self.on_recording_loaded)
@@ -220,6 +226,7 @@ class TimeLineDock(QWidget):
         if self.graphics_view.width() != w:
             self.graphics_view.setFixedWidth(w)
         self.playhead.refresh_geometry()
+        self.hover_marker.refresh_geometry()
         super().resizeEvent(event)
         QTimer.singleShot(0, self._sync_pinned_axis_geometry)
 
@@ -240,6 +247,7 @@ class TimeLineDock(QWidget):
             self.timestamps_plot.getViewBox(),
             self.scroll_area.frameWidth(),
         )
+        self.hover_marker.label.refresh_geometry()
 
     def on_recording_loaded(self, recording: nr.NeonRecording) -> None:
         app = neon_player.instance()
@@ -278,6 +286,7 @@ class TimeLineDock(QWidget):
         if trim_plot is not None:
             trim_plot.clear()
         self.playhead.hide()
+        self.hover_marker.set_cursor_time(None)
         self.pinned_axis.set_time_frame(0, 0)
         self.trim_markers = []
         self.dragging = None
@@ -335,13 +344,14 @@ class TimeLineDock(QWidget):
         hovered_plot = next(
             (
                 plot
-                for name, plot in self.timeline_plots.items()
-                if name != "Export window" and plot.sceneBoundingRect().contains(pos)
+                for plot in self.timeline_plots.values()
+                if plot.sceneBoundingRect().contains(pos)
             ),
             None,
         )
         for plot in self.timeline_plots.values():
             plot.set_hovered(plot is hovered_plot)
+        self.hover_marker.set_cursor_time(round(data_pos.x()) if hovered_plot else None)
 
     def on_whitespace_mouse_moved(self, event: QMouseEvent) -> None:
         if event.buttons() == Qt.MouseButton.LeftButton:
@@ -670,6 +680,7 @@ class TimeLineDock(QWidget):
         h = sum([p.preferredHeight() for p in self.timeline_plots.values()])
         self.graphics_view.setFixedHeight(h)
         self.playhead.refresh_geometry()
+        self.hover_marker.refresh_geometry()
 
     def remove_timeline_plot(self, plot_name: str) -> None:
         """Remove a timeline plot and all the data series it contains.
