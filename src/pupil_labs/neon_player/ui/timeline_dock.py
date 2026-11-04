@@ -166,7 +166,7 @@ class TimeLineDock(QWidget):
         self.graphics_layout.setSpacing(0)
         self.graphics_layout.setContentsMargins(0, 0, 0, 0)
         self.graphics_view.setCentralItem(self.graphics_layout)
-        self.tooltip_widget = TimelineTooltipOverlay(self.graphics_view.viewport())
+        self.tooltip_widget = TimelineTooltipOverlay(self.graphics_view)
 
         # Ensure at least 10 ms pass between successive tooltip updates
         self._pending_tooltip_update: tuple[QPointF, int] | None = None
