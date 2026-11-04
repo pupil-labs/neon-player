@@ -48,9 +48,7 @@ class TimelinePinnedAxis(QWidget):
 
     _HEIGHT = 25
 
-    def __init__(
-        self, viewbox: pg.ViewBox, *, margins: tuple[int, int, int, int] = (0, 0, 0, 0)
-    ) -> None:
+    def __init__(self, viewbox: pg.ViewBox) -> None:
         super().__init__()
         self.axis_view = pg.GraphicsView(self)
         self.axis_view.setBackground("transparent")
@@ -76,7 +74,7 @@ class TimelinePinnedAxis(QWidget):
         self.right_spacer.setFixedWidth(0)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(*margins)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.left_spacer)
         layout.addWidget(self.axis_view, 1)
@@ -107,7 +105,7 @@ class TimelinePinnedAxis(QWidget):
         header_left = header_origin + frame_width
         header_right = header_origin + self.width()
         left_width = max(0, main_left - header_left)
-        right_width = max(0, header_right - main_right - 1)
+        right_width = max(0, header_right - main_right)
         if self.left_spacer.width() != left_width:
             self.left_spacer.setFixedWidth(left_width)
         if self.right_spacer.width() != right_width:

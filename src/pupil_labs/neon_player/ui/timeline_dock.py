@@ -193,7 +193,6 @@ class TimeLineDock(QWidget):
 
         self.pinned_axis = TimelinePinnedAxis(
             self.timestamps_plot.getViewBox(),
-            margins=(0, 0, self.scroll_area.verticalScrollBar().width(), 0),
         )
         self.main_layout.insertWidget(1, self.pinned_axis)
         QTimer.singleShot(0, self._sync_pinned_axis_geometry)
@@ -222,10 +221,17 @@ class TimeLineDock(QWidget):
             self.graphics_view.setFixedWidth(w)
         self.playhead.refresh_geometry()
         super().resizeEvent(event)
+        QTimer.singleShot(0, self._sync_pinned_axis_geometry)
 
     def _sync_pinned_axis_geometry(self) -> None:
         """Match the pinned axis's data area to the timeline plot area."""
         if not hasattr(self, "pinned_axis"):
+            return
+
+        viewport_width = self.scroll_area.viewport().width()
+        if self.graphics_view.width() != viewport_width:
+            self.graphics_view.setFixedWidth(viewport_width)
+            QTimer.singleShot(0, self._sync_pinned_axis_geometry)
             return
 
         self.pinned_axis.sync_geometry(

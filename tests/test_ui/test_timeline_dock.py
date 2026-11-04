@@ -159,9 +159,6 @@ def test_pinned_time_axis_stays_in_place_when_timeline_scrolls(
     timeline.show()
     qtbot.wait(50)
     assert timeline.graphics_view.width() == timeline.scroll_area.viewport().width()
-    assert timeline.pinned_axis.width() == (
-        timeline.scroll_area.viewport().width() + timeline.scroll_area.frameWidth()
-    )
     assert (
         timeline.pinned_axis.mapTo(
             timeline,
