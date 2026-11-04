@@ -169,7 +169,9 @@ def _load_events_from_recording(
     event_type_cache: dict[str, EventType] = {}
     events: dict[str, list[int]] = {}
 
-    for event_name in np.unique(recording.events.event):
+    for event in recording.events:
+        event_name = str(event.event)
+
         # Look up or create the event type
         et = event_type_cache.get(event_name)
         if et is None:
@@ -177,9 +179,12 @@ def _load_events_from_recording(
             event_type_cache[event_name] = et
 
         # Add event timestamps to the dictionary
-        mask = recording.events.event == event_name
-        timestamps = sorted(recording.events.time[mask].astype(int))
-        events[et.uid] = timestamps
+        if et.uid not in events:
+            events[et.uid] = []
+        events[et.uid].append(int(event.time))
+
+    for event_timestamps in events.values():
+        event_timestamps.sort()
 
     for event_name in global_event_types:
         if event_name in event_type_cache:

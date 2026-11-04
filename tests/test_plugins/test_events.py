@@ -25,7 +25,7 @@ def test_events__load_events_from_recording(
         "trial.end": [200, 500, 800],
         "recording.end": [1000],
     }
-    mock_events = mock_event_timeseries(events_dict)
+    mock_events = mock_event_timeseries(events_dict, sort=False)
     recording = mock_neon_recording(events=mock_events)
 
     event_types, events = _load_events_from_recording(recording)
