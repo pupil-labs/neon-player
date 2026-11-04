@@ -9,7 +9,7 @@ from pyqtgraph.GraphicsScene.mouseEvents import (
     MouseClickEvent,
     MouseDragEvent,
 )
-from PySide6.QtCore import QPoint, QPointF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -226,6 +226,11 @@ class TimeLineDock(QWidget):
             self.timestamps_plot, self.pinned_axis, parent=self.graphics_view
         )
         self.hover_marker.hide()
+        self.scroll_area.verticalScrollBar().valueChanged.connect(
+            self._on_vertical_scroll
+        )
+        self.scroll_area.installEventFilter(self)
+        self.graphics_view.viewport().installEventFilter(self)
 
         app.playback_state_changed.connect(self.on_playback_state_changed)
         app.position_changed.connect(self.on_position_changed)
@@ -241,6 +246,27 @@ class TimeLineDock(QWidget):
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         self.key_pressed.emit(event)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.Leave and (
+            watched is self.scroll_area or watched is self.graphics_view.viewport()
+        ):
+            self._clear_hover_state()
+        return super().eventFilter(watched, event)
+
+    def _clear_hover_state(self) -> None:
+        for plot in self.timeline_plots.values():
+            plot.set_hovered(False)
+        self.hover_marker.set_cursor_time(None)
+        self._pending_tooltip_update = None
+        self._tooltip_update_timer.stop()
+        self.tooltip_widget.hide()
+
+    def _on_vertical_scroll(self, _value: int) -> None:
+        viewport = self.graphics_view.viewport()
+        viewport_pos = viewport.mapFromGlobal(QCursor.pos())
+        if viewport.rect().contains(viewport_pos):
+            self.on_chart_area_mouse_moved(self.graphics_view.mapToScene(viewport_pos))
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         w = self.scroll_area.viewport().width()

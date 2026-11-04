@@ -2,7 +2,8 @@ from collections.abc import Callable
 
 import pytest
 from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtCore import QPoint, QPointF
+from PySide6.QtCore import QEvent, QPoint, QPointF
+from PySide6.QtGui import QCursor
 from pytestqt.qtbot import QtBot
 
 from pupil_labs.neon_player.settings import RecordingSettings
@@ -58,6 +59,43 @@ def test_y_limit_labels_are_visible_only_for_hovered_timeline_row(
     timeline.on_chart_area_mouse_moved(QPointF(-1000, -1000))
     assert not any(label.isVisible() for label in first_row._y_range_labels)
     assert not any(label.isVisible() for label in second_row._y_range_labels)
+
+    timeline.on_chart_area_mouse_moved(row_center(first_row))
+    timeline.eventFilter(timeline.graphics_view.viewport(), QEvent(QEvent.Type.Leave))
+    assert not any(label.isVisible() for label in first_row._y_range_labels)
+    assert not any(label.isVisible() for label in second_row._y_range_labels)
+
+
+def test_vertical_scroll_refreshes_hover_at_stationary_pointer(
+    qtbot: QtBot,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    timeline.resize(600, 180)
+    timeline.show()
+    for row in range(10):
+        timeline.get_timeline_plot(f"row {row}", create_if_missing=True)
+    timeline.fix_scroll_size()
+    qtbot.wait(50)
+
+    viewport = timeline.graphics_view.viewport()
+    QCursor.setPos(viewport.mapToGlobal(QPoint(20, 20)))
+    hovered_positions: list[QPointF] = []
+    monkeypatch.setattr(
+        timeline,
+        "on_chart_area_mouse_moved",
+        hovered_positions.append,
+    )
+
+    scrollbar = timeline.scroll_area.verticalScrollBar()
+    assert scrollbar.maximum() > 0
+    scrollbar.setValue(scrollbar.maximum())
+
+    assert hovered_positions
 
 
 def test_trim_markers_preserve_timestamps_and_empty_export_window(
