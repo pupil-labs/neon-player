@@ -5,11 +5,14 @@ from pyqtgraph.GraphicsScene.mouseEvents import MouseDragEvent
 from PySide6.QtCore import QObject, QPoint, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPaintEvent, QPolygon, QWheelEvent
 from PySide6.QtWidgets import (
+    QFrame,
     QGraphicsEllipseItem,
     QGraphicsItem,
     QGraphicsRectItem,
     QGraphicsSceneMouseEvent,
     QGraphicsSceneWheelEvent,
+    QGraphicsView,
+    QHBoxLayout,
     QLabel,
     QScrollArea,
     QScrollBar,
@@ -23,6 +26,10 @@ from pupil_labs.neon_player.ui import GUIEventNotifier
 
 
 class TimelineScrollArea(QScrollArea):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setFrameShape(QFrame.Shape.NoFrame)
+
     def wheelEvent(self, event: QWheelEvent) -> None:
         # NOTE: pass pyqtgraph's zoom interactions (Shift+Scroll, Cmd/Ctrl+Scroll)
         # through w/o scrolling through timeline plots when there are many of them
@@ -34,6 +41,75 @@ class TimelineScrollArea(QScrollArea):
             return
 
         super().wheelEvent(event)
+
+
+class TimelinePinnedAxis(QWidget):
+    """A time axis kept above the timeline's vertically scrolling rows."""
+
+    _HEIGHT = 25
+
+    def __init__(self, viewbox: pg.ViewBox) -> None:
+        super().__init__()
+        self.axis_view = pg.GraphicsView(self)
+        self.axis_view.setBackground("transparent")
+        self.axis_view.setFrameShape(QFrame.Shape.NoFrame)
+        self.axis_layout = pg.GraphicsLayout()
+        self.axis_layout.setSpacing(0)
+        self.axis_layout.setContentsMargins(0, 0, 0, 0)
+        self.axis_view.setCentralItem(self.axis_layout)
+        self.axis_view.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.axis_view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.axis_view.setFixedHeight(self._HEIGHT)
+
+        self.time_axis = TimeAxisItem(orientation="top")
+        self.time_axis.setHeight(self._HEIGHT)
+        self.time_axis.linkToView(viewbox)
+        self.axis_layout.addItem(self.time_axis, row=0, col=0)
+
+        self.left_spacer = QWidget(self)
+        self.left_spacer.setFixedWidth(0)
+        self.right_spacer = QWidget(self)
+        self.right_spacer.setFixedWidth(0)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.left_spacer)
+        layout.addWidget(self.axis_view, 1)
+        layout.addWidget(self.right_spacer)
+        self.setFixedHeight(self._HEIGHT)
+
+    def set_time_frame(self, start: int, stop: int) -> None:
+        self.time_axis.set_time_frame(start, stop)
+        self.time_axis.picture = None
+        self.time_axis.update()
+
+    def sync_geometry(
+        self,
+        timeline: QWidget,
+        main_view: QGraphicsView,
+        main_viewbox: pg.ViewBox,
+        frame_width: int,
+    ) -> None:
+        """Align the axis data area with the plot's data area."""
+        main_rect = main_viewbox.sceneBoundingRect()
+        main_left = main_view.mapTo(
+            timeline, main_view.mapFromScene(main_rect.topLeft())
+        ).x()
+        main_right = main_view.mapTo(
+            timeline, main_view.mapFromScene(main_rect.bottomRight())
+        ).x()
+        header_origin = self.mapTo(timeline, QPoint(0, 0)).x()
+        header_left = header_origin + frame_width
+        header_right = header_origin + self.width()
+        left_width = max(0, main_left - header_left)
+        right_width = max(0, header_right - main_right)
+        if self.left_spacer.width() != left_width:
+            self.left_spacer.setFixedWidth(left_width)
+        if self.right_spacer.width() != right_width:
+            self.right_spacer.setFixedWidth(right_width)
 
 
 class TimelineHorizontalScrollBar(QScrollBar):
@@ -513,9 +589,7 @@ class PlotOverlay(QWidget):
         plot_rect = vb.mapToScene(vb.geometry()).boundingRect()
         parent = self.parentWidget()
         assert parent is not None, "Plot overlay must have a parent to refresh geometry"
-        self.setGeometry(
-            int(plot_rect.x()), 20, int(plot_rect.width()), parent.height() - 20
-        )
+        self.setGeometry(int(plot_rect.x()), 0, int(plot_rect.width()), parent.height())
 
 
 class PlayHead(PlotOverlay):
