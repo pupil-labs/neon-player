@@ -52,7 +52,6 @@ from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
     TimelineTooltipConfig,
     TimelineTooltipContext,
     TimelineTooltipOverlay,
-    TimelineTooltipWidget,
     _get_hovered_timeline_series,
 )
 from pupil_labs.neon_player.ui.timeline_dock_utils import (
@@ -514,13 +513,9 @@ class TimeLineDock(QWidget):
         """
         previous = self.timeline_tooltips.get(timeline_row_name)
         current = TimeLineDock._normalize_timeline_tooltip(self, tooltip)
-        new_widgets = (
-            {id(current): current} if isinstance(current, TimelineTooltipWidget) else {}
-        )
+        new_widgets = {id(current): current} if isinstance(current, QWidget) else {}
         previous_widgets = (
-            {id(previous): previous}
-            if isinstance(previous, TimelineTooltipWidget)
-            else {}
+            {id(previous): previous} if isinstance(previous, QWidget) else {}
         )
         if new_widgets:
             TimeLineDock._validate_timeline_tooltip_widgets(
@@ -581,9 +576,9 @@ class TimeLineDock(QWidget):
         if tooltip is None:
             return None
         if isinstance(tooltip, QWidget):
-            if not isinstance(tooltip, TimelineTooltipWidget):
+            if not callable(getattr(tooltip, "update_tooltip", None)):
                 raise TypeError(
-                    "Timeline tooltip widgets must subclass TimelineTooltipWidget"
+                    "Timeline tooltip widgets must implement update_tooltip(context)"
                 )
             return tooltip
         if callable(tooltip):
@@ -593,7 +588,7 @@ class TimeLineDock(QWidget):
         )
 
     def _validate_timeline_tooltip_widgets(
-        self, widgets: dict[int, TimelineTooltipWidget], timeline_row_name: str
+        self, widgets: dict[int, QWidget], timeline_row_name: str
     ) -> None:
         for widget_id, widget in widgets.items():
             current_owner = getattr(self, "_tooltip_widget_rows", {}).get(widget_id)

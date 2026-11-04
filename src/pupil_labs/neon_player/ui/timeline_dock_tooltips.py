@@ -102,7 +102,7 @@ class TimelineTooltipWidget(QWidget):
         raise NotImplementedError
 
 
-type TimelineTooltipConfig = TimelineTooltipCallback | TimelineTooltipWidget
+type TimelineTooltipConfig = TimelineTooltipCallback | QWidget
 """A tooltip callback or a custom timeline tooltip widget.
 
 Custom widgets must be parentless when registered and can belong to only one

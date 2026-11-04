@@ -15,7 +15,7 @@ from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
     TimelineScatterSeriesHover,
     TimelineSeriesHover,
     TimelineTooltipContext,
-    TimelineTooltipWidget,
+    TimelineTooltipOverlay,
     _get_bar_graph_series_hover,
     _get_hovered_timeline_series,
     _get_series_hover,
@@ -127,6 +127,7 @@ def test_adding_series_without_tooltip_preserves_row_tooltip(
         get_timeline_plot=lambda *_args: plot_item,
         timeline_legends={"row": SimpleNamespace(addItem=lambda *_args: None)},
         plot_sorting_enabled=False,
+        _sync_pinned_axis_geometry=lambda: None,
     )
     monkeypatch.setattr(
         neon_player,
@@ -148,7 +149,7 @@ def test_custom_widget_is_adopted_and_released_when_replaced() -> None:
             pass
 
     parent = QWidget()
-    host = TimelineTooltipWidget(parent)
+    host = TimelineTooltipOverlay(parent)
     owner = SimpleNamespace(
         timeline_tooltips={},
         _tooltip_widget_rows={},
@@ -170,7 +171,7 @@ def test_invalid_custom_widgets_are_rejected_without_taking_ownership() -> None:
     owner = SimpleNamespace(
         timeline_tooltips={},
         _tooltip_widget_rows={},
-        tooltip_widget=TimelineTooltipWidget(QWidget()),
+        tooltip_widget=TimelineTooltipOverlay(QWidget()),
     )
     widget_without_update = QLabel()
 
@@ -192,7 +193,7 @@ def test_parented_custom_widget_is_rejected_and_stays_caller_owned() -> None:
     owner = SimpleNamespace(
         timeline_tooltips={},
         _tooltip_widget_rows={},
-        tooltip_widget=TimelineTooltipWidget(QWidget()),
+        tooltip_widget=TimelineTooltipOverlay(QWidget()),
     )
 
     with pytest.raises(ValueError, match="parentless"):
@@ -556,7 +557,7 @@ def test_custom_widget_is_released_when_timeline_row_is_removed() -> None:
             pass
 
     parent = QWidget()
-    host = TimelineTooltipWidget(parent)
+    host = TimelineTooltipOverlay(parent)
     widget = CustomTooltip()
     owner = SimpleNamespace(
         timeline_tooltips={},
@@ -568,6 +569,7 @@ def test_custom_widget_is_released_when_timeline_row_is_removed() -> None:
         plot_sorting_enabled=True,
         get_timeline_plot=lambda _name: object(),
         sort_plots=lambda: None,
+        _sync_pinned_axis_geometry=lambda: None,
     )
     TimeLineDock.set_timeline_tooltip(owner, "row", widget)
 
