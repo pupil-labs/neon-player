@@ -917,8 +917,6 @@ class TimeLineDock(QWidget):
             plot_data_item = plot_item.plot(x=[], y=[], name=plot_name, **kwargs)
 
         plot_data_item.name = plot_name
-        if kwargs.get("is_event"):
-            plot_data_item.is_event = True
         if plot_name != "":
             legend.addItem(plot_data_item, plot_name)
 

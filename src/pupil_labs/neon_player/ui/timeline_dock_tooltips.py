@@ -30,7 +30,7 @@ class TimelineSeriesHover:
 
     name: str
     """The name of the time series, empty if not set."""
-    timestamp_ns: int | None
+    timestamp_ns: int
     """The timestamp of the hovered data point."""
     index: int
     """The index of the hovered data point / bar."""
@@ -64,8 +64,6 @@ class TimelineLineSeriesHover(TimelineSeriesHover):
 class TimelineScatterSeriesHover(TimelineSeriesHover):
     """The closest scatter sample within the hover tolerance."""
 
-    timestamp_ns: int
-    """The timestamp that corresponds to the data point."""
     value: float
     """The y-axis value that corresponds to the data point."""
 
@@ -99,7 +97,12 @@ class TimelineTooltipWidget(QWidget):
     """Base class for custom widgets used as timeline row tooltips."""
 
     def update_tooltip(self, context: TimelineTooltipContext) -> None:
-        """Update this widget for the current pointer position."""
+        """Update this widget for the current pointer position.
+
+        Args:
+            context: The current hover context for the tooltip, provided by
+            the timeline object.
+        """
         raise NotImplementedError
 
 
@@ -163,7 +166,12 @@ def default_line_tooltip(
     """Create a line tooltip formatter with optional numeric precision and units.
 
     The tooltip is formatted as `{value} {units}` if the plot contains one data series.
-    For multiple series, a 2-column table (series name, `{value} {units}`) is shown."""
+    For multiple series, a 2-column table (series name, `{value} {units}`) is shown.
+
+    Args:
+        precision: How many digits to display after the floating point.
+        units: Append units to the displayed value.
+    """
     return partial(_default_line_tooltip, precision=precision, units=units)
 
 
@@ -172,14 +180,15 @@ def _default_scatter_tooltip(
     name: str,
     total: int | T.Callable[[], int],
 ) -> str:
-    if len(context.series) != 1 or not isinstance(
-        context.series[0], TimelineScatterSeriesHover
-    ):
+    if len(context.series) != 1:
         logger.warning("Default scatter tooltip requires exactly one scatter series")
         return ""
 
     entry = context.series[0]
-    assert isinstance(entry, TimelineScatterSeriesHover)
+    if not isinstance(entry, TimelineScatterSeriesHover):
+        logger.warning("Default scatter tooltip requires exactly one scatter series")
+        return ""
+
     total_count = total() if callable(total) else total
     timestamp = format_timestamp_ns(
         entry.timestamp_ns,
@@ -197,21 +206,28 @@ def default_scatter_tooltip(
 ) -> TimelineTooltipCallback:
     """Create a scatter tooltip showing its name, index, total, and sample time.
 
-    ``total`` may be a callable when the number of samples can change over time.
+    Args:
+        name: Descriptive name (e.g., of the event marker).
+        total: The total number of scatter points in this row. It may be a
+            callable when the number of samples can change over time.
     """
     return partial(_default_scatter_tooltip, name=name, total=total)
 
 
 def _default_broken_bar_tooltip(context: TimelineTooltipContext, prefix: str) -> str:
-    if len(context.series) != 1 or not isinstance(
-        context.series[0], TimelineBarSeriesHover
-    ):
+    if len(context.series) != 1:
         logger.warning(
             "Default broken-bar tooltip requires exactly one broken-bar series"
         )
         return ""
 
     entry = context.series[0]
+    if not isinstance(entry, TimelineBarSeriesHover):
+        logger.warning(
+            "Default broken-bar tooltip requires exactly one broken-bar series"
+        )
+        return ""
+
     duration = format_duration(entry.start_ts, entry.stop_ts)
     if prefix:
         return f"{prefix} {duration}"
@@ -224,7 +240,11 @@ def default_broken_bar_tooltip(*, prefix: str = "") -> TimelineTooltipCallback:
 
     The tooltip is formatted as `{bar index} {duration}. Bar index is 1-based.
     Duration is displayed in milliseconds for bars shorter than one second, or
-    in seconds otherwise."""
+    in seconds otherwise.
+
+    Args:
+        prefix: Optional prefix to display instead of the bar index.
+    """
     return partial(_default_broken_bar_tooltip, prefix=prefix)
 
 
@@ -233,7 +253,7 @@ def _get_series_hover(
     series_name: str,
     timestamp_ns: int,
     tolerance_ns: int,
-) -> TimelineSeriesHover | None:
+) -> TimelineLineSeriesHover | TimelineScatterSeriesHover | None:
     kind = "scatter" if item.opts.get("symbol") is not None else "point"
     timestamps, values = item.getData()
     if timestamps is None or values is None or len(timestamps) == 0:
@@ -249,20 +269,15 @@ def _get_series_hover(
     pen = item.opts.get(pen_key)
     color = pen.color() if isinstance(pen, QPen) else None
 
-    if kind == "scatter":
-        return TimelineScatterSeriesHover(
-            value=float(values[closest]),
-            name=series_name,
-            index=closest,
-            timestamp_ns=int(timestamps[closest]),
-            color=color,
-        )
+    return_type = (
+        TimelineScatterSeriesHover if kind == "scatter" else TimelineLineSeriesHover
+    )
 
-    return TimelineLineSeriesHover(
+    return return_type(
         value=float(values[closest]),
         name=series_name,
         index=closest,
-        timestamp_ns=None,
+        timestamp_ns=int(timestamps[closest]),
         color=color,
     )
 
