@@ -2,12 +2,13 @@ from collections.abc import Callable
 
 import pytest
 from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtCore import QPointF
+from PySide6.QtCore import QPoint, QPointF
 from pytestqt.qtbot import QtBot
 
 from pupil_labs.neon_player.settings import RecordingSettings
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.timeline_dock_components import (
+    TimelinePinnedAxis,
     TimelinePlotItem,
     TrimEndMarker,
 )
@@ -106,3 +107,118 @@ def test_timeline_unload_and_reload_replace_recording_markers(
     settings.export_window = (350, 350)
     timeline.on_recording_loaded(recording)
     assert timeline.get_export_window() == (350, 350)
+
+
+def test_pinned_time_axis_tracks_range_and_recording_lifecycle(
+    qtbot: QtBot,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+
+    assert timeline.timestamps_plot.getAxis("top").isVisible()
+    assert isinstance(timeline.pinned_axis, TimelinePinnedAxis)
+    assert not timeline.pinned_axis.isHidden()
+    assert (
+        timeline.pinned_axis.axis_layout.getItem(0, 0) is timeline.pinned_axis.time_axis
+    )
+    assert (
+        timeline.pinned_axis.time_axis.linkedView()
+        is timeline.timestamps_plot.getViewBox()
+    )
+
+    recording = mock_neon_recording(start_time=100, stop_time=200)
+    monkeypatch.setattr(qapp, "recording", recording)
+    monkeypatch.setattr(qapp, "recording_settings", RecordingSettings())
+    timeline.on_recording_loaded(recording)
+    timeline.timestamps_plot.setXRange(120, 180, padding=0)
+
+    assert timeline.pinned_axis.time_axis.recording_start_time_ns == 100
+    assert timeline.pinned_axis.time_axis.recording_stop_time_ns == 200
+    assert timeline.pinned_axis.time_axis.linkedView().viewRange()[0] == pytest.approx(
+        timeline.timestamps_plot.viewRange()[0]
+    )
+
+    timeline.on_recording_unloaded()
+    assert timeline.pinned_axis.time_axis.recording_start_time_ns == 0
+    assert timeline.pinned_axis.time_axis.recording_stop_time_ns == 0
+
+
+def test_pinned_time_axis_stays_in_place_when_timeline_scrolls(
+    qtbot: QtBot, qapp: MockNeonPlayerApp, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    timeline.resize(500, 180)
+    timeline.show()
+    qtbot.wait(50)
+    assert timeline.graphics_view.width() == timeline.scroll_area.viewport().width()
+    assert (
+        timeline.pinned_axis.mapTo(
+            timeline,
+            QPoint(timeline.scroll_area.frameWidth(), 0),
+        ).x()
+        == timeline.scroll_area.viewport().mapTo(timeline, QPoint(0, 0)).x()
+    )
+    for row in range(10):
+        timeline.get_timeline_plot(f"row {row}", create_if_missing=True)
+    timeline.fix_scroll_size()
+    qtbot.wait(50)
+
+    main_plot_item = timeline.get_timeline_plot("row 0")
+    assert main_plot_item is not None
+    main_plot = main_plot_item.getViewBox().sceneBoundingRect()
+    pinned_plot = timeline.pinned_axis.time_axis.sceneBoundingRect()
+    main_plot_left = timeline.graphics_view.mapTo(
+        timeline, timeline.graphics_view.mapFromScene(main_plot.topLeft())
+    ).x()
+    pinned_plot_left = timeline.pinned_axis.axis_view.mapTo(
+        timeline, timeline.pinned_axis.axis_view.mapFromScene(pinned_plot.topLeft())
+    ).x()
+    main_plot_right = timeline.graphics_view.mapTo(
+        timeline,
+        timeline.graphics_view.mapFromScene(main_plot.topRight()),
+    ).x()
+    pinned_plot_right = timeline.pinned_axis.axis_view.mapTo(
+        timeline,
+        timeline.pinned_axis.axis_view.mapFromScene(pinned_plot.topRight()),
+    ).x()
+    assert pinned_plot_left == main_plot_left
+    assert pinned_plot_right == main_plot_right
+
+    timeline.resize(650, 180)
+    qtbot.wait(50)
+    main_plot = main_plot_item.getViewBox().sceneBoundingRect()
+    pinned_plot = timeline.pinned_axis.time_axis.sceneBoundingRect()
+    main_plot_left = timeline.graphics_view.mapTo(
+        timeline, timeline.graphics_view.mapFromScene(main_plot.topLeft())
+    ).x()
+    pinned_plot_left = timeline.pinned_axis.axis_view.mapTo(
+        timeline, timeline.pinned_axis.axis_view.mapFromScene(pinned_plot.topLeft())
+    ).x()
+    main_plot_right = timeline.graphics_view.mapTo(
+        timeline,
+        timeline.graphics_view.mapFromScene(main_plot.topRight()),
+    ).x()
+    pinned_plot_right = timeline.pinned_axis.axis_view.mapTo(
+        timeline,
+        timeline.pinned_axis.axis_view.mapFromScene(pinned_plot.topRight()),
+    ).x()
+    assert pinned_plot_left == main_plot_left
+    assert pinned_plot_right == main_plot_right
+
+    scrollbar = timeline.scroll_area.verticalScrollBar()
+    assert scrollbar.maximum() > 0
+    axis_y_before = timeline.pinned_axis.axis_view.mapTo(timeline, QPoint(0, 0)).y()
+    scrollbar.setValue(scrollbar.maximum())
+    qtbot.wait(50)
+    axis_y_after = timeline.pinned_axis.axis_view.mapTo(timeline, QPoint(0, 0)).y()
+
+    assert scrollbar.value() == scrollbar.maximum()
+    assert axis_y_after == axis_y_before
