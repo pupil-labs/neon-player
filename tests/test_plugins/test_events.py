@@ -344,9 +344,9 @@ def test_events_plugin__delete_events__sorts_timestamps() -> None:
     plugin._events = {et.uid: [100, 200, 300, 400]}
     plugin.save_cached_json = MagicMock()
 
-    plugin.delete_events({"test.event": [300, 100]})
+    plugin.delete_events({"test.event": [200, 300]})
 
-    assert plugin._events == {et.uid: [200, 400]}, "Expected events to be stored"
+    assert plugin._events == {et.uid: [100, 400]}, "Expected events to be stored"
     plugin.save_cached_json.assert_called_once()
 
 
