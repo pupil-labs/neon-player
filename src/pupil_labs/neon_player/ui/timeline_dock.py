@@ -857,7 +857,7 @@ class TimeLineDock(QWidget):
             **kwargs: Additional plotting options passed to pyqtgraph.
 
         Returns:
-            The timeline plot, or ``None`` if no recording is open.
+            plot_item: The timeline plot, or ``None`` if no recording is open.
         """
         app = neon_player.instance()
         recording = app.recording
@@ -987,7 +987,7 @@ class TimeLineDock(QWidget):
             **kwargs: Additional line options passed to pyqtgraph.
 
         Returns:
-            The timeline row, or ``None`` if no recording is open.
+            plot_item: The timeline row, or ``None`` if no recording is open.
         """
         plot_existed = timeline_row_name in self.timeline_plots
         plot_item = self.add_timeline_plot(
@@ -1020,7 +1020,7 @@ class TimeLineDock(QWidget):
                 [`add_timeline_plot`][] for details on the expected format.
 
         Returns:
-            The timeline row, or ``None`` if no recording is open.
+            plot_item: The timeline row, or ``None`` if no recording is open.
         """
         return self.add_timeline_plot(
             name,
@@ -1055,7 +1055,7 @@ class TimeLineDock(QWidget):
                 [`add_timeline_plot`][] for details on the expected format.
 
         Returns:
-            The timeline row, or ``None`` if no recording is open.
+            plot_item: The timeline row, or ``None`` if no recording is open.
         """
         plot_widget = self.get_timeline_plot(timeline_row_name, True)
 

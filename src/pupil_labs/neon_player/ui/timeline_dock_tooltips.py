@@ -101,7 +101,7 @@ class TimelineTooltipWidget(QWidget):
 
         Args:
             context: The current hover context for the tooltip, provided by
-            the timeline object.
+                the timeline object.
         """
         raise NotImplementedError
 
