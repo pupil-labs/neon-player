@@ -52,6 +52,7 @@ from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
     TimelineTooltipConfig,
     TimelineTooltipContext,
     TimelineTooltipOverlay,
+    TimelineTooltipWidget,
     _get_hovered_timeline_series,
     _normalize_timeline_tooltip,
 )
@@ -513,7 +514,7 @@ class TimeLineDock(QWidget):
             tooltip: Callback, custom tooltip widget, or ``None`` to clear.
         """
         previous = self.timeline_tooltips.get(timeline_row_name)
-        current = _normalize_timeline_tooltip(self, tooltip)
+        current = _normalize_timeline_tooltip(tooltip)
         new_widgets = (
             {id(current): current} if isinstance(current, TimelineTooltipWidget) else {}
         )
@@ -521,9 +522,7 @@ class TimeLineDock(QWidget):
             {id(previous): previous} if isinstance(previous, QWidget) else {}
         )
         if new_widgets:
-            TimeLineDock._validate_timeline_tooltip_widgets(
-                self, new_widgets, timeline_row_name
-            )
+            self._validate_timeline_tooltip_widgets(new_widgets, timeline_row_name)
 
         if new_widgets or previous_widgets:
             tooltip_widget = getattr(self, "tooltip_widget", None)
@@ -573,7 +572,7 @@ class TimeLineDock(QWidget):
             self.tooltip_widget.release_content_widget(config)
 
     def _validate_timeline_tooltip_widgets(
-        self, widgets: dict[int, QWidget], timeline_row_name: str
+        self, widgets: dict[int, TimelineTooltipWidget], timeline_row_name: str
     ) -> None:
         for widget_id, widget in widgets.items():
             current_owner = getattr(self, "_tooltip_widget_rows", {}).get(widget_id)

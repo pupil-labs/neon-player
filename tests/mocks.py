@@ -7,11 +7,14 @@ from pupil_labs.neon_recording.timeseries.gaze import GazeArray
 from pupil_labs.neon_recording.timeseries.worn import WornArray
 
 
-def mock_event_timeseries(events_dict: dict[str, list[int]]) -> EventArray:
+def mock_event_timeseries(
+    events_dict: dict[str, list[int]], sort: bool = True
+) -> EventArray:
     all_events = []
     for event_name, timestamps in events_dict.items():
         all_events.extend((ts, event_name) for ts in timestamps)
-    all_events = sorted(all_events, key=lambda x: x[0])
+    if sort:
+        all_events = sorted(all_events, key=lambda x: x[0])
 
     data = np.array(
         [

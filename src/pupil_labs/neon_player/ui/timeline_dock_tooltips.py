@@ -80,8 +80,8 @@ class TimelineTooltipContext:
     series: list[TimelineSeriesHover]
     """Details about the hovered data point / bar for each series in the plot."""
     recording_start_time_ns: int = 0
-    """Recording start time (in nanoseconds). 
-    
+    """Recording start time (in nanoseconds).
+
     The start time is provided to allow presenting relative timestamps."""
     row_name: str = ""
     """The name of the hovered timeline row."""
