@@ -16,7 +16,7 @@ def test_default_scatter_tooltip_uses_name_count_and_context_timestamp() -> None
                 value=0.0,
             )
         ],
-        origin_ns=100_000_000,
+        recording_start_time_ns=100_000_000,
         row_name="Events - trial.begin",
     )
 

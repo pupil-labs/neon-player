@@ -365,7 +365,7 @@ def test_scatter_tooltip_shows_sample_time() -> None:
                 value=3.5678,
             ),
         ],
-        origin_ns=100_000_000,
+        recording_start_time_ns=100_000_000,
     )
 
     assert default_scatter_tooltip(name="sample", total=1)(context) == (

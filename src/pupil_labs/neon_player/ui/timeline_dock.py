@@ -53,6 +53,7 @@ from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
     TimelineTooltipContext,
     TimelineTooltipOverlay,
     _get_hovered_timeline_series,
+    _normalize_timeline_tooltip,
 )
 from pupil_labs.neon_player.ui.timeline_dock_utils import (
     get_clicked_data_point,
@@ -101,7 +102,7 @@ class TimeLineDock(QWidget):
         self.timeline_plots: dict[str, TimelinePlotItem] = {}
         self.timeline_legends: dict[str, pg.LegendItem] = {}
         self.timeline_tooltips: dict[str, TimelineTooltipConfig | None] = {}
-        self._tooltip_widget_rows: dict[int, tuple[QWidget, str]] = {}
+        self._tooltip_widget_rows: dict[int, tuple[TimelineTooltipWidget, str]] = {}
         self.plot_colors = [
             QColor("#1f77b4"),
             QColor("#ff7f0e"),
@@ -512,8 +513,10 @@ class TimeLineDock(QWidget):
             tooltip: Callback, custom tooltip widget, or ``None`` to clear.
         """
         previous = self.timeline_tooltips.get(timeline_row_name)
-        current = TimeLineDock._normalize_timeline_tooltip(self, tooltip)
-        new_widgets = {id(current): current} if isinstance(current, QWidget) else {}
+        current = _normalize_timeline_tooltip(self, tooltip)
+        new_widgets = (
+            {id(current): current} if isinstance(current, TimelineTooltipWidget) else {}
+        )
         previous_widgets = (
             {id(previous): previous} if isinstance(previous, QWidget) else {}
         )
@@ -568,24 +571,6 @@ class TimeLineDock(QWidget):
                 continue
             self._tooltip_widget_rows.pop(widget_id, None)
             self.tooltip_widget.release_content_widget(config)
-
-    def _normalize_timeline_tooltip(
-        self,
-        tooltip: TimelineTooltipConfig | None,
-    ) -> TimelineTooltipConfig | None:
-        if tooltip is None:
-            return None
-        if isinstance(tooltip, QWidget):
-            if not callable(getattr(tooltip, "update_tooltip", None)):
-                raise TypeError(
-                    "Timeline tooltip widgets must implement update_tooltip(context)"
-                )
-            return tooltip
-        if callable(tooltip):
-            return tooltip
-        raise TypeError(
-            "Timeline tooltip must be a callback, TimelineTooltipWidget, or None"
-        )
 
     def _validate_timeline_tooltip_widgets(
         self, widgets: dict[int, QWidget], timeline_row_name: str

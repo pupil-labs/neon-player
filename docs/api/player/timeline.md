@@ -19,6 +19,8 @@
 ::: pupil_labs.neon_player.ui.timeline_dock_tooltips.TimelineTooltipContext
 
 ::: pupil_labs.neon_player.ui.timeline_dock_tooltips.TimelineSeriesHover
+    options:
+        members: false
 
 ::: pupil_labs.neon_player.ui.timeline_dock_tooltips.TimelineLineSeriesHover
 

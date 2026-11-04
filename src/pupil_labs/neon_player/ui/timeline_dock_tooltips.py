@@ -19,9 +19,12 @@ logger = logging.getLogger(__name__)
 class TimelineSeriesHover:
     """Details for a time series whose data is under the timeline pointer.
 
-    ``timestamp_ns`` is populated for scatter points. For line plots, the
-    hovered time is represented by the context timestamp and the selected
-    point's ``index`` and ``value``.
+    The tooltip context only contains subclasses of this class, depending on
+    the series type:
+
+      * line plots: [`TimelineLineSeriesHover`][]
+      * scatter plots: [`TimelineScatterSeriesHover`][]
+      * bar graph plots: [`TimelineBarSeriesHover`][]
     """
 
     name: str
@@ -29,7 +32,7 @@ class TimelineSeriesHover:
     timestamp_ns: int | None
     """The timestamp of the hovered data point."""
     index: int
-    """The index of the hovered data point."""
+    """The index of the hovered data point / bar."""
     value: float | None
     """The y-axis value that corresponds to the data point."""
 
@@ -55,6 +58,7 @@ class TimelineLineSeriesHover(TimelineSeriesHover):
     """The closest line sample within the hover tolerance."""
 
     value: float
+    """The y-axis value that corresponds to the data point."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -62,25 +66,23 @@ class TimelineScatterSeriesHover(TimelineSeriesHover):
     """The closest scatter sample within the hover tolerance."""
 
     timestamp_ns: int
+    """The timestamp that corresponds to the data point."""
     value: float
+    """The y-axis value that corresponds to the data point."""
 
 
 @dataclasses.dataclass(frozen=True)
 class TimelineTooltipContext:
-    """Snapshot passed to a timeline row's tooltip callback or widget.
-
-    ``timestamp_ns`` is the pointer's position on the recording time axis;
-    ``origin_ns`` is the recording start used to format relative timestamps.
-    ``series`` contains only plotted series with a point within the hover
-    tolerance or a bar covering the pointer time. ``row_name`` is the row
-    label. The :attr:`values` convenience mapping uses each series name as a
-    key; duplicate or empty names therefore share a key.
-    """
+    """Hover context passed to a timeline row's tooltip callback or widget."""
 
     timestamp_ns: int
-    """The timestamp of the hover marker."""
+    """The timestamp of the hover marker (in nanoseconds)."""
     series: list[TimelineSeriesHover]
-    origin_ns: int = 0
+    """Details about the hovered data point / bar for each series in the plot."""
+    recording_start_time_ns: int = 0
+    """Recording start time (in nanoseconds). 
+    
+    The start time is provided to allow presenting relative timestamps."""
     row_name: str = ""
     """The name of the hovered timeline row."""
 
@@ -102,7 +104,7 @@ class TimelineTooltipWidget(QWidget):
         raise NotImplementedError
 
 
-type TimelineTooltipConfig = TimelineTooltipCallback | QWidget
+type TimelineTooltipConfig = TimelineTooltipCallback | TimelineTooltipWidget
 """A tooltip callback or a custom timeline tooltip widget.
 
 Custom widgets must be parentless when registered and can belong to only one
@@ -180,7 +182,7 @@ def _default_scatter_tooltip(
     total_count = total() if callable(total) else total
     timestamp = format_timestamp_ns(
         entry.timestamp_ns,
-        origin_ns=context.origin_ns,
+        origin_ns=context.recording_start_time_ns,
         always_show_hours=True,
         show_milliseconds=True,
     )
@@ -417,3 +419,24 @@ class TimelineTooltipOverlay(QFrame):
         widget.setParent(self)
         self._layout.addWidget(widget)
         widget.show()
+
+
+def _normalize_timeline_tooltip(
+    tooltip: TimelineTooltipConfig | None,
+) -> TimelineTooltipConfig | None:
+    if tooltip is None:
+        return None
+
+    if isinstance(tooltip, QWidget):
+        if not isinstance(tooltip, TimelineTooltipWidget):
+            raise TypeError(
+                "Timeline tooltip widgets must subclass TimelineTooltipWidget"
+            )
+        return tooltip
+
+    if callable(tooltip):
+        return tooltip
+
+    raise TypeError(
+        "Timeline tooltip must be a callback, TimelineTooltipWidget, or None"
+    )
