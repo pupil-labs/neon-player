@@ -59,7 +59,7 @@ from pupil_labs.neon_player.ui.timeline_dock_utils import (
     get_clicked_data_point,
     get_clicked_plot_item,
 )
-from pupil_labs.neon_player.utilities import clone_menu
+from pupil_labs.neon_player.utilities import SlotDebouncer, clone_menu
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +185,11 @@ class TimeLineDock(QWidget):
         self.scroll_area.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOn
         )
+        SlotDebouncer.debounce(
+            self.scroll_area.verticalScrollBar().valueChanged,
+            self._on_vertical_scroll,
+            delay=0.03,
+        )
 
         self.graphics_view_container = TimelineTableContainer(self.graphics_view)
         self.graphics_view_container.mouse_pressed.connect(
@@ -226,9 +231,6 @@ class TimeLineDock(QWidget):
             self.timestamps_plot, self.pinned_axis, parent=self.graphics_view
         )
         self.hover_marker.hide()
-        self.scroll_area.verticalScrollBar().valueChanged.connect(
-            self._on_vertical_scroll
-        )
         self.scroll_area.installEventFilter(self)
         self.graphics_view.viewport().installEventFilter(self)
 
