@@ -21,11 +21,11 @@ def test_events__load_events_from_recording(
 ) -> None:
     events_dict = {
         "recording.begin": [0],
-        "trial.begin": [100, 400, 700],
+        "trial.begin": [400, 100, 700],
         "trial.end": [200, 500, 800],
         "recording.end": [1000],
     }
-    mock_events = mock_event_timeseries(events_dict)
+    mock_events = mock_event_timeseries(events_dict, sort=False)
     recording = mock_neon_recording(events=mock_events)
 
     event_types, events = _load_events_from_recording(recording)
@@ -45,7 +45,7 @@ def test_events__load_events_from_recording(
                 "Expected uid to match name for immutable events"
             )
 
-        assert events[et.uid] == events_dict[event_name], (
+        assert events[et.uid] == sorted(events_dict[event_name]), (
             f"Timestamps for {event_name} do not match input data"
         )
 
@@ -63,7 +63,7 @@ def test_events__load_events_from_cache() -> None:
 
     cached_events = {
         "recording.begin": [0],
-        "uid0": [100, 400, 700],  # trial.begin
+        "uid0": [400, 100, 700],  # trial.begin, unsorted
         "uid1": [200, 500, 800],  # trial.end
         "recording.end": [1000],
     }
@@ -74,7 +74,9 @@ def test_events__load_events_from_cache() -> None:
     for et in event_types:
         assert et in event_types, "Expected known event types to be used"
         assert et.name != "extra.event", "Only present event types should be returned"
-    assert events == cached_events, "Expected events to match cached events"
+        assert events[et.uid] == sorted(cached_events[et.uid]), (
+            "Expected event timestamps to match cache and be sorted during load"
+        )
 
 
 def test_events__load_events_from_dataframe() -> None:
@@ -274,6 +276,21 @@ def test_events_plugin__add_events__raises_on_immutable_type() -> None:
         plugin.add_events({"recording.begin": [100, 200]})
 
 
+def test_events_plugin__add_events__sorts_timestamps() -> None:
+    plugin = EventsPlugin()
+    et = EventType.from_name("test.event")
+    plugin.event_types = [et]
+    plugin._events = {et.uid: [100, 200, 300]}
+    plugin.save_cached_json = MagicMock()
+
+    plugin.add_events({"test.event": [150, 250]})
+
+    assert plugin._events == {et.uid: [100, 150, 200, 250, 300]}, (
+        "Expected events to be sorted"
+    )
+    plugin.save_cached_json.assert_called_once()
+
+
 def test_events_plugin__delete_events__deletes_events() -> None:
     plugin = EventsPlugin()
     et = EventType.from_name("test.event")
@@ -318,6 +335,19 @@ def test_events_plugin__delete_events__raises_on_immutable_type() -> None:
 
     with pytest.raises(ValueError, match="cannot be deleted"):
         plugin.delete_events({"recording.begin": [0]})
+
+
+def test_events_plugin__delete_events__sorts_timestamps() -> None:
+    plugin = EventsPlugin()
+    et = EventType.from_name("test.event")
+    plugin.event_types = [et]
+    plugin._events = {et.uid: [100, 200, 300, 400]}
+    plugin.save_cached_json = MagicMock()
+
+    plugin.delete_events({"test.event": [200, 300]})
+
+    assert plugin._events == {et.uid: [100, 400]}, "Expected events to be stored"
+    plugin.save_cached_json.assert_called_once()
 
 
 def _prepare_test_data(

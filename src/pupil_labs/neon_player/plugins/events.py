@@ -178,10 +178,13 @@ def _load_events_from_recording(
             et = EventType.from_name(event_name)
             event_type_cache[event_name] = et
 
-        # Add event to the dictionary
+        # Add event timestamps to the dictionary
         if et.uid not in events:
             events[et.uid] = []
         events[et.uid].append(int(event.time))
+
+    for event_timestamps in events.values():
+        event_timestamps.sort()
 
     for event_name in global_event_types:
         if event_name in event_type_cache:
@@ -216,7 +219,7 @@ def _load_events_from_cache(
             )
 
         validated_timestamps = [int(timestamp) for timestamp in timestamps]
-        events[uid] = validated_timestamps
+        events[uid] = sorted(validated_timestamps)
         if uid in event_type_cache:
             continue
 
@@ -609,6 +612,7 @@ class EventsPlugin(neon_player.Plugin):
             if event_type.uid not in self._events:
                 self._events[event_type.uid] = []
             self._events[event_type.uid].extend(timestamps)
+            self._events[event_type.uid].sort()
 
         self.save_cached_json("events.json", self._events)
         self._update_gui_for_event_types(event_types_to_add=event_types_to_add)
@@ -643,9 +647,9 @@ class EventsPlugin(neon_player.Plugin):
             event_type = self._event_types_by_name[event_name]
             existing_timestamps = set(self._events[event_type.uid])
             timestamps_to_remove = set(timestamps)
-            remaining_timestamps = existing_timestamps - timestamps_to_remove
+            remaining_timestamps = list(existing_timestamps - timestamps_to_remove)
             if remaining_timestamps:
-                self._events[event_type.uid] = list(remaining_timestamps)
+                self._events[event_type.uid] = sorted(remaining_timestamps)
                 event_types_to_update.append(event_type)
                 continue
 
