@@ -222,3 +222,43 @@ def test_pinned_time_axis_stays_in_place_when_timeline_scrolls(
 
     assert scrollbar.value() == scrollbar.maximum()
     assert axis_y_after == axis_y_before
+
+
+def test_hover_timestamp_is_displayed_on_pinned_axis(
+    qtbot: QtBot,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    timeline.resize(700, 300)
+    timeline.show()
+    qtbot.waitExposed(timeline)
+    qtbot.wait(50)
+
+    recording = mock_neon_recording(start_time=100, stop_time=200)
+    monkeypatch.setattr(qapp, "recording", recording)
+    monkeypatch.setattr(qapp, "recording_settings", RecordingSettings())
+    timeline.on_recording_loaded(recording)
+    timeline.timestamps_plot.setXRange(100, 200, padding=0)
+    timeline.hover_marker.set_cursor_time(150)
+
+    assert timeline.hover_marker.isVisible()
+    assert timeline.hover_marker.label.isVisible()
+    assert timeline.hover_marker.label.parentWidget() is timeline.pinned_axis
+
+    data_rect = timeline.pinned_axis.data_rect()
+    expected_x = round(data_rect.width() / 2)
+    timeline_x = round(timeline.hover_marker.get_x_pixel_for_x_value(150))
+    assert abs(expected_x - timeline_x) <= 2
+
+    timeline.hover_marker.set_cursor_time(None)
+    assert not timeline.hover_marker.isVisible()
+    assert not timeline.hover_marker.label.isVisible()
+
+    timeline.hover_marker.set_cursor_time(201)
+    assert timeline.hover_marker.cursor_time is None
+    assert not timeline.hover_marker.label.isVisible()

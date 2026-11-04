@@ -2,8 +2,17 @@ import math
 
 import pyqtgraph as pg
 from pyqtgraph.GraphicsScene.mouseEvents import MouseDragEvent
-from PySide6.QtCore import QObject, QPoint, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPaintEvent, QPolygon, QWheelEvent
+from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRect, QRectF, Qt, Signal
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QFontMetrics,
+    QPainter,
+    QPaintEvent,
+    QPen,
+    QPolygon,
+    QWheelEvent,
+)
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsEllipseItem,
@@ -67,6 +76,7 @@ class TimelinePinnedAxis(QWidget):
         self.time_axis.setHeight(self._HEIGHT)
         self.time_axis.linkToView(viewbox)
         self.axis_layout.addItem(self.time_axis, row=0, col=0)
+        self._plot_width = 0
 
         self.left_spacer = QWidget(self)
         self.left_spacer.setFixedWidth(0)
@@ -85,6 +95,10 @@ class TimelinePinnedAxis(QWidget):
         self.time_axis.set_time_frame(start, stop)
         self.time_axis.picture = None
         self.time_axis.update()
+
+    def data_rect(self) -> QRect:
+        """Return the pinned axis's plot area in this widget's coordinates."""
+        return QRect(self.left_spacer.width(), 0, self._plot_width, self.height())
 
     def sync_geometry(
         self,
@@ -106,6 +120,7 @@ class TimelinePinnedAxis(QWidget):
         header_right = header_origin + self.width()
         left_width = max(0, main_left - header_left)
         right_width = max(0, header_right - main_right)
+        self._plot_width = max(0, main_right - main_left)
         if self.left_spacer.width() != left_width:
             self.left_spacer.setFixedWidth(left_width)
         if self.right_spacer.width() != right_width:
@@ -180,6 +195,38 @@ class TimelineHorizontalScrollBar(QScrollBar):
         time_start, time_stop = self._time_frame
         start = time_start + value / self._SCALE * (time_stop - time_start)
         self.range_changed.emit(start, start + self._visible_span)
+
+
+def format_timestamp_ns(
+    timestamp_ns: int,
+    *,
+    origin_ns: int = 0,
+    always_show_hours: bool = False,
+    show_milliseconds: bool = False,
+) -> str:
+    elapsed_ns = timestamp_ns - origin_ns
+    sign = "-" if elapsed_ns < 0 else ""
+    elapsed_ns = abs(elapsed_ns)
+
+    if show_milliseconds:
+        elapsed_units = (elapsed_ns + 500_000) // 1_000_000
+        units_per_hour = 3_600_000
+        units_per_minute = 60_000
+    else:
+        elapsed_units = elapsed_ns // 1_000_000_000
+        units_per_hour = 3_600
+        units_per_minute = 60
+
+    hours, remainder = divmod(elapsed_units, units_per_hour)
+    minutes, remainder = divmod(remainder, units_per_minute)
+    seconds, remainder = divmod(remainder, 1_000 if show_milliseconds else 1)
+    time_string = f"{minutes:02}:{seconds:02}"
+    if show_milliseconds:
+        time_string += f".{remainder:03}"
+    if always_show_hours or hours:
+        time_string = f"{hours:02}:{time_string}"
+
+    return f"{sign}{time_string}"
 
 
 class ScrubbableViewBox(pg.ViewBox):  # type: ignore[misc]  # pyqtgraph does not type this base class.
@@ -349,20 +396,13 @@ class TimeAxisItem(pg.AxisItem):  # type: ignore[misc]  # pyqtgraph does not typ
                 strings.append("")
                 continue
 
-            relative_time_ns = val - self.recording_start_time_ns
-            hours = relative_time_ns // (1e9 * 60 * 60)
-            minutes = (relative_time_ns // (1e9 * 60)) % 60
-            seconds = (relative_time_ns // 1e9) % 60
-            ms = (relative_time_ns / 1e6) % 1000
-            string = f"{minutes:0>2.0f}:{seconds:0>2.0f}"
-
-            if self.interval < 1:
-                string += f".{ms:0>3.0f}"
-
-            if hours > 0:
-                string = f"{hours:0>2,.0f}:{string}"
-
-            strings.append(string)
+            strings.append(
+                format_timestamp_ns(
+                    round(val),
+                    origin_ns=self.recording_start_time_ns,
+                    show_milliseconds=self.interval < 1,
+                )
+            )
 
         return strings
 
@@ -394,10 +434,13 @@ class TimestampLabel(QLabel):
         self.setFont(font)
 
     def set_time(self, time_ns: int) -> None:
-        hours = time_ns // (1e9 * 60 * 60)
-        minutes = (time_ns // (1e9 * 60)) % 60
-        seconds = (time_ns / 1e9) % 60
-        self.setText(f"{hours:0>2,.0f}:{minutes:0>2.0f}:{seconds:0>6.3f}")
+        self.setText(
+            format_timestamp_ns(
+                time_ns,
+                always_show_hours=True,
+                show_milliseconds=True,
+            )
+        )
 
 
 class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not type this base class.
@@ -635,6 +678,139 @@ class PlayHead(PlotOverlay):
         else:
             painter.fillRect(QRectF(x - 1, 0, 3, self.height()), self.color)
 
+        painter.end()
+
+
+class TimelineHoverLabel(QWidget):
+    def __init__(
+        self,
+        parent: TimelinePinnedAxis,
+        linked_plot: pg.PlotItem,
+        time_axis: "TimeAxisItem",
+    ) -> None:
+        super().__init__(parent)
+        self.linked_plot = linked_plot
+        self.time_axis = time_axis
+        self.cursor_time: int | None = None
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.hide()
+
+    def set_cursor_time(self, cursor_time: int | None) -> None:
+        self.cursor_time = cursor_time
+        if cursor_time is None:
+            self.hide()
+        else:
+            self.show()
+        self.update()
+
+    def refresh_geometry(self) -> None:
+        pinned_axis = self.parentWidget()
+        assert isinstance(pinned_axis, TimelinePinnedAxis)
+        self.setGeometry(pinned_axis.data_rect())
+        self.update()
+
+    def paintEvent(self, _event: QPaintEvent) -> None:
+        if self.cursor_time is None:
+            return
+
+        bounds = self.rect()
+        if bounds.width() <= 0:
+            return
+
+        x_range = self.linked_plot.vb.viewRange()[0]
+        if x_range[1] <= x_range[0]:
+            return
+        x = round(
+            (self.cursor_time - x_range[0]) / (x_range[1] - x_range[0]) * bounds.width()
+        )
+        label = format_timestamp_ns(
+            self.cursor_time,
+            origin_ns=self.time_axis.recording_start_time_ns,
+            always_show_hours=True,
+            show_milliseconds=True,
+        )
+        painter = QPainter(self)
+        metrics = QFontMetrics(painter.font())
+        badge_width = min(bounds.width(), metrics.horizontalAdvance(label) + 8)
+        badge_height = min(bounds.height(), metrics.height() + 4)
+        badge_x = max(0, min(x - badge_width // 2, bounds.width() - badge_width))
+        badge_y = bounds.height() - badge_height - 2
+        badge_rect = QRect(badge_x, badge_y, badge_width, badge_height)
+        painter.fillRect(badge_rect, QColor("#666666"))
+        painter.setPen(QColor("#ffffff"))
+        painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, label)
+        painter.end()
+
+
+class TimelineHoverMarker(PlotOverlay):
+    def __init__(
+        self,
+        linked_plot: pg.PlotItem,
+        pinned_axis: TimelinePinnedAxis,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(linked_plot, parent=parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.cursor_time: int | None = None
+
+        self.time_axis = pinned_axis.time_axis
+        self.pinned_axis = pinned_axis
+        self.label = TimelineHoverLabel(pinned_axis, linked_plot, self.time_axis)
+        if not isinstance(parent, QGraphicsView):
+            raise TypeError("TimelineHoverMarker must be parented to a QGraphicsView")
+
+        self._viewport = parent.viewport()
+        self._viewport.installEventFilter(self)
+        linked_plot.vb.sigRangeChanged.connect(self._on_range_changed)
+
+    def set_cursor_time(self, time: int | None) -> None:
+        if time is not None and not (
+            self.time_axis.recording_start_time_ns
+            <= time
+            <= self.time_axis.recording_stop_time_ns
+        ):
+            time = None
+
+        self.cursor_time = time
+        self.label.set_cursor_time(time)
+        if time is None:
+            self.hide()
+        else:
+            self.label.raise_()
+            self.label.refresh_geometry()
+            self.update()
+            self.show()
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched is self._viewport and event.type() == QEvent.Type.Leave:
+            self.set_cursor_time(None)
+
+        return super().eventFilter(watched, event)
+
+    def _on_range_changed(self, *_args: object) -> None:
+        self.update()
+        self.label.refresh_geometry()
+
+    def paintEvent(self, _event: QPaintEvent) -> None:
+        if self.cursor_time is None:
+            return
+
+        x = round(self.get_x_pixel_for_x_value(self.cursor_time))
+        if self.width() <= 0:
+            return
+        x = min(max(x, 0), self.width() - 1)
+
+        painter = QPainter(self)
+        painter.setPen(
+            QPen(
+                QColor(255, 255, 255, 128),
+                1,
+                Qt.PenStyle.SolidLine,
+            )
+        )
+        painter.drawLine(x, 0, x, self.height())
         painter.end()
 
 
