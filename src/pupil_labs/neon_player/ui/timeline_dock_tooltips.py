@@ -254,7 +254,11 @@ def _get_series_hover(
     timestamp_ns: int,
     tolerance_ns: int,
 ) -> TimelineLineSeriesHover | TimelineScatterSeriesHover | None:
-    kind = "scatter" if item.opts.get("symbol") is not None else "point"
+    kind = (
+        "scatter"
+        if item.opts.get("pen") is None and item.opts.get("symbol") is not None
+        else "point"
+    )
     timestamps, values = item.getOriginalDataset()
     if timestamps is None or values is None or len(timestamps) == 0:
         return None
@@ -344,6 +348,9 @@ def _get_hovered_timeline_series(
     values: list[TimelineSeriesHover] = []
     for item in items:
         if not isinstance(item, (pg.BarGraphItem, pg.PlotDataItem)):
+            continue
+
+        if not item.isVisible():
             continue
 
         series_name = _get_item_name(item)

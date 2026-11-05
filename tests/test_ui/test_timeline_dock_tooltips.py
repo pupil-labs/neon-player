@@ -53,6 +53,31 @@ def test_get_hovered_timeline_series__line_and_scatter() -> None:
     assert _get_hovered_timeline_series([line], 211, 10) == []
 
 
+def test_get_hovered_timeline_series__symbol_with_pen_is_a_line_series() -> None:
+    series = pg.PlotDataItem(
+        [100, 200],
+        [1.0, 2.0],
+        pen=QPen(QColor("red")),
+        symbol="o",
+        name="line with symbols",
+    )
+
+    hovered = _get_hovered_timeline_series([series], 200, 0)
+
+    assert len(hovered) == 1
+    assert isinstance(hovered[0], TimelineLineSeriesHover)
+
+
+def test_get_hovered_timeline_series__ignores_hidden_items() -> None:
+    visible = pg.PlotDataItem([100], [1.0], pen=QPen(QColor("red")), name="visible")
+    hidden = pg.PlotDataItem([100], [2.0], pen=QPen(QColor("blue")), name="hidden")
+    hidden.setVisible(False)
+
+    hovered = _get_hovered_timeline_series([visible, hidden], 100, 0)
+
+    assert [series.name for series in hovered] == ["visible"]
+
+
 def test_get_hovered_timeline_series__bar_containment_and_values() -> None:
     bars = pg.BarGraphItem(
         x0=np.array([100, 300]),

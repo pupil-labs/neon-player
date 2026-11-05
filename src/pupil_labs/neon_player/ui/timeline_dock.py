@@ -178,7 +178,7 @@ class TimeLineDock(QWidget):
         )
         SlotDebouncer.debounce(
             self.scroll_area.verticalScrollBar().valueChanged,
-            self._on_vertical_scroll,
+            self._on_scroll_or_playback,
             delay=0.03,
         )
 
@@ -207,6 +207,9 @@ class TimeLineDock(QWidget):
         )
         self.timestamps_plot.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        self.timestamps_plot.getViewBox().sigXRangeChanged.connect(
+            lambda: self._on_scroll_or_playback(0)
         )
 
         self.pinned_axis = TimelinePinnedAxis(
@@ -265,7 +268,7 @@ class TimeLineDock(QWidget):
         self._tooltip_update_timer.stop()
         self.tooltip_widget.hide()
 
-    def _on_vertical_scroll(self, _value: int) -> None:
+    def _on_scroll_or_playback(self, _value: int) -> None:
         cursor_pos = QCursor.pos()
         scroll_viewport = self.scroll_area.viewport()
         scroll_area_pos = scroll_viewport.mapFromGlobal(cursor_pos)

@@ -89,8 +89,8 @@ def test_vertical_scroll_refreshes_hover_at_stationary_pointer(
     qtbot.wait(50)
 
     debounce_calls = []
-    assert timeline._on_vertical_scroll in SlotDebouncer._connections
-    debouncer = SlotDebouncer._connections[timeline._on_vertical_scroll]
+    assert timeline._on_scroll_or_playback in SlotDebouncer._connections
+    debouncer = SlotDebouncer._connections[timeline._on_scroll_or_playback]
     monkeypatch.setattr(debouncer, "slot", lambda *_args: debounce_calls.append(1))
 
     viewport = timeline.graphics_view.viewport()
@@ -103,6 +103,32 @@ def test_vertical_scroll_refreshes_hover_at_stationary_pointer(
         scrollbar.setValue(scrollbar.maximum())
 
     qtbot.waitUntil(lambda: bool(debounce_calls))
+
+
+def test_x_axis_range_change_refreshes_hover_under_stationary_cursor(
+    qtbot: QtBot, qapp: MockNeonPlayerApp, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    timeline.resize(600, 300)
+    timeline.show()
+    qtbot.waitExposed(timeline)
+
+    viewport = timeline.graphics_view.viewport()
+    cursor_pos = viewport.mapToGlobal(viewport.rect().center())
+    QCursor.setPos(cursor_pos)
+    refreshed_positions: list[QPointF] = []
+    monkeypatch.setattr(
+        timeline,
+        "on_chart_area_mouse_moved",
+        refreshed_positions.append,
+    )
+
+    timeline.timestamps_plot.setXRange(10, 20, padding=0)
+
+    assert refreshed_positions
 
 
 def test_trim_markers_preserve_timestamps_and_empty_export_window(
