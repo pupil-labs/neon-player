@@ -4,7 +4,7 @@ import numpy as np
 import pyqtgraph as pg
 import pytest
 from PySide6.QtGui import QColor, QPen
-from PySide6.QtWidgets import QLabel, QWidget
+from PySide6.QtWidgets import QLabel, QScrollArea
 
 from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
     TimelineBarSeriesHover,
@@ -154,7 +154,7 @@ def test_tooltip_callbacks_reject_mismatched_series_types(
 def test_timeline_tooltip_overlay_adopts_and_releases_custom_widget(
     qapp: MockNeonPlayerApp,
 ) -> None:
-    parent = QWidget()
+    parent = QScrollArea()
     parent.resize(300, 200)
     parent.show()
     qapp.processEvents()

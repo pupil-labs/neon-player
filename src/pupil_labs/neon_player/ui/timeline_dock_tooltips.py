@@ -9,7 +9,7 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QBrush, QColor, QPen
-from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QLabel, QScrollArea, QVBoxLayout, QWidget
 
 from pupil_labs.neon_player.ui.timeline_dock_components import format_timestamp_ns
 
@@ -370,7 +370,7 @@ class TimelineTooltipOverlay(QFrame):
 
     CURSOR_OFFSET = QPoint(14, 18)
 
-    def __init__(self, parent: QWidget) -> None:
+    def __init__(self, parent: QScrollArea) -> None:
         super().__init__(parent)
         self.setObjectName("timelineTooltip")
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -423,9 +423,9 @@ class TimelineTooltipOverlay(QFrame):
     def show_at(self, global_cursor_position: QPoint) -> None:
         self.adjustSize()
         parent = self.parentWidget()
-        if parent is None:
+        if not isinstance(parent, QScrollArea):
             return
-        available = parent.rect().adjusted(4, 4, -4, -4)
+        available = parent.viewport().rect().adjusted(4, 4, -4, -4)
         self.resize(
             min(self.width(), available.width()), min(self.height(), available.height())
         )

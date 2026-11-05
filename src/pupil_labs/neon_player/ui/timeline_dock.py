@@ -165,15 +165,6 @@ class TimeLineDock(QWidget):
         self.graphics_layout.setSpacing(0)
         self.graphics_layout.setContentsMargins(0, 0, 0, 0)
         self.graphics_view.setCentralItem(self.graphics_layout)
-        self.tooltip_widget = TimelineTooltipOverlay(self.graphics_view)
-
-        # Ensure at least 10 ms pass between successive tooltip updates
-        self._pending_tooltip_update: tuple[QPointF, int] | None = None
-        self._context_menu_open = False
-        self._tooltip_update_timer = QTimer(self)
-        self._tooltip_update_timer.setSingleShot(True)
-        self._tooltip_update_timer.setInterval(10)
-        self._tooltip_update_timer.timeout.connect(self._update_pending_tooltip)
 
         self.graphics_view.scene().sigMouseClicked.connect(self.on_chart_area_clicked)
         self.graphics_view.scene().sigMouseMoved.connect(self.on_chart_area_mouse_moved)
@@ -233,6 +224,16 @@ class TimeLineDock(QWidget):
         self.hover_marker.hide()
         self.scroll_area.installEventFilter(self)
         self.graphics_view.viewport().installEventFilter(self)
+
+        self.tooltip_widget = TimelineTooltipOverlay(self.scroll_area)
+
+        # Ensure at least 10 ms pass between successive tooltip updates
+        self._pending_tooltip_update: tuple[QPointF, int] | None = None
+        self._context_menu_open = False
+        self._tooltip_update_timer = QTimer(self)
+        self._tooltip_update_timer.setSingleShot(True)
+        self._tooltip_update_timer.setInterval(10)
+        self._tooltip_update_timer.timeout.connect(self._update_pending_tooltip)
 
         app.playback_state_changed.connect(self.on_playback_state_changed)
         app.position_changed.connect(self.on_position_changed)
