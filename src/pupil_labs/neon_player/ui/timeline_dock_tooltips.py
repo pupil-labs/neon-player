@@ -123,7 +123,7 @@ def format_value(value: float, precision: int, units: str) -> str:
 def format_duration(start_ts: int, stop_ts: int) -> str:
     duration_ms = (stop_ts - start_ts) / 1_000_000
     if duration_ms > 1_000:
-        duration = f"{duration_ms / 1_000:.2f}".rstrip(".0") + "s"
+        duration = f"{duration_ms / 1_000:.2f}".rstrip("0").rstrip(".") + "s"
     else:
         duration = f"{round(duration_ms)}ms"
 
@@ -255,7 +255,7 @@ def _get_series_hover(
     tolerance_ns: int,
 ) -> TimelineLineSeriesHover | TimelineScatterSeriesHover | None:
     kind = "scatter" if item.opts.get("symbol") is not None else "point"
-    timestamps, values = item.getData()
+    timestamps, values = item.getOriginalDataset()
     if timestamps is None or values is None or len(timestamps) == 0:
         return None
 
@@ -307,13 +307,13 @@ def _get_bar_graph_series_hover(
         value = values[index]
 
     color = None
-    brushes = getattr(item, "brushes", None)
-    if (
-        brushes is not None
-        and index < len(brushes)
-        and isinstance(brushes[index], QBrush)
-    ):
-        color = brushes[index].color()
+    brushes = item.opts.get("brushes")
+    if brushes is not None and index < len(brushes):
+        brush = brushes[index]
+        if isinstance(brush, QColor):
+            color = brush
+        if isinstance(brush, QBrush):
+            color = brush.color()
 
     return TimelineBarSeriesHover(
         value=value,

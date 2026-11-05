@@ -20,7 +20,14 @@ from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
 from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import (
     TrackedSurface,
 )
-from pupil_labs.neon_player.plugins.surface_tracking.ui import SurfaceTimelineTooltip
+from pupil_labs.neon_player.plugins.surface_tracking.ui import (
+    SurfaceTimelineTooltip,
+    marker_visibility_tooltip,
+)
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
+    TimelineBarSeriesHover,
+    TimelineTooltipContext,
+)
 from tests.mocks import mock_gaze_timeseries, mock_scene_timeseries
 
 if TYPE_CHECKING:
@@ -49,6 +56,34 @@ def test_surface_timeline_tooltip_legend_and_row_registration() -> None:
     plugin._add_legend_timeline_row("row", np.empty((0, 3)))
 
     assert isinstance(calls[0][1]["tooltip"], SurfaceTimelineTooltip)
+
+
+@pytest.mark.parametrize(
+    ("count", "expected"), [(1, "1 detected marker"), (3, "3 detected markers")]
+)
+def test_marker_visibility_tooltip_formats_marker_count(
+    count: int, expected: str
+) -> None:
+    context = TimelineTooltipContext(
+        timestamp_ns=10,
+        series=[
+            TimelineBarSeriesHover(
+                name="",
+                timestamp_ns=10,
+                index=0,
+                value=count,
+                color=None,
+                start_ts=0,
+                stop_ts=20,
+            )
+        ],
+    )
+
+    assert marker_visibility_tooltip(context) == expected
+
+
+def test_marker_visibility_tooltip_ignores_non_marker_hover() -> None:
+    assert marker_visibility_tooltip(TimelineTooltipContext(10, [])) == ""
 
 
 def mock_transform(x0: float, y0: float, w: float, h: float) -> np.ndarray:

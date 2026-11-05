@@ -265,10 +265,18 @@ class TimeLineDock(QWidget):
         self.tooltip_widget.hide()
 
     def _on_vertical_scroll(self, _value: int) -> None:
+        cursor_pos = QCursor.pos()
+        scroll_viewport = self.scroll_area.viewport()
+        scroll_area_pos = scroll_viewport.mapFromGlobal(cursor_pos)
+        if not scroll_viewport.rect().contains(scroll_area_pos):
+            return
+
         viewport = self.graphics_view.viewport()
-        viewport_pos = viewport.mapFromGlobal(QCursor.pos())
-        if viewport.rect().contains(viewport_pos):
-            self.on_chart_area_mouse_moved(self.graphics_view.mapToScene(viewport_pos))
+        viewport_pos = viewport.mapFromGlobal(cursor_pos)
+        if not viewport.rect().contains(viewport_pos):
+            return
+
+        self.on_chart_area_mouse_moved(self.graphics_view.mapToScene(viewport_pos))
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         w = self.scroll_area.viewport().width()

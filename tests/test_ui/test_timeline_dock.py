@@ -4,6 +4,7 @@ import pytest
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QEvent, QPoint, QPointF
 from PySide6.QtGui import QCursor
+from PySide6.QtWidgets import QWidget
 from pytestqt.qtbot import QtBot
 
 from pupil_labs.neon_player.settings import RecordingSettings
@@ -12,6 +13,10 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     TimelinePinnedAxis,
     TimelinePlotItem,
     TrimEndMarker,
+)
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
+    TimelineTooltipContext,
+    TimelineTooltipWidget,
 )
 from pupil_labs.neon_player.utilities import SlotDebouncer
 from tests.conftest import MockNeonPlayerApp
@@ -262,6 +267,115 @@ def test_pinned_time_axis_stays_in_place_when_timeline_scrolls(
 
     assert scrollbar.value() == scrollbar.maximum()
     assert axis_y_after == axis_y_before
+
+
+class MutableTimelineTooltip(TimelineTooltipWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self.context: TimelineTooltipContext | None = None
+
+    def update_tooltip(self, context: TimelineTooltipContext) -> None:
+        self.context = context
+
+
+def test_timeline_tooltip_callback_receives_hovered_series_and_row_context(
+    qtbot: QtBot,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    timeline.recording = mock_neon_recording(start_time=100, stop_time=300)
+    row = timeline.get_timeline_plot("Signal", create_if_missing=True)
+    assert row is not None
+    row.plot([150, 200], [1.0, 2.0], name="samples")
+    contexts: list[TimelineTooltipContext] = []
+    timeline.set_timeline_tooltip(
+        "Signal", lambda context: contexts.append(context) or "ok"
+    )
+
+    assert timeline._tooltip_content_for_hovered_row("Signal", 200) == "ok"
+    assert len(contexts) == 1
+    assert contexts[0].row_name == "Signal"
+    assert contexts[0].recording_start_time_ns == 100
+    assert contexts[0].series[0].timestamp_ns == 200
+    assert contexts[0].series[0].value == 2.0
+    assert timeline._tooltip_content_for_hovered_row("missing", 200) is None
+    assert timeline._tooltip_content_for_hovered_row("Signal", 250) is None
+
+
+def test_timeline_tooltip_custom_widget_is_updated_and_owned_by_one_row(
+    qtbot: QtBot,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    timeline.recording = mock_neon_recording(start_time=100, stop_time=300)
+    row = timeline.get_timeline_plot("Signal", create_if_missing=True)
+    assert row is not None
+    row.plot([150], [1.0], name="sample")
+    tooltip = MutableTimelineTooltip()
+    timeline.set_timeline_tooltip("Signal", tooltip)
+
+    result = timeline._tooltip_content_for_hovered_row("Signal", 150)
+
+    assert result is tooltip
+    assert tooltip.parentWidget() is timeline.tooltip_widget
+    assert tooltip.context is not None
+    assert tooltip.context.series[0].timestamp_ns == 150
+    with pytest.raises(ValueError, match="must be parentless"):
+        timeline.set_timeline_tooltip("Another row", tooltip)
+
+
+def test_timeline_tooltip_widget_must_be_parentless(
+    qtbot: QtBot, qapp: MockNeonPlayerApp, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    parent = QWidget()
+    tooltip = MutableTimelineTooltip()
+    tooltip.setParent(parent)
+
+    with pytest.raises(ValueError, match="must be parentless"):
+        timeline.set_timeline_tooltip("Signal", tooltip)
+
+    parent.close()
+
+
+def test_timeline_tooltip_callback_error_is_logged_and_ignored(
+    qtbot: QtBot,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_neon_recording: Callable[..., NeonRecording],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    timeline.recording = mock_neon_recording(start_time=100, stop_time=300)
+    row = timeline.get_timeline_plot("Signal", create_if_missing=True)
+    assert row is not None
+    row.plot([150], [1.0], name="sample")
+
+    def fail(_context: TimelineTooltipContext) -> str:
+        raise RuntimeError("tooltip failed")
+
+    timeline.set_timeline_tooltip("Signal", fail)
+
+    with caplog.at_level("ERROR"):
+        assert timeline._tooltip_content_for_hovered_row("Signal", 150) is None
+
+    assert "Timeline tooltip callback failed for Signal" in caplog.text
 
 
 def test_hover_timestamp_is_displayed_on_pinned_axis(
