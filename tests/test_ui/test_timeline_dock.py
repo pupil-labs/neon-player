@@ -122,7 +122,7 @@ def test_x_axis_range_change_refreshes_hover_under_stationary_cursor(
     refreshed_positions: list[QPointF] = []
     monkeypatch.setattr(
         timeline,
-        "on_chart_area_mouse_moved",
+        "_on_scroll_or_playback",
         refreshed_positions.append,
     )
 
