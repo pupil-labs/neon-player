@@ -1,7 +1,54 @@
 import pytest
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QWheelEvent
+from PySide6.QtWidgets import QWidget
 
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
-from pupil_labs.neon_player.ui.timeline_dock_components import TimelinePlotItem
+from pupil_labs.neon_player.ui.timeline_dock_components import (
+    TimelineHorizontalScrollBar,
+    TimelinePlotItem,
+    TimelineScrollArea,
+)
+from tests.conftest import MockNeonPlayerApp
+
+
+@pytest.mark.usefixtures("qapp")
+def test_timeline_horizontal_scrollbar__hidden_for_full_recording_view() -> None:
+    scroll_bar = TimelineHorizontalScrollBar()
+    scroll_bar.set_time_frame((100, 1100), padding=0.05)
+
+    scroll_bar.set_view_range(100, 1100)
+
+    assert not scroll_bar.isVisible()
+    assert scroll_bar.minimum() == 0
+    assert scroll_bar.maximum() > 0
+    assert scroll_bar.value() > 0
+
+
+@pytest.mark.usefixtures("qapp")
+def test_timeline_horizontal_scrollbar__tracks_view_and_scrolls_time_range() -> None:
+    scroll_bar = TimelineHorizontalScrollBar()
+    scroll_bar.set_time_frame((100, 1100), padding=0.05)
+    changed_ranges = []
+    scroll_bar.range_changed.connect(
+        lambda start, stop: changed_ranges.append((start, stop))
+    )
+
+    scroll_bar.set_view_range(200, 400)
+
+    assert scroll_bar.isVisible()
+    assert scroll_bar.minimum() == 0
+    assert scroll_bar.maximum() == 818_182
+    assert scroll_bar.pageStep() == 181_818
+    assert scroll_bar.value() == 136_364
+    assert changed_ranges == []
+
+    scroll_bar.setValue(scroll_bar.minimum())
+    assert changed_ranges[0] == pytest.approx((50, 250))
+
+    scroll_bar.setValue(scroll_bar.maximum())
+
+    assert changed_ranges[1] == pytest.approx((950, 1150))
 
 
 class DummyLegend:
@@ -119,3 +166,79 @@ def test_add_timeline_line_explicit_visibility_overrides_default() -> None:
     plot = dock.timeline_plots["hidden"]
     assert not plot.show_y_limit_labels
     assert plot.units == "mm"
+
+
+@pytest.mark.parametrize(
+    "modifiers",
+    [
+        Qt.KeyboardModifier.ShiftModifier,
+        Qt.KeyboardModifier.ControlModifier,
+        Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier,
+    ],
+)
+def test_timeline_scroll_area__modified_wheel_event_is_ignored(
+    qapp: MockNeonPlayerApp, modifiers: Qt.KeyboardModifier
+) -> None:
+    scroll_area = TimelineScrollArea()
+    content = QWidget()
+    content.setMinimumSize(100, 600)
+    scroll_area.setWidget(content)
+    scroll_area.resize(100, 100)
+    scroll_area.show()
+    qapp.processEvents()
+
+    scrollbar = scroll_area.verticalScrollBar()
+    assert scrollbar.maximum() > 0
+    starting_value = scrollbar.value()
+    event = QWheelEvent(
+        QPointF(10, 10),
+        QPointF(10, 10),
+        QPoint(),
+        QPoint(0, -120),
+        Qt.MouseButton.NoButton,
+        modifiers,
+        Qt.ScrollPhase.ScrollUpdate,
+        False,
+    )
+
+    scroll_area.wheelEvent(event)
+
+    assert scrollbar.value() == starting_value
+    assert not event.isAccepted()
+
+
+@pytest.mark.parametrize(
+    "modifiers",
+    [
+        Qt.KeyboardModifier.NoModifier,
+        Qt.KeyboardModifier.MetaModifier,
+    ],
+)
+def test_timeline_scroll_area__unhandled_modifier_wheel_event_scrolls(
+    qapp: MockNeonPlayerApp, modifiers: Qt.KeyboardModifier
+) -> None:
+    scroll_area = TimelineScrollArea()
+    content = QWidget()
+    content.setMinimumSize(100, 600)
+    scroll_area.setWidget(content)
+    scroll_area.resize(100, 100)
+    scroll_area.show()
+    qapp.processEvents()
+
+    scrollbar = scroll_area.verticalScrollBar()
+    assert scrollbar.maximum() > 0
+    event = QWheelEvent(
+        QPointF(10, 10),
+        QPointF(10, 10),
+        QPoint(),
+        QPoint(0, -120),
+        Qt.MouseButton.NoButton,
+        modifiers,
+        Qt.ScrollPhase.ScrollUpdate,
+        False,
+    )
+
+    scroll_area.wheelEvent(event)
+
+    assert scrollbar.value() > 0
+    assert event.isAccepted()

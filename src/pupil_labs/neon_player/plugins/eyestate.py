@@ -9,6 +9,7 @@ from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import default_line_tooltip
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +224,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
                     data,
                     legend_label,
                     color=color,
+                    tooltip=default_line_tooltip(units=self.units.get(group_name, "")),
                     units=self.units.get(group_name),
                 )
 

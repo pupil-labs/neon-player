@@ -21,6 +21,7 @@ from qt_property_widgets.utilities import (
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import default_broken_bar_tooltip
 from pupil_labs.neon_player.utilities import (
     cart_to_spherical,
     find_ranged_index,
@@ -99,6 +100,7 @@ class GazeDataPlugin(neon_player.Plugin):
             self.get_timeline().add_timeline_broken_bar(
                 "Worn",
                 list(zip(start_times, stop_times, strict=False)),
+                tooltip=default_broken_bar_tooltip(prefix="On"),
             )
 
         except Exception:  # noqa: BLE001
