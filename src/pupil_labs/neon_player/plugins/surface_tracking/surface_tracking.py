@@ -172,7 +172,7 @@ class SurfaceTrackingPlugin(Plugin):
         self.get_timeline().remove_timeline_plot("Marker visibility")
         for surface in self.surfaces:
             self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
-            self.get_timeline().remove_timeline_plot(f"Surface: {surface.name} Gaze")
+            self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
 
         for marker_widget in self.marker_edit_widgets.values():
             marker_widget.hide()
@@ -624,10 +624,10 @@ class SurfaceTrackingPlugin(Plugin):
         if not gaze_upon_file.exists():
             return
 
-        self.get_timeline().remove_timeline_plot(f"Surface: {surface.name} Gaze")
+        self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
         with open(gaze_upon_file, "rb") as f:
             self._add_legend_timeline_row(
-                f"Surface: {surface.name} Gaze",
+                f"Surface Gaze: {surface.name}",
                 pickle.load(f),  # noqa: S301
                 color="#73F7FF",
             )
@@ -877,7 +877,7 @@ class SurfaceTrackingPlugin(Plugin):
                     file_path.unlink()
 
             self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
-            self.get_timeline().remove_timeline_plot(f"Surface: {surface.name} Gaze")
+            self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
 
         self.changed.emit()
 
