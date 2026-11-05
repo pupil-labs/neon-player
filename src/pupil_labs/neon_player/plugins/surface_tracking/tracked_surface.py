@@ -355,7 +355,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
             timeline = self.tracker_plugin.get_timeline()
             timeline.remove_timeline_plot(f"Surface: {self._name}")
-            timeline.remove_timeline_plot(f"Surface Gaze: {self._name}")
+            timeline.remove_timeline_plot(f"Surface: {self._name} Gaze")
 
         self._name = name
 
