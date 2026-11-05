@@ -152,8 +152,8 @@ class SurfaceTrackingPlugin(Plugin):
 
     def __init__(self) -> None:
         super().__init__()
-        self.marker_cache_file = self.require_cache_path() / "markers.npy"
-        self.surface_cache_file = self.require_cache_path() / "surfaces.npy"
+        self.marker_cache_file = Path("")
+        self.surface_cache_file = Path("")
 
         self._draw_marker_ids = False
         self._draw_names = True
@@ -184,6 +184,8 @@ class SurfaceTrackingPlugin(Plugin):
 
         self._surfaces.clear()
         self.scene_size = (0, 0)
+        self.marker_cache_file = Path("")
+        self.surface_cache_file = Path("")
 
     def _update_displays(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
@@ -251,6 +253,9 @@ class SurfaceTrackingPlugin(Plugin):
             calibration.scene_camera_matrix,
             calibration.scene_distortion_coefficients,
         )
+
+        self.marker_cache_file = self.require_cache_path() / "markers.npy"
+        self.surface_cache_file = self.require_cache_path() / "surfaces.npy"
         self.attempt_marker_cache_load()
 
     def attempt_marker_cache_load(self) -> None:

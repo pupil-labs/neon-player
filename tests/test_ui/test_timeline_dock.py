@@ -13,6 +13,7 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     TimelinePlotItem,
     TrimEndMarker,
 )
+from pupil_labs.neon_player.utilities import SlotDebouncer
 from tests.conftest import MockNeonPlayerApp
 
 
@@ -82,20 +83,21 @@ def test_vertical_scroll_refreshes_hover_at_stationary_pointer(
     timeline.fix_scroll_size()
     qtbot.wait(50)
 
+    debounce_calls = []
+    assert timeline._on_vertical_scroll in SlotDebouncer._connections
+    debouncer = SlotDebouncer._connections[timeline._on_vertical_scroll]
+    monkeypatch.setattr(debouncer, "slot", lambda *_args: debounce_calls.append(1))
+
     viewport = timeline.graphics_view.viewport()
     QCursor.setPos(viewport.mapToGlobal(QPoint(20, 20)))
-    hovered_positions: list[QPointF] = []
-    monkeypatch.setattr(
-        timeline,
-        "on_chart_area_mouse_moved",
-        hovered_positions.append,
-    )
 
     scrollbar = timeline.scroll_area.verticalScrollBar()
     assert scrollbar.maximum() > 0
-    scrollbar.setValue(scrollbar.maximum())
 
-    assert hovered_positions
+    with qtbot.waitSignal(scrollbar.valueChanged):
+        scrollbar.setValue(scrollbar.maximum())
+
+    qtbot.waitUntil(lambda: bool(debounce_calls))
 
 
 def test_trim_markers_preserve_timestamps_and_empty_export_window(
