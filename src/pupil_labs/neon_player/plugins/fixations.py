@@ -1,6 +1,8 @@
 import logging
 import typing as T
-from collections.abc import Iterable
+from collections import OrderedDict
+from dataclasses import dataclass
+from heapq import heapify, heappop, heappush
 from pathlib import Path
 
 import cv2
@@ -8,9 +10,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 from pupil_labs.neon_recording import NeonRecording
-from pupil_labs.neon_recording.timeseries.av.base_av import BaseAVFrame
 from pupil_labs.neon_recording.timeseries.fixations import FixationArray
-from pupil_labs.neon_recording.timeseries.gaze import GazeRecord
 from PySide6.QtCore import QKeyCombination, QObject, QPointF, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter
 from qt_property_widgets.utilities import (
@@ -277,105 +277,10 @@ class FixationsPlugin(neon_player.Plugin):
             if recording is not None:
                 viz.on_recording_loaded(recording)
 
-    def bg_optic_flow(self) -> T.Generator[ProgressUpdate, None, None]:  # noqa: C901
+    def bg_optic_flow(self) -> T.Generator[ProgressUpdate, None, None]:
         recording = self.require_recording()
         cache_path = self.require_cache_path()
-        gaze = recording.gaze
-
-        flow_records = []
-        gray_cache: dict[int, npt.NDArray[np.uint8]] = {}
-        gray_cache_times: dict[int, int] = {}
-
-        # Use cache only for fixations below 5 s, corresponding to ~300 MB of
-        # grayscale video.
-        max_fixation_frames_to_cache = 5 * 30
-
-        for fidx, fixation in enumerate(recording.fixations):
-            stale_keys = [
-                k for k, t in gray_cache_times.items() if t < fixation.start_time
-            ]
-            for k in stale_keys:
-                del gray_cache[k]
-                del gray_cache_times[k]
-
-            gaze_samples = gaze[
-                (fixation.start_time <= gaze.time) & (gaze.time <= fixation.stop_time)
-            ]
-
-            if not gaze_samples.size:
-                continue
-
-            ref_gaze = gaze_samples[len(gaze_samples) // 2]
-
-            start_scene_idx, stop_scene_idx = np.searchsorted(
-                recording.scene.time, [fixation.start_time, fixation.stop_time + 2e9]
-            )
-            scene_frames = recording.scene[start_scene_idx:stop_scene_idx]
-
-            if len(scene_frames) == 0:
-                continue
-            use_cache = len(scene_frames) <= max_fixation_frames_to_cache
-
-            scene_frames_ts = [f.time for f in scene_frames]
-            diff = np.abs(np.array(scene_frames_ts) - ref_gaze.time)
-            if np.min(diff) > 100 * 1e6:
-                continue
-
-            idx = int(np.argmin(diff))
-            ref_frame = scene_frames[idx]
-            if ref_frame.index not in gray_cache:
-                gray_cache[ref_frame.index] = ref_frame.gray
-                gray_cache_times[ref_frame.index] = ref_frame.time
-            ref_scene_img = gray_cache[ref_frame.index]
-
-            def track_frames(
-                frame_sequence: Iterable[BaseAVFrame],
-                start_point: npt.NDArray[np.float32 | np.float64],
-                start_img: npt.NDArray[np.uint8],
-                *,
-                use_cache: bool = use_cache,
-                ref_gaze: GazeRecord = ref_gaze,
-                fidx: int = fidx,
-            ) -> None:
-                current_point = start_point
-                current_img = start_img
-
-                for frame in frame_sequence:
-                    if use_cache and frame.index not in gray_cache:
-                        gray_cache[frame.index] = frame.gray
-                        gray_cache_times[frame.index] = frame.time
-                    next_img = gray_cache.get(frame.index, frame.gray)
-                    next_point = calc_optic_flow(current_img, next_img, current_point)
-                    raw_offset = ref_gaze.point - next_point
-
-                    flow_records.append(
-                        {
-                            "fidx": fidx,
-                            "frame_idx": frame.index,
-                            "offset_x": raw_offset[0],
-                            "offset_y": raw_offset[1],
-                        }
-                    )
-
-                    current_point = next_point
-                    current_img = next_img
-
-            # Process backward to the start of the fixation
-            track_frames(reversed(scene_frames[:idx]), ref_gaze.point, ref_scene_img)
-            # Process forward through the fixation and up to the smart limit
-            track_frames(scene_frames[idx + 1 :], ref_gaze.point, ref_scene_img)
-
-            yield ProgressUpdate(fidx / len(recording.fixations))
-
-        if len(flow_records) > 0:
-            flow_array = np.array(
-                [
-                    [r["fidx"], r["frame_idx"], r["offset_x"], r["offset_y"]]
-                    for r in flow_records
-                ]
-            )
-        else:
-            flow_array = np.zeros((0, 4))
+        flow_array = yield from _OpticFlowTracker(recording).calculate()
 
         save_file = cache_path / "optic_flow_offsets.npz"
         logger.info(f"Saving optic flow offsets to {save_file}")
@@ -706,6 +611,183 @@ class ScanpathViz(FixationVisualization):
     @font_size.setter
     def font_size(self, value: int) -> None:
         self._font_size = value
+
+
+@dataclass
+class _FixationFlowPlan:
+    """Optic flow data for a single fixation.
+
+    Scene video frames with indices in [`start`, `stop`) are considered when
+    calculating the optic flow, with `reference` being the closest scene
+    frame to the reference gaze point. `rows` store the output flow data.
+    """
+
+    start: int
+    reference: int
+    stop: int
+    reference_point: npt.NDArray[np.float32]
+    rows: npt.NDArray[np.float64]
+
+    def has_frames_to_track(self, current: int, direction: int) -> bool:
+        if direction < 0:
+            return current > self.start
+
+        return current < self.stop - 1
+
+    def set_row_data(
+        self,
+        current: int,
+        frame_index: int,
+        offset: npt.NDArray[np.float32 | np.float64],
+    ) -> None:
+        direction = -1 if current < self.reference else 1
+
+        # NOTE: preserves legacy relative order of scene frames within flow data for
+        # one fixation (ref-1, ref-2, ..., start, ref+1, ref+2, ... stop)
+        row = (
+            self.reference - current - 1 if direction < 0 else current - self.start - 1
+        )
+        self.rows[row, 1] = frame_index
+        self.rows[row, 2:] = offset
+
+
+class _OpticFlowTracker:
+    def __init__(self, recording: NeonRecording, *, chunk_size: int = 32) -> None:
+        self._recording = recording
+        self._gaze = recording.gaze
+        self._scene_timestamps: npt.NDArray[np.int64] | None = None
+        self._gray_cache: OrderedDict[int, tuple[int, npt.NDArray[np.uint8]]] = (
+            OrderedDict()
+        )
+        self._chunk_size = chunk_size
+
+    def calculate(
+        self,
+    ) -> T.Generator[ProgressUpdate, None, npt.NDArray[np.float64]]:
+        fixations = self._recording.fixations
+        chunks: list[npt.NDArray[np.float64]] = []
+        last_progress = -1
+
+        # NOTE: processing fixations in batches, optical flow is calculated for
+        # each pair of frames only once per direction within the batch
+        for first in range(0, len(fixations), self._chunk_size):
+            progress = int(99 * first / len(fixations))
+            if progress > last_progress:
+                yield ProgressUpdate(progress / 100)
+                last_progress = progress
+
+            stop = min(first + self._chunk_size, len(fixations))
+            plans = []
+            for fidx in range(first, stop):
+                fixation = fixations[fidx]
+                plan = self._prepare(fidx, fixation.start_time, fixation.stop_time)
+                if plan is not None:
+                    plans.append(plan)
+
+            total_steps = sum(len(plan.rows) for plan in plans)
+            completed_steps = 0
+            for direction in (-1, 1):
+                for steps in self._track(plans, direction):
+                    completed_steps += steps
+                    fraction = completed_steps / total_steps
+                    progress = int(
+                        99 * (first + (stop - first) * fraction) / len(fixations)
+                    )
+                    if progress > last_progress:
+                        yield ProgressUpdate(progress / 100)
+                        last_progress = progress
+
+            chunks.extend(plan.rows for plan in plans)
+
+        return np.concatenate(chunks) if chunks else np.zeros((0, 4))
+
+    def _prepare(
+        self, fidx: int, start_time: np.int64, stop_time: np.int64
+    ) -> _FixationFlowPlan | None:
+        gaze_samples = self._gaze[
+            (start_time <= self._gaze.time) & (self._gaze.time <= stop_time)
+        ]
+        if not gaze_samples.size:
+            return None
+
+        ref_gaze = gaze_samples[len(gaze_samples) // 2]
+
+        if self._scene_timestamps is None:
+            self._scene_timestamps = self._recording.scene.time
+        start, stop = np.searchsorted(
+            self._scene_timestamps, [start_time, stop_time + 2e9]
+        )
+        if start == stop:
+            return None
+
+        diff = np.abs(self._scene_timestamps[start:stop] - ref_gaze.time)
+        if np.min(diff) > 100 * 1e6:
+            return None
+
+        reference = int(start + np.argmin(diff))
+        rows = np.empty((stop - start - 1, 4), dtype=np.float64)
+        rows[:, 0] = fidx
+
+        return _FixationFlowPlan(
+            int(start),
+            reference,
+            int(stop),
+            np.asarray(ref_gaze.point, dtype=np.float32),
+            rows,
+        )
+
+    def _track(self, plans: list[_FixationFlowPlan], direction: int) -> T.Iterator[int]:
+        points = np.array([plan.reference_point for plan in plans], dtype=np.float32)
+        reference_points = points.copy()
+
+        # Using a priority queue with (current frame index, fixation index) as key
+        # to traverse scene frames for all fixations within a batch in one direction
+        frontier = [
+            (direction * plan.reference, index)
+            for index, plan in enumerate(plans)
+            if plan.has_frames_to_track(plan.reference, direction)
+        ]
+        heapify(frontier)
+
+        while frontier:
+            previous, index = heappop(frontier)
+
+            # Collect all fixations which require the calculation of optical flow
+            # for the currently considered pair of frames
+            indices = [index]
+            while frontier and frontier[0][0] == previous:
+                indices.append(heappop(frontier)[1])
+
+            current = direction * previous + direction
+            _, previous_img = self._frame(direction * previous)
+            frame_index, current_img = self._frame(current)
+            next_points = calc_optic_flow(previous_img, current_img, points[indices])
+            del previous_img, current_img
+
+            offsets = reference_points[indices] - next_points
+            points[indices] = next_points
+            for index, offset in zip(indices, offsets, strict=True):
+                plan = plans[index]
+                plan.set_row_data(current, frame_index, offset)
+
+                if plan.has_frames_to_track(current, direction):
+                    heappush(frontier, (direction * current, index))
+
+            yield len(indices)
+
+    def _frame(self, index: int) -> tuple[int, npt.NDArray[np.uint8]]:
+        if index in self._gray_cache:
+            self._gray_cache.move_to_end(index)
+            return self._gray_cache[index]
+
+        if len(self._gray_cache) == 2:
+            self._gray_cache.popitem(last=False)
+
+        frame = self._recording.scene[index]
+        value = (frame.index, frame.gray)
+        self._gray_cache[index] = value
+
+        return value
 
 
 def calc_optic_flow(
