@@ -39,6 +39,8 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     ScrubbableViewBox,
     TimeAxisItem,
     TimelinePlotItem,
+    TimelineRowKey,
+    TimelineRowRole,
     TimelineTableContainer,
     TimestampLabel,
     TrimDurationMarker,
@@ -84,8 +86,8 @@ class TimeLineDock(QWidget):
         super().__init__()
         app = neon_player.instance()
 
-        self.timeline_plots: dict[str, TimelinePlotItem] = {}
-        self.timeline_legends: dict[str, pg.LegendItem] = {}
+        self.timeline_plots: dict[TimelineRowKey, TimelinePlotItem] = {}
+        self.timeline_legends: dict[TimelineRowKey, pg.LegendItem] = {}
         self.plot_colors = [
             QColor("#1f77b4"),
             QColor("#ff7f0e"),
@@ -99,7 +101,7 @@ class TimeLineDock(QWidget):
             QColor("#17becf"),
         ]
         self.data_point_actions: dict[
-            str, dict[str, T.Callable[[tuple[int, T.SupportsFloat]], object]]
+            TimelineRowKey, dict[str, T.Callable[[tuple[int, T.SupportsFloat]], object]]
         ] = {}
 
         self.main_layout = QVBoxLayout()
@@ -404,8 +406,7 @@ class TimeLineDock(QWidget):
             event.accept()
             return
 
-        row_name = clicked_plot_item.row_name
-        self.on_data_point_clicked(row_name, clicked_data_point)
+        self._show_data_point_actions(clicked_plot_item.row_key, clicked_data_point)
 
     @T.overload
     def get_timeline_plot(
@@ -431,8 +432,9 @@ class TimeLineDock(QWidget):
             plot: The created/existing plot, or `None` if the plot
                 did not exist and was not created.
         """
-        if timeline_row_name in self.timeline_plots:
-            return self.timeline_plots[timeline_row_name]
+        key = self._timeline_row_key(timeline_row_name)
+        if key in self.timeline_plots:
+            return self.timeline_plots[key]
 
         if not create_if_missing:
             return None
@@ -495,7 +497,7 @@ class TimeLineDock(QWidget):
             legend_label.anchor((0.5, 0), (0.5, 0), (0, 20))
 
         legend.layout.setSpacing(0)
-        self.timeline_legends[timeline_row_name] = legend
+        self.timeline_legends[key] = legend
 
         self.graphics_layout.addItem(legend_container, row=row, col=0)
         self.graphics_layout.addItem(plot_item, row=row, col=1)
@@ -516,7 +518,7 @@ class TimeLineDock(QWidget):
                 xMax=recording.stop_time + duration * 0.05,
             )
 
-        self.timeline_plots[timeline_row_name] = plot_item
+        self.timeline_plots[key] = plot_item
 
         if not is_timestamps_row and self.timestamps_plot:
             plot_item.setXRange(*self.timestamps_plot.viewRange()[0], padding=0)
@@ -588,7 +590,7 @@ class TimeLineDock(QWidget):
         if "pen" not in kwargs:
             kwargs["pen"] = pg.mkPen(color=color, width=2, cap="flat")
 
-        legend = self.timeline_legends[timeline_row_name]
+        legend = self.timeline_legends[self._timeline_row_key(timeline_row_name)]
         plot_data_item = plot_item.plot(data, name=plot_name, **kwargs)
         plot_data_item.name = plot_name
         if plot_name != "":
@@ -615,12 +617,15 @@ class TimeLineDock(QWidget):
             return
 
         self.graphics_layout.removeItem(plot)
-        del self.timeline_plots[plot_name]
+        key = self._timeline_row_key(plot_name)
+        del self.timeline_plots[key]
 
-        if plot_name in self.timeline_legends:
-            legend = self.timeline_legends[plot_name]
+        if key in self.timeline_legends:
+            legend = self.timeline_legends[key]
             self.graphics_layout.removeItem(legend.parentItem())
-            del self.timeline_legends[plot_name]
+            del self.timeline_legends[key]
+
+        self.data_point_actions.pop(key, None)
 
         if self.plot_sorting_enabled:
             self.sort_plots()
@@ -632,7 +637,8 @@ class TimeLineDock(QWidget):
             plot_name: Label of the row containing the series.
             series_name: Name shown for the series in the row legend.
         """
-        if plot_name not in self.timeline_plots:
+        key = self._timeline_row_key(plot_name)
+        if key not in self.timeline_plots:
             return
 
         plot = self.get_timeline_plot(plot_name)
@@ -644,22 +650,29 @@ class TimeLineDock(QWidget):
             return
 
         plot.removeItem(series)
-        if plot_name in self.timeline_legends:
-            legend = self.timeline_legends[plot_name]
+        if key in self.timeline_legends:
+            legend = self.timeline_legends[key]
             legend.removeItem(series_name)
 
         if len(plot.items) == 0:
             self.remove_timeline_plot(plot_name)
 
     def on_data_point_clicked(
-        self, timeline_name: str, data_point: tuple[int, T.SupportsFloat]
+        self,
+        timeline_name: str,
+        data_point: tuple[int, T.SupportsFloat],
     ) -> None:
-        if timeline_name not in self.data_point_actions:
+        self._show_data_point_actions(self._timeline_row_key(timeline_name), data_point)
+
+    def _show_data_point_actions(
+        self, key: TimelineRowKey, data_point: tuple[int, T.SupportsFloat]
+    ) -> None:
+        if key not in self.data_point_actions:
             return
 
         context_menu = QMenu()
 
-        for action_name, callback in self.data_point_actions[timeline_name].items():
+        for action_name, callback in self.data_point_actions[key].items():
             action = context_menu.addAction(action_name)
             action.triggered.connect(lambda _, cb=callback: cb(data_point))
 
@@ -768,8 +781,9 @@ class TimeLineDock(QWidget):
 
         plot_widget.getViewBox().autoRange(padding=0.7)
 
-        if item_name and timeline_row_name in self.timeline_legends:
-            legend = self.timeline_legends[timeline_row_name]
+        key = self._timeline_row_key(timeline_row_name)
+        if item_name and key in self.timeline_legends:
+            legend = self.timeline_legends[key]
             legend.addItem(bars, name=item_name)
 
         if self.plot_sorting_enabled:
@@ -778,7 +792,7 @@ class TimeLineDock(QWidget):
         return plot_widget
 
     def sort_plots(self) -> None:
-        items_to_move = {}
+        items_to_move: dict[TimelineRowKey, tuple[T.Any, TimelinePlotItem]] = {}
         for move_row in range(self.graphics_layout.currentRow, 1, -1):
             legend = self.graphics_layout.getItem(move_row, 0)
             plot = self.graphics_layout.getItem(move_row, 1)
@@ -786,15 +800,7 @@ class TimeLineDock(QWidget):
             if plot is None:
                 continue
 
-            if plot.has_line:
-                prefix = "30"
-            elif plot.has_bar:
-                prefix = "10"
-            else:
-                prefix = "20"
-
-            sort_key = f"{prefix}-{legend.rows[0][0].text.lower()}"
-            items_to_move[sort_key] = (legend, plot)
+            items_to_move[plot.row_key] = (legend, plot)
 
             self.graphics_layout.removeItem(legend)
             self.graphics_layout.removeItem(plot)
@@ -803,7 +809,10 @@ class TimeLineDock(QWidget):
 
         self.graphics_layout.currentRow = 1
 
-        sorted_keys = sorted(items_to_move.keys())
+        sorted_keys = sorted(
+            items_to_move,
+            key=lambda key: self._timeline_plot_sort_key(items_to_move[key][1]),
+        )
 
         for key in sorted_keys:
             legend, plot = items_to_move[key]
@@ -812,6 +821,16 @@ class TimeLineDock(QWidget):
             self.graphics_layout.addItem(plot, row=row, col=1)
 
         self.fix_scroll_size()
+
+    @staticmethod
+    def _timeline_plot_sort_key(plot: TimelinePlotItem) -> tuple[int, str]:
+        priority = 30 if plot.has_line else 10 if plot.has_bar else 20
+        return priority, plot.row_name.lower()
+
+    @staticmethod
+    def _timeline_row_key(row_name: str) -> TimelineRowKey:
+        """Resolve an ungrouped contribution to its complete internal identity."""
+        return TimelineRowKey(None, row_name, TimelineRowRole.CUSTOM)
 
     def enable_plot_sorting(self) -> None:
         """Enable plot sorting and sort plots."""
@@ -834,19 +853,21 @@ class TimeLineDock(QWidget):
         action_name: str,
         callback: T.Callable[[tuple[int, T.SupportsFloat]], object],
     ) -> None:
-        if row_name not in self.data_point_actions:
-            self.data_point_actions[row_name] = {}
+        key = self._timeline_row_key(row_name)
+        if key not in self.data_point_actions:
+            self.data_point_actions[key] = {}
 
-        self.data_point_actions[row_name][action_name] = callback
+        self.data_point_actions[key][action_name] = callback
 
     def unregister_data_point_action(self, row_name: str, action_name: str) -> None:
-        if row_name not in self.data_point_actions:
+        key = self._timeline_row_key(row_name)
+        if key not in self.data_point_actions:
             return
 
-        if action_name not in self.data_point_actions[row_name]:
+        if action_name not in self.data_point_actions[key]:
             return
 
-        del self.data_point_actions[row_name][action_name]
+        del self.data_point_actions[key][action_name]
 
     def reset_view(self) -> None:
         app = neon_player.instance()

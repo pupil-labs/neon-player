@@ -1,4 +1,6 @@
 import math
+from enum import Enum, auto
+from typing import NamedTuple
 
 import pyqtgraph as pg
 from pyqtgraph.GraphicsScene.mouseEvents import MouseDragEvent
@@ -18,6 +20,22 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs.neon_player.ui import GUIEventNotifier
+
+
+class TimelineRowRole(Enum):
+    """Internal row purpose, independent of its scope and displayed name."""
+
+    HEADER = auto()
+    SEARCH = auto()
+    CUSTOM = auto()
+
+
+class TimelineRowKey(NamedTuple):
+    """Internal identity shared by timeline plots, legends, and point actions."""
+
+    group_name: str | None
+    row_name: str
+    role: TimelineRowRole
 
 
 class ScrubbableViewBox(pg.ViewBox):  # type: ignore[misc]  # pyqtgraph does not type this base class.
@@ -250,13 +268,17 @@ class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not
 
         self.setDownsampling(auto=True, mode="subsample")
         self.legend_handle = legend
-        self.row_name = row_name
+        self.row_key = TimelineRowKey(None, row_name, TimelineRowRole.CUSTOM)
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         self.preferred_height_1d = 25
         self.preferred_height_2d = 150
         self.adjust_size()
+
+    @property
+    def row_name(self) -> str:
+        return self.row_key.row_name
 
     def addItem(self, *args: object, **kwargs: object) -> None:
         super().addItem(*args, **kwargs)
