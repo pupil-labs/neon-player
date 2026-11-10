@@ -142,6 +142,22 @@ def parse_channel_names(info: dict[str, Any]) -> list[str]:
     return channel_names
 
 
+def parse_channel_units(info: dict[str, Any]) -> list[str]:
+    """Parse optional channel units from XDF channel metadata."""
+    desc = first(info, "desc", {})
+    channels = first(desc, "channels", {})
+    ch_list = channels.get("channel", [])
+    if not ch_list:
+        return []
+
+    units = []
+    for channel in ch_list:
+        unit = first(channel, "unit", None)
+        unit = str(unit).strip() if unit is not None else ""
+        units.append(unit)
+    return units
+
+
 def fallback_channel_names(channel_count: int) -> list[str]:
     return [f"Ch{i + 1}" for i in range(max(0, channel_count))]
 
@@ -315,6 +331,7 @@ class DataXDFStream(XDFStream):
         self.data: XDFNumericArray | None = None
         self.timestamps: npt.NDArray[np.float64] | None = None
         self._channel_names: list[str] = []
+        self._channel_units: list[str] = []
         self._loaded = False
 
     @property
@@ -324,6 +341,15 @@ class DataXDFStream(XDFStream):
     @channel_names.setter
     def channel_names(self, value: list[str]) -> None:
         self._channel_names = value
+
+    @property
+    @property_params(widget=None)
+    def channel_units(self) -> list[str]:
+        return self._channel_units
+
+    @channel_units.setter
+    def channel_units(self, value: list[str]) -> None:
+        self._channel_units = value
 
     def load_data(self, data_cache_file: Path) -> None:
         if not data_cache_file.exists():
@@ -354,6 +380,7 @@ class DataXDFStream(XDFStream):
         stream.parse_info(info)
         stream.data, stream.timestamps = parse_stream_data(xdf_dict)
         stream.channel_names = parse_channel_names(info)
+        stream.channel_units = parse_channel_units(info)
 
         if stream.data is None or stream.timestamps is None:
             stream._loaded = True
@@ -379,13 +406,21 @@ class DataXDFStream(XDFStream):
                 f"contain duplicates: {stream.channel_names}"
             )
 
+        if len(stream.channel_units) != len(stream.channel_names):
+            stream.channel_units = [""] * len(stream.channel_names)
+
         stream._loaded = True
         return stream
 
 
 class XDFPlugin(Plugin):
     label = "XDF Stream"
-    _XDF_CACHE_VERSION = 4
+    _XDF_CACHE_VERSION = 5
+    """
+    Cache version history:
+        4 - initial release
+        5 - added channel units to display them in the timeline
+    """
     streams_changed = Signal()
     sync_events_changed = Signal()
 
