@@ -187,6 +187,9 @@ class UpdateManager(QObject):
                 logger.warning("Ignoring invalid cached release note: %s", path)
                 continue
 
+            if version_tag > app_version():
+                continue
+
             try:
                 notes = path.read_text(encoding="utf-8")
                 self._release_notes[version_tag] = _process_release_notes(notes)

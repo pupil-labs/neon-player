@@ -107,7 +107,7 @@ class NeonPlayerApp(QApplication):
         super().__init__(argv)
 
         self.setApplicationName("Neon Player")
-        self.setApplicationVersion(app_version().base_version)
+        self.setApplicationVersion(str(app_version()))
         self.setWindowIcon(QIcon(str(neon_player.asset_path("neon-player.svg"))))
         self.setStyle("Fusion")
 
@@ -467,7 +467,8 @@ class NeonPlayerApp(QApplication):
 
     def on_quit(self) -> None:
         self.unload()
-        self.update_manager.close()
+        if not self.headless:
+            self.update_manager.close()
 
     def unload(self) -> None:
         self.set_playback_state(False)
