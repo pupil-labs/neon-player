@@ -25,17 +25,20 @@ def release_notes_path() -> Path:
 
 
 def _process_release_notes(notes: str) -> str:
+    """Minor formatting adjustments to the downloaded release notes."""
     lines = notes.splitlines()
     if lines and "what's changed" in lines[0].lower():
         lines = lines[1:]
 
+    # NOTE: replacing * with - for bullet points makes them displayed at
+    # level 1 instead of level 2
     notes = re.sub(r"(?m)^([ \t]*)\*(?=[ \t])", r"\1-", "\n".join(lines))
     return notes.lstrip("\n")
 
 
 def app_version() -> version.Version:
     try:
-        v = version.parse(get_version("pupil-labs-neon-player"))
+        v = version.parse(get_version("pupil_labs.neon_player"))
     except (PackageNotFoundError, version.InvalidVersion):
         v = version.parse("0.0.0")
 

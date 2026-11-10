@@ -770,7 +770,7 @@ class NeonPlayerApp(QApplication):
         self.main_window.timeline.set_export_window(export_window)
 
     def update_read_release_notes(self) -> None:
-        self.settings.last_read_release_notes_version = self.applicationVersion()
+        self.settings.last_read_release_notes_version = app_version().base_version
 
     def _setup_frozen(self) -> None:
         if not is_frozen():
