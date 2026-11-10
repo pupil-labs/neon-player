@@ -199,7 +199,9 @@ class NeonPlayerApp(QApplication):
             logger.exception("Failed to load recording history")
         self.recording_history.changed.connect(self.save_history)
 
-        self._initialize_updates()
+        if not self.headless:
+            self.update_manager = UpdateManager(parent=self)
+            self._initialize_updates()
 
         if self.args.job and self.args.recording:
             self.load(Path(self.args.recording))
@@ -212,18 +214,19 @@ class NeonPlayerApp(QApplication):
         self.aboutToQuit.connect(self.on_quit)
 
     def _initialize_updates(self) -> None:
-        self.update_manager = UpdateManager(parent=self)
         self.update_manager.update_available.connect(
             self.main_window.on_update_available
         )
         self.update_manager.notes_available.connect(self.main_window.show_release_notes)
-        if not self.headless:
-            self.update_manager.load_release_notes()
-            self.update_manager.check_unread_release_notes(
-                self.settings.last_read_release_notes_version
-            )
-        if self.settings.check_for_updates and not self.headless:
-            QTimer.singleShot(0, self.update_manager.check_for_updates)
+        self.update_manager.load_release_notes()
+
+        if not self.settings.check_for_updates:
+            return
+
+        self.update_manager.check_unread_release_notes(
+            self.settings.last_read_release_notes_version
+        )
+        QTimer.singleShot(0, self.update_manager.check_for_updates)
 
     def run_jobs(self, job: list[str]) -> None:
         plugin_name, action_name = job[0].split(".")

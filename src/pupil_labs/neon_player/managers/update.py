@@ -123,10 +123,12 @@ class UpdateManager(QObject):
     def __init__(self, parent: "NeonPlayerApp") -> None:
         super().__init__(parent)
         self.app = parent
+
         self._release_notes: dict[version.Version, str] = {}
-        self._release_notes_thread: LoadReleaseNotesThread | None = None
         self._loading_release_notes = False
+        self._release_notes_thread: LoadReleaseNotesThread | None = None
         self._pending_read_version: str | None = None
+
         self._update_thread = CheckUpdateThread(
             self.app.settings.last_displayed_update_version
         )
