@@ -7,7 +7,7 @@ import pytest
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QCoreApplication, QEvent, QPointF, Qt
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QMenu
+from PySide6.QtWidgets import QGraphicsProxyWidget, QLineEdit, QMenu, QToolButton
 from pytestqt.qtbot import QtBot
 from shiboken6 import isValid
 
@@ -596,3 +596,329 @@ def test_grouped_rows_follow_the_shared_time_axis_and_clean_child_membership(
     timeline.remove_timeline_plot("Child", group=group.name)
     assert not group.child_row_names
     assert timeline.get_timeline_group(group.name) is group
+
+
+def test_searchable_declaration_filters_only_custom_children(
+    timeline: TimeLineDock, qtbot: QtBot
+) -> None:
+    group = timeline.add_timeline_group("Group", searchable=True)
+    plain = timeline.add_timeline_group("Plain")
+    assert group.searchable
+    assert not plain.searchable
+    names = ["Search", "", "Group", "Trial Begin", "trial end"]
+    plots = {
+        name: timeline.get_timeline_plot(name, True, group=group) for name in names
+    }
+    global_plot = timeline.get_timeline_plot("Global", True)
+    other = timeline.get_timeline_plot("Other", True, group=plain)
+    timeline.sort_plots()
+    fields = search_fields(timeline)
+    assert len(fields) == 1
+    field = fields[0]
+    assert field.placeholderText() == "Search"
+    assert field.isClearButtonEnabled()
+    assert "Group" in field.accessibleName()
+    qtbot.keyClicks(field, "BEGIN")
+    assert [name for name, plot in plots.items() if plot.isVisible()] == ["Trial Begin"]
+    assert global_plot.isVisible()
+    assert other.isVisible()
+    search_key = TimelineRowKey("Group", "Search", TimelineRowRole.SEARCH)
+    search = timeline.timeline_plots[search_key]
+    assert search.items == []
+    assert search.isVisible()
+    assert group.child_row_names == set(names)
+    timeline.timeline_group_controls[group.name].click()
+    assert not search.isVisible()
+    field.clear()
+    assert not any(plot.isVisible() for plot in plots.values())
+    timeline.timeline_group_controls[group.name].click()
+    assert all(plot.isVisible() for plot in plots.values())
+    field.setText(" ")
+    assert [name for name, plot in plots.items() if plot.isVisible()] == [
+        "Trial Begin",
+        "trial end",
+    ]
+
+
+def search_fields(timeline: TimeLineDock) -> list[QLineEdit]:
+    return [
+        field
+        for item in timeline.graphics_view.scene().items()
+        if isinstance(item, QGraphicsProxyWidget) and item.widget() is not None
+        for field in item.widget().findChildren(QLineEdit)
+    ]
+
+
+def test_search_updates_new_rows_and_preserves_data_on_refresh(
+    timeline: TimeLineDock,
+    qtbot: QtBot,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        qapp, "recording", SimpleNamespace(start_time=0, stop_time=1000)
+    )
+    group = timeline.add_timeline_group("Trials", searchable=True)
+    timeline.resize(1000, 500)
+    timeline.show()
+    timeline.activateWindow()
+    QCoreApplication.processEvents()
+    field = search_fields(timeline)[0]
+    proxy = field.parentWidget().graphicsProxyWidget()
+    qtbot.mouseClick(
+        timeline.graphics_view.viewport(),
+        Qt.MouseButton.LeftButton,
+        pos=timeline.graphics_view.mapFromScene(
+            proxy.mapToScene(QPointF(field.geometry().center()))
+        ),
+    )
+    qtbot.keyClicks(field, "begin")
+    plot = timeline.add_timeline_scatter(
+        "Begin", np.array([[100, 1]]), "First", group=group
+    )
+    assert plot is not None
+    assert plot.isVisible()
+    series = timeline.get_timeline_series("Begin", "First", group=group)
+    timeline.add_timeline_scatter("End", np.array([[200, 2]]), group=group)
+    timeline.add_timeline_scatter("Begin", np.array([[300, 3]]), "Second", group=group)
+    assert field.text() == "begin"
+    assert search_fields(timeline) == [field]
+    assert timeline.get_timeline_series("Begin", "First", group=group) is series
+    assert list(series.getOriginalDataset()[0]) == [100]
+    assert not timeline.get_timeline_plot("End", group=group).isVisible()
+    field.setText("nothing matches")
+    assert not plot.isVisible()
+    search_key = TimelineRowKey("Trials", "Search", TimelineRowRole.SEARCH)
+    assert timeline.timeline_plots[search_key].isVisible()
+    timeline.remove_timeline_plot("Begin", group=group)
+    assert not timeline.get_timeline_plot("", True, group=group).isVisible()
+    field.clear()
+    assert timeline.get_timeline_plot("", group=group).isVisible()
+
+
+def test_search_controls_cannot_retarget_recreated_groups(
+    timeline: TimeLineDock,
+) -> None:
+    old = timeline.add_timeline_group("Group", searchable=True)
+    old_field = search_fields(timeline)[0]
+    timeline.remove_timeline_group(old)
+    fresh = timeline.add_timeline_group("Group", searchable=True)
+    plot = timeline.get_timeline_plot("Child", True, group=fresh)
+    old_field.setText("no match")
+    assert plot.isVisible()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert not isValid(old_field)
+    assert len(search_fields(timeline)) == 1
+    assert search_fields(timeline)[0].text() == ""
+
+
+@pytest.mark.parametrize("target", ["bar", "field", "proxy"])
+def test_unexpected_search_destruction_restores_fresh_control(
+    timeline: TimeLineDock, qtbot: QtBot, target: str
+) -> None:
+    group = timeline.add_timeline_group("Group", searchable=True)
+    plot = timeline.get_timeline_plot("Child", True, group=group)
+    field = search_fields(timeline)[0]
+    field.setText("missing")
+    bar = field.parentWidget()
+    if target == "field":
+        field.deleteLater()
+    elif target == "proxy":
+        bar.graphicsProxyWidget().deleteLater()
+    else:
+        bar.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    qtbot.waitUntil(lambda: len(search_fields(timeline)) == 1)
+    fresh = search_fields(timeline)[0]
+    assert fresh is not field
+    assert fresh.text() == ""
+    assert plot.isVisible()
+
+
+def test_pending_search_restoration_cannot_touch_replacement_group(
+    timeline: TimeLineDock,
+) -> None:
+    group = timeline.add_timeline_group("Group", searchable=True)
+    field = search_fields(timeline)[0]
+    field.parentWidget().deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    timeline.remove_timeline_group(group)
+    fresh = timeline.add_timeline_group("Group", searchable=True)
+    replacement = search_fields(timeline)[0]
+    replacement.setText("Child")
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    QCoreApplication.processEvents()
+    assert timeline.get_timeline_group("Group") is fresh
+    assert search_fields(timeline) == [replacement]
+    assert replacement.text() == "Child"
+
+
+def test_search_editing_blocks_shortcuts(timeline: TimeLineDock, qtbot: QtBot) -> None:
+    timeline.add_timeline_group("Group", searchable=True)
+    timeline.resize(1000, 500)
+    timeline.show()
+    timeline.activateWindow()
+    QCoreApplication.processEvents()
+    shortcuts = Mock()
+    for shortcut in ("Space", "Right", "Left", "Shift+Right", "Shift+Left"):
+        action = QAction(timeline)
+        action.setShortcut(shortcut)
+        action.triggered.connect(shortcuts)
+        timeline.addAction(action)
+    forwarded = Mock()
+    timeline.key_pressed.connect(forwarded)
+    field = search_fields(timeline)[0]
+    qtbot.mouseClick(field, Qt.MouseButton.LeftButton)
+    qtbot.keyClicks(field, "trial")
+    qtbot.keyClick(field, Qt.Key.Key_Space)
+    assert field.text() == "trial "
+    qtbot.keyClick(field, Qt.Key.Key_Left)
+    qtbot.keyClick(field, Qt.Key.Key_Left, Qt.KeyboardModifier.ShiftModifier)
+    assert field.selectedText() == "l"
+    qtbot.keyClick(field, Qt.Key.Key_Right)
+    qtbot.keyClick(field, Qt.Key.Key_Right, Qt.KeyboardModifier.ShiftModifier)
+    assert field.selectedText() == " "
+    shortcuts.assert_not_called()
+    forwarded.assert_not_called()
+
+
+def test_unload_disposes_search_and_reload_restores_surviving_declaration(
+    timeline: TimeLineDock,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
+    group = timeline.add_timeline_group("Group", searchable=True)
+    plot = timeline.get_timeline_plot("Child", True, group=group)
+    field = search_fields(timeline)[0]
+    field.setText("missing")
+    timeline.timeline_group_controls[group.name].click()
+    timeline.on_recording_unloaded()
+    # Even before Qt deletes the detached field, its signals are inert.
+    field.setText("Child")
+    recording = mock_neon_recording(start_time=100, stop_time=200)
+    monkeypatch.setattr(qapp, "recording", recording)
+    monkeypatch.setattr(qapp, "recording_settings", RecordingSettings())
+    timeline.on_recording_loaded(recording)
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert not isValid(field)
+    fresh = search_fields(timeline)[0]
+    assert fresh.text() == ""
+    assert group.collapsed
+    assert not plot.isVisible()
+    timeline.timeline_group_controls[group.name].click()
+    assert plot.isVisible()
+    assert timeline.get_timeline_group("Group") is group
+
+
+def test_search_rows_sort_before_children_and_keep_independent_queries(
+    timeline: TimeLineDock,
+) -> None:
+    beta = timeline.add_timeline_group("Beta", searchable=True)
+    alpha = timeline.add_timeline_group("Alpha", searchable=True)
+    beta_plot = timeline.get_timeline_plot("Child", True, group=beta)
+    alpha_plot = timeline.get_timeline_plot("Child", True, group=alpha)
+    fields = {field.accessibleName(): field for field in search_fields(timeline)}
+    fields["Search Alpha"].setText("missing")
+    timeline.sort_plots()
+    keys = [
+        timeline.graphics_layout.getItem(row, 2).row_key
+        for row in sorted(timeline.graphics_layout.rows)
+        if timeline.graphics_layout.getItem(row, 2) is not None
+    ]
+    assert [(key.group_name, key.role) for key in keys[1:]] == [
+        ("Alpha", TimelineRowRole.HEADER),
+        ("Alpha", TimelineRowRole.SEARCH),
+        ("Alpha", TimelineRowRole.CUSTOM),
+        ("Beta", TimelineRowRole.HEADER),
+        ("Beta", TimelineRowRole.SEARCH),
+        ("Beta", TimelineRowRole.CUSTOM),
+    ]
+    assert not alpha_plot.isVisible()
+    assert beta_plot.isVisible()
+    fields["Search Beta"].setText("Child")
+    assert fields["Search Alpha"].text() == "missing"
+
+
+def test_search_height_tracks_font_and_clear_button_restores_rows(
+    timeline: TimeLineDock, qtbot: QtBot
+) -> None:
+    group = timeline.add_timeline_group("Group", searchable=True)
+    plot = timeline.get_timeline_plot("Child", True, group=group)
+    timeline.sort_plots()
+    timeline.resize(1000, 500)
+    timeline.show()
+    timeline.activateWindow()
+    QCoreApplication.processEvents()
+    field = search_fields(timeline)[0]
+    search_key = TimelineRowKey("Group", "Search", TimelineRowRole.SEARCH)
+    search_plot = timeline.timeline_plots[search_key]
+    font = field.font()
+    font.setPointSize(30)
+    field.setFont(font)
+    qtbot.waitUntil(lambda: search_plot.height() >= field.sizeHint().height())
+    host = timeline.timeline_legends[search_key].parentItem()
+    assert host.height() == search_plot.height()
+    assert timeline.graphics_view.height() >= 100 + search_plot.height()
+    qtbot.keyClicks(field, "missing")
+    assert not plot.isVisible()
+    QCoreApplication.processEvents()
+    clear = field.findChild(QToolButton)
+    assert clear is not None
+    qtbot.mouseClick(clear, Qt.MouseButton.LeftButton)
+    assert field.text() == ""
+    assert plot.isVisible()
+
+
+def test_empty_search_plot_keeps_shared_axis_and_mouse_seek(
+    timeline: TimeLineDock,
+    qtbot: QtBot,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        qapp, "recording", SimpleNamespace(start_time=0, stop_time=1000)
+    )
+    seek = Mock()
+    monkeypatch.setattr(qapp, "seek_to", seek)
+    timeline.add_timeline_group("Group", searchable=True)
+    search = timeline.timeline_plots[
+        TimelineRowKey("Group", "Search", TimelineRowRole.SEARCH)
+    ]
+    timeline.resize(1000, 500)
+    timeline.show()
+    timeline.activateWindow()
+    QCoreApplication.processEvents()
+    timeline.timestamps_plot.setXRange(100, 500, padding=0)
+    qtbot.waitUntil(lambda: search.viewRange()[0] == pytest.approx([100, 500]))
+    scene_position = search.getViewBox().mapViewToScene(QPointF(300, 0))
+    qtbot.mouseClick(
+        timeline.graphics_view.viewport(),
+        Qt.MouseButton.LeftButton,
+        pos=timeline.graphics_view.mapFromScene(scene_position),
+    )
+    assert search.items == []
+    assert seek.call_count >= 1
+    assert seek.call_args.args[0] == pytest.approx(300, abs=2)
+
+
+def test_removing_a_series_shrinks_row_and_scroll_height(
+    timeline: TimeLineDock,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        qapp, "recording", SimpleNamespace(start_time=0, stop_time=1000)
+    )
+    group = timeline.add_timeline_group("Group", searchable=True)
+    field = search_fields(timeline)[0]
+    data = np.array([[100, 1], [200, 2]])
+    plot = timeline.add_timeline_scatter("Child", data, "First", group=group)
+    timeline.add_timeline_scatter("Child", data, "Second", group=group)
+    old_height = plot.preferredHeight()
+    old_scroll_height = timeline.graphics_view.height()
+    timeline.remove_timeline_series("Child", "Second", group=group)
+    assert plot.preferredHeight() < old_height
+    assert timeline.graphics_view.height() < old_scroll_height
+    assert search_fields(timeline) == [field]
+    assert timeline.get_timeline_series("Child", "First", group=group) is not None

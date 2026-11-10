@@ -42,7 +42,9 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     TimeAxisItem,
     TimelinePlotGroup,
     TimelinePlotGroupControl,
+    TimelinePlotGroupSearchBar,
     TimelinePlotItem,
+    TimelinePlotLabelHost,
     TimelineRowKey,
     TimelineRowRole,
     TimelineTableContainer,
@@ -96,6 +98,7 @@ class TimeLineDock(QWidget):
         self.timeline_group_control_proxies: dict[str, QGraphicsProxyWidget] = {}
         self.hidden_timeline_rows: set[TimelineRowKey] = set()
         self.timeline_legends: dict[TimelineRowKey, pg.LegendItem] = {}
+        self._searchbars: dict[str, TimelinePlotGroupSearchBar] = {}
         self.plot_colors = [
             QColor("#1f77b4"),
             QColor("#ff7f0e"),
@@ -202,7 +205,7 @@ class TimeLineDock(QWidget):
         self.plot_sorting_enabled = True
 
     def add_timeline_group(
-        self, name: str, *, collapsed: bool = False
+        self, name: str, *, collapsed: bool = False, searchable: bool = False
     ) -> TimelinePlotGroup:
         """Create a flat group whose main row displays the group name.
 
@@ -210,6 +213,7 @@ class TimeLineDock(QWidget):
             name: Name shared by the group and its main row. It must be unique
                 among groups and ungrouped rows. Child rows may use the same name.
             collapsed: Whether to initially hide the group's children.
+            searchable: Show a search field that allows filtering child rows by name.
 
         Returns:
             The registered group handle.
@@ -222,11 +226,13 @@ class TimeLineDock(QWidget):
             or self._timeline_row_key(name) in self.timeline_plots
         ):
             raise ValueError(f"Global timeline name '{name}' already exists")
-        group = TimelinePlotGroup(name, collapsed=collapsed)
+        group = TimelinePlotGroup(name, collapsed=collapsed, searchable=searchable)
         self.timeline_groups[name] = group
         key = TimelineRowKey(name, name, TimelineRowRole.HEADER)
         self._get_timeline_plot_by_key(key, True)
         self._create_timeline_group_control(group)
+        if group.searchable:
+            self._create_timeline_search(group)
         if self.plot_sorting_enabled:
             self.sort_plots()
         return group
@@ -239,6 +245,7 @@ class TimeLineDock(QWidget):
         """Remove a group's main row, children, point actions, and expander."""
         resolved = self._resolve_timeline_group(group)
         assert resolved is not None
+        self._dispose_timeline_search(resolved)
         for key in list(self.timeline_plots):
             if key.group_name == resolved.name:
                 self._remove_timeline_plot_by_key(key)
@@ -279,14 +286,70 @@ class TimeLineDock(QWidget):
         resolved = self._resolve_timeline_group(group)
         assert resolved is not None
         resolved._collapsed = not resolved.collapsed
-        for key in self.timeline_plots:
-            if (
-                key.group_name == resolved.name
-                and key.role is not TimelineRowRole.HEADER
-            ):
-                self._set_timeline_row_visible(key, not resolved.collapsed)
+        self._apply_group_visibility(resolved)
         self.timeline_group_controls[resolved.name].set_collapsed(resolved.collapsed)
         self._refresh_timeline_layout()
+
+    def _create_timeline_search(self, group: TimelinePlotGroup) -> None:
+        key = TimelineRowKey(group.name, "Search", TimelineRowRole.SEARCH)
+        plot = self._get_timeline_plot_by_key(key, True)
+        assert plot is not None
+        container = self.timeline_legends[key].parentItem()
+        assert isinstance(container, TimelinePlotLabelHost)
+        search = TimelinePlotGroupSearchBar(group.name)
+        container._set_title_widget(search)
+        self._searchbars[group.name] = search
+        container.content_lost.connect(
+            partial(self._restore_timeline_search, group, search)
+        )
+        search.field.textChanged.connect(
+            partial(self._on_search_changed, group, search)
+        )
+        plot.preferred_height_1d = max(25, search.sizeHint().height())
+        plot.adjust_size()
+        self._apply_group_visibility(group)
+
+    def _restore_timeline_search(
+        self, group: TimelinePlotGroup, search: TimelinePlotGroupSearchBar
+    ) -> None:
+        if (
+            self.timeline_groups.get(group.name) is group
+            and self._searchbars.get(group.name) is search
+        ):
+            self._dispose_timeline_search(group)
+            self._create_timeline_search(group)
+            self.sort_plots()
+
+    def _dispose_timeline_search(self, group: TimelinePlotGroup) -> None:
+        self._searchbars.pop(group.name, None)
+        group._query = ""
+        self._remove_timeline_plot_by_key(
+            TimelineRowKey(group.name, "Search", TimelineRowRole.SEARCH)
+        )
+
+    def _on_search_changed(
+        self, group: TimelinePlotGroup, search: TimelinePlotGroupSearchBar, text: str
+    ) -> None:
+        if (
+            self.timeline_groups.get(group.name) is not group
+            or self._searchbars.get(group.name) is not search
+        ):
+            return
+        group._query = text.lower()
+        self._apply_group_visibility(group)
+        self._refresh_timeline_layout()
+
+    def _apply_group_visibility(self, group: TimelinePlotGroup) -> None:
+        for key in self.timeline_plots:
+            if key.group_name == group.name:
+                visible = key.role is TimelineRowRole.HEADER or (
+                    not group.collapsed
+                    and (
+                        key.role is TimelineRowRole.SEARCH
+                        or group._query in key.row_name.lower()
+                    )
+                )
+                self._set_timeline_row_visible(key, visible)
 
     def _set_timeline_row_visible(self, key: TimelineRowKey, visible: bool) -> None:
         self.timeline_plots[key].setVisible(visible)
@@ -316,6 +379,11 @@ class TimeLineDock(QWidget):
     def on_recording_loaded(self, recording: nr.NeonRecording) -> None:
         app = neon_player.instance()
 
+        for group in self.timeline_groups.values():
+            if group.searchable and group.name not in self._searchbars:
+                self._create_timeline_search(group)
+        self.sort_plots()
+
         self.playhead.show()
         for plot_item in self.timeline_plots.values():
             plot_item.setXRange(recording.start_time, recording.stop_time, padding=0)
@@ -338,6 +406,11 @@ class TimeLineDock(QWidget):
             trim_plot.addItem(tm)
 
     def on_recording_unloaded(self) -> None:
+        for group in self.timeline_groups.values():
+            if group.searchable:
+                self._dispose_timeline_search(group)
+                self._apply_group_visibility(group)
+        self._refresh_timeline_layout()
         trim_plot = self.get_timeline_plot("Export window", create_if_missing=False)
         if trim_plot is not None:
             trim_plot.clear()
@@ -598,22 +671,13 @@ class TimeLineDock(QWidget):
         vb.zoomed.connect(self.graphics_view_container.repaint)
 
         legend = FixedLegend()
-        legend.layout.setContentsMargins(0, 0, 0, 50)
+        legend.layout.setContentsMargins(0, 0, 0, 0)
         legend.layout.setSizePolicy(
             QSizePolicy.Policy.Ignored,
             QSizePolicy.Policy.Minimum,
         )
-        legend_container = pg.GraphicsLayout()
-        legend_container.setSpacing(0)
-        legend_container.setContentsMargins(0, 0, 0, 0)
-        legend_label = pg.LabelItem(timeline_row_name, justify="left")
-
-        legend_container.addItem(legend_label)
-        legend_container.addItem(legend, row=1, col=0)
-        legend_container.setSizePolicy(
-            QSizePolicy.Policy.Ignored,
-            QSizePolicy.Policy.Fixed,
-        )
+        legend_container = TimelinePlotLabelHost(timeline_row_name, legend)
+        legend_label = legend_container.title
         plot_item = TimelinePlotItem(
             legend=legend,
             row_name=timeline_row_name,
@@ -622,6 +686,8 @@ class TimeLineDock(QWidget):
         )
 
         plot_item.row_key = key
+        legend_container.size_hint_changed.connect(plot_item.adjust_size)
+        legend_container.size_hint_changed.connect(self._refresh_timeline_layout)
 
         if is_timestamps_row:
             plot_item.preferred_height_1d = 50
@@ -665,7 +731,7 @@ class TimeLineDock(QWidget):
 
         row_group = self.timeline_groups[key.group_name]
         row_group._child_row_names.add(key.row_name)
-        if row_group.collapsed:
+        if row_group.collapsed or row_group._query not in key.row_name.lower():
             self._set_timeline_row_visible(key, False)
             self._refresh_timeline_layout()
 
@@ -748,6 +814,7 @@ class TimeLineDock(QWidget):
         plot_data_item.name = plot_name
         if plot_name != "":
             legend.addItem(plot_data_item, plot_name)
+        plot_item.adjust_size()
 
         if self.plot_sorting_enabled:
             self.sort_plots()
@@ -826,6 +893,9 @@ class TimeLineDock(QWidget):
 
         if len(plot.items) == 0:
             self.remove_timeline_plot(plot_name, group=group)
+        else:
+            plot.adjust_size()
+            self._refresh_timeline_layout()
 
     def on_data_point_clicked(
         self,
@@ -994,7 +1064,6 @@ class TimeLineDock(QWidget):
                 if item is not None:
                     self.graphics_layout.removeItem(item)
             del self.graphics_layout.rows[row]
-
         blocks: list[
             tuple[tuple[int, str, str], list[tuple[T.Any, T.Any, TimelinePlotItem]]]
         ] = []
@@ -1014,6 +1083,7 @@ class TimeLineDock(QWidget):
         self.graphics_layout.currentRow = 1
         for _, block in sorted(blocks, key=lambda entry: entry[0]):
             for control, legend, plot in block:
+                plot.adjust_size()
                 row = self.graphics_layout.nextRow()
                 if control is not None:
                     self.graphics_layout.addItem(control, row=row, col=0)

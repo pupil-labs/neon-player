@@ -276,7 +276,7 @@ class EventsPlugin(neon_player.Plugin):
         timeline = self.get_timeline()
         group = timeline.get_timeline_group("Events")
         if group is None:
-            group = timeline.add_timeline_group("Events")
+            group = timeline.add_timeline_group("Events", searchable=True)
         self._timeline_group = group
         return group
 

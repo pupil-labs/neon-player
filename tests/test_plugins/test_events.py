@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QCoreApplication, QEvent
+from PySide6.QtWidgets import QGraphicsProxyWidget, QLineEdit
 from pytestqt.qtbot import QtBot
 
 from pupil_labs.neon_player.plugins.events import (
@@ -549,6 +550,7 @@ def test_events_contributes_scoped_rows_actions_and_data(
     group = timeline.get_timeline_group("Events")
     assert group is not None
     assert not group.collapsed
+    assert group.searchable
     assert plugin._ensure_timeline_group() is group
     header_key = TimelineRowKey("Events", "Events", TimelineRowRole.HEADER)
     header = timeline.timeline_plots[header_key]
@@ -565,6 +567,38 @@ def test_events_contributes_scoped_rows_actions_and_data(
         assert timeline.get_timeline_plot(f"Events - {name}") is None
     assert group.child_row_names == {"Events", "Search", ""}
     assert header.items == []
+
+
+def test_events_search_handles_immutable_names_and_renames(
+    events_gui: tuple[EventsPlugin, TimeLineDock],
+) -> None:
+    plugin, timeline = events_gui
+    fields = [
+        field
+        for item in timeline.graphics_view.scene().items()
+        if isinstance(item, QGraphicsProxyWidget) and item.widget() is not None
+        for field in item.widget().findChildren(QLineEdit)
+    ]
+    assert len(fields) == 1
+    field = fields[0]
+    event_type = EventType.from_name("Trial")
+    plugin.add_event_type(event_type)
+    plugin.add_events({"Trial": [100, 200]})
+    immutable = EventType.from_name("recording.begin")
+    plugin._immutable_event_types = [immutable]
+    plugin._update_gui_for_event_types(event_types_to_add=[immutable])
+    field.setText("recording")
+    assert timeline.get_timeline_plot("recording.begin", group="Events").isVisible()
+    assert not timeline.get_timeline_plot("Trial", group="Events").isVisible()
+    event_type.name = ""
+    assert not timeline.get_timeline_plot("", group="Events").isVisible()
+    event_type.name = "Recording Trial"
+    renamed = timeline.get_timeline_plot(event_type.name, group="Events")
+    assert renamed.isVisible()
+    assert list(renamed.items[0].getOriginalDataset()[0]) == [100, 200]
+    assert field.text() == "recording"
+    field.clear()
+    assert timeline.get_timeline_plot("recording.begin", group="Events").isVisible()
 
 
 def test_event_rename_and_deletion_preserve_group_and_other_scopes(
