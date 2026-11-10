@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import BackgroundJob
+from pupil_labs.neon_player.utilities import MainThreadLogHandler
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ LOG_COLORS = {
 }
 
 
-class QTextEditLogger(logging.Handler):
+class QTextEditLogger(MainThreadLogHandler):
     """Custom logging handler that writes to a QTextEdit.
 
     This handler buffers log messages until a QTextEdit is set, then flushes them.
@@ -52,8 +53,8 @@ class QTextEditLogger(logging.Handler):
         logging.getLogger().removeHandler(self)
         super().close()
 
-    def emit(self, record: logging.LogRecord) -> None:
-        """Emit a log record to the text edit."""
+    def process_record(self, record: logging.LogRecord) -> None:
+        """Display a queued log record on the main thread."""
         msg = self.format(record)
         color = LOG_COLORS.get(record.levelname, Qt.GlobalColor.white)
         self._append_text(msg, color)

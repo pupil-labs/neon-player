@@ -59,7 +59,7 @@ from pupil_labs.neon_player.ui.splash import SplashWidget
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.update_notification import UpdatePill
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
-from pupil_labs.neon_player.utilities import SlotDebouncer
+from pupil_labs.neon_player.utilities import MainThreadLogHandler, SlotDebouncer
 
 logger = logging.getLogger(__name__)
 
@@ -837,7 +837,7 @@ class RecordingSettingsDialog(QDialog):
         layout.addWidget(recording_settings_form)
 
 
-class StatusBarLogHandler(logging.Handler):
+class StatusBarLogHandler(MainThreadLogHandler):
     def __init__(self, label: QLabel | QPushButton) -> None:
         super().__init__()
         self.label = label
@@ -847,7 +847,7 @@ class StatusBarLogHandler(logging.Handler):
         logging.getLogger().removeHandler(self)
         super().close()
 
-    def emit(self, record: logging.LogRecord) -> None:
+    def process_record(self, record: logging.LogRecord) -> None:
         if record.levelname == "DEBUG":
             return
 

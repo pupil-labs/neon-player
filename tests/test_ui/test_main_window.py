@@ -1,10 +1,12 @@
 import logging
+import threading
+from unittest.mock import patch
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QMainWindow, QMenu
+from PySide6.QtCore import Qt, QThread
+from PySide6.QtWidgets import QLabel, QMainWindow, QMenu
 from pytestqt.qtbot import QtBot
 
-from pupil_labs.neon_player.ui.main_window import MainWindow
+from pupil_labs.neon_player.ui.main_window import MainWindow, StatusBarLogHandler
 from tests.conftest import MockNeonPlayerApp
 
 
@@ -64,3 +66,37 @@ def test_status_log_handler_removed_when_label_is_destroyed(qtbot: QtBot) -> Non
     window.status_label.deleteLater()
     qtbot.waitUntil(lambda: handler not in root_logger.handlers)
     root_logger.warning("Logging remains usable after status label destruction")
+
+
+def test_status_log_handler_updates_on_main_thread(qtbot: QtBot) -> None:
+    label = QLabel()
+    qtbot.addWidget(label)
+    handler = StatusBarLogHandler(label)
+    update_threads: list[QThread] = []
+    process_record = handler.process_record
+
+    def capture_update(record: logging.LogRecord) -> None:
+        update_threads.append(QThread.currentThread())
+        process_record(record)
+
+    handler._dispatcher.process_record = capture_update
+    try:
+        record = logging.makeLogRecord({"msg": "worker status", "levelname": "INFO"})
+        worker = threading.Thread(
+            target=handler.handle,
+            args=(record,),
+        )
+        worker.start()
+        worker.join(timeout=1)
+        assert not worker.is_alive()
+        assert update_threads == []
+        qtbot.waitUntil(lambda: label.text() == "worker status")
+        assert update_threads == [label.thread()]
+
+        handler.handle(logging.makeLogRecord({"msg": "pending", "levelname": "INFO"}))
+        handler.close()
+        with patch.object(label, "setText") as set_text:
+            qtbot.wait(10)
+        set_text.assert_not_called()
+    finally:
+        handler.close()
