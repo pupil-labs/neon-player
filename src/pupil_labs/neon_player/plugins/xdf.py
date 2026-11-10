@@ -1087,18 +1087,23 @@ class XDFPlugin(Plugin):
         )
         self._active_timeline_row_names["data"].add(data_stream_row_name)
 
-        selected_names = [
-            n for n in self.data_stream.channel_names if self.channels.get(n, False)
+        channel_names_and_units = zip(
+            self.data_stream.channel_names,
+            self.data_stream.channel_units,
+            strict=True,
+        )
+        selection = [
+            (idx, name, unit)
+            for idx, (name, unit) in enumerate(channel_names_and_units)
+            if self.channels.get(name, False)
         ]
 
-        if not selected_names:
+        if not selection:
             return
 
-        indices = [
-            idx
-            for idx, n in enumerate(self.data_stream.channel_names)
-            if self.channels.get(n, False)
-        ]
+        indices = [el[0] for el in selection]
+        selected_names = [el[1] for el in selection]
+        selected_units = [el[2] for el in selection]
 
         # Extract and clean data
         data = plot_data[:, indices]
@@ -1125,11 +1130,13 @@ class XDFPlugin(Plugin):
             row_name = f"{self._get_data_stream_group_title()} - {name}"
             plotted_row_names.add(row_name)
 
-            plot_item = timeline.add_timeline_plot(
+            data_unit = selected_units[i]
+            plot_item = timeline.add_timeline_line(
                 timeline_row_name=row_name,
                 data=plot_data_matrix,
                 plot_name="",
-                tooltip=default_line_tooltip(),
+                tooltip=default_line_tooltip(units=data_unit),
+                units=data_unit,
             )
             if plot_item is not None:
                 plot_item.preferred_height_2d = 60
