@@ -50,7 +50,7 @@ class SurfaceTimelineTooltip(TimelineTooltipWidget):
 
     ENTRIES = (
         ("#3273FF", "Surface localized"),
-        ("#73F7FF", "Fixation on surface"),
+        ("#73F7FF", "Gaze on surface"),
     )
 
     def __init__(self) -> None:
