@@ -517,36 +517,23 @@ class SurfaceTrackingPlugin(Plugin):
                     widget.hide()
                     self.marker_edit_widgets[marker.tag_id] = widget
 
-        # marker visibility plot
-        marker_count_by_frame = np.array(
-            [len(v) for v in self.markers_by_frame], dtype=np.int32
+        # Marker visibility plot
+        start_times, stop_times, marker_counts = get_marker_visibility_intervals(
+            self.markers_by_frame, recording.scene.time
         )
-        change_indices = np.where(np.diff(marker_count_by_frame) != 0)[0]
-        start_indices = np.concatenate(([0], change_indices + 1))
-        stop_indices = np.concatenate(
-            (
-                change_indices,
-                [len(marker_count_by_frame) - 1],
-            )
-        )
-
-        start_times = recording.scene.time[start_indices].tolist()
-        stop_times = recording.scene.time[stop_indices].tolist()
-
-        n_markers = marker_count_by_frame[start_indices].tolist()
-        max_n_markers = float(max(n_markers)) if n_markers else 0
+        max_marker_count = max(marker_counts) if marker_counts else 0
 
         self.get_timeline().add_timeline_broken_bar(
             "Marker visibility",
             [
                 (start, stop, n)
-                for start, stop, n in zip(  # type: ignore[call-overload]  # Neon Recording mistypes indexed timestamps.
-                    start_times, stop_times, n_markers, strict=False
+                for start, stop, n in zip(
+                    start_times, stop_times, marker_counts, strict=False
                 )
                 if n > 0
             ],
             color="viridis",
-            color_limits=(0, max_n_markers),
+            color_limits=(0, max_marker_count),
             tooltip=marker_visibility_tooltip,
         )
 
@@ -1292,3 +1279,27 @@ def insert_interpolated_points(
     out[-1] = point_array[-1]
 
     return out
+
+
+def get_marker_visibility_intervals(
+    markers_by_frame: list[list[DetectedMarker]],
+    frame_times: np.ndarray,
+) -> tuple[list[int], list[int], list[float]]:
+    """
+    Start and stop indices of scene video intervals, which have a constant number of
+    detected markers.
+    """
+    marker_count_by_frame = np.array([len(v) for v in markers_by_frame], dtype=np.int32)
+    change_indices = np.where(np.diff(marker_count_by_frame) != 0)[0] + 1
+
+    start_indices = np.concatenate(([0], change_indices))
+    start_times = frame_times[start_indices].tolist()
+
+    # NOTE: scene frames do not have stop times, so the final interval is set
+    # to set ~33 ms after the last frame (assuming 30 fps)
+    stop_times = frame_times[change_indices].tolist()
+    stop_times = np.concatenate((stop_times, [frame_times[-1] + 1e9 // 30]))
+
+    marker_counts = marker_count_by_frame[start_indices].astype(float).tolist()
+
+    return start_times, stop_times, marker_counts

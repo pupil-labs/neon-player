@@ -840,7 +840,7 @@ class TimeLineDock(QWidget):
     def add_timeline_plot(
         self,
         timeline_row_name: str,
-        data: list[tuple[int, T.SupportsFloat]]
+        data: T.Sequence[tuple[int, T.SupportsFloat]]
         | NDArray[np.integer[T.Any] | np.floating[T.Any]],
         plot_name: str = "",
         color: QColor | None = None,
@@ -979,7 +979,7 @@ class TimeLineDock(QWidget):
     def add_timeline_line(
         self,
         timeline_row_name: str,
-        data: list[tuple[int, T.SupportsFloat]]
+        data: T.Sequence[tuple[int, T.SupportsFloat]]
         | NDArray[np.integer[T.Any] | np.floating[T.Any]],
         plot_name: str = "",
         tooltip: TimelineTooltipConfig | None = None,
@@ -1020,7 +1020,7 @@ class TimeLineDock(QWidget):
     def add_timeline_scatter(
         self,
         name: str,
-        data: list[tuple[int, T.SupportsFloat]] | np.ndarray,
+        data: T.Sequence[tuple[int, T.SupportsFloat]] | np.ndarray,
         item_name: str = "",
         tooltip: TimelineTooltipConfig | None = None,
     ) -> TimelinePlotItem | None:
@@ -1049,8 +1049,8 @@ class TimeLineDock(QWidget):
     def add_timeline_broken_bar(
         self,
         timeline_row_name: str,
-        data: list[tuple[int, int, T.SupportsFloat]]
-        | list[tuple[int, int]]
+        data: T.Sequence[tuple[int, int, T.SupportsFloat]]
+        | T.Sequence[tuple[int, int]]
         | NDArray[np.integer[T.Any] | np.floating[T.Any]],
         item_name: str = "",
         color: str = "white",
