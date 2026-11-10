@@ -142,6 +142,22 @@ def parse_channel_names(info: dict[str, Any]) -> list[str]:
     return channel_names
 
 
+def parse_channel_units(info: dict[str, Any]) -> list[str]:
+    """Parse optional channel units from XDF channel metadata."""
+    desc = first(info, "desc", {})
+    channels = first(desc, "channels", {})
+    ch_list = channels.get("channel", [])
+    if not ch_list:
+        return []
+
+    units = []
+    for channel in ch_list:
+        unit = first(channel, "unit", None)
+        unit = str(unit).strip() if unit is not None else ""
+        units.append(unit)
+    return units
+
+
 def fallback_channel_names(channel_count: int) -> list[str]:
     return [f"Ch{i + 1}" for i in range(max(0, channel_count))]
 
@@ -315,6 +331,7 @@ class DataXDFStream(XDFStream):
         self.data: XDFNumericArray | None = None
         self.timestamps: npt.NDArray[np.float64] | None = None
         self._channel_names: list[str] = []
+        self._channel_units: list[str] = []
         self._loaded = False
 
     @property
@@ -324,6 +341,15 @@ class DataXDFStream(XDFStream):
     @channel_names.setter
     def channel_names(self, value: list[str]) -> None:
         self._channel_names = value
+
+    @property
+    @property_params(widget=None)
+    def channel_units(self) -> list[str]:
+        return self._channel_units
+
+    @channel_units.setter
+    def channel_units(self, value: list[str]) -> None:
+        self._channel_units = value
 
     def load_data(self, data_cache_file: Path) -> None:
         if not data_cache_file.exists():
@@ -354,6 +380,7 @@ class DataXDFStream(XDFStream):
         stream.parse_info(info)
         stream.data, stream.timestamps = parse_stream_data(xdf_dict)
         stream.channel_names = parse_channel_names(info)
+        stream.channel_units = parse_channel_units(info)
 
         if stream.data is None or stream.timestamps is None:
             stream._loaded = True
@@ -379,13 +406,21 @@ class DataXDFStream(XDFStream):
                 f"contain duplicates: {stream.channel_names}"
             )
 
+        if len(stream.channel_units) != len(stream.channel_names):
+            stream.channel_units = [""] * len(stream.channel_names)
+
         stream._loaded = True
         return stream
 
 
 class XDFPlugin(Plugin):
     label = "XDF Stream"
-    _XDF_CACHE_VERSION = 4
+    _XDF_CACHE_VERSION = 5
+    """
+    Cache version history:
+        4 - initial release
+        5 - added channel units to display them in the timeline
+    """
     streams_changed = Signal()
     sync_events_changed = Signal()
 
@@ -1052,18 +1087,23 @@ class XDFPlugin(Plugin):
         )
         self._active_timeline_row_names["data"].add(data_stream_row_name)
 
-        selected_names = [
-            n for n in self.data_stream.channel_names if self.channels.get(n, False)
+        channel_names_and_units = zip(
+            self.data_stream.channel_names,
+            self.data_stream.channel_units,
+            strict=True,
+        )
+        selection = [
+            (idx, name, unit)
+            for idx, (name, unit) in enumerate(channel_names_and_units)
+            if self.channels.get(name, False)
         ]
 
-        if not selected_names:
+        if not selection:
             return
 
-        indices = [
-            idx
-            for idx, n in enumerate(self.data_stream.channel_names)
-            if self.channels.get(n, False)
-        ]
+        indices = [el[0] for el in selection]
+        selected_names = [el[1] for el in selection]
+        selected_units = [el[2] for el in selection]
 
         # Extract and clean data
         data = plot_data[:, indices]
@@ -1090,11 +1130,13 @@ class XDFPlugin(Plugin):
             row_name = f"{self._get_data_stream_group_title()} - {name}"
             plotted_row_names.add(row_name)
 
-            plot_item = timeline.add_timeline_plot(
+            data_unit = selected_units[i]
+            plot_item = timeline.add_timeline_line(
                 timeline_row_name=row_name,
                 data=plot_data_matrix,
                 plot_name="",
-                tooltip=default_line_tooltip(),
+                tooltip=default_line_tooltip(units=data_unit),
+                units=data_unit,
             )
             if plot_item is not None:
                 plot_item.preferred_height_2d = 60
