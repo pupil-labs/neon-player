@@ -166,14 +166,20 @@ def test_update_manager_fetches_and_caches_release_notes(
     )
 
 
-def test_release_notes_failure_displays_cached_unread_notes(
+def test_update_manager_ignores_future_release_notes(
     tmp_path: Path,
     qtbot: QtBot,
     qapp: MockNeonPlayerApp,
 ) -> None:
     notes_path = tmp_path / "release_notes"
-    notes_path.mkdir()
-    (notes_path / "v6.0.1.md").write_text("Cached release")
+    releases = [
+        {
+            "tag_name": "v6.0.2",
+            "body": "What's Changed\n\n* Newest release\n* Another change",
+        },
+        {"tag_name": "v6.0.1", "body": "Previous release"},
+    ]
+
     with (
         patch(
             "pupil_labs.neon_player.managers.update.release_notes_path",
@@ -181,20 +187,22 @@ def test_release_notes_failure_displays_cached_unread_notes(
         ),
         patch(
             "pupil_labs.neon_player.managers.update.app_version",
-            return_value=version.parse("6.0.2"),
+            return_value=version.parse("6.0.1"),
         ),
         patch.object(
-            GithubAPIClient, "get_releases", side_effect=GithubAPIClient.FailedRequest
-        ),
+            GithubAPIClient, "get_releases", return_value=releases
+        ) as mock_get_releases,
     ):
-        manager = UpdateManager(qapp)
-        with qtbot.waitSignal(manager.notes_available, timeout=1000) as blocker:
-            manager.load_release_notes()
-            manager.check_unread_release_notes("6.0.0")
+        update_manager = UpdateManager(qapp)
+        with qtbot.waitSignal(update_manager.notes_available, timeout=1000) as blocker:
+            update_manager.load_release_notes()
+            update_manager.check_unread_release_notes("0.0.0")
 
-    assert "Cached release" in blocker.args[0]
-    assert manager._loading_release_notes is False
-    assert manager._pending_read_version is None
+    mock_get_releases.assert_called_once_with("pupil-labs", "neon-player")
+    assert blocker.args[0].startswith("# What's Changed\n")
+    assert update_manager._release_notes == {
+        version.parse("6.0.1"): "Previous release",
+    }
 
 
 @pytest.mark.parametrize(

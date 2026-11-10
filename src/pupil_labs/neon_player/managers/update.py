@@ -195,27 +195,37 @@ class UpdateManager(QObject):
     def _on_releases_loaded(self, releases: list[dict[str, Any]] | None) -> None:
         self._loading_release_notes = False
         fetched_notes: dict[version.Version, str] = {}
-        for release in releases or []:
+        if releases is None:
+            return
+
+        for release in releases:
             tag_name = release.get("tag_name")
             if not isinstance(tag_name, str):
                 continue
 
             try:
-                version_tag = version.parse(tag_name.lstrip("v"))
+                release_tag = version.parse(tag_name.lstrip("v"))
             except version.InvalidVersion:
                 logger.warning("Ignoring invalid release tag version: %s", tag_name)
                 continue
 
+            # NOTE: cache and display release notes only for the current and prior
+            # versions of the app, fresh releases that are not yet installed are
+            # reachable through the update pill in the status bar or Help > Check
+            # for updates.
+            if release_tag > app_version():
+                continue
+
             body = release.get("body")
             notes = body if isinstance(body, str) else ""
-            fetched_notes[version_tag] = _process_release_notes(notes)
+            fetched_notes[release_tag] = _process_release_notes(notes)
 
         self._release_notes.update(fetched_notes)
         try:
             cache_path = release_notes_path()
             cache_path.mkdir(parents=True, exist_ok=True)
-            for version_tag, notes in fetched_notes.items():
-                cache_file = cache_path / f"v{version_tag}.md"
+            for release_tag, notes in fetched_notes.items():
+                cache_file = cache_path / f"v{release_tag}.md"
                 cache_file.write_text(notes, encoding="utf-8")
         except OSError:
             logger.exception("Failed to cache GitHub release notes")
