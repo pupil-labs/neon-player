@@ -8,6 +8,7 @@ import typing as T
 from enum import Enum
 
 import numpy as np
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen
 from qt_property_widgets.utilities import property_params
@@ -15,7 +16,6 @@ from ultralytics import YOLO
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import ProgressUpdate
-from pupil_labs.neon_recording import NeonRecording
 
 
 class DetectionModel(Enum):
@@ -27,7 +27,7 @@ class DetectionModel(Enum):
 class ObjectDetection(neon_player.Plugin):
     label = "Object Detection"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.gens = None
 
@@ -38,7 +38,7 @@ class ObjectDetection(neon_player.Plugin):
 
         self.detection_job = None
 
-    def on_recording_loaded(self, recording: NeonRecording) -> None:
+    def on_recording_loaded(self, _recording: NeonRecording) -> None:
         self.load_object_cache()
 
     def load_object_cache(self) -> None:
@@ -114,11 +114,13 @@ class ObjectDetection(neon_player.Plugin):
                 for xy_polygon, conf, cls in zip(
                     results.masks.xy, results.boxes.conf, results.boxes.cls, strict=True
                 ):
-                    serializable_results.append({
-                        "polygon": xy_polygon.tolist(),
-                        "confidence": conf.item(),
-                        "class": results.names[cls.item()],
-                    })
+                    serializable_results.append(
+                        {
+                            "polygon": xy_polygon.tolist(),
+                            "confidence": conf.item(),
+                            "class": results.names[cls.item()],
+                        }
+                    )
 
             results_by_frame.append(serializable_results)
 

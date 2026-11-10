@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
 
 
 class ReleaseNotesDialog(QDialog):
-    def __init__(self, parent: QWidget | None = None, markdown: str = ""):
+    def __init__(self, parent: QWidget | None = None, markdown: str = "") -> None:
         super().__init__(parent)
         self.setWindowTitle("Release Notes")
         self.resize(800, 600)
@@ -31,7 +31,7 @@ class ReleaseNotesDialog(QDialog):
         self.markdown_view.setMarkdown(markdown)
         self._update_block_margins()
 
-    def _update_block_margins(self):
+    def _update_block_margins(self) -> None:
         block = self.markdown_view.document().begin()
         while block.isValid():
             block_format = block.blockFormat()

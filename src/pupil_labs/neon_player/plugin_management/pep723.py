@@ -1,4 +1,3 @@
-import logging
 import re
 import sys
 import tomllib
@@ -20,9 +19,7 @@ class MalformedPEP723Error(Exception):
 def should_be_considered(dependency: str) -> bool:
     """Determine if a dependency string should be considered for installation."""
     req = Requirement(dependency)
-    if req.marker and not req.marker.evaluate():
-        return False
-    return True
+    return not (req.marker and not req.marker.evaluate())
 
 
 def parse_pep723_dependencies(script: str) -> list[str]:

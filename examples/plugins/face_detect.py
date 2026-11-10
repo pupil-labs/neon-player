@@ -1,36 +1,47 @@
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
-#     "mediapipe<0.10.30",
+#     "mediapipe>=1.2.0",
 # ]
 # ///
 import logging
 import typing as T
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from urllib.request import urlopen
 
 import mediapipe as mp
 import numpy as np
 import pandas as pd
+from mediapipe.tasks.python import BaseOptions
+from mediapipe.tasks.python.vision import (
+    FaceLandmarker,
+    FaceLandmarkerOptions,
+    FaceLandmarksConnections,
+    RunningMode,
+    drawing_utils,
+)
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPolygonF
 from qt_property_widgets.utilities import action_params, property_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action, utilities
-from pupil_labs.neon_recording import NeonRecording
+
+logger = logging.getLogger(__name__)
 
 
 class FaceDetection(Plugin):
     label = "Face Detection"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         self.detection_job = None
         self.faces = None
 
-        mp_drawing = mp.solutions.drawing_utils
-        self.drawing_spec = mp_drawing.DrawingSpec(
+        self.drawing_spec = drawing_utils.DrawingSpec(
             thickness=1,
             circle_radius=1,
             color=(0, 255, 0),
@@ -102,19 +113,17 @@ class FaceDetection(Plugin):
         }
         self._intersection_radius = 64
 
-    def on_recording_loaded(self, recording: NeonRecording) -> None:
+    def on_recording_loaded(self, _recording: NeonRecording) -> None:
         self.load_object_cache()
 
     def load_object_cache(self) -> None:
-        objects_file = self.get_cache_path() / "faces.npy"
+        objects_file = self.get_cache_path() / "faces_landmarker.npy"
 
         if objects_file.exists():
             self._load_object_cache()
             return
 
         if self.app.headless:
-            self.bg_detect()
-            self._load_object_cache()
             return
 
         if self.detection_job is not None:
@@ -140,18 +149,15 @@ class FaceDetection(Plugin):
         if frame_faces is None:
             return
 
-        mp_drawing = mp.solutions.drawing_utils
-        mp_face_mesh = mp.solutions.face_mesh
-
         overlay = np.zeros(
             (self.recording.scene.height, self.recording.scene.width, 3), dtype=np.uint8
         )
 
         for face in frame_faces:
-            mp_drawing.draw_landmarks(
+            drawing_utils.draw_landmarks(
                 image=overlay,
                 landmark_list=face,
-                connections=mp_face_mesh.FACEMESH_CONTOURS,
+                connections=FaceLandmarksConnections.FACE_LANDMARKS_CONTOURS,
                 landmark_drawing_spec=self.drawing_spec,
                 connection_drawing_spec=self.drawing_spec,
             )
@@ -199,39 +205,65 @@ class FaceDetection(Plugin):
         indices = self.aoi_indices[aoi_name]
         return [
             (
-                face.landmark[idx].x * self.recording.scene.width,
-                face.landmark[idx].y * self.recording.scene.height,
+                face[idx].x * self.recording.scene.width,
+                face[idx].y * self.recording.scene.height,
             )
             for face in frame_faces
             for idx in indices
         ]
 
     def _load_object_cache(self) -> None:
-        objects_file = self.get_cache_path() / "faces.npy"
+        self.detection_job = None
+        objects_file = self.get_cache_path() / "faces_landmarker.npy"
         if objects_file.exists():
             self.faces = np.load(str(objects_file), allow_pickle=True).tolist()
+            self.changed.emit()
 
     def bg_detect(self) -> T.Generator[ProgressUpdate, None, None]:
-        mp_face_mesh = mp.solutions.face_mesh
-        face_mesh = mp_face_mesh.FaceMesh(
-            static_image_mode=False,
-            refine_landmarks=True,
-            min_detection_confidence=0.15,
+        cache_path = self.get_cache_path()
+        cache_path.mkdir(parents=True, exist_ok=True)
+        global_cache_path = self.get_global_cache_path()
+        global_cache_path.mkdir(parents=True, exist_ok=True)
+        model_path = global_cache_path / "face_landmarker.task"
+        if not model_path.exists():
+            model_url = (
+                "https://storage.googleapis.com/mediapipe-models/face_landmarker/"
+                "face_landmarker/float16/1/face_landmarker.task"
+            )
+            with TemporaryDirectory(dir=global_cache_path) as temporary_dir:
+                temporary_path = Path(temporary_dir) / model_path.name
+                with urlopen(model_url, timeout=60) as response:
+                    temporary_path.write_bytes(response.read())
+                temporary_path.replace(model_path)
+
+        options = FaceLandmarkerOptions(
+            base_options=BaseOptions(model_asset_path=str(model_path)),
+            running_mode=RunningMode.VIDEO,
+            num_faces=1,
+            min_face_detection_confidence=0.15,
         )
 
         results_by_frame = []
-        for frame_idx, frame in enumerate(self.recording.scene):
-            pixels = frame.bgr
-            results = face_mesh.process(pixels)
-            if results.multi_face_landmarks:
-                logging.info(f"Detected face on frame {frame_idx}")
-                results_by_frame.append(results.multi_face_landmarks)
-            else:
-                results_by_frame.append(None)
+        previous_timestamp_ms = -1
+        with FaceLandmarker.create_from_options(options) as face_landmarker:
+            for frame_idx, frame in enumerate(self.recording.scene):
+                image = mp.Image(
+                    image_format=mp.ImageFormat.SRGB,
+                    data=np.ascontiguousarray(frame.rgb),
+                )
+                timestamp_ms = max(
+                    previous_timestamp_ms + 1,
+                    int((frame.time - self.recording.scene.time[0]) // 1_000_000),
+                )
+                previous_timestamp_ms = timestamp_ms
+                results = face_landmarker.detect_for_video(image, timestamp_ms)
+                if results.face_landmarks:
+                    logger.info(f"Detected face on frame {frame_idx}")
+                results_by_frame.append(results.face_landmarks or None)
 
-            yield ProgressUpdate((frame_idx + 1) / len(self.recording.scene))
+                yield ProgressUpdate((frame_idx + 1) / len(self.recording.scene))
 
-        destination = self.get_cache_path() / "faces.npy"
+        destination = cache_path / "faces_landmarker.npy"
         destination.parent.mkdir(parents=True, exist_ok=True)
         np.save(destination, np.array(results_by_frame, dtype=object))
 
@@ -277,7 +309,7 @@ class FaceDetection(Plugin):
         destination_path = destination / "face_aois.csv"
         export_data_frame = pd.DataFrame(data)
         export_data_frame.to_csv(destination_path, index=False)
-        logging.info(f"Exported {destination_path}")
+        logger.info(f"Exported {destination_path}")
 
     def create_path_from_landmarks(
         self, landmarks: list[tuple[float, float]]

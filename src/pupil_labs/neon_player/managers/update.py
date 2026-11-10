@@ -3,11 +3,12 @@ import re
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as get_version
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from packaging import version
-from pupil_labs.neon_player.clients.github import GithubAPIClient
 from PySide6.QtCore import QObject, QThread, Signal
+
+from pupil_labs.neon_player.clients.github import GithubAPIClient
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,9 @@ class CheckUpdateThread(QThread):
 
     def __init__(self, last_displayed_update_version: str) -> None:
         super().__init__()
-        self.last_displayed_update_version = version.parse(last_displayed_update_version)
+        self.last_displayed_update_version = version.parse(
+            last_displayed_update_version
+        )
         self.github_client = GithubAPIClient()
 
     def run(self) -> None:
@@ -56,7 +59,7 @@ class CheckUpdateThread(QThread):
             logger.warning(
                 "Could not check for updates (the app is offline, or "
                 "the request to the GitHub release API has failed). "
-                f"Error: {str(e)}"
+                f"Error: {e!s}"
             )
             return
         except Exception:
@@ -64,7 +67,7 @@ class CheckUpdateThread(QThread):
             return
 
         current_version = app_version()
-        logging.debug(f"Currently installed NP: v{current_version}")
+        logger.debug(f"Currently installed NP: v{current_version}")
 
         tag_name = data.get("tag_name", "v0.0.0")
         try:
@@ -72,7 +75,7 @@ class CheckUpdateThread(QThread):
         except version.InvalidVersion:
             logger.warning("Invalid release tag version: %s", tag_name)
             return
-        logging.debug(f"Latest available NP: v{latest_version}")
+        logger.debug(f"Latest available NP: v{latest_version}")
 
         if latest_version <= current_version:
             logger.info("Neon Player is up to date")
@@ -144,9 +147,7 @@ class UpdateManager(QObject):
         return list(filter(lambda el: el[0] > since_version, releases))
 
     def get_release_notes(
-        self,
-        title: str = "Release notes",
-        since_version: version.Version | None = None
+        self, title: str = "Release notes", since_version: version.Version | None = None
     ) -> str:
         releases = self._get_new_releases(since_version)
         if not releases:
@@ -154,7 +155,7 @@ class UpdateManager(QObject):
 
         result = f"# {title}\n"
         for version_tag, notes in releases:
-            result += f"## v{str(version_tag)}\n{notes}\n"
+            result += f"## v{version_tag!s}\n{notes}\n"
 
         return result
 
@@ -180,7 +181,7 @@ class UpdateManager(QObject):
         self._load_release_notes_from_cache()
         max_cached_version = max(self._release_notes, default=None)
         if max_cached_version is not None and app_version() <= max_cached_version:
-            logging.debug("No new release notes to display")
+            logger.debug("No new release notes to display")
             return
 
         if self._loading_release_notes:
@@ -191,13 +192,10 @@ class UpdateManager(QObject):
         self._release_notes_thread.releases_loaded.connect(self._on_releases_loaded)
         self._release_notes_thread.start()
 
-    def _on_releases_loaded(self, releases: object) -> None:
+    def _on_releases_loaded(self, releases: list[dict[str, Any]] | None) -> None:
         self._loading_release_notes = False
         fetched_notes: dict[version.Version, str] = {}
-        for release in releases:
-            if not isinstance(release, dict):
-                continue
-
+        for release in releases or []:
             tag_name = release.get("tag_name")
             if not isinstance(tag_name, str):
                 continue
@@ -237,11 +235,10 @@ class UpdateManager(QObject):
     def _emit_unread_release_notes(self, latest_read_version: str) -> None:
         read_version = version.parse(latest_read_version)
         unread_notes = self.get_release_notes(
-            title="What's Changed",
-            since_version=read_version
+            title="What's Changed", since_version=read_version
         )
         if not unread_notes:
             return
 
-        logging.debug(f"Release notes were not read since {read_version}")
+        logger.debug(f"Release notes were not read since {read_version}")
         self.notes_available.emit(unread_notes)

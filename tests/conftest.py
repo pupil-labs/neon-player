@@ -1,22 +1,23 @@
-import pytest
-
-from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QApplication
+from collections.abc import Callable
+from pathlib import Path
 from unittest.mock import PropertyMock
 
+import pytest
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.timeseries import (
     EventTimeseries,
     GazeTimeseries,
     SceneVideoTimeseries,
-    WornTimeseries
+    WornTimeseries,
 )
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import QApplication
 
+from pupil_labs.neon_player.app import NeonPlayerApp
 from pupil_labs.neon_player.history import RecordingHistory
 from pupil_labs.neon_player.job_manager import JobManager
 from pupil_labs.neon_player.managers.update import UpdateManager
 from pupil_labs.neon_player.settings import GeneralSettings
-
 
 FIELD_CLASS_MAPPING = {
     "events": EventTimeseries,
@@ -27,8 +28,8 @@ FIELD_CLASS_MAPPING = {
 
 
 @pytest.fixture(autouse=False)
-def mock_neon_recording(tmp_path):
-    def inner(**kwargs):
+def mock_neon_recording(tmp_path: Path) -> Callable[..., NeonRecording]:
+    def inner(**kwargs: object) -> NeonRecording:
         # Use a temporary folder to initialize mock NeonRecording
         rec = NeonRecording(tmp_path)
 
@@ -55,23 +56,25 @@ def mock_neon_recording(tmp_path):
     return inner
 
 
-class MockNeonPlayerApp(QApplication):
+class MockNeonPlayerApp(NeonPlayerApp):
     """
     Mock NeonPlayerApp to be used in tests that rely on the presence of an application
     instance. Properties are replaced with ordinary fields that can be set directly
     before executing the respective test.
     """
+
     export_window_changed = Signal(tuple[int, int])
     playback_state_changed = Signal(bool)
     position_changed = Signal(object)
     seeked = Signal(object)
     speed_changed = Signal(float)
     recording_loaded = Signal(object)
-    recording_unloaded = Signal(object)
+    recording_unloaded = Signal()
 
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.headless = True
+    def __init__(self, argv: list[str]) -> None:
+        QApplication.__init__(self, argv)
+        self.args = type("Args", (), {"job": ["test"]})()
+        self.recording_settings = None
         self.plugins_by_class = {}
         self.recording = None
         self.recording_history = RecordingHistory()
@@ -81,10 +84,7 @@ class MockNeonPlayerApp(QApplication):
         self.update_manager = UpdateManager(self)
         self.playback_speed_options = []
 
-    def unload(self):
-        self.recording = None
-
 
 @pytest.fixture(scope="session")
-def qapp_cls():
+def qapp_cls() -> type[MockNeonPlayerApp]:
     return MockNeonPlayerApp

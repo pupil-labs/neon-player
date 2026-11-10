@@ -1,21 +1,21 @@
-import cv2
 import typing as T
 from pathlib import Path
 
-from PySide6.QtGui import QColorConstants, QPainter, QIcon
-from qt_property_widgets.utilities import property_params, action, action_params
+import cv2
+from PySide6.QtGui import QColorConstants, QIcon, QPainter
+from qt_property_widgets.utilities import action, action_params, property_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
+from pupil_labs.neon_player.job_manager import BackgroundJob, ProgressUpdate
 from pupil_labs.neon_player.plugins.shared import bg_export_video
-from pupil_labs.neon_player.job_manager import ProgressUpdate
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
 
 class SceneRendererPlugin(Plugin):
     label = "Scene Renderer"
 
-    DEFAULT_BRIGHTNESS = 0.0
+    DEFAULT_BRIGHTNESS = 0
     DEFAULT_CONTRAST = 1.0
 
     def __init__(self) -> None:
@@ -28,23 +28,27 @@ class SceneRendererPlugin(Plugin):
         self._contrast = self.DEFAULT_CONTRAST
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
-        if self.recording is None:
+        recording = self.recording
+        if recording is None:
             painter.drawText(100, 100, "No scene data available")
             return
+
+        width = recording.scene.width
+        height = recording.scene.height
+        assert width is not None, "Scene width must be available for rendering"
+        assert height is not None, "Scene height must be available for rendering"
 
         if self.is_time_gray(time_in_recording):
             painter.fillRect(
                 0,
                 0,
-                self.recording.scene.width,
-                self.recording.scene.height,
+                width,
+                height,
                 self.gray,
             )
             return
 
-        scene_frame = self.recording.scene.sample(
-            [time_in_recording], method="backward"
-        )[0]
+        scene_frame = recording.scene.sample([time_in_recording], method="backward")[0]
         frame_img = cv2.convertScaleAbs(
             scene_frame.bgr, alpha=self._contrast, beta=self._brightness
         )
@@ -94,7 +98,9 @@ class SceneRendererPlugin(Plugin):
 
     @action
     @action_params(compact=True, icon=QIcon(str(asset_path("export.svg"))))
-    def export_raw_scene_video(self, destination: Path = Path()) -> None:
+    def export_raw_scene_video(
+        self, destination: Path = Path()
+    ) -> BackgroundJob | T.Generator[ProgressUpdate, None, None]:
         app = neon_player.instance()
 
         if not app.headless:
@@ -107,12 +113,16 @@ class SceneRendererPlugin(Plugin):
     def render_for_export(self, painter: QPainter, time_in_recording: int) -> None:
         self.render(painter, time_in_recording)
 
-    def bg_export(self, destination: Path = Path()) -> T.Generator[ProgressUpdate, None, None]:
+    def bg_export(
+        self, destination: Path = Path()
+    ) -> T.Generator[ProgressUpdate, None, None]:
+        recording = self.require_recording()
+        export_window = self.app.get_export_window()
         yield from bg_export_video(
-            recording=self.recording,
-            export_window=self.app.get_export_window(),
+            recording=recording,
+            export_window=export_window,
             render_fn=self.render_for_export,
             destination=destination,
             output_video_filename="scene.mp4",
-            output_timestamps_filename="scene_timestamps.csv"
+            output_timestamps_filename="scene_timestamps.csv",
         )

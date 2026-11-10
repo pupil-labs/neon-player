@@ -1,13 +1,16 @@
-import pytest
 import sys
 
+import pytest
 from packaging.requirements import InvalidRequirement
+
 from pupil_labs.neon_player.plugin_management.pep723 import (
-    parse_pep723_dependencies, PythonVersionMismatchError, MalformedPEP723Error
+    MalformedPEP723Error,
+    PythonVersionMismatchError,
+    parse_pep723_dependencies,
 )
 
 
-def test_parse_pep723_dependencies__valid_block():
+def test_parse_pep723_dependencies__valid_block() -> None:
     script = """\
 # /// script
 # requires-python = ">=3.12"
@@ -22,12 +25,12 @@ def test_parse_pep723_dependencies__valid_block():
     assert "librosa" in result
 
 
-def test_parse_pep723_dependencies__no_block():
+def test_parse_pep723_dependencies__no_block() -> None:
     script = "import os\nprint('hello')\n"
     assert not parse_pep723_dependencies(script)
 
 
-def test_parse_pep723_dependencies__empty_dependencies():
+def test_parse_pep723_dependencies__empty_dependencies() -> None:
     script = """\
 # /// script
 # dependencies = []
@@ -36,18 +39,18 @@ def test_parse_pep723_dependencies__empty_dependencies():
     assert not parse_pep723_dependencies(script)
 
 
-def test_parse_pep723_dependencies__python_version_mismatch():
+def test_parse_pep723_dependencies__python_version_mismatch() -> None:
     script = """\
 # /// script
 # requires-python = "<3.11"
 # dependencies = []
 # ///
 """
-    with pytest.raises(PythonVersionMismatchError, match="<3.11"):
+    with pytest.raises(PythonVersionMismatchError, match=r"<3.11"):
         parse_pep723_dependencies(script)
 
 
-def test_parse_pep723_dependencies__malformed_toml():
+def test_parse_pep723_dependencies__malformed_toml() -> None:
     script = """\
 # /// script
 # this is not valid toml ][
@@ -57,7 +60,7 @@ def test_parse_pep723_dependencies__malformed_toml():
         parse_pep723_dependencies(script)
 
 
-def test_parse_pep723_dependencies__malformed_dependency():
+def test_parse_pep723_dependencies__malformed_dependency() -> None:
     script = """\
 # /// script
 # dependencies = [
@@ -69,7 +72,7 @@ def test_parse_pep723_dependencies__malformed_dependency():
         parse_pep723_dependencies(script)
 
 
-def test_parse_pep723_dependencies__with_platform_markers():
+def test_parse_pep723_dependencies__with_platform_markers() -> None:
     script = """\
 # /// script
 # requires-python = ">=3.12"
