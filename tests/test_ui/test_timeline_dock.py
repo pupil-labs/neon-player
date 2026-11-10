@@ -1,14 +1,20 @@
 from collections.abc import Callable
 
+import numpy as np
+import pyqtgraph as pg
 import pytest
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QEvent, QPoint, QPointF
-from PySide6.QtGui import QCursor
+from PySide6.QtGui import QBrush, QColor, QCursor, QPen
 from PySide6.QtWidgets import QWidget
 from pytestqt.qtbot import QtBot
 
 from pupil_labs.neon_player.settings import RecordingSettings
-from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
+from pupil_labs.neon_player.ui.timeline_dock import (
+    TimeLineDock,
+    _get_normalized_values,
+    _resolve_bar_colors,
+)
 from pupil_labs.neon_player.ui.timeline_dock_components import (
     TimelinePinnedAxis,
     TimelinePlotItem,
@@ -20,6 +26,83 @@ from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
 )
 from pupil_labs.neon_player.utilities import SlotDebouncer
 from tests.conftest import MockNeonPlayerApp
+
+
+@pytest.mark.parametrize(
+    ("values", "limits", "expected"),
+    [
+        pytest.param([-4.0, -1.0, 8.0], None, [0.0, 0.25, 1.0], id="data-range"),
+        pytest.param([8.0, -4.0, -1.0], None, [1.0, 0.0, 0.25], id="input-order"),
+        pytest.param([3.0, 3.0], None, [0.5, 0.5], id="constant-values"),
+        pytest.param([3.0], None, [0.5], id="single-value"),
+        pytest.param([2.0, 4.0, 6.0], (0.0, 8.0), [0.25, 0.5, 0.75], id="limits"),
+        pytest.param([-2.0, 6.0], (0.0, 4.0), [-0.5, 1.5], id="no-clipping"),
+        pytest.param([1.0, 9.0], (4.0, 4.0), [0.5, 0.5], id="equal-limits"),
+    ],
+)
+def test_get_normalized_values(
+    values: list[float], limits: tuple[float, float] | None, expected: list[float]
+) -> None:
+    result = _get_normalized_values(np.array(values), limits)
+
+    np.testing.assert_allclose(result, expected)
+
+
+@pytest.mark.parametrize("values", [[], [np.nan, np.nan]], ids=["empty", "all-nan"])
+@pytest.mark.parametrize("count", [0, 1, 3])
+def test_resolve_bar_colors_uses_solid_color_without_values(
+    values: list[float], count: int
+) -> None:
+    pens, brushes = _resolve_bar_colors(np.array(values), color_arg="red", count=count)
+
+    assert len(pens) == len(brushes) == count
+    assert all(isinstance(pen, QPen) and pen.color() == QColor("red") for pen in pens)
+    assert all(
+        isinstance(brush, QBrush) and brush.color() == QColor("red")
+        for brush in brushes
+    )
+
+
+def test_resolve_bar_colors_defaults_to_one_white_bar_without_values() -> None:
+    pens, brushes = _resolve_bar_colors(np.array([]))
+
+    assert len(pens) == len(brushes) == 1
+    assert pens[0].color() == brushes[0].color() == QColor("white")
+
+
+@pytest.mark.parametrize(
+    ("values", "limits", "positions"),
+    [
+        pytest.param([8.0, -4.0, 2.0], None, [1.0, 0.0, 0.5], id="data-range"),
+        pytest.param([2.0, 4.0, 6.0], (0.0, 8.0), [0.25, 0.5, 0.75], id="limits"),
+        pytest.param([3.0, 3.0], None, [0.5, 0.5], id="constant-values"),
+        pytest.param([-2.0, 6.0], (0.0, 4.0), [0.0, 1.0], id="colormap-clipping"),
+    ],
+)
+def test_resolve_bar_colors_maps_each_value_to_pen_and_brush(
+    values: list[float], limits: tuple[float, float] | None, positions: list[float]
+) -> None:
+    pens, brushes = _resolve_bar_colors(
+        np.array(values), limits, color_arg="plasma", count=7
+    )
+    expected = pg.colormap.get("plasma").map(np.array(positions), mode="qcolor")
+
+    assert len(pens) == len(brushes) == len(values)
+    assert all(isinstance(pen, QPen) for pen in pens)
+    assert all(isinstance(brush, QBrush) for brush in brushes)
+    assert [pen.color() for pen in pens] == expected
+    assert [brush.color() for brush in brushes] == expected
+
+
+@pytest.mark.parametrize("color_arg", ["white", "nonexistent-timeline-colormap"])
+def test_resolve_bar_colors_falls_back_to_viridis(color_arg: str) -> None:
+    pens, brushes = _resolve_bar_colors(
+        np.array([10.0, 15.0, 20.0]), color_arg=color_arg
+    )
+    expected = pg.colormap.get("viridis").map(np.array([0.0, 0.5, 1.0]), mode="qcolor")
+
+    assert [pen.color() for pen in pens] == expected
+    assert [brush.color() for brush in brushes] == expected
 
 
 def test_timeline_callbacks_without_recording(
