@@ -3,6 +3,7 @@ from collections.abc import Iterator
 from typing import Any
 
 import requests
+from PySide6.QtCore import QThread
 from requests import Response
 
 logger = logging.getLogger(__name__)
@@ -11,7 +12,7 @@ logger = logging.getLogger(__name__)
 class GithubAPIClient:
     class FailedRequest(Exception): ...
 
-    def __init__(self, timeout_seconds: float = 10) -> None:
+    def __init__(self, timeout_seconds: float = 1.5) -> None:
         self.base_url = "https://api.github.com"
         self.timeout_seconds = timeout_seconds
         self.headers = {"User-Agent": "Neon-Player-GithubAPIClient"}
@@ -49,6 +50,9 @@ class GithubAPIClient:
     def _paginate(self, url: str, **params: str | int) -> Iterator[Response]:
         next_page: str | None = url
         while next_page:
+            if QThread.currentThread().isInterruptionRequested():
+                raise GithubAPIClient.FailedRequest("Request was interrupted")
+
             response = self._get(next_page, **params)
             yield response
 

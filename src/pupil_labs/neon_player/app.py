@@ -209,7 +209,7 @@ class NeonPlayerApp(QApplication):
             self._initializing = False
             os.chdir(Path.home())
 
-        self.aboutToQuit.connect(self.unload)
+        self.aboutToQuit.connect(self.on_quit)
 
     def _initialize_updates(self) -> None:
         self.update_manager = UpdateManager(parent=self)
@@ -461,6 +461,10 @@ class NeonPlayerApp(QApplication):
         job.
         """
         return self.args.job is not None
+
+    def on_quit(self) -> None:
+        self.unload()
+        self.update_manager.close()
 
     def unload(self) -> None:
         self.set_playback_state(False)

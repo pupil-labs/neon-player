@@ -127,13 +127,27 @@ class UpdateManager(QObject):
         self._release_notes_thread: LoadReleaseNotesThread | None = None
         self._loading_release_notes = False
         self._pending_read_version: str | None = None
-        self.update_thread = CheckUpdateThread(
+        self._update_thread = CheckUpdateThread(
             self.app.settings.last_displayed_update_version
         )
-        self.update_thread.update_available.connect(self.update_available.emit)
+        self._update_thread.update_available.connect(self.update_available.emit)
 
     def check_for_updates(self) -> None:
-        self.update_thread.start()
+        self._update_thread.start()
+
+    @property
+    def threads(self) -> list[QThread]:
+        if self._release_notes_thread is None:
+            return [self._update_thread]
+
+        return [self._release_notes_thread, self._update_thread]
+
+    def close(self) -> None:
+        for thread in self.threads:
+            thread.requestInterruption()
+
+        for thread in self.threads:
+            thread.wait()
 
     def _get_new_releases(
         self, since_version: version.Version | None = None
@@ -190,10 +204,13 @@ class UpdateManager(QObject):
         self._loading_release_notes = True
         self._release_notes_thread = LoadReleaseNotesThread()
         self._release_notes_thread.releases_loaded.connect(self._on_releases_loaded)
+        self._release_notes_thread.finished.connect(self._on_release_thread_finished)
         self._release_notes_thread.start()
 
-    def _on_releases_loaded(self, releases: list[dict[str, Any]] | None) -> None:
+    def _on_release_thread_finished(self) -> None:
         self._loading_release_notes = False
+
+    def _on_releases_loaded(self, releases: list[dict[str, Any]] | None) -> None:
         fetched_notes: dict[version.Version, str] = {}
         if releases is None:
             return
