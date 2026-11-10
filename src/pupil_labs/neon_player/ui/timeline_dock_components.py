@@ -4,7 +4,7 @@ from typing import NamedTuple
 
 import pyqtgraph as pg
 from pyqtgraph.GraphicsScene.mouseEvents import MouseDragEvent
-from PySide6.QtCore import QObject, QPoint, QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QObject, QPoint, QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPolygon
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QSizePolicy,
     QStyleOptionGraphicsItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -36,6 +37,45 @@ class TimelineRowKey(NamedTuple):
     group_name: str | None
     row_name: str
     role: TimelineRowRole
+
+
+class TimelinePlotGroup:
+    """Registered group handle; timeline operations manage its mutable state."""
+
+    def __init__(self, name: str, collapsed: bool = False) -> None:
+        self._name = name
+        self._collapsed = collapsed
+        self._child_row_names: set[str] = set()
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def collapsed(self) -> bool:
+        return self._collapsed
+
+    @property
+    def child_row_names(self) -> frozenset[str]:
+        return frozenset(self._child_row_names)
+
+
+class TimelinePlotGroupControl(QToolButton):
+    """Toggle for showing / hiding child rows of a timeline plot group."""
+
+    def __init__(self, group_name: str, collapsed: bool = False) -> None:
+        super().__init__()
+        self._group_name = group_name
+        self.setAutoRaise(True)
+        self.setFixedSize(QSize(20, 20))
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.set_collapsed(collapsed)
+
+    def set_collapsed(self, collapsed: bool) -> None:
+        action = "Expand" if collapsed else "Collapse"
+        self.setText("▸" if collapsed else "▾")
+        self.setToolTip(f"{action} {self._group_name}")
+        self.setAccessibleName(f"{action} {self._group_name}")
 
 
 class ScrubbableViewBox(pg.ViewBox):  # type: ignore[misc]  # pyqtgraph does not type this base class.

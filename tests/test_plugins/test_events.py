@@ -1,9 +1,11 @@
-from collections.abc import Callable
-from unittest.mock import MagicMock
+from collections.abc import Callable, Iterator
+from types import SimpleNamespace
+from unittest.mock import MagicMock, Mock
 
 import pandas as pd
 import pytest
 from pupil_labs.neon_recording import NeonRecording
+from PySide6.QtCore import QCoreApplication, QEvent
 from pytestqt.qtbot import QtBot
 
 from pupil_labs.neon_player.plugins.events import (
@@ -13,6 +15,12 @@ from pupil_labs.neon_player.plugins.events import (
     _load_events_from_dataframe,
     _load_events_from_recording,
 )
+from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
+from pupil_labs.neon_player.ui.timeline_dock_components import (
+    TimelineRowKey,
+    TimelineRowRole,
+)
+from tests.conftest import MockNeonPlayerApp
 from tests.mocks import mock_event_timeseries
 
 
@@ -501,3 +509,175 @@ def test_events_plugin__global_properties__to_dict__includes_class_name() -> Non
     plugin = EventsPlugin()
     plugin_dict = plugin.global_properties.to_dict()
     assert plugin_dict["__class__"] == "EventsPluginGlobalProps"
+
+
+@pytest.fixture
+def events_gui(
+    qapp: MockNeonPlayerApp, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[tuple[EventsPlugin, TimeLineDock]]:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    monkeypatch.setattr(
+        qapp, "recording", SimpleNamespace(start_time=0, stop_time=1000)
+    )
+    window = SimpleNamespace(
+        timeline=timeline,
+        register_action=Mock(),
+        unregister_action=Mock(),
+        sort_action_menu=Mock(),
+        remove_menu_if_empty=Mock(),
+    )
+    monkeypatch.setattr(qapp, "main_window", window, raising=False)
+    monkeypatch.setattr(EventsPlugin, "headless", property(lambda _: False))
+    plugin = EventsPlugin()
+    monkeypatch.setattr(qapp, "plugins_by_class", {"EventsPlugin": plugin})
+    monkeypatch.setattr(plugin, "save_cached_json", Mock())
+    yield plugin, timeline
+    if plugin._timeline_group is not None:
+        plugin.on_disabled()
+    plugin.deleteLater()
+    timeline.close()
+    timeline.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def test_events_contributes_scoped_rows_actions_and_data(
+    events_gui: tuple[EventsPlugin, TimeLineDock],
+) -> None:
+    plugin, timeline = events_gui
+    group = timeline.get_timeline_group("Events")
+    assert group is not None
+    assert not group.collapsed
+    assert plugin._ensure_timeline_group() is group
+    header_key = TimelineRowKey("Events", "Events", TimelineRowRole.HEADER)
+    header = timeline.timeline_plots[header_key]
+    for name in ("Events", "Search", ""):
+        event_type = EventType.from_name(name)
+        plugin.add_event_type(event_type)
+        plugin.add_events({name: [100, 300]})
+        plot = timeline.get_timeline_plot(name, group=group)
+        assert plot is not None
+        assert plot is not header
+        assert plot.row_key == TimelineRowKey("Events", name, TimelineRowRole.CUSTOM)
+        assert list(plot.items[0].getOriginalDataset()[0]) == [100, 300]
+        assert f"Delete {name} instance" in timeline.data_point_actions[plot.row_key]
+        assert timeline.get_timeline_plot(f"Events - {name}") is None
+    assert group.child_row_names == {"Events", "Search", ""}
+    assert header.items == []
+
+
+def test_event_rename_and_deletion_preserve_group_and_other_scopes(
+    events_gui: tuple[EventsPlugin, TimeLineDock],
+) -> None:
+    plugin, timeline = events_gui
+    group = plugin._timeline_group
+    assert group is not None
+    event_type = EventType.from_name("Original")
+    plugin.add_event_type(event_type)
+    plugin.add_events({"Original": [100, 200]})
+    other = timeline.add_timeline_group("Other")
+    other_plot = timeline.add_timeline_scatter("Original", [], group=other)
+    global_plot = timeline.add_timeline_scatter("Original", [])
+    timeline.timeline_group_controls[group.name].click()
+    event_type.name = ""
+    assert timeline.get_timeline_plot("Original", group=group) is None
+    renamed = timeline.get_timeline_plot("", group=group.name)
+    assert renamed is not None
+    assert not renamed.isVisible()
+    assert list(renamed.items[0].getOriginalDataset()[0]) == [100, 200]
+    old_key = TimelineRowKey(group.name, "Original", TimelineRowRole.CUSTOM)
+    assert old_key not in timeline.data_point_actions
+    assert timeline.get_timeline_plot("Original", group=other) is other_plot
+    assert timeline.get_timeline_plot("Original") is global_plot
+    event_type.name = "Events"
+    assert timeline.get_timeline_plot("", group=group) is None
+    plugin.delete_event_type(event_type)
+    assert not group.child_row_names
+    assert timeline.get_timeline_group("Events") is group
+    timeline.remove_timeline_group(other)
+
+
+def test_immutable_event_rows_keep_scoped_navigation_actions(
+    events_gui: tuple[EventsPlugin, TimeLineDock],
+) -> None:
+    plugin, timeline = events_gui
+    event_type = EventType.from_name("recording.begin")
+    plugin._immutable_event_types = [event_type]
+    plugin._update_gui_for_event_types(event_types_to_add=[event_type])
+    plot = timeline.get_timeline_plot(event_type.name, group="Events")
+    assert plot is not None
+    actions = timeline.data_point_actions[plot.row_key]
+    assert "Seek to this recording.begin" in actions
+    assert "Set this recording.begin as the left export window boundary" in actions
+    assert "Delete recording.begin instance" not in actions
+
+
+def test_events_disable_without_recording_cleans_group_and_reenable_is_fresh(
+    events_gui: tuple[EventsPlugin, TimeLineDock],
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plugin, timeline = events_gui
+    event_type = EventType.from_name("Trial")
+    plugin.add_event_type(event_type)
+    old_group = plugin._timeline_group
+    assert old_group is not None
+    timeline.timeline_group_controls[old_group.name].click()
+    global_plot = timeline.get_timeline_plot("Trial", True)
+    monkeypatch.setattr(qapp, "recording", None)
+    plugin.on_disabled()
+    assert plugin._timeline_group is None
+    assert timeline.get_timeline_group("Events") is None
+    assert timeline.get_timeline_plot("Trial") is global_plot
+    fresh = EventsPlugin()
+    new_group = timeline.get_timeline_group("Events")
+    assert new_group is not None
+    assert new_group is not old_group
+    assert not new_group.collapsed
+    assert not new_group.child_row_names
+    fresh.on_disabled()
+    fresh.deleteLater()
+
+
+@pytest.mark.usefixtures("qapp")
+def test_headless_events_creates_no_group() -> None:
+    plugin = EventsPlugin()
+    assert plugin.headless
+    assert plugin._timeline_group is None
+    plugin.deleteLater()
+
+
+@pytest.mark.parametrize("replace_group", [False, True])
+def test_events_disable_never_reacquires_a_removed_group(
+    events_gui: tuple[EventsPlugin, TimeLineDock],
+    monkeypatch: pytest.MonkeyPatch,
+    replace_group: bool,
+) -> None:
+    plugin, timeline = events_gui
+    plugin.add_event_type(EventType.from_name("Trial"))
+    original = plugin._timeline_group
+    assert original is not None
+    timeline.remove_timeline_group(original)
+    replacement = None
+    replacement_plot = None
+    callback = Mock()
+    if replace_group:
+        replacement = timeline.add_timeline_group("Events")
+        replacement_plot = timeline.add_timeline_scatter("Trial", [], group=replacement)
+        timeline.register_data_point_action(
+            "Trial", "Keep this action", callback, group=replacement
+        )
+    create_group = Mock(wraps=timeline.add_timeline_group)
+    monkeypatch.setattr(timeline, "add_timeline_group", create_group)
+    plugin.on_disabled()
+    create_group.assert_not_called()
+    assert plugin._timeline_group is None
+    assert timeline.get_timeline_group("Events") is replacement
+    if replacement is not None:
+        assert (
+            timeline.get_timeline_plot("Trial", group=replacement) is replacement_plot
+        )
+        key = TimelineRowKey("Events", "Trial", TimelineRowRole.CUSTOM)
+        assert timeline.data_point_actions[key]["Keep this action"] is callback
+        timeline.remove_timeline_group(replacement)

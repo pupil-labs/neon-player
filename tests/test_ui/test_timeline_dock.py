@@ -5,14 +5,16 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtCore import QPointF
+from PySide6.QtCore import QCoreApplication, QEvent, QPointF, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMenu
 from pytestqt.qtbot import QtBot
+from shiboken6 import isValid
 
 from pupil_labs.neon_player.settings import RecordingSettings
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.timeline_dock_components import (
+    TimelinePlotGroup,
     TimelineRowKey,
     TimelineRowRole,
     TrimEndMarker,
@@ -259,9 +261,9 @@ def test_sorting_preserves_equal_normalized_names_and_plot_type_order(
     timeline.add_timeline_broken_bar("Bar", [(100, 200)])
     timeline.sort_plots()
     plots = [
-        timeline.graphics_layout.getItem(row, 1)
+        timeline.graphics_layout.getItem(row, 2)
         for row in sorted(timeline.graphics_layout.rows)
-        if timeline.graphics_layout.getItem(row, 1) is not None
+        if timeline.graphics_layout.getItem(row, 2) is not None
     ]
     assert plots[0] is timeline.timestamps_plot
     assert [plot.row_name for plot in plots[1:]] == [
@@ -285,3 +287,312 @@ def test_no_recording_keeps_existing_line_and_scatter_return_behavior(
     assert list(timeline.timeline_plots) == [
         TimelineRowKey(None, "Export window", TimelineRowRole.CUSTOM)
     ]
+
+
+@pytest.mark.parametrize("use_name", [False, True])
+@pytest.mark.parametrize("kind", ["plot", "line", "scatter", "bar"])
+def test_grouped_contributions_use_names_or_handles(
+    timeline: TimeLineDock,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+    use_name: bool,
+) -> None:
+    group = timeline.add_timeline_group("Group")
+    scope = group.name if use_name else group
+    monkeypatch.setattr(
+        qapp, "recording", SimpleNamespace(start_time=0, stop_time=1000)
+    )
+    if kind == "bar":
+        plot = timeline.add_timeline_broken_bar("", [(100, 200)], "Series", group=scope)
+    else:
+        add = {
+            "plot": timeline.add_timeline_plot,
+            "line": timeline.add_timeline_line,
+            "scatter": timeline.add_timeline_scatter,
+        }[kind]
+        plot = add("", np.array([[100, 1], [200, 2]]), "Series", group=scope)
+    assert plot is not None
+    assert plot.row_key == TimelineRowKey("Group", "", TimelineRowRole.CUSTOM)
+    assert group.child_row_names == {""}
+    assert timeline.get_timeline_plot("", group=group.name) is plot
+    assert timeline.get_timeline_plot("", group=group) is plot
+    assert timeline.get_timeline_plot("") is None
+    assert timeline.get_timeline_plot("Header", group=scope) is None
+    if kind != "bar":
+        assert timeline.get_timeline_series("", "Series", group=scope) is plot.items[0]
+        timeline.remove_timeline_series("", "Series", group=scope)
+    else:
+        timeline.remove_timeline_plot("", group=scope)
+    assert timeline.get_timeline_plot("", group=scope) is None
+    assert not group.child_row_names
+    assert timeline.get_timeline_group("Group") is group
+
+
+def test_group_and_main_row_share_a_global_name_but_children_can_repeat_it(
+    timeline: TimeLineDock,
+) -> None:
+    first = timeline.add_timeline_group("First")
+    second = timeline.add_timeline_group("Second")
+    first_row = timeline.get_timeline_plot("First", True, group=first)
+    second_row = timeline.get_timeline_plot("First", True, group=second.name)
+    assert first_row is not second_row
+    header = timeline.timeline_plots[
+        TimelineRowKey(first.name, first.name, TimelineRowRole.HEADER)
+    ]
+    assert header.row_name == first.name
+    assert header is not first_row
+    assert first.child_row_names == {"First"}
+    assert second.child_row_names == {"First"}
+    assert timeline.get_timeline_group("Missing") is None
+    with pytest.raises(ValueError, match="already exists"):
+        timeline.add_timeline_group("First")
+    with pytest.raises(ValueError, match="already exists"):
+        timeline.get_timeline_plot("First", True)
+
+
+def test_global_rows_and_groups_reserve_names_in_both_directions(
+    timeline: TimeLineDock,
+) -> None:
+    global_row = timeline.get_timeline_plot("Taken", True)
+    with pytest.raises(ValueError, match="already exists"):
+        timeline.add_timeline_group("Taken")
+    assert timeline.get_timeline_plot("Taken") is global_row
+    assert timeline.get_timeline_group("Taken") is None
+    with pytest.raises(ValueError, match="already exists"):
+        timeline.add_timeline_group("Export window")
+    group = timeline.add_timeline_group("Group")
+    with pytest.raises(ValueError, match="already exists"):
+        timeline.get_timeline_plot(group.name, True)
+    timeline.remove_timeline_group(group)
+    assert timeline.get_timeline_plot("Group", True) is not None
+    timeline.remove_timeline_plot("Taken")
+    assert timeline.add_timeline_group("Taken").name == "Taken"
+
+
+@pytest.mark.parametrize("kind", ["plot", "line", "scatter", "bar"])
+def test_global_contributions_cannot_reuse_group_names(
+    timeline: TimeLineDock,
+    kind: str,
+) -> None:
+    group = timeline.add_timeline_group("Group")
+    add = {
+        "plot": timeline.add_timeline_plot,
+        "line": timeline.add_timeline_line,
+        "scatter": timeline.add_timeline_scatter,
+        "bar": timeline.add_timeline_broken_bar,
+    }[kind]
+    with pytest.raises(ValueError, match="already exists"):
+        add("Group", [])
+    assert add("Group", [], group=group) is None
+    assert not group.child_row_names
+
+
+@pytest.mark.parametrize("collapsed", [False, True])
+def test_group_expander_controls_child_visibility_and_scroll_height(
+    timeline: TimeLineDock, collapsed: bool
+) -> None:
+    group = timeline.add_timeline_group("Group", collapsed=collapsed)
+    child = timeline.get_timeline_plot("Child", True, group=group)
+    assert child is not None
+    timeline.sort_plots()
+    button = timeline.timeline_group_controls[group.name]
+    legend = timeline.timeline_legends[child.row_key].parentItem()
+    header = timeline.timeline_plots[
+        TimelineRowKey(group.name, group.name, TimelineRowRole.HEADER)
+    ]
+    assert group.collapsed == collapsed
+    assert child.isVisible() == (not collapsed)
+    assert legend.isVisible() == (not collapsed)
+    assert header.isVisible()
+    assert button.text() == ("▸" if collapsed else "▾")
+    assert button.toolTip() == ("Expand Group" if collapsed else "Collapse Group")
+    assert button.accessibleName() == button.toolTip()
+    assert button.cursor().shape() == Qt.CursorShape.PointingHandCursor
+    assert timeline.graphics_view.height() == (75 if collapsed else 100)
+    button.click()
+    assert child.isVisible() == collapsed
+    assert legend.isVisible() == collapsed
+    assert header.isVisible()
+    assert timeline.graphics_view.height() == (100 if collapsed else 75)
+    button.click()
+    assert group.collapsed == collapsed
+    assert child.isVisible() == (not collapsed)
+
+
+def test_late_children_and_empty_group_collapse(timeline: TimeLineDock) -> None:
+    group = timeline.add_timeline_group("Group", collapsed=True)
+    assert not group.child_row_names
+    button = timeline.timeline_group_controls[group.name]
+    button.click()
+    button.click()
+    timeline.disable_plot_sorting()
+    first = timeline.get_timeline_plot("", True, group=group)
+    second = timeline.get_timeline_plot("Search", True, group=group.name)
+    assert first is not None
+    assert second is not None
+    assert not first.isVisible()
+    assert not second.isVisible()
+    assert timeline.graphics_view.height() == 75
+    timeline.enable_plot_sorting()
+    assert not first.isVisible()
+    assert not second.isVisible()
+    button.click()
+    assert first.isVisible()
+    assert second.isVisible()
+    assert timeline.graphics_view.height() == 125
+
+
+@pytest.mark.parametrize("kind", ["plot", "line", "scatter", "bar"])
+def test_group_validation_precedes_no_recording_returns(
+    timeline: TimeLineDock, kind: str
+) -> None:
+    group = timeline.add_timeline_group("Group")
+    add = {
+        "plot": timeline.add_timeline_plot,
+        "line": timeline.add_timeline_line,
+        "scatter": timeline.add_timeline_scatter,
+        "bar": timeline.add_timeline_broken_bar,
+    }[kind]
+    assert add("Child", [], group=group.name) is None
+    assert not group.child_row_names
+    with pytest.raises(KeyError):
+        add("Child", [], group="Missing")
+    with pytest.raises(ValueError, match="does not belong"):
+        add("Child", [], group=TimelinePlotGroup("Group"))
+
+
+@pytest.mark.parametrize("use_name", [False, True])
+def test_group_removal_cleans_all_state_and_invalidates_old_handles(
+    timeline: TimeLineDock, use_name: bool
+) -> None:
+    group = timeline.add_timeline_group("Group", collapsed=True)
+    child = timeline.get_timeline_plot("Child", True, group=group)
+    global_row = timeline.get_timeline_plot("Child", True)
+    callback = Mock()
+    timeline.register_data_point_action("Child", "Action", callback, group=group.name)
+    timeline.register_data_point_action("Not plotted", "Action", callback, group=group)
+    button = timeline.timeline_group_controls[group.name]
+    proxy = timeline.timeline_group_control_proxies[group.name]
+    timeline.remove_timeline_group(group.name if use_name else group)
+    assert timeline.get_timeline_group("Group") is None
+    assert not group.child_row_names
+    assert not any(key.group_name == group.name for key in timeline.timeline_plots)
+    assert not any(key.group_name == group.name for key in timeline.timeline_legends)
+    assert not any(key.group_name == group.name for key in timeline.data_point_actions)
+    assert not any(
+        key.group_name == group.name for key in timeline.hidden_timeline_rows
+    )
+    assert timeline.get_timeline_plot("Child") is global_row
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert not isValid(button)
+    assert not isValid(proxy)
+    assert not isValid(child)
+    fresh = timeline.add_timeline_group("Group")
+    assert fresh is not group
+    assert not fresh.collapsed
+    assert timeline.get_timeline_plot("Child", group="Group") is None
+    with pytest.raises(ValueError, match="does not belong"):
+        timeline.get_timeline_plot("Child", group=group)
+    with pytest.raises(ValueError, match="does not belong"):
+        timeline.remove_timeline_group(group)
+    with pytest.raises(KeyError):
+        timeline.remove_timeline_group("Missing")
+
+
+def test_scoped_point_actions_dispatch_only_the_requested_group(
+    timeline: TimeLineDock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    group = timeline.add_timeline_group("Group")
+    other = timeline.add_timeline_group("Other")
+    global_callback, group_callback, other_callback = Mock(), Mock(), Mock()
+    timeline.register_data_point_action("", "Seek", global_callback)
+    timeline.register_data_point_action("", "Seek", group_callback, group=group)
+    timeline.register_data_point_action("", "Seek", other_callback, group=other.name)
+    actions: list[QAction] = []
+
+    def add_action(name: str) -> QAction:
+        action = QAction(name, timeline)
+        actions.append(action)
+        return action
+
+    menu = Mock(spec=QMenu)
+    menu.addAction.side_effect = add_action
+    menu.exec.side_effect = lambda _: actions[-1].trigger()
+    monkeypatch.setattr("pupil_labs.neon_player.ui.timeline_dock.QMenu", lambda: menu)
+    point = (123, 4.5)
+    timeline.on_data_point_clicked("", point, group=group.name)
+    group_callback.assert_called_once_with(point)
+    global_callback.assert_not_called()
+    other_callback.assert_not_called()
+    timeline.unregister_data_point_action("", "Seek", group=group.name)
+    assert not timeline.data_point_actions[
+        TimelineRowKey(group.name, "", TimelineRowRole.CUSTOM)
+    ]
+    timeline.on_data_point_clicked("", point, group=other)
+    other_callback.assert_called_once_with(point)
+
+
+def test_sorting_keeps_groups_contiguous_and_sorts_only_custom_rows_by_type(
+    timeline: TimeLineDock, qapp: MockNeonPlayerApp, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        qapp, "recording", SimpleNamespace(start_time=0, stop_time=1000)
+    )
+    beta = timeline.add_timeline_group("Beta")
+    alpha = timeline.add_timeline_group("Alpha")
+    data = np.array([[100, 1], [200, 2]])
+    timeline.add_timeline_line("Line", data)
+    timeline.add_timeline_scatter("Aardvark", data)
+    timeline.add_timeline_broken_bar("Bar", [(100, 200)])
+    timeline.add_timeline_scatter("Point", data, group=beta)
+    timeline.add_timeline_line("A line", data, group=alpha)
+    timeline.add_timeline_broken_bar("Z bar", [(100, 200)], group=alpha.name)
+    timeline.add_timeline_scatter("Z point", data, group=alpha)
+    header_key = TimelineRowKey(alpha.name, "Alpha", TimelineRowRole.HEADER)
+    timeline.timeline_plots[header_key].plot(data)
+    timeline.sort_plots()
+    keys = [
+        timeline.graphics_layout.getItem(row, 2).row_key
+        for row in sorted(timeline.graphics_layout.rows)
+        if timeline.graphics_layout.getItem(row, 2) is not None
+    ]
+    assert [(key.group_name, key.row_name) for key in keys] == [
+        (None, "Export window"),
+        (None, "Bar"),
+        (None, "Aardvark"),
+        (alpha.name, "Alpha"),
+        (alpha.name, "Z bar"),
+        (alpha.name, "Z point"),
+        (alpha.name, "A line"),
+        (beta.name, "Beta"),
+        (beta.name, "Point"),
+        (None, "Line"),
+    ]
+    for group in (alpha, beta):
+        header_row = (
+            keys.index(TimelineRowKey(group.name, group.name, TimelineRowRole.HEADER))
+            + 1
+        )
+        assert (
+            timeline.graphics_layout.getItem(header_row, 0)
+            is timeline.timeline_group_control_proxies[group.name]
+        )
+
+
+def test_grouped_rows_follow_the_shared_time_axis_and_clean_child_membership(
+    timeline: TimeLineDock,
+    qtbot: QtBot,
+) -> None:
+    group = timeline.add_timeline_group("Group")
+    child = timeline.get_timeline_plot("Child", True, group=group)
+    assert child is not None
+    timeline.sort_plots()
+    timeline.resize(1000, 500)
+    timeline.show()
+    QCoreApplication.processEvents()
+    timeline.timestamps_plot.setXRange(100, 500, padding=0)
+    qtbot.waitUntil(lambda: child.viewRange()[0] == pytest.approx([100, 500]))
+    timeline.remove_timeline_plot("Child", group=group.name)
+    assert not group.child_row_names
+    assert timeline.get_timeline_group(group.name) is group

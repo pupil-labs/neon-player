@@ -22,6 +22,7 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
 from pupil_labs.neon_player.plugins import Plugin
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
+from pupil_labs.neon_player.ui.timeline_dock_components import TimelinePlotGroup
 
 logger = logging.getLogger(__name__)
 
@@ -260,14 +261,24 @@ class EventsPlugin(neon_player.Plugin):
         self._event_types_by_name: dict[str, EventType] = {}
         self._immutable_event_types: list[EventType] = []
         self._events: dict[str, list[int]] = {}
+        self._timeline_group: TimelinePlotGroup | None = None
 
         if self.headless:
             return
 
+        self._ensure_timeline_group()
         self.get_timeline().key_pressed.connect(self._on_key_pressed)
         self.header_action = ListPropertyAppenderAction(
             "event_types", "+ Add event type"
         )
+
+    def _ensure_timeline_group(self) -> TimelinePlotGroup:
+        timeline = self.get_timeline()
+        group = timeline.get_timeline_group("Events")
+        if group is None:
+            group = timeline.add_timeline_group("Events")
+        self._timeline_group = group
+        return group
 
     @staticmethod
     def instance() -> T.Union["EventsPlugin", None]:
@@ -339,13 +350,18 @@ class EventsPlugin(neon_player.Plugin):
         self._update_gui_for_event_types(event_types_to_add=event_types_to_setup_ui_for)
 
     def on_disabled(self) -> None:
-        if self.headless or self.recording is None:
+        if self.headless:
             return
 
         event_types = (
             list(self._event_types_by_name.values()) + self._immutable_event_types
         )
         self._update_gui_for_event_types(event_types_to_remove=event_types)
+        timeline = self.get_timeline()
+        group = self._timeline_group
+        if group is not None and timeline.get_timeline_group(group.name) is group:
+            timeline.remove_timeline_group(group)
+        self._timeline_group = None
 
     def _update_gui_for_event_types(
         self,
@@ -383,13 +399,12 @@ class EventsPlugin(neon_player.Plugin):
             return
 
         timeline = self.get_timeline()
-        existing_plot = timeline.get_timeline_plot(
-            f"Events - {event_type.name}", create_if_missing=False
-        )
+        group = self._ensure_timeline_group()
+        existing_plot = timeline.get_timeline_plot(event_type.name, group=group)
         if existing_plot is not None:
             return
 
-        plot_item = timeline.add_timeline_scatter(f"Events - {event_type.name}", [])
+        plot_item = timeline.add_timeline_scatter(event_type.name, [], group=group)
         if plot_item is None:
             return
         plot_item.getViewBox().allow_y_panning = False
@@ -405,31 +420,36 @@ class EventsPlugin(neon_player.Plugin):
         self.register_data_actions(event_type)
 
     def register_data_actions(self, event_type: EventType) -> None:
+        group = self._ensure_timeline_group()
         if event_type.name not in IMMUTABLE_EVENTS:
             self.register_data_point_action(
-                f"Events - {event_type.name}",
+                event_type.name,
                 f"Delete {event_type.name} instance",
                 lambda dp, et=event_type: self.delete_event_instance(dp, et),
+                group=group,
             )
 
         self.register_data_point_action(
-            f"Events - {event_type.name}",
+            event_type.name,
             f"Seek to this {event_type.name}",
             self.seek_to_event_instance,
+            group=group,
         )
         self.register_data_point_action(
-            f"Events - {event_type.name}",
+            event_type.name,
             f"Set this {event_type.name} as the left export window boundary",
             lambda dp, et=event_type: self.set_event_as_export_boundary(
                 dp, et, left=True
             ),
+            group=group,
         )
         self.register_data_point_action(
-            f"Events - {event_type.name}",
+            event_type.name,
             f"Set this {event_type.name} as the right export window boundary",
             lambda dp, et=event_type: self.set_event_as_export_boundary(
                 dp, et, left=False
             ),
+            group=group,
         )
 
     def _remove_gui_for_event_name(self, event_name: str) -> None:
@@ -437,21 +457,15 @@ class EventsPlugin(neon_player.Plugin):
             return
 
         timeline = self.get_timeline()
-        timeline.remove_timeline_plot(f"Events - {event_name}")
-        data_point_actions = [
-            f"Seek to this {event_name}",
-            f"Set this {event_name} as the left export window boundary",
-            f"Set this {event_name} as the right export window boundary",
-        ]
-        for action_name in data_point_actions:
-            timeline.unregister_data_point_action(f"Events - {event_name}", action_name)
+        group = self._timeline_group
+        if group is not None and timeline.get_timeline_group(group.name) is group:
+            # Row removal also clears its scoped data-point actions. Cleanup
+            # must never create or adopt a replacement group with the same name.
+            timeline.remove_timeline_plot(event_name, group=group)
 
         if event_name in IMMUTABLE_EVENTS:
             return
 
-        timeline.unregister_data_point_action(
-            f"Events - {event_name}", f"Delete {event_name} instance"
-        )
         self.unregister_timeline_action(f"Add Event/{event_name}")
         self.app.main_window.remove_menu_if_empty("Timeline/Add Event")
 
@@ -549,7 +563,9 @@ class EventsPlugin(neon_player.Plugin):
 
         timeline = self.get_timeline()
         event_name = event_type.name
-        plot_item = timeline.get_timeline_plot(f"Events - {event_name}")
+        plot_item = timeline.get_timeline_plot(
+            event_name, group=self._ensure_timeline_group()
+        )
         if plot_item is None or not plot_item.items:
             return
 

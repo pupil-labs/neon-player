@@ -1,5 +1,6 @@
 import logging
 import typing as T
+from functools import partial
 
 import numpy as np
 import pyqtgraph as pg
@@ -21,6 +22,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QComboBox,
+    QGraphicsProxyWidget,
     QGraphicsSceneMouseEvent,
     QHBoxLayout,
     QMenu,
@@ -38,6 +40,8 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     PlayHead,
     ScrubbableViewBox,
     TimeAxisItem,
+    TimelinePlotGroup,
+    TimelinePlotGroupControl,
     TimelinePlotItem,
     TimelineRowKey,
     TimelineRowRole,
@@ -87,6 +91,10 @@ class TimeLineDock(QWidget):
         app = neon_player.instance()
 
         self.timeline_plots: dict[TimelineRowKey, TimelinePlotItem] = {}
+        self.timeline_groups: dict[str, TimelinePlotGroup] = {}
+        self.timeline_group_controls: dict[str, TimelinePlotGroupControl] = {}
+        self.timeline_group_control_proxies: dict[str, QGraphicsProxyWidget] = {}
+        self.hidden_timeline_rows: set[TimelineRowKey] = set()
         self.timeline_legends: dict[TimelineRowKey, pg.LegendItem] = {}
         self.plot_colors = [
             QColor("#1f77b4"),
@@ -192,6 +200,106 @@ class TimeLineDock(QWidget):
         self.dragging: TrimEndMarker | None = None
         self.trim_markers: list[TrimEndMarker] = []
         self.plot_sorting_enabled = True
+
+    def add_timeline_group(
+        self, name: str, *, collapsed: bool = False
+    ) -> TimelinePlotGroup:
+        """Create a flat group whose main row displays the group name.
+
+        Args:
+            name: Name shared by the group and its main row. It must be unique
+                among groups and ungrouped rows. Child rows may use the same name.
+            collapsed: Whether to initially hide the group's children.
+
+        Returns:
+            The registered group handle.
+
+        Raises:
+            ValueError: The name is already used by a group or ungrouped row.
+        """
+        if (
+            name in self.timeline_groups
+            or self._timeline_row_key(name) in self.timeline_plots
+        ):
+            raise ValueError(f"Global timeline name '{name}' already exists")
+        group = TimelinePlotGroup(name, collapsed=collapsed)
+        self.timeline_groups[name] = group
+        key = TimelineRowKey(name, name, TimelineRowRole.HEADER)
+        self._get_timeline_plot_by_key(key, True)
+        self._create_timeline_group_control(group)
+        if self.plot_sorting_enabled:
+            self.sort_plots()
+        return group
+
+    def get_timeline_group(self, name: str) -> TimelinePlotGroup | None:
+        """Return the registered group handle, or None when absent."""
+        return self.timeline_groups.get(name)
+
+    def remove_timeline_group(self, group: str | TimelinePlotGroup) -> None:
+        """Remove a group's main row, children, point actions, and expander."""
+        resolved = self._resolve_timeline_group(group)
+        assert resolved is not None
+        for key in list(self.timeline_plots):
+            if key.group_name == resolved.name:
+                self._remove_timeline_plot_by_key(key)
+        for key in list(self.data_point_actions):
+            if key.group_name == resolved.name:
+                self.data_point_actions.pop(key)
+        proxy = self.timeline_group_control_proxies.pop(resolved.name)
+        self.graphics_layout.removeItem(proxy)
+        proxy.deleteLater()
+        self.timeline_group_controls.pop(resolved.name)
+        self.timeline_groups.pop(resolved.name)
+        resolved._child_row_names.clear()
+        if self.plot_sorting_enabled:
+            self.sort_plots()
+        else:
+            self._refresh_timeline_layout()
+
+    def _create_timeline_group_control(self, group: TimelinePlotGroup) -> None:
+        button = TimelinePlotGroupControl(group.name, group.collapsed)
+        button.clicked.connect(partial(self._toggle_timeline_group, group))
+        proxy = QGraphicsProxyWidget()
+        proxy.setWidget(button)
+        header = self.timeline_plots[
+            TimelineRowKey(group.name, group.name, TimelineRowRole.HEADER)
+        ]
+        row = next(
+            index
+            for index in self.graphics_layout.rows
+            if self.graphics_layout.getItem(index, 2) is header
+        )
+        self.graphics_layout.addItem(proxy, row=row, col=0)
+        self.timeline_group_controls[group.name] = button
+        self.timeline_group_control_proxies[group.name] = proxy
+
+    def _toggle_timeline_group(
+        self, group: TimelinePlotGroup, _checked: bool = False
+    ) -> None:
+        resolved = self._resolve_timeline_group(group)
+        assert resolved is not None
+        resolved._collapsed = not resolved.collapsed
+        for key in self.timeline_plots:
+            if (
+                key.group_name == resolved.name
+                and key.role is not TimelineRowRole.HEADER
+            ):
+                self._set_timeline_row_visible(key, not resolved.collapsed)
+        self.timeline_group_controls[resolved.name].set_collapsed(resolved.collapsed)
+        self._refresh_timeline_layout()
+
+    def _set_timeline_row_visible(self, key: TimelineRowKey, visible: bool) -> None:
+        self.timeline_plots[key].setVisible(visible)
+        self.timeline_legends[key].parentItem().setVisible(visible)
+        if visible:
+            self.hidden_timeline_rows.discard(key)
+        else:
+            self.hidden_timeline_rows.add(key)
+
+    def _refresh_timeline_layout(self) -> None:
+        self.graphics_layout.layout.invalidate()
+        self.graphics_layout.updateGeometry()
+        self.fix_scroll_size()
 
     def sizeHint(self) -> QSize:
         return QSize(100, 150)
@@ -410,16 +518,28 @@ class TimeLineDock(QWidget):
 
     @T.overload
     def get_timeline_plot(
-        self, timeline_row_name: str, create_if_missing: T.Literal[True]
+        self,
+        timeline_row_name: str,
+        create_if_missing: T.Literal[True],
+        *,
+        group: str | TimelinePlotGroup | None = None,
     ) -> TimelinePlotItem: ...
 
     @T.overload
     def get_timeline_plot(
-        self, timeline_row_name: str, create_if_missing: bool = False
+        self,
+        timeline_row_name: str,
+        create_if_missing: bool = False,
+        *,
+        group: str | TimelinePlotGroup | None = None,
     ) -> TimelinePlotItem | None: ...
 
     def get_timeline_plot(
-        self, timeline_row_name: str, create_if_missing: bool = False
+        self,
+        timeline_row_name: str,
+        create_if_missing: bool = False,
+        *,
+        group: str | TimelinePlotGroup | None = None,
     ) -> TimelinePlotItem | None:
         """Get or create a timeline plot (i.e., a row in the timeline).
 
@@ -427,22 +547,32 @@ class TimeLineDock(QWidget):
             timeline_row_name: The name of the timeline plot.
             create_if_missing: Whether to create the plot if it doesn't
                 exist already.
+            group: Group name or exact handle; None targets an ungrouped row.
 
         Returns:
             plot: The created/existing plot, or `None` if the plot
                 did not exist and was not created.
         """
-        key = self._timeline_row_key(timeline_row_name)
+        key = self._timeline_row_key(timeline_row_name, group)
+        return self._get_timeline_plot_by_key(key, create_if_missing)
+
+    def _get_timeline_plot_by_key(
+        self, key: TimelineRowKey, create_if_missing: bool = False
+    ) -> TimelinePlotItem | None:
         if key in self.timeline_plots:
             return self.timeline_plots[key]
 
         if not create_if_missing:
             return None
 
+        self._validate_timeline_row_creation(key)
+        timeline_row_name = key.row_name
         logger.debug(f"Adding plot '{timeline_row_name}' to timeline")
 
         row = self.graphics_layout.nextRow()
-        is_timestamps_row = timeline_row_name == "Export window"
+        is_timestamps_row = key == TimelineRowKey(
+            None, "Export window", TimelineRowRole.CUSTOM
+        )
 
         if is_timestamps_row:
             time_axis = TimeAxisItem(orientation="top")
@@ -491,6 +621,8 @@ class TimeLineDock(QWidget):
             viewBox=vb,
         )
 
+        plot_item.row_key = key
+
         if is_timestamps_row:
             plot_item.preferred_height_1d = 50
             plot_item.adjust_size()
@@ -499,8 +631,8 @@ class TimeLineDock(QWidget):
         legend.layout.setSpacing(0)
         self.timeline_legends[key] = legend
 
-        self.graphics_layout.addItem(legend_container, row=row, col=0)
-        self.graphics_layout.addItem(plot_item, row=row, col=1)
+        self.graphics_layout.addItem(legend_container, row=row, col=1)
+        self.graphics_layout.addItem(plot_item, row=row, col=2)
 
         plot_item.setMouseEnabled(x=False, y=False)
         plot_item.hideButtons()
@@ -519,6 +651,7 @@ class TimeLineDock(QWidget):
             )
 
         self.timeline_plots[key] = plot_item
+        self._record_timeline_child(key)
 
         if not is_timestamps_row and self.timestamps_plot:
             plot_item.setXRange(*self.timestamps_plot.viewRange()[0], padding=0)
@@ -526,19 +659,34 @@ class TimeLineDock(QWidget):
 
         return plot_item
 
+    def _record_timeline_child(self, key: TimelineRowKey) -> None:
+        if key.group_name is None or key.role is not TimelineRowRole.CUSTOM:
+            return
+
+        row_group = self.timeline_groups[key.group_name]
+        row_group._child_row_names.add(key.row_name)
+        if row_group.collapsed:
+            self._set_timeline_row_visible(key, False)
+            self._refresh_timeline_layout()
+
     def get_timeline_series(
-        self, plot_name: str, series_name: str
+        self,
+        plot_name: str,
+        series_name: str,
+        *,
+        group: str | TimelinePlotGroup | None = None,
     ) -> pg.PlotDataItem | None:
         """Access timeline data series by their name.
 
         Args:
             plot_name: The name of the timeline row.
             series_name: Name shown for the series in the row legend.
+            group: Group name or exact handle; None targets an ungrouped row.
 
         Returns:
             series: The data series, if it exists.
         """
-        plot_item = self.get_timeline_plot(plot_name)
+        plot_item = self.get_timeline_plot(plot_name, group=group)
         if plot_item is None:
             return None
 
@@ -555,6 +703,8 @@ class TimeLineDock(QWidget):
         | NDArray[np.integer[T.Any] | np.floating[T.Any]],
         plot_name: str = "",
         color: QColor | None = None,
+        *,
+        group: str | TimelinePlotGroup | None = None,
         **kwargs: T.Any,  # noqa: ANN401
     ) -> TimelinePlotItem | None:
         """Add a new plot to the timeline.
@@ -571,17 +721,20 @@ class TimeLineDock(QWidget):
                 displays multiple time series.
             color: Optional line color. If the color not provided, the default
                 color palette is used.
+            group: Group name or exact handle; None targets an ungrouped row.
             **kwargs: Additional plotting options passed to pyqtgraph.
 
         Returns:
             The timeline plot, or ``None`` if no recording is open.
         """
+        key = self._timeline_row_key(timeline_row_name, group)
+        self._validate_timeline_row_creation(key)
         app = neon_player.instance()
         recording = app.recording
         if recording is None:
             return None
 
-        plot_item = self.get_timeline_plot(timeline_row_name, True)
+        plot_item = self.get_timeline_plot(timeline_row_name, True, group=group)
 
         if color is None:
             plot_index = len(plot_item.items)
@@ -590,7 +743,7 @@ class TimeLineDock(QWidget):
         if "pen" not in kwargs:
             kwargs["pen"] = pg.mkPen(color=color, width=2, cap="flat")
 
-        legend = self.timeline_legends[self._timeline_row_key(timeline_row_name)]
+        legend = self.timeline_legends[key]
         plot_data_item = plot_item.plot(data, name=plot_name, **kwargs)
         plot_data_item.name = plot_name
         if plot_name != "":
@@ -602,50 +755,67 @@ class TimeLineDock(QWidget):
         return plot_item
 
     def fix_scroll_size(self) -> None:
-        h = sum([p.preferredHeight() for p in self.timeline_plots.values()])
+        h = sum(
+            plot.preferredHeight()
+            for key, plot in self.timeline_plots.items()
+            if key not in self.hidden_timeline_rows
+        )
         self.graphics_view.setFixedHeight(h)
         self.playhead.refresh_geometry()
 
-    def remove_timeline_plot(self, plot_name: str) -> None:
-        """Remove a timeline plot and all the data series it contains.
-
-        Args:
-            plot_name: Label of the row to remove.
-        """
-        plot = self.get_timeline_plot(plot_name)
-        if plot is None:
-            return
-
-        self.graphics_layout.removeItem(plot)
-        key = self._timeline_row_key(plot_name)
-        del self.timeline_plots[key]
-
-        if key in self.timeline_legends:
-            legend = self.timeline_legends[key]
-            self.graphics_layout.removeItem(legend.parentItem())
-            del self.timeline_legends[key]
-
-        self.data_point_actions.pop(key, None)
-
+    def remove_timeline_plot(
+        self, plot_name: str, *, group: str | TimelinePlotGroup | None = None
+    ) -> None:
+        """Remove a row in the requested scope, including its series and actions."""
+        key = self._timeline_row_key(plot_name, group)
+        self._remove_timeline_plot_by_key(key)
         if self.plot_sorting_enabled:
             self.sort_plots()
+        else:
+            self._refresh_timeline_layout()
 
-    def remove_timeline_series(self, plot_name: str, series_name: str) -> None:
+    def _remove_timeline_plot_by_key(self, key: TimelineRowKey) -> None:
+        plot = self.timeline_plots.pop(key, None)
+        if plot is not None:
+            if key.group_name is not None:
+                plot.setXLink(None)
+                plot.close()
+            self.graphics_layout.removeItem(plot)
+            if key.group_name is not None:
+                plot.deleteLater()
+        legend = self.timeline_legends.pop(key, None)
+        if legend is not None:
+            container = legend.parentItem()
+            self.graphics_layout.removeItem(container)
+            container.deleteLater()
+        self.hidden_timeline_rows.discard(key)
+        self.data_point_actions.pop(key, None)
+        if key.group_name is not None and key.role is TimelineRowRole.CUSTOM:
+            self.timeline_groups[key.group_name]._child_row_names.discard(key.row_name)
+
+    def remove_timeline_series(
+        self,
+        plot_name: str,
+        series_name: str,
+        *,
+        group: str | TimelinePlotGroup | None = None,
+    ) -> None:
         """Remove one named data series, removing its row if it becomes empty.
 
         Args:
             plot_name: Label of the row containing the series.
             series_name: Name shown for the series in the row legend.
+            group: Group name or exact handle; None targets an ungrouped row.
         """
-        key = self._timeline_row_key(plot_name)
+        key = self._timeline_row_key(plot_name, group)
         if key not in self.timeline_plots:
             return
 
-        plot = self.get_timeline_plot(plot_name)
+        plot = self.get_timeline_plot(plot_name, group=group)
         if plot is None:
             return
 
-        series = self.get_timeline_series(plot_name, series_name)
+        series = self.get_timeline_series(plot_name, series_name, group=group)
         if series is None:
             return
 
@@ -655,14 +825,18 @@ class TimeLineDock(QWidget):
             legend.removeItem(series_name)
 
         if len(plot.items) == 0:
-            self.remove_timeline_plot(plot_name)
+            self.remove_timeline_plot(plot_name, group=group)
 
     def on_data_point_clicked(
         self,
         timeline_name: str,
         data_point: tuple[int, T.SupportsFloat],
+        *,
+        group: str | TimelinePlotGroup | None = None,
     ) -> None:
-        self._show_data_point_actions(self._timeline_row_key(timeline_name), data_point)
+        self._show_data_point_actions(
+            self._timeline_row_key(timeline_name, group), data_point
+        )
 
     def _show_data_point_actions(
         self, key: TimelineRowKey, data_point: tuple[int, T.SupportsFloat]
@@ -684,6 +858,8 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, T.SupportsFloat]]
         | NDArray[np.integer[T.Any] | np.floating[T.Any]],
         plot_name: str = "",
+        *,
+        group: str | TimelinePlotGroup | None = None,
         **kwargs: T.Any,  # noqa: ANN401
     ) -> TimelinePlotItem | None:
         """Add a line graph to a timeline row.
@@ -692,12 +868,15 @@ class TimeLineDock(QWidget):
             timeline_row_name: Label for the timeline row.
             data: Timestamp and value pairs; timestamps are in nanoseconds.
             plot_name: Optional name shown in the row legend.
+            group: Group name or exact handle; None targets an ungrouped row.
             **kwargs: Additional line options passed to pyqtgraph.
 
         Returns:
             The timeline row, or ``None`` if no recording is open.
         """
-        return self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
+        return self.add_timeline_plot(
+            timeline_row_name, data, plot_name, group=group, **kwargs
+        )
 
     def add_timeline_scatter(
         self,
@@ -705,6 +884,8 @@ class TimeLineDock(QWidget):
         data: list[tuple[int, T.SupportsFloat]]
         | NDArray[np.integer[T.Any] | np.floating[T.Any]],
         item_name: str = "",
+        *,
+        group: str | TimelinePlotGroup | None = None,
     ) -> TimelinePlotItem | None:
         """Add a scatter plot to a timeline row.
 
@@ -712,6 +893,7 @@ class TimeLineDock(QWidget):
             name: Label for the timeline row.
             data: Timestamp and value pairs; timestamps are in nanoseconds.
             item_name: Optional name shown in the row legend.
+            group: Group name or exact handle; None targets an ungrouped row.
 
         Returns:
             The timeline row, or ``None`` if no recording is open.
@@ -720,6 +902,7 @@ class TimeLineDock(QWidget):
             name,
             data,
             item_name,
+            group=group,
             pen=None,
             symbol="d",
             symbolBrush=pg.mkColor("white"),
@@ -733,6 +916,8 @@ class TimeLineDock(QWidget):
         | NDArray[np.integer[T.Any] | np.floating[T.Any]],
         item_name: str = "",
         color: str = "white",
+        *,
+        group: str | TimelinePlotGroup | None = None,
     ) -> TimelinePlotItem | None:
         """Add horizontal bars to show time ranges on the timeline.
 
@@ -742,12 +927,17 @@ class TimeLineDock(QWidget):
                 ``(start, end, value)`` triples. Timestamps are in nanoseconds;
                 values control the bar colors when supplied.
             item_name: Optional name shown in the row legend.
+            group: Group name or exact handle; None targets an ungrouped row.
             color: Color name or pyqtgraph color map name.
 
         Returns:
             The timeline row, or ``None`` if no recording is open.
         """
-        plot_widget = self.get_timeline_plot(timeline_row_name, True)
+        key = self._timeline_row_key(timeline_row_name, group)
+        self._validate_timeline_row_creation(key)
+        if neon_player.instance().recording is None:
+            return None
+        plot_widget = self.get_timeline_plot(timeline_row_name, True, group=group)
 
         plot_widget.getViewBox().allow_y_panning = False
         # plot_widget.getViewBox().setMouseEnabled(y=False)
@@ -781,7 +971,7 @@ class TimeLineDock(QWidget):
 
         plot_widget.getViewBox().autoRange(padding=0.7)
 
-        key = self._timeline_row_key(timeline_row_name)
+        key = self._timeline_row_key(timeline_row_name, group)
         if item_name and key in self.timeline_legends:
             legend = self.timeline_legends[key]
             legend.addItem(bars, name=item_name)
@@ -792,45 +982,88 @@ class TimeLineDock(QWidget):
         return plot_widget
 
     def sort_plots(self) -> None:
-        items_to_move: dict[TimelineRowKey, tuple[T.Any, TimelinePlotItem]] = {}
-        for move_row in range(self.graphics_layout.currentRow, 1, -1):
-            legend = self.graphics_layout.getItem(move_row, 0)
-            plot = self.graphics_layout.getItem(move_row, 1)
-
+        rows: dict[TimelineRowKey, tuple[T.Any, T.Any, TimelinePlotItem]] = {}
+        for row in range(self.graphics_layout.currentRow, 1, -1):
+            plot = self.graphics_layout.getItem(row, 2)
             if plot is None:
                 continue
+            control = self.graphics_layout.getItem(row, 0)
+            legend = self.graphics_layout.getItem(row, 1)
+            rows[plot.row_key] = control, legend, plot
+            for item in (control, legend, plot):
+                if item is not None:
+                    self.graphics_layout.removeItem(item)
+            del self.graphics_layout.rows[row]
 
-            items_to_move[plot.row_key] = (legend, plot)
-
-            self.graphics_layout.removeItem(legend)
-            self.graphics_layout.removeItem(plot)
-
-            del self.graphics_layout.rows[move_row]
+        blocks: list[
+            tuple[tuple[int, str, str], list[tuple[T.Any, T.Any, TimelinePlotItem]]]
+        ] = []
+        for group in self.timeline_groups.values():
+            keys = [key for key in rows if key.group_name == group.name]
+            keys.sort(key=lambda key: self._timeline_group_row_sort_key(rows[key][2]))
+            blocks.append(
+                (
+                    (20, group.name.lower(), group.name),
+                    [rows.pop(key) for key in keys],
+                )
+            )
+        for item in rows.values():
+            priority, name = self._timeline_plot_sort_key(item[2])
+            blocks.append(((priority, name, ""), [item]))
 
         self.graphics_layout.currentRow = 1
-
-        sorted_keys = sorted(
-            items_to_move,
-            key=lambda key: self._timeline_plot_sort_key(items_to_move[key][1]),
-        )
-
-        for key in sorted_keys:
-            legend, plot = items_to_move[key]
-            row = self.graphics_layout.nextRow()
-            self.graphics_layout.addItem(legend, row=row, col=0)
-            self.graphics_layout.addItem(plot, row=row, col=1)
-
-        self.fix_scroll_size()
+        for _, block in sorted(blocks, key=lambda entry: entry[0]):
+            for control, legend, plot in block:
+                row = self.graphics_layout.nextRow()
+                if control is not None:
+                    self.graphics_layout.addItem(control, row=row, col=0)
+                self.graphics_layout.addItem(legend, row=row, col=1)
+                self.graphics_layout.addItem(plot, row=row, col=2)
+        self._refresh_timeline_layout()
 
     @staticmethod
     def _timeline_plot_sort_key(plot: TimelinePlotItem) -> tuple[int, str]:
-        priority = 30 if plot.has_line else 10 if plot.has_bar else 20
+        priority = 20
+        if plot.row_key.role is TimelineRowRole.CUSTOM:
+            priority = 30 if plot.has_line else 10 if plot.has_bar else 20
         return priority, plot.row_name.lower()
 
-    @staticmethod
-    def _timeline_row_key(row_name: str) -> TimelineRowKey:
-        """Resolve an ungrouped contribution to its complete internal identity."""
-        return TimelineRowKey(None, row_name, TimelineRowRole.CUSTOM)
+    @classmethod
+    def _timeline_group_row_sort_key(
+        cls, plot: TimelinePlotItem
+    ) -> tuple[int, int, str]:
+        roles = {
+            TimelineRowRole.HEADER: 0,
+            TimelineRowRole.SEARCH: 1,
+            TimelineRowRole.CUSTOM: 2,
+        }
+        priority, name = cls._timeline_plot_sort_key(plot)
+        return roles[plot.row_key.role], priority, name
+
+    def _validate_timeline_row_creation(self, key: TimelineRowKey) -> None:
+        if key.group_name is None and key.row_name in self.timeline_groups:
+            raise ValueError(f"Global timeline name '{key.row_name}' already exists")
+
+    def _resolve_timeline_group(
+        self, group: str | TimelinePlotGroup | None
+    ) -> TimelinePlotGroup | None:
+        if group is None:
+            return None
+        if isinstance(group, str):
+            return self.timeline_groups[group]
+        if self.timeline_groups.get(group.name) is not group:
+            raise ValueError("Timeline row group does not belong to this timeline")
+        return group
+
+    def _timeline_row_key(
+        self, row_name: str, group: str | TimelinePlotGroup | None = None
+    ) -> TimelineRowKey:
+        resolved = self._resolve_timeline_group(group)
+        return TimelineRowKey(
+            resolved.name if resolved is not None else None,
+            row_name,
+            TimelineRowRole.CUSTOM,
+        )
 
     def enable_plot_sorting(self) -> None:
         """Enable plot sorting and sort plots."""
@@ -852,15 +1085,23 @@ class TimeLineDock(QWidget):
         row_name: str,
         action_name: str,
         callback: T.Callable[[tuple[int, T.SupportsFloat]], object],
+        *,
+        group: str | TimelinePlotGroup | None = None,
     ) -> None:
-        key = self._timeline_row_key(row_name)
+        key = self._timeline_row_key(row_name, group)
         if key not in self.data_point_actions:
             self.data_point_actions[key] = {}
 
         self.data_point_actions[key][action_name] = callback
 
-    def unregister_data_point_action(self, row_name: str, action_name: str) -> None:
-        key = self._timeline_row_key(row_name)
+    def unregister_data_point_action(
+        self,
+        row_name: str,
+        action_name: str,
+        *,
+        group: str | TimelinePlotGroup | None = None,
+    ) -> None:
+        key = self._timeline_row_key(row_name, group)
         if key not in self.data_point_actions:
             return
 

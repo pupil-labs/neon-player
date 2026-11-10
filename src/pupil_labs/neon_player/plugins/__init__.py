@@ -13,6 +13,7 @@ from qt_property_widgets.widgets import PropertyForm
 from pupil_labs import neon_player
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
+from pupil_labs.neon_player.ui.timeline_dock_components import TimelinePlotGroup
 
 if T.TYPE_CHECKING:
     from pupil_labs.neon_player.app import NeonPlayerApp
@@ -138,7 +139,12 @@ class Plugin(PersistentPropertiesMixin, QObject):
         return self.app.main_window.unregister_action(f"Timeline/{name}")
 
     def register_data_point_action(
-        self, row_name: str, action_name: str, callback: T.Callable[..., object]
+        self,
+        row_name: str,
+        action_name: str,
+        callback: T.Callable[..., object],
+        *,
+        group: str | TimelinePlotGroup | None = None,
     ) -> None:
         """Add an data point action to the context menu of the timeline.
 
@@ -151,20 +157,28 @@ class Plugin(PersistentPropertiesMixin, QObject):
             callback: Function called with the selected point. The callback
                 receives the clicked data point as a ``(timestamp, value)``
                 pair. Timestamps are in nanoseconds.
+            group: Optional timeline group name or exact handle.
         """
         self.app.main_window.timeline.register_data_point_action(
-            row_name, action_name, callback
+            row_name, action_name, callback, group=group
         )
 
-    def unregister_data_point_action(self, row_name: str, action_name: str) -> None:
+    def unregister_data_point_action(
+        self,
+        row_name: str,
+        action_name: str,
+        *,
+        group: str | TimelinePlotGroup | None = None,
+    ) -> None:
         """Remove a data-point action previously registered by this plugin.
 
         Args:
             row_name: Name of the timeline row containing the points.
             action_name: Label used when the action was registered.
+            group: Optional timeline group name or exact handle.
         """
         self.app.main_window.timeline.unregister_data_point_action(
-            row_name, action_name
+            row_name, action_name, group=group
         )
 
     def add_dynamic_action(self, name: str, func: T.Callable[..., object]) -> None:
