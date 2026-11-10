@@ -1,10 +1,13 @@
 import argparse
+import importlib.abc
+import importlib.machinery
 import importlib.util
 import json
 import logging
 import os
 import sys
 import time
+import types
 import typing as T
 import warnings
 from pathlib import Path
@@ -62,6 +65,49 @@ if sys.platform == "darwin":
     from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
 
 logger = logging.getLogger(__name__)
+
+_UNSAFE_EXTENSION_ROOTS = frozenset({"PySide6", "shiboken6"})
+
+
+def _extend_package_search_path(module: types.ModuleType, site_pkg_dir: str) -> None:
+    mod_path = getattr(module, "__path__", None)
+    if not isinstance(mod_path, list) or not os.path.isdir(site_pkg_dir):
+        return
+    if site_pkg_dir not in mod_path:
+        mod_path.append(site_pkg_dir)
+    spec = getattr(module, "__spec__", None)
+    locations = getattr(spec, "submodule_search_locations", None)
+    if isinstance(locations, list) and site_pkg_dir not in locations:
+        locations.append(site_pkg_dir)
+
+
+class PassivePathExtensionHook(importlib.abc.MetaPathFinder):
+    """Passively extend `__path__` of loaded packages to resolve missing submodules."""
+
+    def __init__(self, site_packages: str) -> None:
+        self.site_packages = site_packages
+        self._patched: set[str] = set()
+
+    def find_spec(
+        self,
+        fullname: str,
+        path: T.Sequence[str] | None,
+        target: types.ModuleType | None = None,
+    ) -> importlib.machinery.ModuleSpec | None:
+        del path, target
+        if "." not in fullname:
+            return None
+        root = fullname.split(".", 1)[0]
+        if root in _UNSAFE_EXTENSION_ROOTS:
+            return None
+        parent = fullname.rsplit(".", 1)[0]
+        if parent in sys.modules and parent not in self._patched:
+            site_pkg_path = os.path.join(
+                self.site_packages, parent.replace(".", os.sep)
+            )
+            _extend_package_search_path(sys.modules[parent], site_pkg_path)
+            self._patched.add(parent)
+        return None
 
 
 class NeonPlayerApp(QApplication):
@@ -232,6 +278,9 @@ class NeonPlayerApp(QApplication):
         plugin_name, action_name = job[0].split(".")
         job_args = job[1:]
 
+        if plugin_name not in self.plugins_by_class:
+            self.toggle_plugin(plugin_name, True)
+
         for plugin in self.plugins:
             if plugin.__class__.__name__ == plugin_name:
                 # use an action object to provide type conversion for arguments
@@ -324,9 +373,29 @@ class NeonPlayerApp(QApplication):
         except Exception:
             logger.exception("Failed to save history")
 
+    def _install_missing_plugin_deps(
+        self, missing_dependencies: list[str], plugin_name: str
+    ) -> None:
+        if not missing_dependencies:
+            return
+        if self.headless:
+            logger.info(f"Installing dependencies for {plugin_name} headlessly...")
+            for _ in install_dependencies(missing_dependencies):
+                pass
+        else:
+            dialog = PluginInstallationDialog(missing_dependencies, plugin_name)
+            dialog.exec()
+
     def find_plugins(self, path: Path) -> None:
         sys.path.append(str(path))
-        sys.path.append(str(path / "site-packages"))
+        site_packages_path = str(path / "site-packages")
+        sys.path.append(site_packages_path)
+
+        sys.meta_path = [
+            m for m in sys.meta_path if type(m).__name__ != "PassivePathExtensionHook"
+        ]
+        sys.meta_path.insert(0, PassivePathExtensionHook(site_packages_path))
+
         logger.info(f"Searching for plugins in {path}")
         for d in path.iterdir():
             if d.is_file() and d.suffix != ".py":
@@ -347,10 +416,7 @@ class NeonPlayerApp(QApplication):
                     continue
 
                 missing_dependencies = check_dependencies_for_plugin(d)
-
-                if missing_dependencies:
-                    dialog = PluginInstallationDialog(missing_dependencies, d.name)
-                    dialog.exec()
+                self._install_missing_plugin_deps(missing_dependencies, d.name)
 
                 logger.info(f"Importing plugin module {d}")
 
