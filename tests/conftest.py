@@ -14,6 +14,9 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QApplication
 
 from pupil_labs.neon_player.app import NeonPlayerApp
+from pupil_labs.neon_player.history import RecordingHistory
+from pupil_labs.neon_player.job_manager import JobManager
+from pupil_labs.neon_player.managers.update import UpdateManager
 from pupil_labs.neon_player.settings import GeneralSettings
 
 FIELD_CLASS_MAPPING = {
@@ -61,6 +64,12 @@ class MockNeonPlayerApp(NeonPlayerApp):
     """
 
     export_window_changed = Signal(tuple[int, int])
+    playback_state_changed = Signal(bool)
+    position_changed = Signal(object)
+    seeked = Signal(object)
+    speed_changed = Signal(float)
+    recording_loaded = Signal(object)
+    recording_unloaded = Signal()
 
     def __init__(self, argv: list[str]) -> None:
         QApplication.__init__(self, argv)
@@ -68,8 +77,12 @@ class MockNeonPlayerApp(NeonPlayerApp):
         self.recording_settings = None
         self.plugins_by_class = {}
         self.recording = None
+        self.recording_history = RecordingHistory()
+        self.job_manager = JobManager()
         self.settings = GeneralSettings()
         self.settings.default_plugins = {"DefaultPlugin": True}
+        self.update_manager = UpdateManager(self)
+        self.playback_speed_options = []
 
 
 @pytest.fixture(scope="session")
