@@ -1296,10 +1296,11 @@ def get_marker_visibility_intervals(
     start_times = frame_times[start_indices].tolist()
 
     # NOTE: scene frames do not have stop times, so the final interval is set
-    # to set ~33 ms after the last frame (assuming 30 fps)
-    stop_times = frame_times[change_indices].tolist()
-    stop_times = np.concatenate((stop_times, [frame_times[-1] + 1e9 // 30]))
+    # to set ~33 ms after the last frame (assuming 30 fps). Subtracting 1 ns from
+    # all other stop times to make bars non-overlapping
+    stop_times = frame_times[change_indices] - 1
+    stop_times = np.concatenate((stop_times, [frame_times[-1] + 1_000_000_000 // 30]))
 
     marker_counts = marker_count_by_frame[start_indices].astype(float).tolist()
 
-    return start_times, stop_times, marker_counts
+    return start_times, stop_times.tolist(), marker_counts
