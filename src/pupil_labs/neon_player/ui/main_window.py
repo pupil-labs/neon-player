@@ -504,7 +504,7 @@ class MainWindow(QMainWindow):
             ),
         ]
 
-        self.register_action("&Timeline/&Reset view", None, self.timeline.reset_view)
+        self._register_timeline_actions()
 
         self.setCorner(
             Qt.Corner.BottomRightCorner, Qt.DockWidgetArea.RightDockWidgetArea
@@ -513,6 +513,22 @@ class MainWindow(QMainWindow):
 
         self.on_recording_closed()
         self.status_label.clicked.connect(self.console_window.show)
+
+    def _register_timeline_actions(self) -> None:
+        self.register_action("&Timeline/&Reset view", None, self.timeline.reset_view)
+        self.register_action(
+            "&Timeline/&Expand all groups",
+            QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_E),
+            self.timeline.expand_all_groups,
+        )
+        self.register_action(
+            "&Timeline/Collapse all groups",
+            QKeyCombination(
+                Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
+                Qt.Key.Key_E,
+            ),
+            self.timeline.collapse_all_groups,
+        )
 
     def reset_docks(self) -> None:
         docks_and_areas = {

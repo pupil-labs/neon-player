@@ -2,14 +2,43 @@ import pytest
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import QWidget
+from pytestqt.qtbot import QtBot
 
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.timeline_dock_components import (
     TimelineHorizontalScrollBar,
+    TimelinePlotGroupControl,
     TimelinePlotItem,
+    TimelineRowKey,
+    TimelineRowRole,
     TimelineScrollArea,
 )
 from tests.conftest import MockNeonPlayerApp
+
+
+@pytest.mark.parametrize("collapsed", [False, True])
+def test_group_control_presents_current_state(qtbot: QtBot, collapsed: bool) -> None:
+    control = TimelinePlotGroupControl("Events", collapsed)
+    qtbot.addWidget(control)
+    assert control.text() == ("▸" if collapsed else "▾")
+    assert control.toolTip() == ("Expand Events" if collapsed else "Collapse Events")
+    assert control.accessibleName() == control.toolTip()
+    assert control.cursor().shape() == Qt.CursorShape.PointingHandCursor
+    assert control.autoRaise()
+    assert control.width() == 20
+    assert control.height() == 20
+    control.set_collapsed(not collapsed)
+    assert control.text() == ("▾" if collapsed else "▸")
+    assert control.toolTip() == ("Collapse Events" if collapsed else "Expand Events")
+    assert control.accessibleName() == control.toolTip()
+
+
+def test_group_control_emits_click_without_mutating_its_state(qtbot: QtBot) -> None:
+    control = TimelinePlotGroupControl("Events")
+    qtbot.addWidget(control)
+    with qtbot.waitSignal(control.clicked):
+        control.click()
+    assert control.text() == "▾"
 
 
 @pytest.mark.usefixtures("qapp")
@@ -111,12 +140,17 @@ def test_smart_size_plot_item_y_limit_labels_follow_visible_range() -> None:
 
 class DummyTimelineDock:
     def __init__(self) -> None:
-        self.timeline_plots: dict[str, DummyLinePlot] = {}
+        self.timeline_plots: dict[TimelineRowKey, DummyLinePlot] = {}
+
+    def _timeline_row_key(
+        self, row_name: str, group: str | None = None
+    ) -> TimelineRowKey:
+        return TimelineRowKey(group, row_name, TimelineRowRole.CUSTOM)
 
     def get_timeline_plot(
         self, row_name: str, _create_if_missing: bool = False
     ) -> "DummyLinePlot | None":
-        return self.timeline_plots.get(row_name)
+        return self.timeline_plots.get(self._timeline_row_key(row_name))
 
     def add_timeline_plot(
         self,
@@ -125,7 +159,9 @@ class DummyTimelineDock:
         _plot_name: str = "",
         **_kwargs: object,
     ) -> "DummyLinePlot":
-        plot = self.timeline_plots.setdefault(row_name, DummyLinePlot())
+        plot = self.timeline_plots.setdefault(
+            self._timeline_row_key(row_name), DummyLinePlot()
+        )
         return plot
 
 
@@ -145,10 +181,10 @@ def test_add_timeline_line_defaults_labels_and_preserves_existing() -> None:
     dock = DummyTimelineDock()
 
     TimeLineDock.add_timeline_line(dock, "new", [])
-    assert dock.timeline_plots["new"].show_y_limit_labels
+    assert dock.timeline_plots[dock._timeline_row_key("new")].show_y_limit_labels
 
     existing_plot = DummyLinePlot()
-    dock.timeline_plots["existing"] = existing_plot
+    dock.timeline_plots[dock._timeline_row_key("existing")] = existing_plot
     TimeLineDock.add_timeline_line(dock, "existing", [], units="deg")
 
     assert not existing_plot.show_y_limit_labels
@@ -163,7 +199,7 @@ def test_add_timeline_line_explicit_visibility_overrides_default() -> None:
         dock, "hidden", [], show_y_limit_labels=False, units="mm"
     )
 
-    plot = dock.timeline_plots["hidden"]
+    plot = dock.timeline_plots[dock._timeline_row_key("hidden")]
     assert not plot.show_y_limit_labels
     assert plot.units == "mm"
 

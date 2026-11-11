@@ -1,12 +1,28 @@
 import math
+from enum import Enum, auto
+from typing import NamedTuple
 
 import pyqtgraph as pg
 from pyqtgraph.GraphicsScene.mouseEvents import MouseDragEvent
-from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRect, QRectF, Qt, Signal
+from PySide6.QtCore import (
+    QEvent,
+    QObject,
+    QPoint,
+    QPointF,
+    QRect,
+    QRectF,
+    QSize,
+    Qt,
+    QThread,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import (
     QColor,
     QFont,
     QFontMetrics,
+    QIcon,
+    QKeyEvent,
     QPainter,
     QPaintEvent,
     QPen,
@@ -17,21 +33,224 @@ from PySide6.QtWidgets import (
     QFrame,
     QGraphicsEllipseItem,
     QGraphicsItem,
+    QGraphicsProxyWidget,
     QGraphicsRectItem,
     QGraphicsSceneMouseEvent,
     QGraphicsSceneWheelEvent,
     QGraphicsView,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QScrollArea,
     QScrollBar,
     QSizePolicy,
     QStyleOptionGraphicsItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
+from pupil_labs import neon_player
 from pupil_labs.neon_player.ui import GUIEventNotifier
+
+
+class TimelineRowRole(Enum):
+    """Internal row purpose, independent of its scope and displayed name."""
+
+    HEADER = auto()
+    SEARCH = auto()
+    CUSTOM = auto()
+
+
+class TimelineRowKey(NamedTuple):
+    """Internal identity shared by timeline plots, legends, and point actions."""
+
+    group_name: str | None
+    row_name: str
+    role: TimelineRowRole
+
+
+class TimelinePlotGroup:
+    """Registered group handle; timeline operations manage its mutable state."""
+
+    def __init__(
+        self, name: str, collapsed: bool = False, *, searchable: bool = False
+    ) -> None:
+        self._name = name
+        self._collapsed = collapsed
+        self._searchable = searchable
+        self._query = ""
+        self._child_row_names: set[str] = set()
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def collapsed(self) -> bool:
+        return self._collapsed
+
+    @property
+    def searchable(self) -> bool:
+        return self._searchable
+
+    @property
+    def child_row_names(self) -> frozenset[str]:
+        return frozenset(self._child_row_names)
+
+
+class TimelinePlotGroupControl(QToolButton):
+    """Toggle for showing / hiding child rows of a timeline plot group."""
+
+    def __init__(self, group_name: str, collapsed: bool = False) -> None:
+        super().__init__()
+        self._group_name = group_name
+        self.setAutoRaise(True)
+        self.setFixedSize(QSize(20, 20))
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.set_collapsed(collapsed)
+
+    def set_collapsed(self, collapsed: bool) -> None:
+        action = "Expand" if collapsed else "Collapse"
+        self.setText("▸" if collapsed else "▾")
+        self.setToolTip(f"{action} {self._group_name}")
+        self.setAccessibleName(f"{action} {self._group_name}")
+
+
+class TimelineSearchField(QLineEdit):
+    """Text editor that keeps timeline shortcuts out of search input."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setStyleSheet("""
+            background: transparent;
+        """)
+
+    def event(self, event: QEvent) -> bool:
+        if (
+            isinstance(event, QKeyEvent)
+            and event.type() == QEvent.Type.ShortcutOverride
+            and event.modifiers()
+            in (
+                Qt.KeyboardModifier.NoModifier,
+                Qt.KeyboardModifier.ShiftModifier,
+            )
+        ):
+            event.accept()
+            return True
+        return super().event(event)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        super().keyPressEvent(event)
+        event.accept()
+
+
+class TimelinePlotGroupSearchBar(QWidget):
+    """Timeline-owned name search, shared by searchable groups."""
+
+    def __init__(self, group_name: str) -> None:
+        super().__init__()
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(4, 0, 0, 0)
+        icon = QLabel()
+        icon.setFixedSize(12, 12)
+        icon.setPixmap(
+            QIcon(str(neon_player.asset_path("search.svg"))).pixmap(
+                QSize(12, 12), self.devicePixelRatioF()
+            )
+        )
+        self.field = TimelineSearchField()
+        self.field.setPlaceholderText("Search")
+        self.field.setClearButtonEnabled(True)
+        self.field.setAccessibleName(f"Search {group_name}")
+        self.field.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        layout.addWidget(icon)
+        layout.addWidget(self.field, 1)
+        self.field.destroyed.connect(self.deleteLater)
+
+
+class TimelinePlotLabelHost(pg.GraphicsLayout):  # type: ignore[misc]
+    """Own a row's title widget and legend without replacing either on refresh."""
+
+    content_lost = Signal()
+    size_hint_changed = Signal()
+
+    def __init__(self, name: str, legend: "FixedLegend") -> None:
+        super().__init__()
+        self.setSpacing(0)
+        self.setContentsMargins(0, 0, 0, 0)
+        self.title = pg.LabelItem(name, justify="left")
+        self.proxy: QGraphicsProxyWidget | None = None
+        self.addItem(self.title)
+        self.addItem(legend, row=1, col=0)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self._restore_timer = QTimer(self)
+        self._restore_timer.setSingleShot(True)
+        self._restore_timer.timeout.connect(self.content_lost)
+        self._geometry_timer = QTimer(self)
+        self._geometry_timer.setSingleShot(True)
+        self._geometry_timer.timeout.connect(self._update_title_height)
+        self._last_title_height = 0.0
+
+    def _set_title_widget(self, widget: QWidget) -> None:
+        if (
+            QThread.currentThread() != self.thread()
+            or widget.thread() != self.thread()
+            or widget.parent() is not None
+            or widget.graphicsProxyWidget() is not None
+            or (widget.isWindow() and widget.windowType() != Qt.WindowType.Window)
+            or widget.testAttribute(Qt.WidgetAttribute.WA_PaintOnScreen)
+            or widget.testAttribute(Qt.WidgetAttribute.WA_NativeWindow)
+            or widget.inherits("QOpenGLWidget")
+        ):
+            raise ValueError("Timeline title widgets must be live and embeddable")
+        proxy = QGraphicsProxyWidget()
+        proxy.setWidget(widget)
+        if proxy.widget() is not widget:
+            proxy.deleteLater()
+            raise ValueError("Could not embed timeline title widget")
+        if self.proxy is not None:
+            old = self.proxy
+            old_widget = old.widget()
+            if old_widget is not None:
+                old_widget.destroyed.disconnect(self._on_content_destroyed)
+                old_widget.removeEventFilter(self)
+            self.removeItem(old)
+            old.deleteLater()
+        else:
+            self.removeItem(self.title)
+            self.title.setParentItem(self)
+            self.title.hide()
+        self.proxy = proxy
+        self.addItem(proxy, row=0, col=0)
+        widget.destroyed.connect(self._on_content_destroyed)
+        widget.installEventFilter(self)
+        self._last_title_height = self.title_height()
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.LayoutRequest:
+            self._geometry_timer.start(0)
+        return bool(super().eventFilter(watched, event))
+
+    def _update_title_height(self) -> None:
+        height = self.title_height()
+        if height != self._last_title_height:
+            self._last_title_height = height
+            self.size_hint_changed.emit()
+
+    def _on_content_destroyed(self) -> None:
+        # A proxy and its QWidget delete each other. Wait until both are gone.
+        self.proxy = None
+        self._restore_timer.start(0)
+
+    def title_height(self) -> float:
+        if self.proxy is not None:
+            widget = self.proxy.widget()
+            if widget is not None:
+                return float(
+                    max(widget.sizeHint().height(), widget.minimumSizeHint().height())
+                )
+        return float(self.title.effectiveSizeHint(Qt.SizeHint.PreferredSize).height())
 
 
 class TimelineScrollArea(QScrollArea):
@@ -455,7 +674,7 @@ class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not
 
         self.setDownsampling(auto=True, mode="subsample")
         self.legend_handle = legend
-        self.row_name = row_name
+        self.row_key = TimelineRowKey(None, row_name, TimelineRowRole.CUSTOM)
         self._show_y_limit_labels = False
         self._hovered = False
         self._y_units = ""
@@ -477,6 +696,10 @@ class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not
         self.preferred_height_1d = 25
         self.preferred_height_2d = 150
         self.adjust_size()
+
+    @property
+    def row_name(self) -> str:
+        return self.row_key.row_name
 
     @property
     def show_y_limit_labels(self) -> bool:
@@ -577,10 +800,22 @@ class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not
 
     def adjust_size(self) -> None:
         height = self.preferred_height_2d if self.has_line else self.preferred_height_1d
+        title_height = 0.0
+        host = self.legend_handle.parentItem()
+        if isinstance(host, TimelinePlotLabelHost):
+            title_height = host.title_height()
+            legend_height = (
+                self.legend_handle.layout.effectiveSizeHint(
+                    Qt.SizeHint.PreferredSize
+                ).height()
+                if self.legend_handle.items
+                else 0
+            )
+            height = max(height, math.ceil(title_height + legend_height))
 
         self.setFixedHeight(height)
 
-        self.legend_handle.setFixedHeight(height)
+        self.legend_handle.setFixedHeight(max(0, height - title_height))
         self.legend_handle.parentItem().setFixedHeight(height)
 
     def paint(

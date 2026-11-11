@@ -2,17 +2,20 @@
     options:
         inherited_members: false
         members:
-            - add_timeline_plot
-            - add_timeline_line
-            - add_timeline_scatter
             - add_timeline_broken_bar
-            - set_timeline_tooltip
-            - get_timeline_plot
-            - get_timeline_series
-            - remove_timeline_plot
-            - remove_timeline_series
+            - add_timeline_group
+            - add_timeline_line
+            - add_timeline_plot
+            - add_timeline_scatter
             - disable_plot_sorting
             - enable_plot_sorting
+            - get_timeline_group
+            - get_timeline_plot
+            - get_timeline_series
+            - remove_timeline_group
+            - remove_timeline_plot
+            - remove_timeline_series
+            - set_timeline_tooltip
 
 ::: pupil_labs.neon_player.ui.timeline_dock_components.TimelinePlotItem
 
