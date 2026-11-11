@@ -185,7 +185,7 @@ def install_dependencies(
             command,
             text=True,
             capture_output=True,
-            check=False,
+            check=True,
         )
         if proc.stdout:
             logger.info(proc.stdout.rstrip())
@@ -197,4 +197,3 @@ def install_dependencies(
 
     except subprocess.CalledProcessError as e:
         logger.exception(f"Failed to install dependencies. Error: {e.stderr}")
-        raise
