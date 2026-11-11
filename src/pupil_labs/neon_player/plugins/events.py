@@ -23,6 +23,9 @@ from pupil_labs.neon_player import GlobalPluginProperties, action
 from pupil_labs.neon_player.plugins import Plugin
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.ui.timeline_dock_components import TimelinePlotGroup
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
+    default_scatter_tooltip,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -404,14 +407,27 @@ class EventsPlugin(neon_player.Plugin):
         if existing_plot is not None:
             return
 
-        plot_item = timeline.add_timeline_scatter(event_type.name, [], group=group)
+        event_name = event_type.name
+
+        def get_total(name: str = event_name) -> int:
+            return len(self.events.get(name, []))
+
+        plot_item = timeline.add_timeline_scatter(
+            event_name,
+            [],
+            tooltip=default_scatter_tooltip(
+                name=event_name,
+                total=get_total,
+            ),
+            group=group,
+        )
         if plot_item is None:
             return
         plot_item.getViewBox().allow_y_panning = False
 
         if event_type.name not in IMMUTABLE_EVENTS:
             self.register_timeline_action(
-                f"Add Event/{event_type.name}",
+                f"Add Event/{event_name}",
                 None,
                 lambda: self._add_event(event_type),
             )

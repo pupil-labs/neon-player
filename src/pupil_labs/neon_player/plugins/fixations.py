@@ -24,6 +24,7 @@ from pupil_labs.neon_player import action
 from pupil_labs.neon_player.job_manager import ProgressUpdate
 from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin, apply_offset
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import default_broken_bar_tooltip
 from pupil_labs.neon_player.utilities import (
     cart_to_spherical,
     get_scene_intrinsics,
@@ -80,6 +81,7 @@ class FixationsPlugin(neon_player.Plugin):
         self.get_timeline().add_timeline_broken_bar(
             "Fixations",
             self.fixations[["start_time", "stop_time"]],  # type: ignore[arg-type]
+            tooltip=default_broken_bar_tooltip(),
         )
 
         self.register_action(

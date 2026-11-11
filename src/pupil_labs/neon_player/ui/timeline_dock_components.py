@@ -9,6 +9,7 @@ from PySide6.QtCore import (
     QObject,
     QPoint,
     QPointF,
+    QRect,
     QRectF,
     QSize,
     Qt,
@@ -16,17 +17,32 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QColor, QIcon, QKeyEvent, QPainter, QPaintEvent, QPolygon
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QFontMetrics,
+    QIcon,
+    QKeyEvent,
+    QPainter,
+    QPaintEvent,
+    QPen,
+    QPolygon,
+    QWheelEvent,
+)
 from PySide6.QtWidgets import (
+    QFrame,
     QGraphicsEllipseItem,
     QGraphicsItem,
     QGraphicsProxyWidget,
     QGraphicsRectItem,
     QGraphicsSceneMouseEvent,
     QGraphicsSceneWheelEvent,
+    QGraphicsView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QScrollArea,
+    QScrollBar,
     QSizePolicy,
     QStyleOptionGraphicsItem,
     QToolButton,
@@ -237,6 +253,201 @@ class TimelinePlotLabelHost(pg.GraphicsLayout):  # type: ignore[misc]
         return float(self.title.effectiveSizeHint(Qt.SizeHint.PreferredSize).height())
 
 
+class TimelineScrollArea(QScrollArea):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setFrameShape(QFrame.Shape.NoFrame)
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        # NOTE: pass pyqtgraph's zoom interactions (Shift+Scroll, Cmd/Ctrl+Scroll)
+        # through w/o scrolling through timeline plots when there are many of them
+        shift_modifier = Qt.KeyboardModifier.ShiftModifier
+        control_modifier = Qt.KeyboardModifier.ControlModifier
+        modifiers = shift_modifier | control_modifier
+        if event.modifiers() & modifiers:
+            event.ignore()
+            return
+
+        super().wheelEvent(event)
+
+
+class TimelinePinnedAxis(QWidget):
+    """A time axis kept above the timeline's vertically scrolling rows."""
+
+    _HEIGHT = 25
+
+    def __init__(self, viewbox: pg.ViewBox) -> None:
+        super().__init__()
+        self.axis_view = pg.GraphicsView(self)
+        self.axis_view.setBackground("transparent")
+        self.axis_view.setFrameShape(QFrame.Shape.NoFrame)
+        self.axis_layout = pg.GraphicsLayout()
+        self.axis_layout.setSpacing(0)
+        self.axis_layout.setContentsMargins(0, 0, 0, 0)
+        self.axis_view.setCentralItem(self.axis_layout)
+        self.axis_view.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.axis_view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.axis_view.setFixedHeight(self._HEIGHT)
+
+        self.time_axis = TimeAxisItem(orientation="top")
+        self.time_axis.setHeight(self._HEIGHT)
+        self.time_axis.linkToView(viewbox)
+        self.axis_layout.addItem(self.time_axis, row=0, col=0)
+        self._plot_width = 0
+
+        self.left_spacer = QWidget(self)
+        self.left_spacer.setFixedWidth(0)
+        self.right_spacer = QWidget(self)
+        self.right_spacer.setFixedWidth(0)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.left_spacer)
+        layout.addWidget(self.axis_view, 1)
+        layout.addWidget(self.right_spacer)
+        self.setFixedHeight(self._HEIGHT)
+
+    def set_time_frame(self, start: int, stop: int) -> None:
+        self.time_axis.set_time_frame(start, stop)
+        self.time_axis.picture = None
+        self.time_axis.update()
+
+    def data_rect(self) -> QRect:
+        """Return the pinned axis's plot area in this widget's coordinates."""
+        return QRect(self.left_spacer.width(), 0, self._plot_width, self.height())
+
+    def sync_geometry(
+        self,
+        timeline: QWidget,
+        main_view: QGraphicsView,
+        main_viewbox: pg.ViewBox,
+        frame_width: int,
+    ) -> None:
+        """Align the axis data area with the plot's data area."""
+        main_rect = main_viewbox.sceneBoundingRect()
+        main_left = main_view.mapTo(
+            timeline, main_view.mapFromScene(main_rect.topLeft())
+        ).x()
+        main_right = main_view.mapTo(
+            timeline, main_view.mapFromScene(main_rect.bottomRight())
+        ).x()
+        header_origin = self.mapTo(timeline, QPoint(0, 0)).x()
+        header_left = header_origin + frame_width
+        header_right = header_origin + self.width()
+        left_width = max(0, main_left - header_left)
+        right_width = max(0, header_right - main_right)
+        self._plot_width = max(0, main_right - main_left)
+        if self.left_spacer.width() != left_width:
+            self.left_spacer.setFixedWidth(left_width)
+        if self.right_spacer.width() != right_width:
+            self.right_spacer.setFixedWidth(right_width)
+
+
+class TimelineHorizontalScrollBar(QScrollBar):
+    range_changed = Signal(float, float)
+
+    _SCALE = 1_000_000
+
+    def __init__(self) -> None:
+        super().__init__(Qt.Orientation.Horizontal)
+        self._time_frame: tuple[float, float] | None = None
+        self._full_view_span = 0.0
+        self._visible_span = 0.0
+        self.valueChanged.connect(self._on_value_changed)
+        self.hide()
+
+    def set_time_frame(
+        self,
+        time_frame: tuple[float, float] | None,
+        padding: float = 0.0,
+    ) -> None:
+        if time_frame is None or time_frame[1] <= time_frame[0]:
+            self._time_frame = None
+            self._full_view_span = 0.0
+            self._visible_span = 0.0
+            self.hide()
+            self.setRange(0, 0)
+            return
+
+        start, stop = time_frame
+        duration = stop - start
+        self._time_frame = (start - duration * padding, stop + duration * padding)
+        self._full_view_span = duration
+
+    def set_view_range(self, start: float, stop: float) -> None:
+        if self._time_frame is None:
+            self.hide()
+            return
+
+        time_start, time_stop = self._time_frame
+        view_start = max(start, time_start)
+        view_stop = min(stop, time_stop)
+
+        duration = time_stop - time_start
+        self._visible_span = view_stop - view_start
+        page_step = min(
+            self._SCALE,
+            max(1, round(self._visible_span / duration * self._SCALE)),
+        )
+        maximum = self._SCALE - page_step
+        value = round((view_start - time_start) / duration * self._SCALE)
+
+        was_blocked = self.blockSignals(True)
+        try:
+            self.setPageStep(page_step)
+            self.setSingleStep(max(1, page_step // 50))
+            self.setRange(0, maximum)
+            self.setValue(min(maximum, value))
+        finally:
+            self.blockSignals(was_blocked)
+
+        zoomed_in = self._visible_span < self._full_view_span * (1 - 1e-6)
+        self.setVisible(zoomed_in)
+
+    def _on_value_changed(self, value: int) -> None:
+        if self._time_frame is None:
+            return
+
+        time_start, time_stop = self._time_frame
+        start = time_start + value / self._SCALE * (time_stop - time_start)
+        self.range_changed.emit(start, start + self._visible_span)
+
+
+def format_timestamp_ns(
+    timestamp_ns: int,
+    *,
+    origin_ns: int = 0,
+    always_show_hours: bool = False,
+    show_milliseconds: bool = False,
+) -> str:
+    elapsed_ns = timestamp_ns - origin_ns
+    sign = "-" if elapsed_ns < 0 else ""
+    elapsed_ns = abs(elapsed_ns)
+
+    if show_milliseconds:
+        elapsed_units = (elapsed_ns + 500_000) // 1_000_000
+        units_per_hour = 3_600_000
+        units_per_minute = 60_000
+    else:
+        elapsed_units = elapsed_ns // 1_000_000_000
+        units_per_hour = 3_600
+        units_per_minute = 60
+
+    hours, remainder = divmod(elapsed_units, units_per_hour)
+    minutes, remainder = divmod(remainder, units_per_minute)
+    seconds, remainder = divmod(remainder, 1_000 if show_milliseconds else 1)
+    time_string = f"{minutes:02}:{seconds:02}"
+    if show_milliseconds:
+        time_string += f".{remainder:03}"
+    if always_show_hours or hours:
+        time_string = f"{hours:02}:{time_string}"
+
+    return f"{sign}{time_string}"
+
+
 class ScrubbableViewBox(pg.ViewBox):  # type: ignore[misc]  # pyqtgraph does not type this base class.
     scrub_start = Signal(MouseDragEvent)
     scrub_end = Signal(MouseDragEvent)
@@ -282,8 +493,8 @@ class ScrubbableViewBox(pg.ViewBox):  # type: ignore[misc]  # pyqtgraph does not
 
     def wheelEvent(self, ev: QGraphicsSceneWheelEvent, axis: int | None = None) -> None:
         mouse_enabled = {
-            "x": Qt.KeyboardModifier.ControlModifier in ev.modifiers(),
-            "y": Qt.KeyboardModifier.ShiftModifier in ev.modifiers(),
+            "x": Qt.KeyboardModifier.ShiftModifier in ev.modifiers(),
+            "y": Qt.KeyboardModifier.ControlModifier in ev.modifiers(),
         }
         mouse_enabled["y"] = self.allow_y_panning and mouse_enabled["y"]
 
@@ -404,20 +615,13 @@ class TimeAxisItem(pg.AxisItem):  # type: ignore[misc]  # pyqtgraph does not typ
                 strings.append("")
                 continue
 
-            relative_time_ns = val - self.recording_start_time_ns
-            hours = relative_time_ns // (1e9 * 60 * 60)
-            minutes = (relative_time_ns // (1e9 * 60)) % 60
-            seconds = (relative_time_ns // 1e9) % 60
-            ms = (relative_time_ns / 1e6) % 1000
-            string = f"{minutes:0>2.0f}:{seconds:0>2.0f}"
-
-            if self.interval < 1:
-                string += f".{ms:0>3.0f}"
-
-            if hours > 0:
-                string = f"{hours:0>2,.0f}:{string}"
-
-            strings.append(string)
+            strings.append(
+                format_timestamp_ns(
+                    round(val),
+                    origin_ns=self.recording_start_time_ns,
+                    show_milliseconds=self.interval < 1,
+                )
+            )
 
         return strings
 
@@ -449,10 +653,13 @@ class TimestampLabel(QLabel):
         self.setFont(font)
 
     def set_time(self, time_ns: int) -> None:
-        hours = time_ns // (1e9 * 60 * 60)
-        minutes = (time_ns // (1e9 * 60)) % 60
-        seconds = (time_ns / 1e9) % 60
-        self.setText(f"{hours:0>2,.0f}:{minutes:0>2.0f}:{seconds:0>6.3f}")
+        self.setText(
+            format_timestamp_ns(
+                time_ns,
+                always_show_hours=True,
+                show_milliseconds=True,
+            )
+        )
 
 
 class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not type this base class.
@@ -468,6 +675,21 @@ class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not
         self.setDownsampling(auto=True, mode="subsample")
         self.legend_handle = legend
         self.row_key = TimelineRowKey(None, row_name, TimelineRowRole.CUSTOM)
+        self._show_y_limit_labels = False
+        self._hovered = False
+        self._y_units = ""
+        self._y_range_labels: list[pg.TextItem] = []
+        view_box = self.getViewBox()
+        view_box.sigYRangeChanged.connect(self._update_y_limit_labels)
+        view_box.sigXRangeChanged.connect(self._update_y_limit_label_positions)
+
+        # Acts as the border between the legend and the plot area
+        left_axis = self.getAxis("left")
+        self.showAxis("left")
+        left_axis.setPen(pg.mkPen("#444"))
+        left_axis.setStyle(showValues=False, tickLength=0)
+        left_axis.setTicks([])
+        left_axis.setWidth(1)
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
@@ -478,6 +700,95 @@ class TimelinePlotItem(pg.PlotItem):  # type: ignore[misc]  # pyqtgraph does not
     @property
     def row_name(self) -> str:
         return self.row_key.row_name
+
+    @property
+    def show_y_limit_labels(self) -> bool:
+        return self._show_y_limit_labels
+
+    @property
+    def y_units(self) -> str:
+        return self._y_units
+
+    def configure_y_limit_labels(
+        self, show: bool | None = None, units: str | None = None
+    ) -> None:
+        """
+        Configure the display of y-label limits.
+
+        Args:
+            show: Whether to show the labels. Provide `True` or `False` to show
+                or hide the labels, respectively. `None` keeps the current setting.
+            units: Units to display after each y-limit value. `None`
+                keeps the current setting.
+        """
+        if show is not None:
+            self._show_y_limit_labels = show
+        if units is not None:
+            self._y_units = units
+
+        if not self._show_y_limit_labels:
+            if not self._y_range_labels:
+                return
+
+            for label in self._y_range_labels:
+                self.getViewBox().removeItem(label)
+            self._y_range_labels.clear()
+            return
+
+        if not self._y_range_labels:
+            upper_label = pg.TextItem(anchor=(0, 0), color="#a09fa6")
+            lower_label = pg.TextItem(anchor=(0, 1), color="#a09fa6")
+            font = QFont()
+            font.setPointSize(10)
+            for label in (upper_label, lower_label):
+                label.textItem.setFont(font)
+                label.setZValue(10)
+                self.getViewBox().addItem(label, ignoreBounds=True)
+            self._y_range_labels = [upper_label, lower_label]
+
+        self._update_y_limit_labels()
+        self._set_y_range_labels_visible(self._hovered)
+
+    def set_hovered(self, hovered: bool) -> None:
+        self._hovered = hovered
+        self._set_y_range_labels_visible(hovered)
+
+    def _set_y_range_labels_visible(self, visible: bool) -> None:
+        for label in self._y_range_labels:
+            label.setVisible(self._show_y_limit_labels and visible)
+
+    def _update_y_limit_labels(self, *_args: object) -> None:
+        if not self._show_y_limit_labels or not self._y_range_labels:
+            return
+
+        upper_label, lower_label = self._y_range_labels
+        y_range = self.getViewBox().viewRange()[1]
+        y_min, y_max = y_range
+        y_span = abs(y_max - y_min)
+
+        # NOTE: the amount of displayed digits after the floating point is
+        # set to have precision around 1% of the currently displayed range
+        decimals = max(0, math.ceil(-math.log10(y_span) + 2)) if y_span else 0
+        unit_suffix = f" {self.y_units}" if self.y_units else ""
+
+        upper_label.setText(f"{y_max:.{decimals}f}{unit_suffix}")
+        lower_label.setText(f"{y_min:.{decimals}f}{unit_suffix}")
+
+        self._update_y_limit_label_positions()
+
+    def _update_y_limit_label_positions(self, *_args: object) -> None:
+        if not self._show_y_limit_labels or not self._y_range_labels:
+            return
+
+        upper_label, lower_label = self._y_range_labels
+        x_range, y_range = self.getViewBox().viewRange()
+        x_min, x_max = x_range
+        y_min, y_max = y_range
+        y_span = abs(y_max - y_min)
+        x_inset = (x_max - x_min) * 0.002
+        y_inset = y_span * 0.002
+        upper_label.setPos(x_min + x_inset, y_max - y_inset)
+        lower_label.setPos(x_min + x_inset, y_min + y_inset)
 
     def addItem(self, *args: object, **kwargs: object) -> None:
         super().addItem(*args, **kwargs)
@@ -556,9 +867,7 @@ class PlotOverlay(QWidget):
         plot_rect = vb.mapToScene(vb.geometry()).boundingRect()
         parent = self.parentWidget()
         assert parent is not None, "Plot overlay must have a parent to refresh geometry"
-        self.setGeometry(
-            int(plot_rect.x()), 20, int(plot_rect.width()), parent.height() - 20
-        )
+        self.setGeometry(int(plot_rect.x()), 0, int(plot_rect.width()), parent.height())
 
 
 class PlayHead(PlotOverlay):
@@ -604,6 +913,139 @@ class PlayHead(PlotOverlay):
         else:
             painter.fillRect(QRectF(x - 1, 0, 3, self.height()), self.color)
 
+        painter.end()
+
+
+class TimelineHoverLabel(QWidget):
+    def __init__(
+        self,
+        parent: TimelinePinnedAxis,
+        linked_plot: pg.PlotItem,
+        time_axis: "TimeAxisItem",
+    ) -> None:
+        super().__init__(parent)
+        self.linked_plot = linked_plot
+        self.time_axis = time_axis
+        self.cursor_time: int | None = None
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.hide()
+
+    def set_cursor_time(self, cursor_time: int | None) -> None:
+        self.cursor_time = cursor_time
+        if cursor_time is None:
+            self.hide()
+        else:
+            self.show()
+        self.update()
+
+    def refresh_geometry(self) -> None:
+        pinned_axis = self.parentWidget()
+        assert isinstance(pinned_axis, TimelinePinnedAxis)
+        self.setGeometry(pinned_axis.data_rect())
+        self.update()
+
+    def paintEvent(self, _event: QPaintEvent) -> None:
+        if self.cursor_time is None:
+            return
+
+        bounds = self.rect()
+        if bounds.width() <= 0:
+            return
+
+        x_range = self.linked_plot.vb.viewRange()[0]
+        if x_range[1] <= x_range[0]:
+            return
+        x = round(
+            (self.cursor_time - x_range[0]) / (x_range[1] - x_range[0]) * bounds.width()
+        )
+        label = format_timestamp_ns(
+            self.cursor_time,
+            origin_ns=self.time_axis.recording_start_time_ns,
+            always_show_hours=True,
+            show_milliseconds=True,
+        )
+        painter = QPainter(self)
+        metrics = QFontMetrics(painter.font())
+        badge_width = min(bounds.width(), metrics.horizontalAdvance(label) + 8)
+        badge_height = min(bounds.height(), metrics.height() + 4)
+        badge_x = max(0, min(x - badge_width // 2, bounds.width() - badge_width))
+        badge_y = bounds.height() - badge_height - 2
+        badge_rect = QRect(badge_x, badge_y, badge_width, badge_height)
+        painter.fillRect(badge_rect, QColor("#666666"))
+        painter.setPen(QColor("#ffffff"))
+        painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, label)
+        painter.end()
+
+
+class TimelineHoverMarker(PlotOverlay):
+    def __init__(
+        self,
+        linked_plot: pg.PlotItem,
+        pinned_axis: TimelinePinnedAxis,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(linked_plot, parent=parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.cursor_time: int | None = None
+
+        self.time_axis = pinned_axis.time_axis
+        self.pinned_axis = pinned_axis
+        self.label = TimelineHoverLabel(pinned_axis, linked_plot, self.time_axis)
+        if not isinstance(parent, QGraphicsView):
+            raise TypeError("TimelineHoverMarker must be parented to a QGraphicsView")
+
+        self._viewport = parent.viewport()
+        self._viewport.installEventFilter(self)
+        linked_plot.vb.sigRangeChanged.connect(self._on_range_changed)
+
+    def set_cursor_time(self, time: int | None) -> None:
+        if time is not None and not (
+            self.time_axis.recording_start_time_ns
+            <= time
+            <= self.time_axis.recording_stop_time_ns
+        ):
+            time = None
+
+        self.cursor_time = time
+        self.label.set_cursor_time(time)
+        if time is None:
+            self.hide()
+        else:
+            self.label.raise_()
+            self.label.refresh_geometry()
+            self.update()
+            self.show()
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched is self._viewport and event.type() == QEvent.Type.Leave:
+            self.set_cursor_time(None)
+
+        return super().eventFilter(watched, event)
+
+    def _on_range_changed(self, *_args: object) -> None:
+        self.update()
+        self.label.refresh_geometry()
+
+    def paintEvent(self, _event: QPaintEvent) -> None:
+        if self.cursor_time is None:
+            return
+
+        x = round(self.get_x_pixel_for_x_value(self.cursor_time))
+        if self.width() <= 0:
+            return
+        x = min(max(x, 0), self.width() - 1)
+
+        painter = QPainter(self)
+        painter.setPen(
+            QPen(
+                QColor(255, 255, 255, 128),
+                1,
+                Qt.PenStyle.SolidLine,
+            )
+        )
+        painter.drawLine(x, 0, x, self.height())
         painter.end()
 
 

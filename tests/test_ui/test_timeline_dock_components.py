@@ -1,8 +1,19 @@
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QWheelEvent
+from PySide6.QtWidgets import QWidget
 from pytestqt.qtbot import QtBot
 
-from pupil_labs.neon_player.ui.timeline_dock_components import TimelinePlotGroupControl
+from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
+from pupil_labs.neon_player.ui.timeline_dock_components import (
+    TimelineHorizontalScrollBar,
+    TimelinePlotGroupControl,
+    TimelinePlotItem,
+    TimelineRowKey,
+    TimelineRowRole,
+    TimelineScrollArea,
+)
+from tests.conftest import MockNeonPlayerApp
 
 
 @pytest.mark.parametrize("collapsed", [False, True])
@@ -28,3 +39,242 @@ def test_group_control_emits_click_without_mutating_its_state(qtbot: QtBot) -> N
     with qtbot.waitSignal(control.clicked):
         control.click()
     assert control.text() == "▾"
+
+
+@pytest.mark.usefixtures("qapp")
+def test_timeline_horizontal_scrollbar__hidden_for_full_recording_view() -> None:
+    scroll_bar = TimelineHorizontalScrollBar()
+    scroll_bar.set_time_frame((100, 1100), padding=0.05)
+
+    scroll_bar.set_view_range(100, 1100)
+
+    assert not scroll_bar.isVisible()
+    assert scroll_bar.minimum() == 0
+    assert scroll_bar.maximum() > 0
+    assert scroll_bar.value() > 0
+
+
+@pytest.mark.usefixtures("qapp")
+def test_timeline_horizontal_scrollbar__tracks_view_and_scrolls_time_range() -> None:
+    scroll_bar = TimelineHorizontalScrollBar()
+    scroll_bar.set_time_frame((100, 1100), padding=0.05)
+    changed_ranges = []
+    scroll_bar.range_changed.connect(
+        lambda start, stop: changed_ranges.append((start, stop))
+    )
+
+    scroll_bar.set_view_range(200, 400)
+
+    assert scroll_bar.isVisible()
+    assert scroll_bar.minimum() == 0
+    assert scroll_bar.maximum() == 818_182
+    assert scroll_bar.pageStep() == 181_818
+    assert scroll_bar.value() == 136_364
+    assert changed_ranges == []
+
+    scroll_bar.setValue(scroll_bar.minimum())
+    assert changed_ranges[0] == pytest.approx((50, 250))
+
+    scroll_bar.setValue(scroll_bar.maximum())
+
+    assert changed_ranges[1] == pytest.approx((950, 1150))
+
+
+class DummyLegend:
+    def setFixedHeight(self, _height: int) -> None:
+        pass
+
+    def parentItem(self) -> "DummyLegend":
+        return self
+
+
+@pytest.mark.usefixtures("qapp")
+def test_timeline_plot_item_left_axis_is_a_border_without_ticks_or_values() -> None:
+    plot = TimelinePlotItem(DummyLegend(), "row")
+    left_axis = plot.getAxis("left")
+
+    assert left_axis.isVisible()
+    assert left_axis.style["showValues"] is False
+    assert left_axis.style["tickLength"] == 0
+
+
+@pytest.mark.usefixtures("qapp")
+def test_smart_size_plot_item_y_limit_labels_follow_visible_range() -> None:
+    plot = TimelinePlotItem(DummyLegend(), "row")
+    view_box = plot.getViewBox()
+
+    assert plot._y_units == ""
+    assert plot._y_range_labels == []
+
+    view_box.setRange(xRange=(0, 100), yRange=(-0.1, 0.1), padding=0)
+    plot.configure_y_limit_labels(True, "m")
+
+    assert plot.show_y_limit_labels
+    assert plot.y_units == "m"
+    upper_label, lower_label = plot._y_range_labels
+    assert upper_label.toPlainText() == "0.100 m"
+    assert lower_label.toPlainText() == "-0.100 m"
+    assert upper_label.textItem.defaultTextColor().name() == "#a09fa6"
+    assert upper_label.textItem.font().pointSize() == 10
+    assert upper_label.pos().x() < 0.5
+    assert upper_label.pos().y() > 0.099
+    assert lower_label.pos().y() < -0.099
+
+    line_item = plot.plot([0, 100], [0, 0])
+    assert upper_label.zValue() > line_item.zValue()
+    assert lower_label.zValue() > line_item.zValue()
+
+    view_box.setRange(xRange=(50, 150), padding=0)
+    assert upper_label.pos().x() > 50
+    assert lower_label.pos().x() > 50
+
+    view_box.setRange(yRange=(-10, 10), padding=0)
+
+    assert upper_label.toPlainText() == "10.0 m"
+    assert lower_label.toPlainText() == "-10.0 m"
+
+    plot.configure_y_limit_labels(False)
+    assert not plot.show_y_limit_labels
+    assert plot._y_range_labels == []
+
+
+class DummyTimelineDock:
+    def __init__(self) -> None:
+        self.timeline_plots: dict[TimelineRowKey, DummyLinePlot] = {}
+
+    def _timeline_row_key(
+        self, row_name: str, group: str | None = None
+    ) -> TimelineRowKey:
+        return TimelineRowKey(group, row_name, TimelineRowRole.CUSTOM)
+
+    def get_timeline_plot(
+        self, row_name: str, _create_if_missing: bool = False
+    ) -> "DummyLinePlot | None":
+        return self.timeline_plots.get(self._timeline_row_key(row_name))
+
+    def add_timeline_plot(
+        self,
+        row_name: str,
+        _data: list[tuple[int, float]],
+        _plot_name: str = "",
+        **_kwargs: object,
+    ) -> "DummyLinePlot":
+        plot = self.timeline_plots.setdefault(
+            self._timeline_row_key(row_name), DummyLinePlot()
+        )
+        return plot
+
+
+class DummyLinePlot:
+    def __init__(self) -> None:
+        self.show_y_limit_labels = False
+        self.units: str | None = None
+
+    def configure_y_limit_labels(self, show: bool | None, units: str | None) -> None:
+        if show is not None:
+            self.show_y_limit_labels = show
+        self.units = units
+
+
+@pytest.mark.usefixtures("qapp")
+def test_add_timeline_line_defaults_labels_and_preserves_existing() -> None:
+    dock = DummyTimelineDock()
+
+    TimeLineDock.add_timeline_line(dock, "new", [])
+    assert dock.timeline_plots[dock._timeline_row_key("new")].show_y_limit_labels
+
+    existing_plot = DummyLinePlot()
+    dock.timeline_plots[dock._timeline_row_key("existing")] = existing_plot
+    TimeLineDock.add_timeline_line(dock, "existing", [], units="deg")
+
+    assert not existing_plot.show_y_limit_labels
+    assert existing_plot.units == "deg"
+
+
+@pytest.mark.usefixtures("qapp")
+def test_add_timeline_line_explicit_visibility_overrides_default() -> None:
+    dock = DummyTimelineDock()
+
+    TimeLineDock.add_timeline_line(
+        dock, "hidden", [], show_y_limit_labels=False, units="mm"
+    )
+
+    plot = dock.timeline_plots[dock._timeline_row_key("hidden")]
+    assert not plot.show_y_limit_labels
+    assert plot.units == "mm"
+
+
+@pytest.mark.parametrize(
+    "modifiers",
+    [
+        Qt.KeyboardModifier.ShiftModifier,
+        Qt.KeyboardModifier.ControlModifier,
+        Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier,
+    ],
+)
+def test_timeline_scroll_area__modified_wheel_event_is_ignored(
+    qapp: MockNeonPlayerApp, modifiers: Qt.KeyboardModifier
+) -> None:
+    scroll_area = TimelineScrollArea()
+    content = QWidget()
+    content.setMinimumSize(100, 600)
+    scroll_area.setWidget(content)
+    scroll_area.resize(100, 100)
+    scroll_area.show()
+    qapp.processEvents()
+
+    scrollbar = scroll_area.verticalScrollBar()
+    assert scrollbar.maximum() > 0
+    starting_value = scrollbar.value()
+    event = QWheelEvent(
+        QPointF(10, 10),
+        QPointF(10, 10),
+        QPoint(),
+        QPoint(0, -120),
+        Qt.MouseButton.NoButton,
+        modifiers,
+        Qt.ScrollPhase.ScrollUpdate,
+        False,
+    )
+
+    scroll_area.wheelEvent(event)
+
+    assert scrollbar.value() == starting_value
+    assert not event.isAccepted()
+
+
+@pytest.mark.parametrize(
+    "modifiers",
+    [
+        Qt.KeyboardModifier.NoModifier,
+        Qt.KeyboardModifier.MetaModifier,
+    ],
+)
+def test_timeline_scroll_area__unhandled_modifier_wheel_event_scrolls(
+    qapp: MockNeonPlayerApp, modifiers: Qt.KeyboardModifier
+) -> None:
+    scroll_area = TimelineScrollArea()
+    content = QWidget()
+    content.setMinimumSize(100, 600)
+    scroll_area.setWidget(content)
+    scroll_area.resize(100, 100)
+    scroll_area.show()
+    qapp.processEvents()
+
+    scrollbar = scroll_area.verticalScrollBar()
+    assert scrollbar.maximum() > 0
+    event = QWheelEvent(
+        QPointF(10, 10),
+        QPointF(10, 10),
+        QPoint(),
+        QPoint(0, -120),
+        Qt.MouseButton.NoButton,
+        modifiers,
+        Qt.ScrollPhase.ScrollUpdate,
+        False,
+    )
+
+    scroll_area.wheelEvent(event)
+
+    assert scrollbar.value() > 0
+    assert event.isAccepted()

@@ -5,20 +5,33 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtCore import QCoreApplication, QEvent, QPointF, Qt
-from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QGraphicsProxyWidget, QLineEdit, QMenu, QToolButton
+from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QPointF, Qt
+from PySide6.QtGui import QAction, QCursor
+from PySide6.QtWidgets import (
+    QGraphicsProxyWidget,
+    QLineEdit,
+    QMenu,
+    QToolButton,
+    QWidget,
+)
 from pytestqt.qtbot import QtBot
 from shiboken6 import isValid
 
 from pupil_labs.neon_player.settings import RecordingSettings
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.timeline_dock_components import (
+    TimelinePinnedAxis,
     TimelinePlotGroup,
+    TimelinePlotItem,
     TimelineRowKey,
     TimelineRowRole,
     TrimEndMarker,
 )
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
+    TimelineTooltipContext,
+    TimelineTooltipWidget,
+)
+from pupil_labs.neon_player.utilities import SlotDebouncer
 from tests.conftest import MockNeonPlayerApp
 
 
@@ -34,6 +47,101 @@ def test_timeline_callbacks_without_recording(
     timeline.on_chart_area_mouse_moved(QPointF(0, 0))
     assert timeline.playhead.t == 0
     assert timeline.trim_markers == []
+
+
+def test_y_limit_labels_are_visible_only_for_hovered_timeline_row(
+    qtbot: QtBot, qapp: MockNeonPlayerApp, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    first_row = timeline.get_timeline_plot("First", create_if_missing=True)
+    second_row = timeline.get_timeline_plot("Second", create_if_missing=True)
+    first_row.configure_y_limit_labels(True)
+    second_row.configure_y_limit_labels(True)
+    timeline.resize(800, 500)
+    timeline.show()
+    qtbot.waitExposed(timeline)
+
+    def row_center(row: TimelinePlotItem) -> QPointF:
+        return row.sceneBoundingRect().center()
+
+    timeline.on_chart_area_mouse_moved(row_center(first_row))
+    assert all(label.isVisible() for label in first_row._y_range_labels)
+    assert not any(label.isVisible() for label in second_row._y_range_labels)
+
+    timeline.on_chart_area_mouse_moved(row_center(second_row))
+    assert not any(label.isVisible() for label in first_row._y_range_labels)
+    assert all(label.isVisible() for label in second_row._y_range_labels)
+
+    timeline.on_chart_area_mouse_moved(QPointF(-1000, -1000))
+    assert not any(label.isVisible() for label in first_row._y_range_labels)
+    assert not any(label.isVisible() for label in second_row._y_range_labels)
+
+    timeline.on_chart_area_mouse_moved(row_center(first_row))
+    timeline.eventFilter(timeline.graphics_view.viewport(), QEvent(QEvent.Type.Leave))
+    assert not any(label.isVisible() for label in first_row._y_range_labels)
+    assert not any(label.isVisible() for label in second_row._y_range_labels)
+
+
+def test_vertical_scroll_refreshes_hover_at_stationary_pointer(
+    qtbot: QtBot,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    timeline.resize(600, 180)
+    timeline.show()
+    for row in range(10):
+        timeline.get_timeline_plot(f"row {row}", create_if_missing=True)
+    timeline.fix_scroll_size()
+    qtbot.wait(50)
+
+    debounce_calls = []
+    assert timeline._on_scroll_or_playback in SlotDebouncer._connections
+    debouncer = SlotDebouncer._connections[timeline._on_scroll_or_playback]
+    monkeypatch.setattr(debouncer, "slot", lambda *_args: debounce_calls.append(1))
+
+    viewport = timeline.graphics_view.viewport()
+    QCursor.setPos(viewport.mapToGlobal(QPoint(20, 20)))
+
+    scrollbar = timeline.scroll_area.verticalScrollBar()
+    assert scrollbar.maximum() > 0
+
+    with qtbot.waitSignal(scrollbar.valueChanged):
+        scrollbar.setValue(scrollbar.maximum())
+
+    qtbot.waitUntil(lambda: bool(debounce_calls))
+
+
+def test_x_axis_range_change_refreshes_hover_under_stationary_cursor(
+    qtbot: QtBot, qapp: MockNeonPlayerApp, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    timeline.resize(600, 300)
+    timeline.show()
+    qtbot.waitExposed(timeline)
+
+    viewport = timeline.graphics_view.viewport()
+    cursor_pos = viewport.mapToGlobal(viewport.rect().center())
+    QCursor.setPos(cursor_pos)
+    refreshed_positions: list[QPointF] = []
+    monkeypatch.setattr(
+        timeline,
+        "_on_scroll_or_playback",
+        refreshed_positions.append,
+    )
+
+    timeline.timestamps_plot.setXRange(10, 20, padding=0)
+
+    assert refreshed_positions
 
 
 def test_trim_markers_preserve_timestamps_and_empty_export_window(
@@ -409,12 +517,12 @@ def test_group_expander_controls_child_visibility_and_scroll_height(
     assert button.toolTip() == ("Expand Group" if collapsed else "Collapse Group")
     assert button.accessibleName() == button.toolTip()
     assert button.cursor().shape() == Qt.CursorShape.PointingHandCursor
-    assert timeline.graphics_view.height() == (75 if collapsed else 100)
+    assert timeline.graphics_view.height() == (55 if collapsed else 80)
     button.click()
     assert child.isVisible() == collapsed
     assert legend.isVisible() == collapsed
     assert header.isVisible()
-    assert timeline.graphics_view.height() == (100 if collapsed else 75)
+    assert timeline.graphics_view.height() == (80 if collapsed else 55)
     button.click()
     assert group.collapsed == collapsed
     assert child.isVisible() == (not collapsed)
@@ -433,14 +541,14 @@ def test_late_children_and_empty_group_collapse(timeline: TimeLineDock) -> None:
     assert second is not None
     assert not first.isVisible()
     assert not second.isVisible()
-    assert timeline.graphics_view.height() == 75
+    assert timeline.graphics_view.height() == 55
     timeline.enable_plot_sorting()
     assert not first.isVisible()
     assert not second.isVisible()
     button.click()
     assert first.isVisible()
     assert second.isVisible()
-    assert timeline.graphics_view.height() == 125
+    assert timeline.graphics_view.height() == 105
 
 
 @pytest.mark.parametrize("kind", ["plot", "line", "scatter", "bar"])
@@ -859,7 +967,7 @@ def test_search_height_tracks_font_and_clear_button_restores_rows(
     qtbot.waitUntil(lambda: search_plot.height() >= field.sizeHint().height())
     host = timeline.timeline_legends[search_key].parentItem()
     assert host.height() == search_plot.height()
-    assert timeline.graphics_view.height() >= 100 + search_plot.height()
+    assert timeline.graphics_view.height() >= 80 + search_plot.height()
     qtbot.keyClicks(field, "missing")
     assert not plot.isVisible()
     QCoreApplication.processEvents()
@@ -964,3 +1072,328 @@ def test_expand_collapse_all_groups_preserves_queries_and_global_rows(
     timeline.expand_all_groups()
     timeline.collapse_all_groups()
     assert global_plot.isVisible()
+
+
+def test_pinned_time_axis_tracks_recording_and_shared_view_range(
+    qtbot: QtBot,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    assert timeline.timestamps_plot.getAxis("top").isVisible()
+    assert isinstance(timeline.pinned_axis, TimelinePinnedAxis)
+    assert not timeline.pinned_axis.isHidden()
+    assert (
+        timeline.pinned_axis.axis_layout.getItem(0, 0) is timeline.pinned_axis.time_axis
+    )
+    assert (
+        timeline.pinned_axis.time_axis.linkedView()
+        is timeline.timestamps_plot.getViewBox()
+    )
+    recording = mock_neon_recording(start_time=100, stop_time=200)
+    monkeypatch.setattr(qapp, "recording", recording)
+    monkeypatch.setattr(qapp, "recording_settings", RecordingSettings())
+    timeline.on_recording_loaded(recording)
+    timeline.timestamps_plot.setXRange(120, 180, padding=0)
+
+    assert timeline.pinned_axis.time_axis.recording_start_time_ns == 100
+    assert timeline.pinned_axis.time_axis.recording_stop_time_ns == 200
+    assert timeline.pinned_axis.time_axis.linkedView().viewRange()[0] == pytest.approx(
+        timeline.timestamps_plot.viewRange()[0]
+    )
+
+    timeline.on_recording_unloaded()
+    assert timeline.pinned_axis.time_axis.recording_start_time_ns == 0
+    assert timeline.pinned_axis.time_axis.recording_stop_time_ns == 0
+
+
+def test_pinned_time_axis_stays_in_place_when_timeline_scrolls(
+    qtbot: QtBot, qapp: MockNeonPlayerApp, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    timeline.resize(500, 180)
+    timeline.show()
+    qtbot.wait(50)
+    assert timeline.graphics_view.width() == timeline.scroll_area.viewport().width()
+    assert (
+        timeline.pinned_axis.mapTo(
+            timeline,
+            QPoint(timeline.scroll_area.frameWidth(), 0),
+        ).x()
+        == timeline.scroll_area.viewport().mapTo(timeline, QPoint(0, 0)).x()
+    )
+    for row in range(10):
+        timeline.get_timeline_plot(f"row {row}", create_if_missing=True)
+    timeline.fix_scroll_size()
+    qtbot.wait(50)
+
+    main_plot_item = timeline.get_timeline_plot("row 0")
+    assert main_plot_item is not None
+    main_plot = main_plot_item.getViewBox().sceneBoundingRect()
+    pinned_plot = timeline.pinned_axis.time_axis.sceneBoundingRect()
+    main_plot_left = timeline.graphics_view.mapTo(
+        timeline, timeline.graphics_view.mapFromScene(main_plot.topLeft())
+    ).x()
+    pinned_plot_left = timeline.pinned_axis.axis_view.mapTo(
+        timeline, timeline.pinned_axis.axis_view.mapFromScene(pinned_plot.topLeft())
+    ).x()
+    main_plot_right = timeline.graphics_view.mapTo(
+        timeline,
+        timeline.graphics_view.mapFromScene(main_plot.topRight()),
+    ).x()
+    pinned_plot_right = timeline.pinned_axis.axis_view.mapTo(
+        timeline,
+        timeline.pinned_axis.axis_view.mapFromScene(pinned_plot.topRight()),
+    ).x()
+    assert pinned_plot_left == main_plot_left
+    assert pinned_plot_right == main_plot_right
+
+    timeline.resize(650, 180)
+    qtbot.wait(50)
+    main_plot = main_plot_item.getViewBox().sceneBoundingRect()
+    pinned_plot = timeline.pinned_axis.time_axis.sceneBoundingRect()
+    main_plot_left = timeline.graphics_view.mapTo(
+        timeline, timeline.graphics_view.mapFromScene(main_plot.topLeft())
+    ).x()
+    pinned_plot_left = timeline.pinned_axis.axis_view.mapTo(
+        timeline, timeline.pinned_axis.axis_view.mapFromScene(pinned_plot.topLeft())
+    ).x()
+    main_plot_right = timeline.graphics_view.mapTo(
+        timeline,
+        timeline.graphics_view.mapFromScene(main_plot.topRight()),
+    ).x()
+    pinned_plot_right = timeline.pinned_axis.axis_view.mapTo(
+        timeline,
+        timeline.pinned_axis.axis_view.mapFromScene(pinned_plot.topRight()),
+    ).x()
+    assert pinned_plot_left == main_plot_left
+    assert pinned_plot_right == main_plot_right
+
+    scrollbar = timeline.scroll_area.verticalScrollBar()
+    assert scrollbar.maximum() > 0
+    axis_y_before = timeline.pinned_axis.axis_view.mapTo(timeline, QPoint(0, 0)).y()
+    scrollbar.setValue(scrollbar.maximum())
+    qtbot.wait(50)
+    axis_y_after = timeline.pinned_axis.axis_view.mapTo(timeline, QPoint(0, 0)).y()
+
+    assert scrollbar.value() == scrollbar.maximum()
+    assert axis_y_after == axis_y_before
+
+
+class MutableTimelineTooltip(TimelineTooltipWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self.context: TimelineTooltipContext | None = None
+
+    def update_tooltip(self, context: TimelineTooltipContext) -> None:
+        self.context = context
+
+
+@pytest.mark.parametrize("plot_type", ["line", "scatter", "broken_bar"])
+def test_grouped_tooltips_keep_row_identity_and_release_widgets(
+    qtbot: QtBot,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_neon_recording: Callable[..., NeonRecording],
+    plot_type: str,
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    recording = mock_neon_recording(start_time=100, stop_time=300)
+    monkeypatch.setattr(qapp, "recording", recording)
+    timeline.recording = recording
+    group = timeline.add_timeline_group("Group")
+    other_group = timeline.add_timeline_group("Other group")
+    add_plot = getattr(timeline, f"add_timeline_{plot_type}")
+    # A grouped row may share the export row's name without losing its tooltip.
+    row_name = "Export window"
+    data = np.array([[150, 200]])
+    global_row = add_plot(row_name, data, tooltip=lambda _: "global")
+    grouped_tooltip = MutableTimelineTooltip()
+    grouped_row = add_plot(row_name, data, tooltip=grouped_tooltip, group=group)
+    other_row = add_plot(row_name, data, tooltip=lambda _: "other", group=other_group)
+    assert global_row is not None
+    assert grouped_row is not None
+    assert other_row is not None
+    assert timeline._tooltip_content_for_hovered_row(global_row.row_key, 150) is None
+    assert (
+        timeline._tooltip_content_for_hovered_row(grouped_row.row_key, 150)
+        is grouped_tooltip
+    )
+    assert grouped_tooltip.context.row_name == row_name
+    assert timeline._tooltip_content_for_hovered_row(other_row.row_key, 150) == "other"
+
+    timeline.set_timeline_tooltip(row_name, None, group=other_group)
+    assert timeline._tooltip_content_for_hovered_row(other_row.row_key, 150) is None
+    timeline.remove_timeline_group(group)
+    assert grouped_row.row_key not in timeline.timeline_tooltips
+    assert id(grouped_tooltip) not in timeline._tooltip_widget_rows
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert not isValid(grouped_tooltip)
+
+
+def test_adding_line_series_preserves_explicit_y_limit_preference(
+    qtbot: QtBot,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    monkeypatch.setattr(qapp, "recording", mock_neon_recording())
+    group = timeline.add_timeline_group("Group")
+    for scope in (None, group):
+        row = timeline.add_timeline_line(
+            "Signal", np.array([[150, 1]]), show_y_limit_labels=False, group=scope
+        )
+        assert row is not None
+        timeline.add_timeline_line("Signal", np.array([[200, 2]]), group=scope)
+        assert not row.show_y_limit_labels
+
+
+def test_timeline_tooltip_callback_receives_hovered_series_and_row_context(
+    qtbot: QtBot,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    timeline.recording = mock_neon_recording(start_time=100, stop_time=300)
+    row = timeline.get_timeline_plot("Signal", create_if_missing=True)
+    assert row is not None
+    row.plot([150, 200], [1.0, 2.0], name="samples")
+    contexts: list[TimelineTooltipContext] = []
+    timeline.set_timeline_tooltip(
+        "Signal", lambda context: contexts.append(context) or "ok"
+    )
+
+    assert timeline._tooltip_content_for_hovered_row(row.row_key, 200) == "ok"
+    assert len(contexts) == 1
+    assert contexts[0].row_name == "Signal"
+    assert contexts[0].recording_start_time_ns == 100
+    assert contexts[0].series[0].timestamp_ns == 200
+    assert contexts[0].series[0].value == 2.0
+    assert timeline._tooltip_content_for_hovered_row(None, 200) is None
+    assert timeline._tooltip_content_for_hovered_row(row.row_key, 250) is None
+
+
+def test_timeline_tooltip_custom_widget_is_updated_and_owned_by_one_row(
+    qtbot: QtBot,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    timeline.recording = mock_neon_recording(start_time=100, stop_time=300)
+    row = timeline.get_timeline_plot("Signal", create_if_missing=True)
+    assert row is not None
+    row.plot([150], [1.0], name="sample")
+    tooltip = MutableTimelineTooltip()
+    timeline.set_timeline_tooltip("Signal", tooltip)
+
+    result = timeline._tooltip_content_for_hovered_row(row.row_key, 150)
+
+    assert result is tooltip
+    assert tooltip.parentWidget() is timeline.tooltip_widget
+    assert tooltip.context is not None
+    assert tooltip.context.series[0].timestamp_ns == 150
+    with pytest.raises(ValueError, match="must be parentless"):
+        timeline.set_timeline_tooltip("Another row", tooltip)
+
+
+def test_timeline_tooltip_widget_must_be_parentless(
+    qtbot: QtBot, qapp: MockNeonPlayerApp, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    parent = QWidget()
+    tooltip = MutableTimelineTooltip()
+    tooltip.setParent(parent)
+
+    with pytest.raises(ValueError, match="must be parentless"):
+        timeline.set_timeline_tooltip("Signal", tooltip)
+
+    parent.close()
+
+
+def test_timeline_tooltip_callback_error_is_logged_and_ignored(
+    qtbot: QtBot,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_neon_recording: Callable[..., NeonRecording],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    timeline.recording = mock_neon_recording(start_time=100, stop_time=300)
+    row = timeline.get_timeline_plot("Signal", create_if_missing=True)
+    assert row is not None
+    row.plot([150], [1.0], name="sample")
+
+    def fail(_context: TimelineTooltipContext) -> str:
+        raise RuntimeError("tooltip failed")
+
+    timeline.set_timeline_tooltip("Signal", fail)
+
+    with caplog.at_level("ERROR"):
+        assert timeline._tooltip_content_for_hovered_row(row.row_key, 150) is None
+
+    assert "Timeline tooltip callback failed for Signal" in caplog.text
+
+
+def test_hover_timestamp_is_displayed_on_pinned_axis(
+    qtbot: QtBot,
+    qapp: MockNeonPlayerApp,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "playback_speed_options", [-1.0, 1.0], raising=False)
+    timeline = TimeLineDock()
+    qtbot.addWidget(timeline)
+    timeline.resize(700, 300)
+    timeline.show()
+    qtbot.waitExposed(timeline)
+    qtbot.wait(50)
+
+    recording = mock_neon_recording(start_time=100, stop_time=200)
+    monkeypatch.setattr(qapp, "recording", recording)
+    monkeypatch.setattr(qapp, "recording_settings", RecordingSettings())
+    timeline.on_recording_loaded(recording)
+    timeline.timestamps_plot.setXRange(100, 200, padding=0)
+    timeline.hover_marker.set_cursor_time(150)
+
+    assert timeline.hover_marker.isVisible()
+    assert timeline.hover_marker.label.isVisible()
+    assert timeline.hover_marker.label.parentWidget() is timeline.pinned_axis
+
+    data_rect = timeline.pinned_axis.data_rect()
+    expected_x = round(data_rect.width() / 2)
+    timeline_x = round(timeline.hover_marker.get_x_pixel_for_x_value(150))
+    assert abs(expected_x - timeline_x) <= 2
+
+    timeline.hover_marker.set_cursor_time(None)
+    assert not timeline.hover_marker.isVisible()
+    assert not timeline.hover_marker.label.isVisible()
+
+    timeline.hover_marker.set_cursor_time(201)
+    assert timeline.hover_marker.cursor_time is None
+    assert not timeline.hover_marker.label.isVisible()

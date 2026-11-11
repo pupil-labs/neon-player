@@ -53,11 +53,13 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
+from pupil_labs.neon_player.ui.release_notes import ReleaseNotesDialog
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.splash import SplashWidget
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
+from pupil_labs.neon_player.ui.update_notification import UpdatePill
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
-from pupil_labs.neon_player.utilities import SlotDebouncer
+from pupil_labs.neon_player.utilities import MainThreadLogHandler, SlotDebouncer
 
 logger = logging.getLogger(__name__)
 
@@ -416,9 +418,13 @@ class MainWindow(QMainWindow):
         self.job_progress_bar = QProgressBar()
         self.job_progress_bar.hide()
         self.job_progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.update_pill = UpdatePill(self)
+        self.update_pill.dismissed.connect(self.on_update_dismissed)
+        self.update_pill.hide()
 
         self.statusBar().addWidget(self.status_label, stretch=5)
         self.statusBar().addWidget(self.job_progress_bar, stretch=1)
+        self.statusBar().addPermanentWidget(self.update_pill)
         app.job_manager.updated.connect(self.update_job_status)
 
         self.log_status_handler = StatusBarLogHandler(self.status_label)
@@ -436,9 +442,15 @@ class MainWindow(QMainWindow):
         )
 
         self.register_action(
-            "&Help/&Online Documentation", on_triggered=self.on_documentation_action
+            "&Help/&Online documentation", on_triggered=self.on_documentation_action
         )
         self.register_action("&Help/&About", on_triggered=self.on_about_action)
+        self.register_action(
+            "&Help/&Show release notes", None, self.on_release_notes_action
+        )
+        self.register_action(
+            "&Help/&Check for updates", None, self.on_check_updates_action
+        )
 
         self.register_action("&File/&Open recording", "Ctrl+o", self.on_open_action)
         self.register_action("&File/&Close recording", "Ctrl+w", app.unload)
@@ -529,6 +541,14 @@ class MainWindow(QMainWindow):
             dock.setFloating(False)
             dock.show()
 
+    def on_update_available(self, tag_name: str, release_url: str) -> None:
+        self.update_pill.show_update(tag_name, release_url)
+        self.statusBar().show()
+
+    def on_update_dismissed(self) -> None:
+        app = neon_player.instance()
+        app.settings.last_displayed_update_version = self.update_pill.version_tag
+
     def on_recording_opened(self) -> None:
         self.greeting_switcher.setCurrentIndex(1)
         self.timeline_dock.show()
@@ -542,7 +562,8 @@ class MainWindow(QMainWindow):
         self.timeline_dock.hide()
         self.settings_dock.hide()
         self.menuBar().hide()
-        self.statusBar().hide()
+        if not self.update_pill.isVisible():
+            self.statusBar().hide()
 
     def on_show_recent_action(self) -> None:
         self.recent_widget.update_recent_recordings()
@@ -626,6 +647,22 @@ class MainWindow(QMainWindow):
 
     def on_documentation_action(self) -> None:
         webbrowser.open("https://docs.pupil-labs.com/neon/neon-player/")
+
+    def on_check_updates_action(self) -> None:
+        webbrowser.open("https://github.com/pupil-labs/neon-player/releases/")
+
+    def on_release_notes_action(self) -> None:
+        self.show_release_notes()
+
+    def show_release_notes(self, notes: str | None = None) -> None:
+        app = neon_player.instance()
+        if notes is None:
+            notes = app.update_manager.get_release_notes()
+
+        dialog = ReleaseNotesDialog(self)
+        dialog.set_markdown(notes)
+        dialog.finished.connect(app.update_read_release_notes)
+        dialog.open()
 
     def on_about_action(self) -> None:
         app = neon_player.instance()
@@ -816,12 +853,17 @@ class RecordingSettingsDialog(QDialog):
         layout.addWidget(recording_settings_form)
 
 
-class StatusBarLogHandler(logging.Handler):
+class StatusBarLogHandler(MainThreadLogHandler):
     def __init__(self, label: QLabel | QPushButton) -> None:
         super().__init__()
         self.label = label
+        label.destroyed.connect(self.close)
 
-    def emit(self, record: logging.LogRecord) -> None:
+    def close(self) -> None:
+        logging.getLogger().removeHandler(self)
+        super().close()
+
+    def process_record(self, record: logging.LogRecord) -> None:
         if record.levelname == "DEBUG":
             return
 

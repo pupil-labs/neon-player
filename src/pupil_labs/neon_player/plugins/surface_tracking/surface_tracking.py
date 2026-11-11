@@ -56,7 +56,7 @@ from pupil_labs.neon_player.utilities import (
 )
 
 from .tracked_surface import TrackedSurface
-from .ui import MarkerEditWidget
+from .ui import MarkerEditWidget, SurfaceTimelineTooltip, marker_visibility_tooltip
 
 logger = logging.getLogger(__name__)
 
@@ -152,8 +152,8 @@ class SurfaceTrackingPlugin(Plugin):
 
     def __init__(self) -> None:
         super().__init__()
-        self.marker_cache_file = self.require_cache_path() / "markers.npy"
-        self.surface_cache_file = self.require_cache_path() / "surfaces.npy"
+        self.marker_cache_file = Path("")
+        self.surface_cache_file = Path("")
 
         self._draw_marker_ids = False
         self._draw_names = True
@@ -184,6 +184,8 @@ class SurfaceTrackingPlugin(Plugin):
 
         self._surfaces.clear()
         self.scene_size = (0, 0)
+        self.marker_cache_file = Path("")
+        self.surface_cache_file = Path("")
 
     def _update_displays(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
@@ -251,6 +253,9 @@ class SurfaceTrackingPlugin(Plugin):
             calibration.scene_camera_matrix,
             calibration.scene_distortion_coefficients,
         )
+
+        self.marker_cache_file = self.require_cache_path() / "markers.npy"
+        self.surface_cache_file = self.require_cache_path() / "surfaces.npy"
         self.attempt_marker_cache_load()
 
     def attempt_marker_cache_load(self) -> None:
@@ -483,6 +488,23 @@ class SurfaceTrackingPlugin(Plugin):
 
             painter.setPen(old_pen)
 
+    def _add_legend_timeline_row(
+        self,
+        row_name: str,
+        data: list[tuple[int, int, T.SupportsFloat]]
+        | list[tuple[int, int]]
+        | npt.NDArray[np.integer[T.Any] | np.floating[T.Any]],
+        *,
+        color: str = "white",
+    ) -> None:
+        tooltip = SurfaceTimelineTooltip()
+        self.get_timeline().add_timeline_broken_bar(
+            row_name,
+            data,
+            tooltip=tooltip,
+            color=color,
+        )
+
     def _load_marker_cache(self) -> None:
         recording = self.require_recording()
         self.markers_by_frame = np.load(self.marker_cache_file, allow_pickle=True)
@@ -522,6 +544,7 @@ class SurfaceTrackingPlugin(Plugin):
                 )
                 if n > 0
             ],
+            tooltip=marker_visibility_tooltip,
         )
 
     def _load_surface_locations_cache(self, surface_uid: str) -> None:
@@ -590,8 +613,10 @@ class SurfaceTrackingPlugin(Plugin):
             visibilities = pickle.load(f)  # noqa: S301
 
         self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
-        self.get_timeline().add_timeline_broken_bar(
-            f"Surface: {surface.name}", visibilities, color="#3273FF"
+        self._add_legend_timeline_row(
+            f"Surface: {surface.name}",
+            visibilities,
+            color="#3273FF",
         )
 
     def add_surface_gaze_timeline(self, surface: TrackedSurface) -> None:
@@ -601,7 +626,7 @@ class SurfaceTrackingPlugin(Plugin):
 
         self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
         with open(gaze_upon_file, "rb") as f:
-            self.get_timeline().add_timeline_broken_bar(
+            self._add_legend_timeline_row(
                 f"Surface Gaze: {surface.name}",
                 pickle.load(f),  # noqa: S301
                 color="#73F7FF",

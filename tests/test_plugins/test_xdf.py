@@ -21,6 +21,7 @@ from pupil_labs.neon_player.plugins.xdf import (
     fallback_channel_names,
     first,
     parse_channel_names,
+    parse_channel_units,
     parse_markers,
 )
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
@@ -109,6 +110,7 @@ def test_xdf_stream_from_xdf_dict_parse_data_fallback_channel_names() -> None:
     xdf_stream = XDFStream.from_xdf_dict(xdf_dict)
     assert isinstance(xdf_stream, DataXDFStream)
     assert xdf_stream.channel_names == ["Ch1"]
+    assert xdf_stream.channel_units == [""]
 
 
 def test_marker_xdf_stream_load_save(tmp_path: Path) -> None:
@@ -175,6 +177,53 @@ def test_parse_channel_names() -> None:
     }
     channel_names = parse_channel_names(info_dict)
     assert channel_names == ["A1", "A2", "A3"]
+
+
+def test_parse_channel_units() -> None:
+    info_dict = {
+        "desc": [
+            {
+                "channels": [
+                    {
+                        "channel": [
+                            {"label": "A1", "unit": ["mV"]},
+                            {"label": "A2"},
+                            {"label": "A3", "unit": [" "]},
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+
+    assert parse_channel_units(info_dict) == ["mV", "", ""]
+
+
+def test_data_xdf_stream__channel_units_survive_metadata_cache_roundtrip() -> None:
+    xdf_dict = {
+        "info": {
+            **MOCK_XDF_DATA_STREAM_INFO,
+            "desc": [
+                {
+                    "channels": [
+                        {
+                            "channel": [
+                                {"label": "A1", "unit": ["mV"]},
+                                {"label": "A2", "unit": ["V"]},
+                            ]
+                        }
+                    ]
+                }
+            ],
+        },
+        "time_stamps": np.array([1.0, 2.0]),
+        "time_series": np.array([[0.0, 1.0], [1.0, 2.0]]),
+    }
+    xdf_stream = DataXDFStream.from_xdf_dict(xdf_dict)
+
+    restored_stream = DataXDFStream.from_dict(xdf_stream.to_dict())
+
+    assert restored_stream.channel_units == ["mV", "V"]
 
 
 def test_fallback_channel_names() -> None:

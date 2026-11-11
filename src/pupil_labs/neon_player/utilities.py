@@ -1,11 +1,13 @@
+import logging
 import typing as T
+from copy import copy
 
 import cv2
 import numpy as np
 import numpy.typing as npt
 from pupil_labs.neon_recording import NeonRecording
 from pyqtgraph.functions import imageToArray
-from PySide6.QtCore import QTimer, SignalInstance
+from PySide6.QtCore import QObject, Qt, QTimer, Signal, SignalInstance
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QMenu
 
@@ -216,3 +218,40 @@ class SlotDebouncer:
 
     def _do_call(self) -> None:
         self.slot(*self.args)
+
+
+class _LogRecordDispatcher(QObject):
+    new_record = Signal(object)
+
+    def __init__(self, process_record: T.Callable[[logging.LogRecord], None]) -> None:
+        super().__init__()
+        self.process_record: T.Callable[[logging.LogRecord], None] | None = (
+            process_record
+        )
+        self.new_record.connect(self._dispatch, Qt.ConnectionType.QueuedConnection)
+
+    def _dispatch(self, record: logging.LogRecord) -> None:
+        if self.process_record is not None:
+            self.process_record(record)
+
+
+class MainThreadLogHandler(logging.Handler):
+    """Queue records for Qt processing.
+
+    Construct on the main thread with an active Qt event loop. Subclasses implement
+    ``process_record`` instead of ``emit``; queued records are ignored after close.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._dispatcher = _LogRecordDispatcher(self.process_record)
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self._dispatcher.new_record.emit(copy(record))
+
+    def process_record(self, record: logging.LogRecord) -> None:
+        raise NotImplementedError
+
+    def close(self) -> None:
+        self._dispatcher.process_record = None
+        super().close()

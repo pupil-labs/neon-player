@@ -7,7 +7,6 @@ import sys
 import time
 import typing as T
 import warnings
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import numpy as np
@@ -28,6 +27,7 @@ from pupil_labs.neon_player import Plugin, is_frozen
 from pupil_labs.neon_player.history import RecordingHistory
 from pupil_labs.neon_player.ipc_logger import IPCLogger
 from pupil_labs.neon_player.job_manager import JobManager
+from pupil_labs.neon_player.managers.update import UpdateManager, app_version
 from pupil_labs.neon_player.plugin_management import (
     check_dependencies_for_plugin,
     install_dependencies,
@@ -106,13 +106,8 @@ class NeonPlayerApp(QApplication):
         self._initializing = True
         super().__init__(argv)
 
-        try:
-            app_version = version("pupil_labs.neon_player")
-        except PackageNotFoundError:
-            app_version = "?"
-
         self.setApplicationName("Neon Player")
-        self.setApplicationVersion(app_version)
+        self.setApplicationVersion(str(app_version()))
         self.setWindowIcon(QIcon(str(neon_player.asset_path("neon-player.svg"))))
         self.setStyle("Fusion")
 
@@ -204,6 +199,10 @@ class NeonPlayerApp(QApplication):
             logger.exception("Failed to load recording history")
         self.recording_history.changed.connect(self.save_history)
 
+        if not self.headless:
+            self.update_manager = UpdateManager(parent=self)
+            self._initialize_updates()
+
         if self.args.job and self.args.recording:
             self.load(Path(self.args.recording))
         elif self.args.recording:
@@ -212,7 +211,22 @@ class NeonPlayerApp(QApplication):
             self._initializing = False
             os.chdir(Path.home())
 
-        self.aboutToQuit.connect(self.unload)
+        self.aboutToQuit.connect(self.on_quit)
+
+    def _initialize_updates(self) -> None:
+        self.update_manager.update_available.connect(
+            self.main_window.on_update_available
+        )
+        self.update_manager.notes_available.connect(self.main_window.show_release_notes)
+        self.update_manager.load_release_notes()
+
+        if not self.settings.check_for_updates:
+            return
+
+        self.update_manager.check_unread_release_notes(
+            self.settings.last_read_release_notes_version
+        )
+        QTimer.singleShot(0, self.update_manager.check_for_updates)
 
     def run_jobs(self, job: list[str]) -> None:
         plugin_name, action_name = job[0].split(".")
@@ -451,6 +465,11 @@ class NeonPlayerApp(QApplication):
         """
         return self.args.job is not None
 
+    def on_quit(self) -> None:
+        self.unload()
+        if not self.headless:
+            self.update_manager.close()
+
     def unload(self) -> None:
         self.set_playback_state(False)
         self.save_settings(force=True)
@@ -497,6 +516,7 @@ class NeonPlayerApp(QApplication):
         recording = self.recording
         QTimer.singleShot(0, lambda: self._initialize_recording(recording))
         self.recording_settings.plugins_changed.connect(self.toggle_plugins_by_settings)
+        SlotDebouncer.debounce(self.settings.changed, self.save_settings)
         SlotDebouncer.debounce(self.recording_settings.changed, self.save_settings)
 
     def _initialize_recording(self, recording: nr.NeonRecording) -> None:
@@ -748,6 +768,9 @@ class NeonPlayerApp(QApplication):
 
         settings.export_window = export_window
         self.main_window.timeline.set_export_window(export_window)
+
+    def update_read_release_notes(self) -> None:
+        self.settings.last_read_release_notes_version = self.applicationVersion()
 
     def _setup_frozen(self) -> None:
         if not is_frozen():
