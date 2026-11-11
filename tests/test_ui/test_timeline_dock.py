@@ -922,3 +922,45 @@ def test_removing_a_series_shrinks_row_and_scroll_height(
     assert timeline.graphics_view.height() < old_scroll_height
     assert search_fields(timeline) == [field]
     assert timeline.get_timeline_series("Child", "First", group=group) is not None
+
+
+def test_expand_collapse_all_groups_preserves_queries_and_global_rows(
+    timeline: TimeLineDock,
+) -> None:
+    first = timeline.add_timeline_group("First", searchable=True)
+    second = timeline.add_timeline_group("Second", collapsed=True)
+    empty = timeline.add_timeline_group("Empty", collapsed=True)
+    field = search_fields(timeline)[0]
+    match = timeline.get_timeline_plot("Match", True, group=first)
+    hidden = timeline.get_timeline_plot("Other", True, group=first)
+    child = timeline.get_timeline_plot("Child", True, group=second)
+    global_plot = timeline.get_timeline_plot("Global", True)
+    field.setText("match")
+    timeline.expand_all_groups()
+    assert not any(group.collapsed for group in (first, second, empty))
+    assert match.isVisible()
+    assert not hidden.isVisible()
+    assert child.isVisible()
+    expanded_height = timeline.graphics_view.height()
+    timeline.collapse_all_groups()
+    assert all(group.collapsed for group in (first, second, empty))
+    assert not match.isVisible()
+    assert not child.isVisible()
+    assert global_plot.isVisible()
+    assert timeline.graphics_view.height() < expanded_height
+    timeline.collapse_all_groups()
+    assert all(group.collapsed for group in (first, second, empty))
+    timeline.expand_all_groups()
+    timeline.expand_all_groups()
+    assert not any(group.collapsed for group in (first, second, empty))
+    assert field.text() == "match"
+    assert match.isVisible()
+    assert not hidden.isVisible()
+    assert child.isVisible()
+    for group in (first, second, empty):
+        control = timeline.timeline_group_controls[group.name]
+        assert control.toolTip().startswith("Collapse")
+        timeline.remove_timeline_group(group)
+    timeline.expand_all_groups()
+    timeline.collapse_all_groups()
+    assert global_plot.isVisible()

@@ -285,9 +285,25 @@ class TimeLineDock(QWidget):
     ) -> None:
         resolved = self._resolve_timeline_group(group)
         assert resolved is not None
-        resolved._collapsed = not resolved.collapsed
-        self._apply_group_visibility(resolved)
-        self.timeline_group_controls[resolved.name].set_collapsed(resolved.collapsed)
+        self._set_group_collapsed(resolved, not resolved.collapsed)
+        self._refresh_timeline_layout()
+
+    def _set_group_collapsed(self, group: TimelinePlotGroup, collapsed: bool) -> None:
+        group._collapsed = collapsed
+        self._apply_group_visibility(group)
+        self.timeline_group_controls[group.name].set_collapsed(collapsed)
+
+    def expand_all_groups(self) -> None:
+        """Expand all timeline groups while retaining their search queries."""
+        self._set_all_groups_collapsed(False)
+
+    def collapse_all_groups(self) -> None:
+        """Collapse all timeline groups while retaining their search queries."""
+        self._set_all_groups_collapsed(True)
+
+    def _set_all_groups_collapsed(self, collapsed: bool) -> None:
+        for group in self.timeline_groups.values():
+            self._set_group_collapsed(group, collapsed)
         self._refresh_timeline_layout()
 
     def _create_timeline_search(self, group: TimelinePlotGroup) -> None:
