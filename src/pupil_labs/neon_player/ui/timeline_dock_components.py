@@ -104,6 +104,12 @@ class TimelinePlotGroupControl(QToolButton):
 class TimelineSearchField(QLineEdit):
     """Text editor that keeps timeline shortcuts out of search input."""
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.setStyleSheet("""
+            background: transparent;
+        """)
+
     def event(self, event: QEvent) -> bool:
         if (
             isinstance(event, QKeyEvent)
@@ -129,12 +135,12 @@ class TimelinePlotGroupSearchBar(QWidget):
     def __init__(self, group_name: str) -> None:
         super().__init__()
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(4, 0, 0, 0)
         icon = QLabel()
-        icon.setFixedSize(16, 16)
+        icon.setFixedSize(12, 12)
         icon.setPixmap(
             QIcon(str(neon_player.asset_path("search.svg"))).pixmap(
-                QSize(16, 16), self.devicePixelRatioF()
+                QSize(12, 12), self.devicePixelRatioF()
             )
         )
         self.field = TimelineSearchField()
