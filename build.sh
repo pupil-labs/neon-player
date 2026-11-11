@@ -8,9 +8,12 @@ VERSION_SIMPLE=$(echo "$VERSION" | awk -F. '{print $1"."$2"."$3}' | grep -Eo '^[
 echo "Build $VERSION ($VERSION_SIMPLE) for $OSTYPE"
 
 UV_PATH=$(which uv)
+UV_VERSION=$(uv --version)
 if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
     UV_PATH=$UV_PATH.exe
 fi
+echo "Bundling uv from $UV_PATH"
+echo $UV_VERSION
 
 uv run --group build -m nuitka src/pupil_labs/neon_player \
     --assume-yes-for-downloads \

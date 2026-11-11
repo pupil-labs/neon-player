@@ -36,6 +36,7 @@ dependencies = [
     "requests>=2.33.1",
     "scipy>=1.15.2",
     "tqdm>=4.67.1",
+    "uv>=0.13.0",
 ]
 
 [project.optional-dependencies]
@@ -110,7 +111,7 @@ pyobjc-framework-Cocoa = ["AppKit"]
 
 [tool.deptry.per_rule_ignores]
 DEP001 = ["pupil_labs", "cv2"]
-DEP002 = ["opencv-python", "protobuf"]
+DEP002 = ["opencv-python", "uv"]
 DEP003 = ["pupil_labs", "typing_extensions"]
 
 [tool.hatch.version]
