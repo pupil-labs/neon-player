@@ -16,6 +16,7 @@ from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
     DetectedMarker,
     _get_position_for_export,
     _prepare_surface_positions_export,
+    get_marker_visibility_intervals,
 )
 from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import (
     TrackedSurface,
@@ -32,6 +33,77 @@ from tests.mocks import mock_gaze_timeseries, mock_scene_timeseries
 
 if TYPE_CHECKING:
     from tests.conftest import MockNeonPlayerApp
+
+
+@pytest.mark.parametrize(
+    (
+        "marker_ids",
+        "timestamps",
+        "expected_starts",
+        "expected_stops",
+        "expected_counts",
+    ),
+    [
+        pytest.param([[1]], [100], [100], [33_333_433], [1], id="single-frame"),
+        pytest.param([[]], [100], [100], [33_333_433], [0], id="single-empty-frame"),
+        pytest.param(
+            [[], [], []], [100, 200, 400], [100], [33_333_733], [0], id="no-markers"
+        ),
+        pytest.param(
+            [[1, 2], [1, 2], [1, 2]],
+            [100, 200, 400],
+            [100],
+            [33_333_733],
+            [2],
+            id="constant-count",
+        ),
+        pytest.param(
+            [[1], [2], [3]],
+            [100, 200, 400],
+            [100],
+            [33_333_733],
+            [1],
+            id="changing-identities-same-count",
+        ),
+        pytest.param(
+            [[1], [1], [1, 2], [1, 2], [], [3]],
+            [100, 200, 400, 700, 900, 1200],
+            [100, 400, 900, 1200],
+            [399, 899, 1199, 33_334_533],
+            [1, 2, 0, 1],
+            id="count-runs-with-gap-and-final-single-frame",
+        ),
+        pytest.param(
+            [[], [1], [1, 2], []],
+            [100, 200, 400, 700],
+            [100, 200, 400, 700],
+            [199, 399, 699, 33_334_033],
+            [0, 1, 2, 0],
+            id="count-changes-every-frame",
+        ),
+    ],
+)
+def test_get_marker_visibility_intervals(
+    mock_neon_recording: Callable[..., NeonRecording],
+    marker_ids: list[list[int]],
+    timestamps: list[int],
+    expected_starts: list[int],
+    expected_stops: list[int],
+    expected_counts: list[int],
+) -> None:
+    recording = mock_neon_recording(scene=mock_scene_timeseries(timestamps))
+    markers_by_frame = [
+        [DetectedMarker(tag_id, normalized_corners()) for tag_id in frame_ids]
+        for frame_ids in marker_ids
+    ]
+
+    starts, stops, counts = get_marker_visibility_intervals(
+        markers_by_frame, recording.scene.time
+    )
+
+    np.testing.assert_array_equal(starts, expected_starts)
+    np.testing.assert_array_equal(stops, expected_stops)
+    np.testing.assert_array_equal(counts, expected_counts)
 
 
 @pytest.mark.usefixtures("qapp")
