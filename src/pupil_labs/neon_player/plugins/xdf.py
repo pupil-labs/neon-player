@@ -29,6 +29,7 @@ from pupil_labs.neon_player.plugins.events import (
     EventsPlugin,
     _load_events_from_recording,
 )
+from pupil_labs.neon_player.ui.timeline_dock_components import TimelinePlotGroup
 
 logger = logging.getLogger(__name__)
 
@@ -406,10 +407,8 @@ class XDFPlugin(Plugin):
         self._offset_ns: int = 0
         self._is_aligned: bool = False
         self._xdf_load_job: BackgroundJob | None = None
-        self._active_timeline_row_names: dict[str, set[str]] = {
-            "markers": set(),
-            "data": set(),
-        }
+        self._marker_timeline_group: TimelinePlotGroup | None = None
+        self._active_data_row_names: set[str] = set()
 
     def _reset_loaded_xdf_state(self) -> None:
         self.data_stream_uid = None
@@ -546,6 +545,7 @@ class XDFPlugin(Plugin):
         if self._marker_stream_uid == value:
             return
 
+        self._clear_timeline_tracks(kind="markers")
         self._marker_stream_uid = value
         self._marker_stream = (
             self._marker_streams_by_uid.get(self._marker_stream_uid)
@@ -952,52 +952,70 @@ class XDFPlugin(Plugin):
         timeline = self.get_timeline()
         was_sorting_enabled = timeline.disable_plot_sorting()
 
-        if markers:
-            self._clear_timeline_tracks(kind="markers")
-            self._update_timeline_markers()
-        if data:
-            self._clear_timeline_tracks(kind="data")
-            self._update_timeline_data()
-
-        if was_sorting_enabled:
-            timeline.enable_plot_sorting()
+        try:
+            if markers:
+                self._update_timeline_markers()
+            if data:
+                self._clear_timeline_tracks(kind="data")
+                self._update_timeline_data()
+        finally:
+            if was_sorting_enabled:
+                timeline.enable_plot_sorting()
 
     def clear_timeline(self) -> None:
         self._clear_timeline_tracks(kind="markers")
         self._clear_timeline_tracks(kind="data")
 
     def _clear_timeline_tracks(self, kind: Literal["markers", "data"]) -> None:
+        if kind == "markers":
+            group = self._marker_timeline_group
+            if group is None:
+                return
+            timeline = self.get_timeline()
+            if timeline.get_timeline_group(group.name) is group:
+                timeline.remove_timeline_group(group)
+            self._marker_timeline_group = None
+            return
+        if not self._active_data_row_names:
+            return
         timeline = self.get_timeline()
-        for row_name in self._active_timeline_row_names[kind]:
+        for row_name in self._active_data_row_names:
             timeline.remove_timeline_plot(row_name)
 
-        self._active_timeline_row_names[kind].clear()
+        self._active_data_row_names.clear()
 
     def _get_data_stream_group_title(self) -> str:
         stream_type = self.data_stream.type.strip() if self.data_stream else ""
         return f"XDF - {stream_type}" if stream_type else "XDF - Data Stream"
 
     def _update_timeline_markers(self) -> None:
-        if not self.marker_stream or not self.marker_stream.markers:
+        if self.marker_stream is None:
+            self._clear_timeline_tracks(kind="markers")
             return
 
         timeline = self.get_timeline()
+        group = timeline.get_timeline_group("XDF Markers")
+        if group is None:
+            group = timeline.add_timeline_group("XDF Markers", searchable=True)
+        self._marker_timeline_group = group
 
-        # Filter and plot markers that fall within the recording
+        names = set(self.marker_stream.markers)
+        for name in group.child_row_names - names:
+            timeline.remove_timeline_plot(name, group=group)
+
+        # Keep existing plots and series while updating aligned timestamps.
         for name, timestamps in self.marker_stream.markers.items():
             offset_timestamps = apply_offset(np.array(timestamps), self._offset_ns)
-            timeline_row_name = f"XDF Markers - {name}"
-            plot_item = timeline.get_timeline_plot(timeline_row_name, True)
+            plot_item = timeline.get_timeline_plot(name, True, group=group)
             if not plot_item:
-                logger.warning(f"Failed to create timeline plot {timeline_row_name}")
+                logger.warning(f"Failed to create timeline plot {name}")
                 continue
 
             if not plot_item.items:
-                timeline.add_timeline_scatter(timeline_row_name, [])
+                timeline.add_timeline_scatter(name, [], group=group)
 
             y = np.zeros_like(offset_timestamps)
             plot_item.items[0].setData(offset_timestamps, y)
-            self._active_timeline_row_names["markers"].add(timeline_row_name)
 
     def _update_timeline_data(self) -> None:
         recording = self.recording
@@ -1031,7 +1049,7 @@ class XDFPlugin(Plugin):
             [(plot_ts[0], plot_ts[-1])],
             color="#00FFFF",
         )
-        self._active_timeline_row_names["data"].add(data_stream_row_name)
+        self._active_data_row_names.add(data_stream_row_name)
 
         selected_names = [
             n for n in self.data_stream.channel_names if self.channels.get(n, False)
@@ -1081,7 +1099,7 @@ class XDFPlugin(Plugin):
                 plot_item.adjust_size()
                 plot_item.getViewBox().enableAutoRange(y=True)
 
-        self._active_timeline_row_names["data"] |= plotted_row_names
+        self._active_data_row_names |= plotted_row_names
 
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
