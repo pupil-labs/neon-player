@@ -50,6 +50,8 @@ uv run --group build -m nuitka src/pupil_labs/neon_player \
     --include-module=zoneinfo \
     --include-module=av.sidedata.encparams \
     --include-module=pandas._libs._cyutility \
+    --include-module=logging.config \
+    --include-module=logging.handlers \
     --include-qt-plugins=multimedia
 
 cp -r deployment/* dist/
