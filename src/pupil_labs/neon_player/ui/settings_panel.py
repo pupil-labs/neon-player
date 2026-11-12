@@ -1,6 +1,7 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
-from PySide6.QtCore import Qt, QPoint
+from pupil_labs.neon_recording import NeonRecording
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -17,7 +18,6 @@ from qt_property_widgets.widgets import PropertyForm, PropertyWidget
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
-from pupil_labs.neon_recording import NeonRecording
 
 
 class RecordingInfoWidget(QWidget):
@@ -47,7 +47,7 @@ class RecordingInfoWidget(QWidget):
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.recording_id_label.setText(recording.info["recording_id"])
-        start_time = datetime.fromtimestamp(recording.info["start_time"] / 1e9)
+        start_time = datetime.fromtimestamp(recording.info["start_time"] / 1e9, tz=UTC)
         start_time_str = start_time.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
         self.recording_date_label.setText(start_time_str)
         self.wearer_label.setText(recording.wearer["name"])
@@ -80,9 +80,14 @@ class PluginManagerWidget(QWidget):
 
     def show_dialog(self) -> None:
         app = neon_player.instance()
-        form = PropertyWidget.from_property("enabled_plugins", app.recording_settings)
-        form.layout().setContentsMargins(10, 10, 10, 10)
-        form.layout().setSpacing(5)
+        settings = app.recording_settings
+        assert settings is not None, "Recording settings are required to manage plugins"
+        form = PropertyWidget.from_property("enabled_plugins", settings)
+        assert form is not None, "Enabled plugins must have a property form"
+        layout = form.layout()
+        assert layout is not None, "Plugin manager form must have a layout"
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(5)
 
         menu = QMenu(self.button)
         menu.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -127,9 +132,9 @@ class SettingsPanel(QScrollArea):
         self.content_layout.addWidget(self.plugin_list_widget)
 
         self.setWidget(self.content_widget)
-        self.plugins_form = None
+        self.plugins_form: PluginManagerWidget | None = None
 
-    def on_recording_loaded(self, recording: NeonRecording) -> None:
+    def on_recording_loaded(self, _: NeonRecording) -> None:
         self.plugins_form = PluginManagerWidget()
         self.content_layout.insertWidget(1, self.plugins_form)
 
@@ -157,7 +162,7 @@ class SettingsPanel(QScrollArea):
             tb.setCursor(Qt.CursorShape.PointingHandCursor)
             if isinstance(header_action, ListPropertyAppenderAction):
 
-                def do_add():
+                def do_add() -> None:
                     widget = settings_form.property_widgets.get(
                         header_action.property_name, None
                     )

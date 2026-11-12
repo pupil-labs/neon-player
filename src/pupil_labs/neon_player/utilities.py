@@ -1,16 +1,18 @@
+import logging
 import typing as T
+from copy import copy
 
 import cv2
 import numpy as np
+import numpy.typing as npt
+from pupil_labs.neon_recording import NeonRecording
 from pyqtgraph.functions import imageToArray
-from PySide6.QtCore import QTimer, Signal
+from PySide6.QtCore import QObject, Qt, QTimer, Signal, SignalInstance
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QMenu
 
-from pupil_labs.neon_recording import NeonRecording
 
-
-def qimage_from_frame(frame: np.ndarray | None) -> QImage:
+def qimage_from_frame(frame: npt.NDArray[np.uint8] | None) -> QImage:
     if frame is None:
         return QImage()
 
@@ -30,15 +32,22 @@ def qimage_from_frame(frame: np.ndarray | None) -> QImage:
     return QImage(frame.data, width, height, bytes_per_line, image_format)
 
 
-def ndarray_from_qimage(image: QImage) -> np.ndarray:
-    return imageToArray(image, transpose=False)
+def ndarray_from_qimage(
+    image: QImage,
+) -> npt.NDArray[np.uint8] | npt.NDArray[np.uint16]:
+    pixels: npt.NDArray[np.uint8] | npt.NDArray[np.uint16] = imageToArray(
+        image, transpose=False
+    )
+    return pixels
 
 
 def clone_menu(menu: QMenu) -> QMenu:
     menu_copy = QMenu(menu.title())
     for action in menu.actions():
-        if action.menu():
-            menu_copy.addMenu(clone_menu(action.menu()))
+        submenu: object = action.menu()
+        if submenu is not None:
+            assert isinstance(submenu, QMenu), "Action submenu must be a QMenu"
+            menu_copy.addMenu(clone_menu(submenu))
         else:
             menu_copy.addAction(action)
 
@@ -46,11 +55,11 @@ def clone_menu(menu: QMenu) -> QMenu:
 
 
 def unproject_points(
-    points_2d: T.Union[np.ndarray, list],
-    camera_matrix: T.Union[np.ndarray, list],
-    distortion_coefs: T.Union[np.ndarray, list],
+    points_2d: npt.ArrayLike,
+    camera_matrix: npt.ArrayLike,
+    distortion_coefs: npt.ArrayLike,
     normalize: bool = False,
-) -> np.ndarray:
+) -> npt.NDArray[np.float32]:
     """Undistorts points according to the camera model.
 
     :param pts_2d, shape: Nx2
@@ -67,19 +76,25 @@ def unproject_points(
     # Undistort 2d pixel coordinates
     points_2d_undist = cv2.undistortPoints(points_2d, camera_matrix, distortion_coefs)
     # Unproject 2d points into 3d directions; all points. have z=1
-    points_3d = cv2.convertPointsToHomogeneous(points_2d_undist)
+    points_3d: npt.NDArray[np.float32] = cv2.convertPointsToHomogeneous(
+        points_2d_undist
+    )
     points_3d.shape = -1, 3
 
     if normalize:
         # normalize vector length to 1
-        points_3d /= np.linalg.norm(points_3d, axis=1)[:, np.newaxis]  # type: ignore
+        points_3d /= np.linalg.norm(points_3d, axis=1)[:, np.newaxis]
 
     return points_3d
 
 
 def cart_to_spherical(
-    points_3d: np.ndarray, apply_rad2deg: bool = True
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    points_3d: npt.NDArray[np.float32 | np.float64], apply_rad2deg: bool = True
+) -> tuple[
+    npt.NDArray[np.float32 | np.float64],
+    npt.NDArray[np.float32 | np.float64],
+    npt.NDArray[np.float32 | np.float64],
+]:
     points_3d = np.asarray(points_3d)
     # convert cartesian to spherical coordinates
     # source: http://stackoverflow.com/questions/4116658/faster-numpy-cartesian-to-spherical-coordinate-conversion
@@ -104,32 +119,40 @@ def cart_to_spherical(
 
 
 def find_ranged_index(
-    values: np.ndarray, left_boundaries: np.ndarray, right_boundaries: np.ndarray
-) -> np.ndarray:
+    values: npt.NDArray[np.int64],
+    left_boundaries: npt.NDArray[np.int64],
+    right_boundaries: npt.NDArray[np.int64],
+) -> npt.NDArray[np.intp]:
     left_ids = np.searchsorted(left_boundaries, values, side="right") - 1
     right_ids = np.searchsorted(right_boundaries, values, side="right")
 
     return np.where(left_ids == right_ids, left_ids, -1)
 
 
-def get_scene_intrinsics(recording: NeonRecording) -> tuple[np.ndarray, np.ndarray]:
+def get_scene_intrinsics(
+    recording: NeonRecording,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     if recording.calibration is None:
-        scene_camera_matrix = np.array([
-            [892.1746128870618, 0.0, 829.7903330088201],
-            [0.0, 891.4721112020742, 606.9965952706247],
-            [0.0, 0.0, 1.0],
-        ])
+        scene_camera_matrix = np.array(
+            [
+                [892.1746128870618, 0.0, 829.7903330088201],
+                [0.0, 891.4721112020742, 606.9965952706247],
+                [0.0, 0.0, 1.0],
+            ]
+        )
 
-        scene_distortion_coefficients = np.array([
-            -0.13199101574152391,
-            0.11064108837365579,
-            0.00010404274838141136,
-            -0.00019483441697480834,
-            -0.002837744957163781,
-            0.17125797998042083,
-            0.05167573834059702,
-            0.021300346544012465,
-        ])
+        scene_distortion_coefficients = np.array(
+            [
+                -0.13199101574152391,
+                0.11064108837365579,
+                0.00010404274838141136,
+                -0.00019483441697480834,
+                -0.002837744957163781,
+                0.17125797998042083,
+                0.05167573834059702,
+                0.021300346544012465,
+            ]
+        )
 
     else:
         calibration = recording.calibration
@@ -140,56 +163,95 @@ def get_scene_intrinsics(recording: NeonRecording) -> tuple[np.ndarray, np.ndarr
 
 
 class SignalDebouncer:
-    _signal_debouncer_map: T.ClassVar[dict[Signal, "SignalDebouncer"]] = {}
+    _signal_debouncer_map: T.ClassVar[dict[SignalInstance, "SignalDebouncer"]] = {}
 
     @staticmethod
-    def debounce(signal: Signal, delay: float = 1.5, *args):
+    def debounce(signal: SignalInstance, delay: float = 1.5, *args: object) -> None:
         if signal not in SignalDebouncer._signal_debouncer_map:
             SignalDebouncer._signal_debouncer_map[signal] = SignalDebouncer(signal)
 
         debouncer = SignalDebouncer._signal_debouncer_map[signal]
         debouncer.args = args
-        debouncer.timer.start(delay * 1000)
+        debouncer.timer.start(int(delay * 1000))
 
-    def __init__(self, signal: Signal):
+    def __init__(self, signal: SignalInstance) -> None:
         self.signal = signal
         self.timer = QTimer()
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self._emit)
-        self.args = []
+        self.args: tuple[object, ...] = ()
 
-    def _emit(self):
+    def _emit(self) -> None:
         self.signal.emit(*self.args)
         del SignalDebouncer._signal_debouncer_map[self.signal]
 
 
 class SlotDebouncer:
-    _connections: T.ClassVar[dict[T.Callable, "SlotDebouncer"]] = {}
+    _connections: T.ClassVar[dict[T.Callable[..., object], "SlotDebouncer"]] = {}
 
     @staticmethod
-    def debounce(signal: Signal, slot: T.Callable, delay: float = 3.5):
+    def debounce(
+        signal: SignalInstance, slot: T.Callable[..., object], delay: float = 3.5
+    ) -> None:
         if slot not in SlotDebouncer._connections:
             SlotDebouncer._connections[slot] = SlotDebouncer(slot)
 
         debouncer = SlotDebouncer._connections[slot]
         debouncer.add_signal(signal)
-        debouncer.timer.setInterval(delay * 1000)
+        debouncer.timer.setInterval(int(delay * 1000))
 
-    def __init__(self, slot: T.Callable):
-        self.signals = []
+    def __init__(self, slot: T.Callable[..., object]) -> None:
+        self.signals: list[SignalInstance] = []
 
         self.slot = slot
         self.timer = QTimer()
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self._do_call)
 
-    def add_signal(self, signal: Signal):
+    def add_signal(self, signal: SignalInstance) -> None:
         self.signals.append(signal)
         signal.connect(self.on_signal)
 
-    def on_signal(self, *args):
+    def on_signal(self, *args: object) -> None:
         self.args = args
         self.timer.start()
 
-    def _do_call(self):
+    def _do_call(self) -> None:
         self.slot(*self.args)
+
+
+class _LogRecordDispatcher(QObject):
+    new_record = Signal(object)
+
+    def __init__(self, process_record: T.Callable[[logging.LogRecord], None]) -> None:
+        super().__init__()
+        self.process_record: T.Callable[[logging.LogRecord], None] | None = (
+            process_record
+        )
+        self.new_record.connect(self._dispatch, Qt.ConnectionType.QueuedConnection)
+
+    def _dispatch(self, record: logging.LogRecord) -> None:
+        if self.process_record is not None:
+            self.process_record(record)
+
+
+class MainThreadLogHandler(logging.Handler):
+    """Queue records for Qt processing.
+
+    Construct on the main thread with an active Qt event loop. Subclasses implement
+    ``process_record`` instead of ``emit``; queued records are ignored after close.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._dispatcher = _LogRecordDispatcher(self.process_record)
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self._dispatcher.new_record.emit(copy(record))
+
+    def process_record(self, record: logging.LogRecord) -> None:
+        raise NotImplementedError
+
+    def close(self) -> None:
+        self._dispatcher.process_record = None
+        super().close()

@@ -1,11 +1,181 @@
+from collections.abc import Callable
+from functools import partial
+from typing import TYPE_CHECKING
+
+import numpy as np
+import pytest
+from pupil_labs.camera import Camera
+from pupil_labs.marker_mapper.surface import normalized_corners
+from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.neon_recording.timeseries.gaze import GazeArray
+from PySide6.QtWidgets import QLabel
+
 from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
 from pupil_labs.neon_player.plugins.surface_tracking import SurfaceTrackingPlugin
-from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import TrackedSurface
+from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
+    DetectedMarker,
+    _get_position_for_export,
+    _prepare_surface_positions_export,
+    get_marker_visibility_intervals,
+)
+from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import (
+    TrackedSurface,
+)
+from pupil_labs.neon_player.plugins.surface_tracking.ui import (
+    SurfaceTimelineTooltip,
+    marker_visibility_tooltip,
+)
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
+    TimelineBarSeriesHover,
+    TimelineTooltipContext,
+)
+from tests.mocks import mock_gaze_timeseries, mock_scene_timeseries
+
+if TYPE_CHECKING:
+    from tests.conftest import MockNeonPlayerApp
 
 
-def test_surface_tracking_plugin__to_dict__recursive(qapp, mock_neon_recording):
-    qapp.recording = mock_neon_recording()
-    qapp.plugins_by_class["GazeDataPlugin"] = GazeDataPlugin()
+@pytest.mark.parametrize(
+    (
+        "marker_ids",
+        "timestamps",
+        "expected_starts",
+        "expected_stops",
+        "expected_counts",
+    ),
+    [
+        pytest.param([[1]], [100], [100], [33_333_433], [1], id="single-frame"),
+        pytest.param([[]], [100], [100], [33_333_433], [0], id="single-empty-frame"),
+        pytest.param(
+            [[], [], []], [100, 200, 400], [100], [33_333_733], [0], id="no-markers"
+        ),
+        pytest.param(
+            [[1, 2], [1, 2], [1, 2]],
+            [100, 200, 400],
+            [100],
+            [33_333_733],
+            [2],
+            id="constant-count",
+        ),
+        pytest.param(
+            [[1], [2], [3]],
+            [100, 200, 400],
+            [100],
+            [33_333_733],
+            [1],
+            id="changing-identities-same-count",
+        ),
+        pytest.param(
+            [[1], [1], [1, 2], [1, 2], [], [3]],
+            [100, 200, 400, 700, 900, 1200],
+            [100, 400, 900, 1200],
+            [399, 899, 1199, 33_334_533],
+            [1, 2, 0, 1],
+            id="count-runs-with-gap-and-final-single-frame",
+        ),
+        pytest.param(
+            [[], [1], [1, 2], []],
+            [100, 200, 400, 700],
+            [100, 200, 400, 700],
+            [199, 399, 699, 33_334_033],
+            [0, 1, 2, 0],
+            id="count-changes-every-frame",
+        ),
+    ],
+)
+def test_get_marker_visibility_intervals(
+    mock_neon_recording: Callable[..., NeonRecording],
+    marker_ids: list[list[int]],
+    timestamps: list[int],
+    expected_starts: list[int],
+    expected_stops: list[int],
+    expected_counts: list[int],
+) -> None:
+    recording = mock_neon_recording(scene=mock_scene_timeseries(timestamps))
+    markers_by_frame = [
+        [DetectedMarker(tag_id, normalized_corners()) for tag_id in frame_ids]
+        for frame_ids in marker_ids
+    ]
+
+    starts, stops, counts = get_marker_visibility_intervals(
+        markers_by_frame, recording.scene.time
+    )
+
+    np.testing.assert_array_equal(starts, expected_starts)
+    np.testing.assert_array_equal(stops, expected_stops)
+    np.testing.assert_array_equal(counts, expected_counts)
+
+
+@pytest.mark.usefixtures("qapp")
+def test_surface_timeline_tooltip_legend_and_row_registration() -> None:
+    tooltip = SurfaceTimelineTooltip()
+    labels = [label.text() for label in tooltip.findChildren(QLabel) if label.text()]
+    swatches = tooltip.findChildren(QLabel, "surfaceTimelineTooltipSwatch")
+    assert labels == [text for _, text in SurfaceTimelineTooltip.ENTRIES]
+    assert [swatch.styleSheet() for swatch in swatches] == [
+        f"background-color: {color}; border-radius: 3px;"
+        for color, _ in SurfaceTimelineTooltip.ENTRIES
+    ]
+
+    calls = []
+
+    class DummyTimeline:
+        def add_timeline_broken_bar(self, *_args: object, **_kwargs: object) -> None:
+            calls.append((_args, _kwargs))
+
+    plugin = SurfaceTrackingPlugin()
+    plugin.get_timeline = partial(DummyTimeline)
+    plugin._add_legend_timeline_row("row", np.empty((0, 3)))
+
+    assert isinstance(calls[0][1]["tooltip"], SurfaceTimelineTooltip)
+
+
+@pytest.mark.parametrize(
+    ("count", "expected"), [(1, "1 detected marker"), (3, "3 detected markers")]
+)
+def test_marker_visibility_tooltip_formats_marker_count(
+    count: int, expected: str
+) -> None:
+    context = TimelineTooltipContext(
+        timestamp_ns=10,
+        series=[
+            TimelineBarSeriesHover(
+                name="",
+                timestamp_ns=10,
+                index=0,
+                value=count,
+                color=None,
+                start_ts=0,
+                stop_ts=20,
+            )
+        ],
+    )
+
+    assert marker_visibility_tooltip(context) == expected
+
+
+def test_marker_visibility_tooltip_ignores_non_marker_hover() -> None:
+    assert marker_visibility_tooltip(TimelineTooltipContext(10, [])) == ""
+
+
+def mock_transform(x0: float, y0: float, w: float, h: float) -> np.ndarray:
+    """Mock surface location (translation + scaling only).
+
+    Transforms normalized corners to the corners of a wxh rectangle
+    centered at (x0, y0).
+    """
+    return np.array([[w, 0, x0 - w / 2], [0, h, y0 - h / 2], [0, 0, 1]], dtype=float)
+
+
+def test_surface_tracking_plugin__to_dict__recursive(
+    qapp: "MockNeonPlayerApp",
+    mock_neon_recording: Callable[..., NeonRecording],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = mock_neon_recording()
+    plugins_by_class = {"GazeDataPlugin": GazeDataPlugin()}
+    monkeypatch.setattr(qapp, "recording", recording)
+    monkeypatch.setattr(qapp, "plugins_by_class", plugins_by_class)
 
     plugin = SurfaceTrackingPlugin()
     # Set the surfaces directly to a private field to skip surface initialization
@@ -13,10 +183,124 @@ def test_surface_tracking_plugin__to_dict__recursive(qapp, mock_neon_recording):
     plugin_dict = plugin.to_dict(recursive=True)
 
     for el in plugin_dict["surfaces"]:
-        assert isinstance(el, dict), \
+        assert isinstance(el, dict), (
             f"Expected surface to be serialized to dict, but got {type(el)}"
-        assert not el["edit"], \
+        )
+        assert not el["edit"], (
             f"Expected surface to be serialized with edit=False, but got {el['edit']}"
+        )
 
-        assert isinstance(el["preview_options"], dict), \
-            f"Expected surface preview_options to be serialized to dict"
+        assert isinstance(el["preview_options"], dict), (
+            "Expected surface preview_options to be serialized to dict"
+        )
+
+
+@pytest.mark.parametrize(
+    ("x0", "y0", "w", "h", "expected_nan_row_mask"),
+    [
+        (800, 600, 400, 300, np.array([False, False, False, False])),
+        (1500, 100, 300, 300, np.array([True, True, True, False])),
+    ],
+)
+def test_get_position_for_export(
+    x0: float, y0: float, w: float, h: float, expected_nan_row_mask: np.ndarray
+) -> None:
+    # No distortion to simplify the calculations
+    scene_size = (1600, 1200)
+    camera = Camera(*scene_size, np.eye(3))
+
+    # Only the second element is used (surface coords -> image coords)
+    location = [None, mock_transform(x0, y0, w, h)]
+    corners = _get_position_for_export(location, camera, scene_size)
+    assert np.all(np.isnan(corners[expected_nan_row_mask, :]))
+    assert np.all(~np.isnan(corners[~expected_nan_row_mask, :]))
+
+
+def test_prepare_surface_positions_export_respects_export_window(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
+    recording = mock_neon_recording(scene=mock_scene_timeseries([1, 2, 3, 4, 5]))
+    scene_size = (1600, 1200)
+    camera = Camera(*scene_size, np.eye(3))
+    positions_df = _prepare_surface_positions_export(
+        recording,
+        (6, 8),  # no scene timestamps satisfy the window
+        None,
+        None,
+        camera,
+    )
+    assert positions_df.empty
+
+
+def test_prepare_surface_positions_export_drops_rows_if_no_markers(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
+    recording = mock_neon_recording(scene=mock_scene_timeseries([1]))
+    scene_size = (1600, 1200)
+    camera = Camera(*scene_size, np.eye(3))
+    location = [None, mock_transform(800, 600, 400, 300)]
+    positions_df = _prepare_surface_positions_export(
+        recording, (0, 3), [[]], [location], camera
+    )
+    assert positions_df.empty
+
+
+def test_prepare_surface_positions_export_drops_rows_if_no_location(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
+    recording = mock_neon_recording(scene=mock_scene_timeseries([1]))
+    scene_size = (1600, 1200)
+    camera = Camera(*scene_size, np.eye(3))
+    positions_df = _prepare_surface_positions_export(
+        recording, (0, 3), [[DetectedMarker(0, normalized_corners())]], [None], camera
+    )
+    assert positions_df.empty
+
+
+def test_prepare_surface_positions_export(
+    mock_neon_recording: Callable[..., NeonRecording],
+) -> None:
+    recording = mock_neon_recording(scene=mock_scene_timeseries([1, 2, 3]))
+    scene_size = (1600, 1200)
+    camera = Camera(*scene_size, np.eye(3))
+    location = [None, mock_transform(800, 600, 400, 300)]
+    positions_df = _prepare_surface_positions_export(
+        recording,
+        (1, 3),
+        [
+            [],
+            [],
+            [DetectedMarker(tag_id, normalized_corners()) for tag_id in [0, 1, 2, 3]],
+        ],
+        [None, None, location],
+        camera,
+    )
+    assert len(positions_df) == 1
+    row = positions_df.iloc[0, :]
+
+    assert row["recording id"] == "mock"
+    assert row["timestamp [ns]"] == 3
+    assert row["detected marker IDs"] == "0;1;2;3"
+    assert np.isclose(row["tr x [px]"], 1000)
+    assert np.isclose(row["br y [px]"], 750)
+
+
+@pytest.mark.parametrize("window", [(2, 3), (8, 9)])
+def test_surface_gaze_export_window_preserves_samples(
+    qapp: "MockNeonPlayerApp",
+    mock_neon_recording: Callable[..., NeonRecording],
+    monkeypatch: pytest.MonkeyPatch,
+    window: tuple[int, int],
+) -> None:
+    gazes = mock_gaze_timeseries([1, 2, 3, 4], [10, 20, 30, 40], [5, 6, 7, 8])
+    recording = mock_neon_recording(gaze=gazes)
+    monkeypatch.setattr(qapp, "recording", recording)
+    monkeypatch.setattr(qapp, "get_export_window", lambda: window)
+    plugin = SurfaceTrackingPlugin()
+
+    exported = plugin._get_gazes_in_export_window()
+
+    assert isinstance(exported, GazeArray)
+    mask = (gazes.time >= window[0]) & (gazes.time <= window[1])
+    np.testing.assert_array_equal(exported.time, gazes.time[mask])
+    np.testing.assert_array_equal(exported.point, gazes.point[mask])

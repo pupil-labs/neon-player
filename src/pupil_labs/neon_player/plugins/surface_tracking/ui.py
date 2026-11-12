@@ -1,13 +1,27 @@
 from typing import TYPE_CHECKING
 
 import numpy as np
-from PySide6.QtCore import QPoint, QPointF, QSize, QTimer, Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QMouseEvent, QPainter, QPaintEvent, QPalette, QPixmap
-from PySide6.QtWidgets import QGridLayout, QLabel, QPushButton, QSizePolicy, QSplitter, QVBoxLayout, QWidget
+import numpy.typing as npt
+from PySide6.QtCore import QPointF, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QIcon, QMouseEvent, QPainter, QPaintEvent, QPixmap
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+)
 from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
+from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
+from pupil_labs.neon_player.ui.timeline_dock_tooltips import (
+    TimelineBarSeriesHover,
+    TimelineTooltipContext,
+    TimelineTooltipWidget,
+)
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 
 if TYPE_CHECKING:
@@ -16,19 +30,68 @@ if TYPE_CHECKING:
     )
 
 
+def marker_visibility_tooltip(context: TimelineTooltipContext) -> str:
+    if len(context.series) != 1 or not isinstance(
+        context.series[0], TimelineBarSeriesHover
+    ):
+        return ""
+
+    entry = context.series[0]
+    if entry.value is None:
+        return ""
+
+    marker_count = int(entry.value)
+    suffix = "s" if marker_count > 1 else ""
+    return f"{marker_count} detected marker{suffix}"
+
+
+class SurfaceTimelineTooltip(TimelineTooltipWidget):
+    """Static key for the event colors used in Surface Tracking timelines."""
+
+    ENTRIES = (
+        ("#3273FF", "Surface localized"),
+        ("#73F7FF", "Gaze on surface"),
+    )
+
+    def __init__(self) -> None:
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        for color, text in self.ENTRIES:
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(8)
+            swatch = QLabel(self)
+            swatch.setObjectName("surfaceTimelineTooltipSwatch")
+            swatch.setFixedSize(14, 14)
+            swatch.setStyleSheet(f"background-color: {color}; border-radius: 3px;")
+            label = QLabel(text, self)
+            row.addWidget(swatch)
+            row.addWidget(label)
+            layout.addLayout(row)
+
+    def update_tooltip(self, context: TimelineTooltipContext) -> None:
+        """Static legend; hover context is unused."""
+
+
 class MarkerEditWidget(QPushButton):
     def __init__(self, marker_uid: str) -> None:
         super().__init__()
         self.setCheckable(True)
         self.marker_uid = marker_uid
-        self.surface = None
+        self.surface: TrackedSurface | None = None
 
         icon = QIcon()
         icon.addPixmap(
-            QPixmap(neon_player.asset_path("add.svg")), QIcon.Normal, QIcon.Off
+            QPixmap(neon_player.asset_path("add.svg")),
+            QIcon.Mode.Normal,
+            QIcon.State.Off,
         )
         icon.addPixmap(
-            QPixmap(neon_player.asset_path("remove.svg")), QIcon.Normal, QIcon.On
+            QPixmap(neon_player.asset_path("remove.svg")),
+            QIcon.Mode.Normal,
+            QIcon.State.On,
         )
         self.setIcon(icon)
         self.setIconSize(QSize(24, 24))
@@ -41,35 +104,41 @@ class MarkerEditWidget(QPushButton):
             }
         """)
 
-        self.setCursor(Qt.PointingHandCursor)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.clicked.connect(self.on_clicked)
 
     def set_surface(self, surface: "TrackedSurface") -> None:
         self.surface = surface
+        tracker_surface = surface.tracker_surface
         self.setChecked(
-            self.marker_uid in surface.tracker_surface.markers.keys()
+            tracker_surface is not None
+            and int(self.marker_uid) in tracker_surface.markers
         )
         self._update_tooltip(self.isChecked())
 
     def _update_tooltip(self, checked: bool) -> None:
-        surface_name = self.surface.name or "Unnamed surface"
+        surface = self.surface
+        surface_name = surface.name if surface is not None else ""
+        surface_name = surface_name or "Unnamed surface"
         if checked:
             self.setToolTip(f"Remove Marker ID {self.marker_uid} from {surface_name}")
         else:
             self.setToolTip(f"Add Marker ID {self.marker_uid} to {surface_name}")
 
     def on_clicked(self) -> None:
+        surface = self.surface
+        assert surface is not None, "Surface must be set before editing a marker"
         if self.isChecked():
-            self.surface.add_marker(self.marker_uid)
+            surface.add_marker(self.marker_uid)
         else:
-            self.surface.remove_marker(self.marker_uid)
+            surface.remove_marker(self.marker_uid)
 
 
 class SurfaceHandle(QWidget):
     position_changed = Signal(QPointF)
 
-    def __init__(self, surface, corner_id):
+    def __init__(self, surface: "TrackedSurface", corner_id: tuple[int, int]) -> None:
         super().__init__()
         self.surface = surface
         self.corner_id = corner_id
@@ -79,7 +148,7 @@ class SurfaceHandle(QWidget):
         self.position_changed_debounce_timer.setSingleShot(True)
         self.position_changed_debounce_timer.timeout.connect(self.emit_new_position)
 
-        self.new_pos = None
+        self.new_pos: QPointF | None = None
         self.scene_pos = np.array([0.0, 0.0])
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -90,7 +159,7 @@ class SurfaceHandle(QWidget):
             (0, 1): 90,
         }
 
-    def paintEvent(self, event: QPaintEvent):
+    def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
         pen = painter.pen()
         pen.setColor("#039be5")
@@ -100,31 +169,38 @@ class SurfaceHandle(QWidget):
         painter.drawEllipse(3, 3, self.width() - 4, self.height() - 4)
         painter.end()
 
-    def mouseMoveEvent(self, event: QMouseEvent):
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
         if event.buttons() & Qt.MouseButton.LeftButton:
             self.moved = True
             pos = self.mapToParent(event.pos())
-            self.new_pos = self.parent().map_point(pos)
-            self.parent().set_child_scaled_center(
-                self, self.new_pos.x(), self.new_pos.y()
+            parent = self.parentWidget()
+            assert isinstance(parent, VideoRenderWidget), (
+                "Surface handle requires a video widget parent"
             )
+            self.new_pos = parent.map_point(pos)
+            parent.set_child_scaled_center(self, self.new_pos.x(), self.new_pos.y())
             self.setCursor(Qt.CursorShape.BlankCursor)
 
         neon_player.instance().main_window.video_widget.update()
 
-    def mouseReleaseEvent(self, event: QMouseEvent):
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if not (event.buttons() & Qt.MouseButton.LeftButton) and self.moved:
             self.position_changed_debounce_timer.start()
             self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.moved = False
 
-    def set_scene_pos(self, scene_pos: np.ndarray):
+    def set_scene_pos(self, scene_pos: npt.NDArray[np.float64]) -> None:
         self.scene_pos = scene_pos
-        self.parent().set_child_scaled_center(self, *scene_pos)
+        parent = self.parentWidget()
+        assert isinstance(parent, VideoRenderWidget), (
+            "Surface handle requires a video widget parent"
+        )
+        parent.set_child_scaled_center(self, *scene_pos)
         self.show()
 
-    def emit_new_position(self):
+    def emit_new_position(self) -> None:
+        assert self.new_pos is not None, "New position must be set before emitting it"
         self.position_changed.emit(self.new_pos)
 
 
@@ -139,7 +215,7 @@ class SurfaceViewWidget(VideoRenderWidget):
         self.surface.changed.connect(self.refit_rect)
         self.surface.surface_location_changed.connect(self.update)
 
-        self.tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
+        self.tracker_plugin = surface.tracker_plugin
 
         self.refit_rect()
 
@@ -147,7 +223,7 @@ class SurfaceViewWidget(VideoRenderWidget):
         self.fit_rect(QSize(*self.surface.preview_options.render_size))
         self.update()
 
-    def paintEvent(self, event: QPaintEvent) -> None:
+    def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
         if self.tracker_plugin.is_time_gray() or self.surface.location is None:
             painter.fillRect(0, 0, self.width(), self.height(), Qt.GlobalColor.gray)
@@ -168,7 +244,9 @@ class SurfaceViewWindow(QSplitter):
         self.addWidget(self.view_widget)
 
         self.options_widget = PropertyForm(surface.preview_options)
-        self.options_widget.layout().setContentsMargins(5, 5, 5, 5)
+        options_layout = self.options_widget.layout()
+        assert options_layout is not None, "Surface view options must have a layout"
+        options_layout.setContentsMargins(5, 5, 5, 5)
         self.options_container = QWidget()
         self.options_container_layout = QVBoxLayout()
         self.options_container.setLayout(self.options_container_layout)
@@ -180,6 +258,8 @@ class SurfaceViewWindow(QSplitter):
         surface.preview_options.changed.connect(surface.changed.emit)
         surface.changed.connect(self.view_widget.refit_rect)
 
-        Plugin.get_instance_by_name("GazeDataPlugin").changed.connect(
-            self.view_widget.refit_rect
+        gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
+        assert isinstance(gaze_plugin, GazeDataPlugin), (
+            "Surface view requires a gaze data plugin"
         )
+        gaze_plugin.changed.connect(self.view_widget.refit_rect)

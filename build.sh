@@ -7,15 +7,12 @@ VERSION_SIMPLE=$(echo "$VERSION" | awk -F. '{print $1"."$2"."$3}' | grep -Eo '^[
 
 echo "Build $VERSION ($VERSION_SIMPLE) for $OSTYPE"
 
-uv run pyside6-uic src/pupil_labs/neon_player/assets/splash.ui \
-    -o src/pupil_labs/neon_player/ui/splash.py
-
 UV_PATH=$(which uv)
 if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
     UV_PATH=$UV_PATH.exe
 fi
 
-uv run -m nuitka src/pupil_labs/neon_player \
+uv run --group build -m nuitka src/pupil_labs/neon_player \
     --assume-yes-for-downloads \
     --user-package-configuration-file=package-configs.yml \
     --standalone \
