@@ -423,7 +423,7 @@ class TimeLineDock(QWidget):
                     not group.collapsed
                     and (
                         key.role is TimelineRowRole.SEARCH
-                        or group._query in key.row_name.lower()
+                        or key.row_name.lower().startswith(group._query.lower())
                     )
                 )
                 self._set_timeline_row_visible(key, visible)

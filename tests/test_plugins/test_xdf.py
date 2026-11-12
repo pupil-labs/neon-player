@@ -407,7 +407,7 @@ def test_xdf_alignment_and_marker_refresh_preserve_query_and_series(
     assert timeline.get_timeline_plot("Other", group=group) is None
     assert not timeline.get_timeline_plot("Later Trial", group=group).isVisible()
     timeline.timeline_group_controls[group.name].click()
-    assert timeline.get_timeline_plot("Later Trial", group=group).isVisible()
+    assert not timeline.get_timeline_plot("Later Trial", group=group).isVisible()
     assert not timeline.get_timeline_plot("No match", group=group).isVisible()
     later = timeline.get_timeline_plot("Later Trial", group=group)
     assert list(later.items[0].getOriginalDataset()[0]) == [1_500_000_000]

@@ -726,8 +726,11 @@ def test_searchable_declaration_filters_only_custom_children(
     assert field.placeholderText() == "Search"
     assert field.isClearButtonEnabled()
     assert "Group" in field.accessibleName()
-    qtbot.keyClicks(field, "BEGIN")
-    assert [name for name, plot in plots.items() if plot.isVisible()] == ["Trial Begin"]
+    qtbot.keyClicks(field, "trial")
+    assert [name for name, plot in plots.items() if plot.isVisible()] == [
+        "Trial Begin",
+        "trial end",
+    ]
     assert global_plot.isVisible()
     assert other.isVisible()
     search_key = TimelineRowKey("Group", "Search", TimelineRowRole.SEARCH)
@@ -741,11 +744,8 @@ def test_searchable_declaration_filters_only_custom_children(
     assert not any(plot.isVisible() for plot in plots.values())
     timeline.timeline_group_controls[group.name].click()
     assert all(plot.isVisible() for plot in plots.values())
-    field.setText(" ")
-    assert [name for name, plot in plots.items() if plot.isVisible()] == [
-        "Trial Begin",
-        "trial end",
-    ]
+    field.setText("g")
+    assert [name for name, plot in plots.items() if plot.isVisible()] == ["Group"]
 
 
 def search_fields(timeline: TimeLineDock) -> list[QLineEdit]:
