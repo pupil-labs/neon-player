@@ -418,12 +418,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             self.cleanup_widgets()
             return
 
-        if self.location is None:
-            logger.warning(
-                "Cannot edit surface when it is not visible in the current frame."
-            )
-            return
-
         app = neon_player.instance()
         if app.is_playing:
             app.set_playback_state(False)

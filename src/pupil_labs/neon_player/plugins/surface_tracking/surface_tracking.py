@@ -903,7 +903,7 @@ class SurfaceTrackingPlugin(Plugin):
         with surf_path.open("wb") as f:
             pickle.dump(surface.tracker_surface, f)
 
-        del self.surface_locations[surface.uid]
+        self.surface_locations.pop(surface.uid, None)
         surface._heatmap = None
         surface.preview_options.render_size = (0, 0)
         self.trigger_scene_update()
