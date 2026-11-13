@@ -332,8 +332,8 @@ class NeonPlayerApp(QApplication):
             return
 
         if self.headless:
-            for _ in install_dependencies(missing_dependencies):
-                pass
+            installation_job = install_dependencies(missing_dependencies)
+            self.job_manager.run_in_foreground(installation_job)
             return
 
         dialog = PluginInstallationDialog(missing_dependencies, plugin_name)

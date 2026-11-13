@@ -193,10 +193,13 @@ class JobManager(QObject):
                 socket.waitForDisconnected(5000)
 
         else:
-            with tqdm(total=1.0) as pbar:
-                for update in job:
-                    pbar.n = update.progress
-                    pbar.refresh()
+            self.run_in_foreground(job)
+
+    def run_in_foreground(self, job: T.Generator[ProgressUpdate, None, None]) -> None:
+        with tqdm(total=1.0) as pbar:
+            for update in job:
+                pbar.n = update.progress
+                pbar.refresh()
 
     def run_background_action(
         self, name: str, action_name: str, *args: object, save_settings: bool = True
@@ -223,7 +226,8 @@ class JobManager(QObject):
             raise RuntimeError("Not starting background job in headless mode")
 
         recording = app.recording
-        app.save_settings(force=save_settings)
+        if save_settings:
+            app.save_settings(force=True)
         rec_dir = Path(str(recording._rec_dir)) if recording is not None else None
 
         job = BackgroundJob(
