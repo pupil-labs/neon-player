@@ -233,9 +233,6 @@ class NeonPlayerApp(QApplication):
         plugin_name, action_name = job[0].split(".")
         job_args = job[1:]
 
-        if plugin_name not in self.plugins_by_class:
-            self.toggle_plugin(plugin_name, True)
-
         for plugin in self.plugins:
             if plugin.__class__.__name__ == plugin_name:
                 # use an action object to provide type conversion for arguments
@@ -333,13 +330,15 @@ class NeonPlayerApp(QApplication):
     ) -> None:
         if not missing_dependencies:
             return
+
         if self.headless:
-            logger.info(f"Installing dependencies for {plugin_name} headlessly...")
-            for _ in install_dependencies(missing_dependencies):
-                pass
-        else:
-            dialog = PluginInstallationDialog(missing_dependencies, plugin_name)
-            dialog.exec()
+            logger.warning(
+                f"Skipping dependency installation for {plugin_name} in headless mode"
+            )
+            return
+
+        dialog = PluginInstallationDialog(missing_dependencies, plugin_name)
+        dialog.exec()
 
     def find_plugins(self, path: Path) -> None:
         sys.path.append(str(path))
