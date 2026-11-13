@@ -342,3 +342,6 @@ $RECYCLE.BIN/
 
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,macos,windows,linux,pycharm
 *.dist/
+
+# Auto-generated constraints file
+src/pupil_labs/neon_player/assets/constraints.txt

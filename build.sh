@@ -15,6 +15,17 @@ fi
 echo "Bundling uv from $UV_PATH"
 echo $UV_VERSION
 
+CONSTRAINTS_PATH=src/pupil_labs/neon_player/assets/constraints.txt
+uv export \
+    --format requirements.txt \
+    --no-emit-project \
+    --no-group dev \
+    --no-group build \
+    --no-hashes \
+    --no-annotate \
+    -o $CONSTRAINTS_PATH
+echo "Prepared the constraints file: $CONSTRAINTS_PATH"
+
 uv run --group build -m nuitka src/pupil_labs/neon_player \
     --assume-yes-for-downloads \
     --user-package-configuration-file=package-configs.yml \

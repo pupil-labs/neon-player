@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 PLUGINS_PACKAGES_DIR = Path.home() / "Pupil Labs" / "Neon Player" / "plugins"
 SITE_PACKAGES_DIR = PLUGINS_PACKAGES_DIR / "site-packages"
+CONSTRAINTS_FILE = neon_player.asset_path("constraints.txt")
 
 SITE_PACKAGES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -107,50 +108,6 @@ def _check_dependencies_for_plugin_script(script: str, plugin_name: str) -> list
     return deps_to_install
 
 
-_BUNDLED_MODULE_DISTS: dict[str, str] = {
-    "av": "av",
-    "numpy": "numpy",
-    "packaging": "packaging",
-    "pandas": "pandas",
-    "protobuf": "google.protobuf",
-    "pyqtgraph": "pyqtgraph",
-    "PySide6": "PySide6",
-    "shiboken6": "shiboken6",
-    "pyxdf": "pyxdf",
-    "qt-property-widgets": "qt_property_widgets",
-    "scipy": "scipy",
-    "tqdm": "tqdm",
-}
-
-
-def _write_host_constraints(constraints_path: Path) -> None:
-    """Write host environment package versions to a pip constraints file."""
-    host_paths = [
-        p for p in sys.path if Path(p).resolve() != SITE_PACKAGES_DIR.resolve()
-    ]
-    constraints: dict[NormalizedName, tuple[str, str]] = {}
-    for dist in importlib.metadata.distributions(path=host_paths):
-        name = dist.metadata["name"]
-        version = dist.version
-        if name and version:
-            constraints[canonicalize_name(name)] = (name, version)
-
-    for dist_name, module_name in _BUNDLED_MODULE_DISTS.items():
-        norm_name = canonicalize_name(dist_name)
-        if norm_name in constraints:
-            continue
-        module = sys.modules.get(module_name)
-        mod_version = (
-            getattr(module, "__version__", None) if module is not None else None
-        )
-        if isinstance(mod_version, str) and mod_version:
-            constraints[norm_name] = (dist_name, mod_version)
-
-    with constraints_path.open("w", encoding="utf-8") as f:
-        for name, version in constraints.values():
-            f.write(f"{name}=={version}\n")
-
-
 def install_dependencies(
     dependencies: list[str],
 ) -> T.Generator[ProgressUpdate, None, None]:
@@ -159,24 +116,17 @@ def install_dependencies(
         logger.info("No new dependencies to install.")
         return
 
-    uv_cmd = str(Path(sys.argv[0]).parent / "uv") if neon_player.is_frozen() else "uv"
-
+    is_frozen = neon_player.is_frozen()
+    uv_cmd = str(Path(sys.argv[0]).parent / "uv") if is_frozen else "uv"
     pyver = sys.version_info
-
-    constraints_path = SITE_PACKAGES_DIR / "neon_player_constraints.txt"
-    try:
-        _write_host_constraints(constraints_path)
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"Failed to generate constraints file: {e}")
-
+    constraints = ["-c", str(CONSTRAINTS_FILE)] if is_frozen else []
     command = [
         uv_cmd,
         "pip",
         "install",
         f"--python={pyver.major}.{pyver.minor}.{pyver.micro}",
         f"--target={SITE_PACKAGES_DIR}",
-        "-c",
-        str(constraints_path),
+        *constraints,
         *dependencies,
     ]
 
