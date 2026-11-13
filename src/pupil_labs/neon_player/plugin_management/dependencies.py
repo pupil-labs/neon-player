@@ -147,3 +147,4 @@ def install_dependencies(
 
     except subprocess.CalledProcessError as e:
         logger.exception(f"Failed to install dependencies. Error: {e.stderr}")
+        raise
