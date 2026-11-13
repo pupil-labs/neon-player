@@ -1,1 +1,0 @@
-VALUE = "plugin-pure-submodule"

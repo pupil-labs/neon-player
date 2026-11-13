@@ -199,7 +199,7 @@ class JobManager(QObject):
                     pbar.refresh()
 
     def run_background_action(
-        self, name: str, action_name: str, *args: object
+        self, name: str, action_name: str, *args: object, save_settings: bool = True
     ) -> BackgroundJob:
         """Run an long-running job in background so that the UI stays responsive.
 
@@ -213,6 +213,7 @@ class JobManager(QObject):
                 [`ProgressUpdate`][ProgressUpdate] values to report progress
                 to the main application.
             *args: Arbitrary amount of action arguments.
+            save_settings: Whether to save settings before starting the job.
 
         Returns:
             The running job.
@@ -222,7 +223,7 @@ class JobManager(QObject):
             raise RuntimeError("Not starting background job in headless mode")
 
         recording = app.recording
-        app.save_settings(force=True)
+        app.save_settings(force=save_settings)
         rec_dir = Path(str(recording._rec_dir)) if recording is not None else None
 
         job = BackgroundJob(

@@ -66,7 +66,13 @@ class PluginInstallationDialog(QDialog):
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)
         self.button_box.setEnabled(False)
+
+        # NOTE: package installation job is started before settings are fully
+        # initialized, so it should not save settings before starting
         self.job = neon_player.instance().job_manager.run_background_action(
-            "Install dependencies", "install_packages", *self.dependencies_to_install
+            "Install dependencies",
+            "install_packages",
+            *self.dependencies_to_install,
+            save_settings=False,
         )
         self.job.finished.connect(self.close)
