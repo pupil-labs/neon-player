@@ -20,11 +20,38 @@ logger = logging.getLogger(__name__)
 
 PLUGINS_PACKAGES_DIR = Path.home() / "Pupil Labs" / "Neon Player" / "plugins"
 SITE_PACKAGES_DIR = PLUGINS_PACKAGES_DIR / "site-packages"
+CONSTRAINTS_FILE = neon_player.asset_path("constraints.txt")
 
 SITE_PACKAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def get_installed_packages() -> dict[NormalizedName, str]:
+def check_dependency_constraints(site_packages_path: str) -> list[str]:
+    """Return installed plugin requirements that violate bundled constraints.
+
+    Only distributions in ``site_packages_path`` are checked. Constraints for
+    absent packages do not trigger installation.
+    """
+    requirements = [
+        Requirement(line)
+        for raw_line in CONSTRAINTS_FILE.read_text(encoding="utf-8").splitlines()
+        if (line := raw_line.strip()) and not line.startswith("#")
+    ]
+
+    installed_versions = get_installed_packages(site_packages_path)
+
+    dependencies_to_install = []
+    for requirement in requirements:
+        if requirement.marker and not requirement.marker.evaluate():
+            continue
+
+        version = installed_versions.get(canonicalize_name(requirement.name))
+        if version is not None and version not in requirement.specifier:
+            dependencies_to_install.append(str(requirement))
+
+    return dependencies_to_install
+
+
+def get_installed_packages(path: str | None = None) -> dict[NormalizedName, str]:
     """
     Get installed package names and versions in the shared site-packages.
 
@@ -32,9 +59,15 @@ def get_installed_packages() -> dict[NormalizedName, str]:
     https://packaging.python.org/en/latest/specifications/name-normalization/#name-normalization.
     """
     try:
+        distributions = (
+            importlib.metadata.distributions(path=[path])
+            if path is not None
+            else importlib.metadata.distributions()
+        )
         return {
-            canonicalize_name(dist.metadata["name"]): dist.metadata["version"]
-            for dist in importlib.metadata.distributions()
+            canonicalize_name(dist.metadata["name"]): dist.version
+            for dist in distributions
+            if dist.metadata["name"]
         }
     except Exception:
         logger.exception("Could not list installed packages in plugin site-packages")
@@ -114,16 +147,17 @@ def install_dependencies(
         logger.info("No new dependencies to install.")
         return
 
-    uv_cmd = str(Path(sys.argv[0]).parent / "uv") if neon_player.is_frozen() else "uv"
-
+    is_frozen = neon_player.is_frozen()
+    uv_cmd = str(Path(sys.argv[0]).parent / "uv") if is_frozen else "uv"
     pyver = sys.version_info
-
+    constraints = ["-c", str(CONSTRAINTS_FILE)] if is_frozen else []
     command = [
         uv_cmd,
         "pip",
         "install",
         f"--python={pyver.major}.{pyver.minor}.{pyver.micro}",
         f"--target={SITE_PACKAGES_DIR}",
+        *constraints,
         *dependencies,
     ]
 
@@ -132,7 +166,7 @@ def install_dependencies(
             command,
             text=True,
             capture_output=True,
-            check=False,
+            check=True,
         )
         if proc.stdout:
             logger.info(proc.stdout.rstrip())
@@ -144,4 +178,3 @@ def install_dependencies(
 
     except subprocess.CalledProcessError as e:
         logger.exception(f"Failed to install dependencies. Error: {e.stderr}")
-        raise

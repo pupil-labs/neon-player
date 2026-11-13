@@ -30,7 +30,9 @@ from pupil_labs.neon_player.job_manager import JobManager
 from pupil_labs.neon_player.managers.update import UpdateManager, app_version
 from pupil_labs.neon_player.plugin_management import (
     check_dependencies_for_plugin,
+    check_dependency_constraints,
     install_dependencies,
+    install_path_extension_hook,
 )
 from pupil_labs.neon_player.plugins import (
     audio,  # noqa: F401
@@ -54,7 +56,7 @@ from pupil_labs.neon_player.settings import (
 )
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.ui.plugin_installation_dialog import (
-    PluginInstallationDialog,
+    DependencyInstallationDialog,
 )
 from pupil_labs.neon_player.utilities import SlotDebouncer, clone_menu
 
@@ -324,9 +326,52 @@ class NeonPlayerApp(QApplication):
         except Exception:
             logger.exception("Failed to save history")
 
+    def _install_dependencies(
+        self, dependencies: list[str], plugin_name: str | None = None
+    ) -> None:
+        if not dependencies:
+            return
+
+        if self.headless:
+            installation_job = install_dependencies(dependencies)
+            self.job_manager.run_in_foreground(installation_job)
+            return
+
+        if plugin_name:
+            title = "Neon Player - Plugin Requirements"
+            base_message = (
+                f"The <b>{plugin_name}</b> plugin file requires the following "
+                f"{len(dependencies)} package(s) to be installed."
+            )
+        else:
+            title = "Neon Player - Dependency Compatibility"
+            base_message = (
+                "Plugin dependencies listed below need to be updated to ensure "
+                "their compatibility with the current version of Neon Player."
+            )
+
+        dialog = DependencyInstallationDialog(
+            dependencies, title, base_message, parent=self.main_window
+        )
+        dialog.exec()
+
     def find_plugins(self, path: Path) -> None:
         sys.path.append(str(path))
-        sys.path.append(str(path / "site-packages"))
+        site_packages_path = str(path / "site-packages")
+        sys.path.append(site_packages_path)
+
+        # NOTE: Nuitka strips submodules of NP dependencies when compiling the
+        # standalone app, which leads to errors when plugins rely on the missing
+        # submodules. To counteract that, we extend submodule search locations
+        # to include the site-packages folder, allowing missing submodules to be
+        # loaded from source code. To ensure compatibility between site-packages
+        # and compiled modules, exact constraints are generated during build,
+        # validated below, and used when installing plugin dependencies.
+        if is_frozen():
+            outdated_dependencies = check_dependency_constraints(site_packages_path)
+            self._install_dependencies(outdated_dependencies)
+            install_path_extension_hook(site_packages_path)
+
         logger.info(f"Searching for plugins in {path}")
         for d in path.iterdir():
             if d.is_file() and d.suffix != ".py":
@@ -347,10 +392,7 @@ class NeonPlayerApp(QApplication):
                     continue
 
                 missing_dependencies = check_dependencies_for_plugin(d)
-
-                if missing_dependencies:
-                    dialog = PluginInstallationDialog(missing_dependencies, d.name)
-                    dialog.exec()
+                self._install_dependencies(missing_dependencies, d.name)
 
                 logger.info(f"Importing plugin module {d}")
 
