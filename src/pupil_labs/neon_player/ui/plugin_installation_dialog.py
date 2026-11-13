@@ -1,3 +1,5 @@
+import logging
+
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -9,6 +11,8 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs import neon_player
+
+logger = logging.getLogger(__name__)
 
 
 class DependencyInstallationDialog(QDialog):
@@ -58,7 +62,7 @@ class DependencyInstallationDialog(QDialog):
         )
         self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText("Install")
         self.button_box.accepted.connect(self.start_installation)
-        self.button_box.rejected.connect(self.reject)
+        self.button_box.rejected.connect(self.cancel_installation)
         layout.addWidget(self.button_box)
 
     def start_installation(self) -> None:
@@ -75,3 +79,7 @@ class DependencyInstallationDialog(QDialog):
             save_settings=False,
         )
         self.job.finished.connect(self.close)
+
+    def cancel_installation(self) -> None:
+        logger.debug("Dependency installation was cancelled")
+        self.reject()

@@ -29,7 +29,7 @@ def check_dependency_constraints(site_packages_path: str) -> list[str]:
     """Return installed plugin requirements that violate bundled constraints.
 
     Only distributions in ``site_packages_path`` are checked. Constraints for
-    absent packages or other environments do not trigger installation.
+    absent packages do not trigger installation.
     """
     requirements = [
         Requirement(line)

@@ -350,7 +350,9 @@ class NeonPlayerApp(QApplication):
                 "their compatibility with the current version of Neon Player."
             )
 
-        dialog = DependencyInstallationDialog(dependencies, title, base_message)
+        dialog = DependencyInstallationDialog(
+            dependencies, title, base_message, parent=self.main_window
+        )
         dialog.exec()
 
     def find_plugins(self, path: Path) -> None:
@@ -358,6 +360,13 @@ class NeonPlayerApp(QApplication):
         site_packages_path = str(path / "site-packages")
         sys.path.append(site_packages_path)
 
+        # NOTE: Nuitka strips submodules of NP dependencies when compiling the
+        # standalone app, which leads to errors when plugins rely on the missing
+        # submodules. To counteract that, we extend submodule search locations
+        # to include the site-packages folder, allowing missing submodules to be
+        # loaded from source code. To ensure compatibility between site-packages
+        # and compiled modules, exact constraints are generated during build,
+        # validated below, and used when installing plugin dependencies.
         if is_frozen():
             outdated_dependencies = check_dependency_constraints(site_packages_path)
             self._install_dependencies(outdated_dependencies)
