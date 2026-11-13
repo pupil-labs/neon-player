@@ -11,17 +11,18 @@ from PySide6.QtWidgets import (
 from pupil_labs import neon_player
 
 
-class PluginInstallationDialog(QDialog):
+class DependencyInstallationDialog(QDialog):
     def __init__(
         self,
         dependencies_to_install: list[str],
-        plugin_req: str,
+        title: str,
+        base_message: str,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.dependencies_to_install = dependencies_to_install
 
-        self.setWindowTitle("Neon Player - Plugin Requirements")
+        self.setWindowTitle(title)
         self.setMinimumWidth(450)
 
         layout = QVBoxLayout()
@@ -29,9 +30,7 @@ class PluginInstallationDialog(QDialog):
         self.setLayout(layout)
 
         self.label = QLabel(
-            f"The <b>{plugin_req}</b> plugin file requires the following "
-            f"{len(dependencies_to_install)} package(s) to be installed. "
-            "Additional dependencies may be installed as well."
+            base_message + " Additional dependencies may be installed as well."
         )
         self.label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
