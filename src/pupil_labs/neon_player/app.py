@@ -176,7 +176,7 @@ class NeonPlayerApp(QApplication):
         if self.args.job and self.args.job[0] == "install_packages":
             packages = self.args.job[1:]
             self.job_manager.work_job(install_dependencies(packages))
-            self.quit()
+            QTimer.singleShot(0, self.quit)
             return
 
         # Iterate through all modules within plugins and register them
