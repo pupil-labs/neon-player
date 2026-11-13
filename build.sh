@@ -46,6 +46,7 @@ uv run --group build -m nuitka src/pupil_labs/neon_player \
     --include-module=PySide6.QtOpenGL \
     --include-module=PySide6.QtTextToSpeech \
     --include-module=tqdm.auto \
+    --include-module=wave \
     --include-package-data=qt_property_widgets \
     --include-package=plistlib \
     --include-package=google.protobuf \
