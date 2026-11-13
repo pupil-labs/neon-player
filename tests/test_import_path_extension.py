@@ -5,7 +5,7 @@ import sys
 import types
 from pathlib import Path
 
-from pupil_labs.neon_player.app import PassivePathExtensionHook
+from pupil_labs.neon_player.plugin_management.path import PassivePathExtensionHook
 
 
 def _clear_demo_pkg() -> None:

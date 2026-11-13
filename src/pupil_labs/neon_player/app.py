@@ -1,13 +1,10 @@
 import argparse
-import importlib.abc
-import importlib.machinery
 import importlib.util
 import json
 import logging
 import os
 import sys
 import time
-import types
 import typing as T
 import warnings
 from pathlib import Path
@@ -34,6 +31,7 @@ from pupil_labs.neon_player.managers.update import UpdateManager, app_version
 from pupil_labs.neon_player.plugin_management import (
     check_dependencies_for_plugin,
     install_dependencies,
+    install_path_extension_hook,
 )
 from pupil_labs.neon_player.plugins import (
     audio,  # noqa: F401
@@ -65,49 +63,6 @@ if sys.platform == "darwin":
     from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
 
 logger = logging.getLogger(__name__)
-
-_UNSAFE_EXTENSION_ROOTS = frozenset({"PySide6", "shiboken6"})
-
-
-def _extend_package_search_path(module: types.ModuleType, site_pkg_dir: str) -> None:
-    mod_path = getattr(module, "__path__", None)
-    if not isinstance(mod_path, list) or not os.path.isdir(site_pkg_dir):
-        return
-    if site_pkg_dir not in mod_path:
-        mod_path.append(site_pkg_dir)
-    spec = getattr(module, "__spec__", None)
-    locations = getattr(spec, "submodule_search_locations", None)
-    if isinstance(locations, list) and site_pkg_dir not in locations:
-        locations.append(site_pkg_dir)
-
-
-class PassivePathExtensionHook(importlib.abc.MetaPathFinder):
-    """Passively extend `__path__` of loaded packages to resolve missing submodules."""
-
-    def __init__(self, site_packages: str) -> None:
-        self.site_packages = site_packages
-        self._patched: set[str] = set()
-
-    def find_spec(
-        self,
-        fullname: str,
-        path: T.Sequence[str] | None,
-        target: types.ModuleType | None = None,
-    ) -> importlib.machinery.ModuleSpec | None:
-        del path, target
-        if "." not in fullname:
-            return None
-        root = fullname.split(".", 1)[0]
-        if root in _UNSAFE_EXTENSION_ROOTS:
-            return None
-        parent = fullname.rsplit(".", 1)[0]
-        if parent in sys.modules and parent not in self._patched:
-            site_pkg_path = os.path.join(
-                self.site_packages, parent.replace(".", os.sep)
-            )
-            _extend_package_search_path(sys.modules[parent], site_pkg_path)
-            self._patched.add(parent)
-        return None
 
 
 class NeonPlayerApp(QApplication):
@@ -391,10 +346,8 @@ class NeonPlayerApp(QApplication):
         site_packages_path = str(path / "site-packages")
         sys.path.append(site_packages_path)
 
-        sys.meta_path = [
-            m for m in sys.meta_path if type(m).__name__ != "PassivePathExtensionHook"
-        ]
-        sys.meta_path.insert(0, PassivePathExtensionHook(site_packages_path))
+        if is_frozen():
+            install_path_extension_hook(site_packages_path)
 
         logger.info(f"Searching for plugins in {path}")
         for d in path.iterdir():
