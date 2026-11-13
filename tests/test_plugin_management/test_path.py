@@ -76,6 +76,31 @@ def test_find_spec__only_processes_each_parent_once(
     assert loaded_package.__spec__.submodule_search_locations == ["existing-spec-path"]
 
 
+def test_find_spec__only_marks_parent_patched_after_extending_path(
+    tmp_path: Path, loaded_package: ModuleType
+) -> None:
+    parent = loaded_package.__name__
+    extra_path = tmp_path / parent
+    hook = PassivePathExtensionHook(str(tmp_path))
+
+    assert hook.find_spec(f"{parent}.first", None) is None
+
+    assert parent not in hook._patched
+    assert loaded_package.__path__ == ["existing-package-path"]
+    assert loaded_package.__spec__.submodule_search_locations == ["existing-spec-path"]
+
+    extra_path.mkdir()
+
+    assert hook.find_spec(f"{parent}.second", None) is None
+
+    assert parent in hook._patched
+    assert loaded_package.__path__ == ["existing-package-path", str(extra_path)]
+    assert loaded_package.__spec__.submodule_search_locations == [
+        "existing-spec-path",
+        str(extra_path),
+    ]
+
+
 def test_find_spec__ignores_top_level_imports(
     tmp_path: Path, loaded_package: ModuleType
 ) -> None:

@@ -332,9 +332,7 @@ class NeonPlayerApp(QApplication):
             return
 
         if self.headless:
-            logger.warning(
-                f"Skipping dependency installation for {plugin_name} in headless mode"
-            )
+            self.job_manager.work_job(install_dependencies(missing_dependencies))
             return
 
         dialog = PluginInstallationDialog(missing_dependencies, plugin_name)

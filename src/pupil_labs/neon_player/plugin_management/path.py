@@ -26,10 +26,10 @@ def install_path_extension_hook(extra_path: str) -> None:
     logger.debug(f"Installed path extension hook for {extra_path}")
 
 
-def _extend_package_search_path(module: types.ModuleType, site_pkg_dir: str) -> None:
+def _extend_package_search_path(module: types.ModuleType, site_pkg_dir: str) -> bool:
     mod_path = getattr(module, "__path__", None)
     if not isinstance(mod_path, list) or not os.path.isdir(site_pkg_dir):
-        return
+        return False
 
     if site_pkg_dir not in mod_path:
         mod_path.append(site_pkg_dir)
@@ -38,6 +38,8 @@ def _extend_package_search_path(module: types.ModuleType, site_pkg_dir: str) -> 
     locations = getattr(spec, "submodule_search_locations", None)
     if isinstance(locations, list) and site_pkg_dir not in locations:
         locations.append(site_pkg_dir)
+
+    return True
 
 
 class PassivePathExtensionHook(importlib.abc.MetaPathFinder):
@@ -61,11 +63,11 @@ class PassivePathExtensionHook(importlib.abc.MetaPathFinder):
             return None
 
         parent = fullname.rsplit(".", 1)[0]
-        if parent in sys.modules and parent not in self._patched:
-            site_pkg_path = os.path.join(
-                self.site_packages, parent.replace(".", os.sep)
-            )
-            _extend_package_search_path(sys.modules[parent], site_pkg_path)
+        if parent not in sys.modules or parent in self._patched:
+            return None
+
+        site_pkg_path = os.path.join(self.site_packages, parent.replace(".", os.sep))
+        if _extend_package_search_path(sys.modules[parent], site_pkg_path):
             self._patched.add(parent)
 
         return None
