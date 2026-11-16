@@ -315,6 +315,7 @@ class SurfaceTrackingPlugin(Plugin):
             # more responsive (see TrackedSurface.update_current_location)
             if not surface.edit:
                 if surface.uid not in self.surface_locations:
+                    surface.location = None
                     continue
 
                 locations = self.surface_locations[surface.uid]
