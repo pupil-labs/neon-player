@@ -210,7 +210,9 @@ class SurfaceTrackingPlugin(Plugin):
 
     def _update_editing_markers(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
-        markers = self.markers_by_frame[frame_idx]
+        markers = []
+        if 0 <= frame_idx < len(self.markers_by_frame):
+            markers = self.markers_by_frame[frame_idx]
         present_markers = {m.tag_id: m for m in markers}
         vrw = self.app.main_window.video_widget
         edit_surface = next((s for s in self._surfaces if s.edit), None)
