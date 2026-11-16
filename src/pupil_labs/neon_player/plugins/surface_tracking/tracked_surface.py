@@ -196,6 +196,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._defining_frame_index = -1
 
         self.tracker_surface: Surface | None = None
+        self._edit_frame_idx = -1
 
         self._location: SurfaceLocation | None = None
 
@@ -204,7 +205,10 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self.corner_positions: dict[tuple[int, int], npt.NDArray[np.float64]] = {}
         self.jobs: list[BackgroundJob] = []
 
-        app = neon_player.instance()
+        app = neon_player.instance(required=False)
+        if app is None:
+            return
+
         app.export_window_changed.connect(self.heatmap_invalidated.emit)
         self.locations_invalidated.connect(self.heatmap_invalidated.emit)
         gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
@@ -270,6 +274,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         assert location is not None, "Surface location is required to add a marker"
         assert marker is not None, "Marker must exist in the current frame"
         tracker_surface.add_marker(marker, self.tracker_plugin.camera, location[0])
+        self.update_current_location()
         self.locations_invalidated.emit()
 
     def remove_marker(self, marker_uid: str) -> None:
@@ -277,6 +282,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             "Tracker surface is required to remove a marker"
         )
         self.tracker_surface.remove_marker(int(marker_uid))
+        self.update_current_location()
         self.locations_invalidated.emit()
 
     @property
@@ -380,38 +386,73 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         tracker_surface.move_corner(
             corners.index(corner_id), (pos.x(), pos.y()), location[0], camera
         )
+        self.update_current_location()
         self.locations_invalidated.emit()
 
+    def update_current_location(self, *, redraw: bool = True) -> None:
+        if not self.tracker_surface:
+            return
+
+        markers = self.tracker_plugin.markers_by_frame
+        visible_markers = (
+            markers[self.edit_frame_idx]
+            if 0 <= self.edit_frame_idx < len(markers)
+            else []
+        )
+        camera = self.tracker_plugin.camera
+
+        self.location = self.tracker_surface.localize(visible_markers, camera)
+        if redraw:
+            self.tracker_plugin.trigger_scene_update()
+
     @property
+    @property_params(dont_encode=True)
     def edit(self) -> bool:
         return self._can_edit
 
     @edit.setter
     def edit(self, value: bool) -> None:
+        if self._can_edit == value:
+            return
+
         self._can_edit = value
         self.marker_edit_changed.emit()
 
         if not value:
             self.cleanup_widgets()
+            return
 
-        else:
-            app = neon_player.instance()
-            vrw = app.main_window.video_widget
+        app = neon_player.instance()
+        if app.is_playing:
+            app.set_playback_state(False)
+        self.edit_frame_idx = self.tracker_plugin.get_scene_idx_for_time()
+        vrw = app.main_window.video_widget
 
-            corners = normalized_corners()  # type: ignore[no-untyped-call]
-            self.handle_widgets = {}
-            for corner in corners.tolist():
-                corner_tup = tuple(corner)
-                self.handle_widgets[corner_tup] = SurfaceHandle(self, corner_tup)
+        corners = normalized_corners()  # type: ignore[no-untyped-call]
+        self.handle_widgets = {}
+        for corner in corners.tolist():
+            corner_tup = tuple(corner)
+            self.handle_widgets[corner_tup] = SurfaceHandle(self, corner_tup)
 
-            for corner_id, w in self.handle_widgets.items():
-                w.setFixedSize(20, 20)
-                w.setParent(vrw)
-                w.position_changed.connect(
-                    lambda pos, corner=corner_id: self.on_corner_changed(corner, pos)
-                )
+        for corner_id, w in self.handle_widgets.items():
+            w.setFixedSize(20, 20)
+            w.setParent(vrw)
+            w.position_changed.connect(
+                lambda pos, corner=corner_id: self.on_corner_changed(corner, pos)
+            )
 
-            self.update_handle_positions()
+        self.update_handle_positions()
+
+    @property
+    @property_params(dont_encode=True, widget=None)
+    def edit_frame_idx(self) -> int:
+        return self._edit_frame_idx
+
+    @edit_frame_idx.setter
+    def edit_frame_idx(self, value: int) -> None:
+        self._edit_frame_idx = value
+        # Frame changes are handled while painting; another repaint is unnecessary.
+        self.update_current_location(redraw=False)
 
     @property
     def show_heatmap(self) -> bool:
@@ -738,4 +779,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             "Tracker surface is required to rotate a surface"
         )
         self.tracker_surface.rotate()  # type: ignore[no-untyped-call]
+        if self.edit:
+            self.update_current_location()
         self.locations_invalidated.emit()

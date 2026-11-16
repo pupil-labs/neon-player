@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -165,6 +166,28 @@ def test_unload_clears_recording_settings(
         RuntimeError, match="Recording and recording settings must be loaded"
     ):
         qapp.get_export_window()
+
+
+def test_quit_without_recording_saves_pending_global_settings(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: tmp_path))
+    monkeypatch.setattr(qapp, "recording", None)
+    monkeypatch.setattr(qapp, "recording_settings", None)
+    monkeypatch.setattr(qapp, "plugins_by_class", {})
+    monkeypatch.setattr(qapp, "_initializing", False, raising=False)
+    monkeypatch.setattr(qapp, "set_playback_state", Mock())
+    monkeypatch.setattr(
+        qapp, "main_window", SimpleNamespace(timeline=Mock()), raising=False
+    )
+    settings = GeneralSettings()
+    monkeypatch.setattr(qapp, "settings", settings)
+    settings.show_fps = not settings.show_fps
+
+    qapp.on_quit()
+
+    settings_path = tmp_path / "Pupil Labs" / "Neon Player" / "settings.json"
+    assert json.loads(settings_path.read_text())["show_fps"] == settings.show_fps
 
 
 @pytest.mark.parametrize("window", [(123, 456), (123, 123)])

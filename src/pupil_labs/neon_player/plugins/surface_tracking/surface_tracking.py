@@ -210,7 +210,9 @@ class SurfaceTrackingPlugin(Plugin):
 
     def _update_editing_markers(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
-        markers = self.markers_by_frame[frame_idx]
+        markers = []
+        if 0 <= frame_idx < len(self.markers_by_frame):
+            markers = self.markers_by_frame[frame_idx]
         present_markers = {m.tag_id: m for m in markers}
         vrw = self.app.main_window.video_widget
         edit_surface = next((s for s in self._surfaces if s.edit), None)
@@ -299,20 +301,36 @@ class SurfaceTrackingPlugin(Plugin):
                 self._distort_and_draw_marker(painter, marker.corners, marker.tag_id)
 
         for surface in self.surfaces:
-            if surface.uid not in self.surface_locations:
-                continue
+            # Refresh the edit handles after seeking or returning from a gray frame;
+            # cancel editing if playback was resumed.
+            if surface.edit and (
+                frame_idx != surface.edit_frame_idx or surface.location is None
+            ):
+                if self.app.is_playing:
+                    surface.edit = False
+                else:
+                    surface.edit_frame_idx = frame_idx
+                    self._update_editing_markers()
 
-            locations = self.surface_locations[surface.uid]
-            location = locations[frame_idx]
-            surface.location = location
-            if location is None:
+            # NOTE: while the surface is being edited, its location is updated
+            # separately only for the currently shown frame to make the interaction
+            # more responsive (see TrackedSurface.update_current_location)
+            if not surface.edit:
+                if surface.uid not in self.surface_locations:
+                    surface.location = None
+                    continue
+
+                locations = self.surface_locations[surface.uid]
+                surface.location = locations[frame_idx]
+
+            if surface.location is None:
                 continue
 
             if surface.tracker_surface is None:
                 continue
 
             show_heatmap = surface.show_heatmap and surface.heatmap_alpha > 0.0
-            if show_heatmap and surface._heatmap is not None:
+            if show_heatmap and surface._heatmap is not None and not surface.edit:
                 export_window = self.app.get_export_window()
                 if export_window[0] <= time_in_recording <= export_window[1]:
                     scalar = np.array(
@@ -324,7 +342,7 @@ class SurfaceTrackingPlugin(Plugin):
                         dtype=np.float64,
                     )
 
-                    heatmap_to_scene = location[1] @ scalar
+                    heatmap_to_scene = surface.location[1] @ scalar
 
                     rgb_heatmap = cv2.applyColorMap(
                         surface._heatmap, surface.heatmap_color.value
@@ -373,8 +391,6 @@ class SurfaceTrackingPlugin(Plugin):
                     pass
 
             if anchors is None:
-                if surface.location is None:
-                    return
                 anchors = perspective_transform(
                     normalized_corners(),  # type: ignore[no-untyped-call]
                     surface.location[1],
@@ -874,7 +890,7 @@ class SurfaceTrackingPlugin(Plugin):
     def on_marker_edit_changed(self, surface: "TrackedSurface") -> None:
         if surface.edit:
             for other_surface in self.surfaces:
-                if other_surface != surface:
+                if other_surface != surface and other_surface.edit:
                     other_surface.edit = False
 
             for w in self.marker_edit_widgets.values():
@@ -893,6 +909,7 @@ class SurfaceTrackingPlugin(Plugin):
         with surf_path.open("wb") as f:
             pickle.dump(surface.tracker_surface, f)
 
+        self.surface_locations.pop(surface.uid, None)
         surface._heatmap = None
         surface.preview_options.render_size = (0, 0)
         self.trigger_scene_update()
