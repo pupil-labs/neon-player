@@ -421,6 +421,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         if app.is_playing:
             app.set_playback_state(False)
         self._edit_frame_idx = self.tracker_plugin.get_scene_idx_for_time()
+        self.update_current_location(redraw=False)
         vrw = app.main_window.video_widget
 
         corners = normalized_corners()  # type: ignore[no-untyped-call]
