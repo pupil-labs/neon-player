@@ -299,23 +299,26 @@ class SurfaceTrackingPlugin(Plugin):
                 self._distort_and_draw_marker(painter, marker.corners, marker.tag_id)
 
         for surface in self.surfaces:
-            # Cancel editing if the playback was resumed
-            if surface.edit and frame_idx != surface.edit_frame_idx:
+            # Refresh the edit handles after seeking or returning from a gray frame;
+            # cancel editing if playback was resumed.
+            if surface.edit and (
+                frame_idx != surface.edit_frame_idx or surface.location is None
+            ):
                 if self.app.is_playing:
                     surface.edit = False
                 else:
                     surface.edit_frame_idx = frame_idx
+                    self._update_editing_markers()
 
             # NOTE: while the surface is being edited, its location is updated
-            # separately only for the currently shown frame
-            # (see TrackedSurface.update_current_location)
-            # to make the interaction more responsive
+            # separately only for the currently shown frame to make the interaction
+            # more responsive (see TrackedSurface.update_current_location)
             if not surface.edit:
                 if surface.uid not in self.surface_locations:
                     continue
+
                 locations = self.surface_locations[surface.uid]
-                location = locations[frame_idx]
-                surface.location = location
+                surface.location = locations[frame_idx]
 
             if surface.location is None:
                 continue

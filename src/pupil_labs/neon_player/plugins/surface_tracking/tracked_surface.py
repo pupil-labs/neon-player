@@ -273,10 +273,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         )
         assert location is not None, "Surface location is required to add a marker"
         assert marker is not None, "Marker must exist in the current frame"
-        self.update_current_location()
-        self.locations_invalidated.emit()
-
         tracker_surface.add_marker(marker, self.tracker_plugin.camera, location[0])
+        self.update_current_location()
         self.locations_invalidated.emit()
 
     def remove_marker(self, marker_uid: str) -> None:
@@ -391,15 +389,16 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self.update_current_location()
         self.locations_invalidated.emit()
 
-    def update_current_location(self) -> None:
+    def update_current_location(self, *, redraw: bool = True) -> None:
+        if not self.tracker_surface:
+            return
+
         markers = self.tracker_plugin.markers_by_frame[self.edit_frame_idx]
         camera = self.tracker_plugin.camera
 
-        assert self.tracker_surface is not None, (
-            "Tracker surface is required to update the current location"
-        )
         self.location = self.tracker_surface.localize(markers, camera)
-        self.tracker_plugin.trigger_scene_update()
+        if redraw:
+            self.tracker_plugin.trigger_scene_update()
 
     @property
     @property_params(dont_encode=True)
@@ -447,7 +446,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     @edit_frame_idx.setter
     def edit_frame_idx(self, value: int) -> None:
         self._edit_frame_idx = value
-        self.update_current_location()
+        # Frame changes are handled while painting; another repaint is unnecessary.
+        self.update_current_location(redraw=False)
 
     @property
     def show_heatmap(self) -> bool:
@@ -774,4 +774,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             "Tracker surface is required to rotate a surface"
         )
         self.tracker_surface.rotate()  # type: ignore[no-untyped-call]
+        if self.edit:
+            self.update_current_location()
         self.locations_invalidated.emit()

@@ -1,4 +1,3 @@
-from collections import OrderedDict
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
@@ -6,10 +5,14 @@ from unittest.mock import MagicMock
 import numpy as np
 import pandas as pd
 import pytest
-from pupil_labs.marker_mapper.surface import Surface
 from pupil_labs.neon_recording.timeseries.gaze import GazeTimeseries
+from PySide6.QtCore import QPointF
 
 from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
+from pupil_labs.neon_player.plugins.surface_tracking import SurfaceTrackingPlugin
+from pupil_labs.neon_player.plugins.surface_tracking.surface_tracking import (
+    DetectedMarker,
+)
 from pupil_labs.neon_player.plugins.surface_tracking.tracked_surface import (
     TrackedSurface,
 )
@@ -145,11 +148,10 @@ def test_surface_requires_tracker_plugin(
 
 
 def test_surface_marker_id_from_widget_uses_library_integer_id(
-    qapp: "MockNeonPlayerApp", monkeypatch: pytest.MonkeyPatch
+    editable_surface: tuple[SurfaceTrackingPlugin, TrackedSurface],
 ) -> None:
-    monkeypatch.setattr(qapp, "plugins_by_class", {})
-    surface = TrackedSurface()
-    surface.tracker_surface = Surface("Desk", OrderedDict([(42, np.zeros((4, 2)))]))
+    _, surface = editable_surface
+    surface.edit = True
     widget = MarkerEditWidget("42")
 
     widget.set_surface(surface)
@@ -157,3 +159,61 @@ def test_surface_marker_id_from_widget_uses_library_integer_id(
     assert widget.isChecked()
     surface.remove_marker(widget.marker_uid)
     assert not surface.tracker_surface.markers
+
+
+def test_rotate_refreshes_edited_surface_and_handles(
+    editable_surface: tuple[SurfaceTrackingPlugin, TrackedSurface],
+) -> None:
+    plugin, surface = editable_surface
+    surface.edit = True
+    before = np.array([w.scene_pos.copy() for w in surface.handle_widgets.values()])
+
+    surface.rotate()
+
+    assert surface.location is not None
+    after = np.array([w.scene_pos for w in surface.handle_widgets.values()])
+    np.testing.assert_allclose(after, np.roll(before, -1, axis=0), atol=1e-5)
+    expected = surface.tracker_surface.localize(
+        plugin.markers_by_frame[0], plugin.camera
+    )
+    np.testing.assert_allclose(surface.location, expected)
+
+
+def test_adding_marker_invalidates_only_the_updated_definition(
+    editable_surface: tuple[SurfaceTrackingPlugin, TrackedSurface],
+) -> None:
+    plugin, surface = editable_surface
+    surface.edit = True
+    marker = DetectedMarker(43, plugin.markers_by_frame[0][0].corners + 150)
+    plugin.markers_by_frame[0].append(marker)
+    invalidated_markers = []
+    surface.locations_invalidated.connect(
+        lambda: invalidated_markers.append(set(surface.tracker_surface.markers))
+    )
+
+    surface.add_marker("43")
+
+    assert invalidated_markers == [{42, 43}]
+    expected = surface.tracker_surface.localize(
+        plugin.markers_by_frame[0], plugin.camera
+    )
+    np.testing.assert_allclose(surface.location, expected)
+
+
+def test_moving_corner_refreshes_current_location_before_invalidation(
+    editable_surface: tuple[SurfaceTrackingPlugin, TrackedSurface],
+) -> None:
+    plugin, surface = editable_surface
+    surface.edit = True
+    positions = []
+    surface.locations_invalidated.connect(
+        lambda: positions.append(surface.handle_widgets[(0, 0)].scene_pos.copy())
+    )
+
+    surface.on_corner_changed((0, 0), QPointF(80, 90))
+
+    np.testing.assert_allclose(positions, [[80, 90]], atol=1e-5)
+    expected = surface.tracker_surface.localize(
+        plugin.markers_by_frame[0], plugin.camera
+    )
+    np.testing.assert_allclose(surface.location, expected)

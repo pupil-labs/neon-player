@@ -466,8 +466,7 @@ class NeonPlayerApp(QApplication):
         return self.args.job is not None
 
     def on_quit(self) -> None:
-        if self.recording is not None:
-            self.unload()
+        self.unload()
         if not self.headless:
             self.update_manager.close()
 

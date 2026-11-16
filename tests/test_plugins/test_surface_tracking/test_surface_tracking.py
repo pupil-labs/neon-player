@@ -1,6 +1,8 @@
 from collections.abc import Callable
 from functools import partial
+from pathlib import Path
 from typing import TYPE_CHECKING
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -8,6 +10,7 @@ from pupil_labs.camera import Camera
 from pupil_labs.marker_mapper.surface import normalized_corners
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.timeseries.gaze import GazeArray
+from PySide6.QtGui import QImage, QPainter
 from PySide6.QtWidgets import QLabel
 
 from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
@@ -33,6 +36,113 @@ from tests.mocks import mock_gaze_timeseries, mock_scene_timeseries
 
 if TYPE_CHECKING:
     from tests.conftest import MockNeonPlayerApp
+
+
+def test_editing_recovers_after_returning_from_temporal_gap(
+    editable_surface: tuple[SurfaceTrackingPlugin, TrackedSurface],
+    qapp: "MockNeonPlayerApp",
+) -> None:
+    plugin, surface = editable_surface
+    surface.edit = True
+    original_location = surface.location
+    qapp.current_ts = 1_000_000_000
+    plugin._update_displays()
+    assert surface.location is None
+    assert all(w.isHidden() for w in surface.handle_widgets.values())
+    assert plugin.marker_edit_widgets[42].isHidden()
+
+    qapp.current_ts = 0
+    image = QImage(1600, 1200, QImage.Format.Format_RGB32)
+    painter = QPainter(image)
+    try:
+        plugin.render(painter, 0)
+    finally:
+        painter.end()
+
+    assert surface.edit_frame_idx == 0
+    assert surface.edit
+    assert surface.location is not None
+    np.testing.assert_allclose(surface.location, original_location)
+    assert all(not w.isHidden() for w in surface.handle_widgets.values())
+    assert not plugin.marker_edit_widgets[42].isHidden()
+
+
+def test_repeated_location_invalidation_restarts_localization(
+    editable_surface: tuple[SurfaceTrackingPlugin, TrackedSurface],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plugin, surface = editable_surface
+    starts = []
+    monkeypatch.setattr(plugin, "require_cache_path", lambda: tmp_path)
+    monkeypatch.setattr(plugin, "_start_bg_surface_locator", starts.append)
+    for _ in range(2):
+        plugin.on_locations_invalidated(surface)
+    assert surface.uid not in plugin.surface_locations
+    assert starts == [surface, surface]
+
+
+def test_seeking_while_editing_uses_current_frame_markers(
+    editable_surface: tuple[SurfaceTrackingPlugin, TrackedSurface],
+    qapp: "MockNeonPlayerApp",
+) -> None:
+    plugin, surface = editable_surface
+    surface.edit = True
+    original_handles = dict(surface.handle_widgets)
+    expected = plugin.surface_locations[surface.uid][1]
+    plugin.surface_locations.clear()
+    qapp.current_ts = 2_000_000_000
+    image = QImage(1600, 1200, QImage.Format.Format_RGB32)
+    painter = QPainter(image)
+    try:
+        plugin.render(painter, qapp.current_ts)
+    finally:
+        painter.end()
+    assert surface.edit
+    assert surface.edit_frame_idx == 1
+    assert surface.handle_widgets == original_handles
+    np.testing.assert_allclose(surface.location, expected)
+
+
+def test_resuming_playback_exits_surface_editing(
+    editable_surface: tuple[SurfaceTrackingPlugin, TrackedSurface],
+    qapp: "MockNeonPlayerApp",
+) -> None:
+    plugin, surface = editable_surface
+    surface.edit = True
+    qapp.refresh_timer.start(60_000)
+    qapp.current_ts = 2_000_000_000
+    image = QImage(1600, 1200, QImage.Format.Format_RGB32)
+    painter = QPainter(image)
+    try:
+        plugin.render(painter, qapp.current_ts)
+    finally:
+        painter.end()
+    assert not surface.edit
+    assert not surface.handle_widgets
+
+
+def test_editing_an_invisible_frame_does_not_schedule_more_paints(
+    editable_surface: tuple[SurfaceTrackingPlugin, TrackedSurface],
+    qapp: "MockNeonPlayerApp",
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plugin, surface = editable_surface
+    surface.edit = True
+    plugin.markers_by_frame[1] = []
+    qapp.current_ts = 2_000_000_000
+    redraw = Mock()
+    monkeypatch.setattr(plugin, "trigger_scene_update", redraw)
+    image = QImage(1600, 1200, QImage.Format.Format_RGB32)
+    painter = QPainter(image)
+    try:
+        for _ in range(2):
+            plugin.render(painter, qapp.current_ts)
+    finally:
+        painter.end()
+    assert surface.location is None
+    assert all(w.isHidden() for w in surface.handle_widgets.values())
+    redraw.assert_not_called()
 
 
 @pytest.mark.parametrize(
