@@ -8,9 +8,23 @@ VERSION_SIMPLE=$(echo "$VERSION" | awk -F. '{print $1"."$2"."$3}' | grep -Eo '^[
 echo "Build $VERSION ($VERSION_SIMPLE) for $OSTYPE"
 
 UV_PATH=$(which uv)
+UV_VERSION=$(uv --version)
 if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
     UV_PATH=$UV_PATH.exe
 fi
+echo "Bundling uv from $UV_PATH"
+echo $UV_VERSION
+
+CONSTRAINTS_PATH=src/pupil_labs/neon_player/assets/constraints.txt
+uv export \
+    --format requirements.txt \
+    --no-emit-project \
+    --no-group dev \
+    --no-group build \
+    --no-hashes \
+    --no-annotate \
+    -o $CONSTRAINTS_PATH
+echo "Prepared the constraints file: $CONSTRAINTS_PATH"
 
 uv run --group build -m nuitka src/pupil_labs/neon_player \
     --assume-yes-for-downloads \
@@ -41,7 +55,9 @@ uv run --group build -m nuitka src/pupil_labs/neon_player \
     --include-module=unittest.mock \
     --include-module=http.cookies \
     --include-module=PySide6.QtOpenGL \
+    --include-module=PySide6.QtTextToSpeech \
     --include-module=tqdm.auto \
+    --include-module=wave \
     --include-package-data=qt_property_widgets \
     --include-package=plistlib \
     --include-package=google.protobuf \
@@ -50,6 +66,8 @@ uv run --group build -m nuitka src/pupil_labs/neon_player \
     --include-module=zoneinfo \
     --include-module=av.sidedata.encparams \
     --include-module=pandas._libs._cyutility \
+    --include-module=logging.config \
+    --include-module=logging.handlers \
     --include-qt-plugins=multimedia
 
 cp -r deployment/* dist/
